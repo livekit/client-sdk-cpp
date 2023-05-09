@@ -24,11 +24,11 @@ namespace livekit
 {
 
 FfiClient::FfiClient() {
-    InitializeRequest initRequest;
-    initRequest.set_event_callback_ptr(reinterpret_cast<uint64_t>(&LivekitFfiCallback));
+    InitializeRequest *initRequest = new InitializeRequest;
+    initRequest->set_event_callback_ptr(reinterpret_cast<uint64_t>(&LivekitFfiCallback));
 
-    FFIRequest request;
-    request.set_allocated_initialize(&initRequest);
+    FFIRequest request{};
+    request.set_allocated_initialize(initRequest);
     SendRequest(request);
 }
 
@@ -47,7 +47,7 @@ void FfiClient::RemoveListener(ListenerId id) {
 FFIResponse FfiClient::SendRequest(const FFIRequest &request) const {
     size_t len = request.ByteSizeLong();
     uint8_t *buf = new uint8_t[len];
-    request.SerializeToArray(buf, len);
+    assert(request.SerializeToArray(buf, len));
 
     const uint8_t **res_ptr = new const uint8_t*;
     size_t *res_len = new size_t;
@@ -60,9 +60,10 @@ FFIResponse FfiClient::SendRequest(const FFIRequest &request) const {
         delete res_len;
         throw std::runtime_error("failed to send request, received an invalid handle");
     }
+    FfiHandle _handle(handle);
 
     FFIResponse response;
-    assert(!response.ParseFromArray(*res_ptr, *res_len));
+    assert(response.ParseFromArray(*res_ptr, *res_len));
     delete res_ptr;
     delete res_len;
 
@@ -79,7 +80,7 @@ void FfiClient::PushEvent(const FFIEvent &event) const {
 
 void LivekitFfiCallback(const uint8_t *buf, size_t len) {
     FFIEvent event;
-    assert(!event.ParseFromArray(buf, len));
+    assert(event.ParseFromArray(buf, len));
 
     FfiClient::getInstance().PushEvent(event);
 }

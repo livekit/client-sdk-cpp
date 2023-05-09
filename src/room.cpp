@@ -20,11 +20,12 @@
 #include "ffi.pb.h"
 #include "room.pb.h"
 #include <functional>
+#include <iostream>
 
 namespace livekit
 {
 
-void Room::Connect(const std::string& token, const std::string& url)
+void Room::Connect(const std::string& url, const std::string& token)
 {
    std::lock_guard<std::mutex> guard(lock_);
     if (connected_) {
@@ -32,13 +33,17 @@ void Room::Connect(const std::string& token, const std::string& url)
     }
 
     connected_ = true;
+
+    RoomOptions *options = new RoomOptions;
+    options->set_auto_subscribe(true);
     
-    ConnectRequest connectRequest;
-    connectRequest.set_url(url);
-    connectRequest.set_token(token);
-    
+    ConnectRequest *connectRequest = new ConnectRequest;
+    connectRequest->set_url(url);
+    connectRequest->set_token(token);
+    connectRequest->set_allocated_options(options);
+
     FFIRequest request;
-    request.set_allocated_connect(&connectRequest);
+    request.set_allocated_connect(connectRequest);
     
     // TODO Free:
     FfiClient::getInstance().AddListener(std::bind(&Room::OnEvent, this, std::placeholders::_1));
@@ -62,11 +67,15 @@ void Room::OnEvent(const FFIEvent& event)
             return;
         }
 
+        std::cout << "Received ConnectCallback" << std::endl;
+
         if (!connectCallback.has_error()) {
             handle_ = FfiHandle(connectCallback.room().handle().id());
 
             std::cout << "Connected to room" << std::endl;
             std::cout << "Room SID: " << connectCallback.room().sid() << std::endl;
+        } else {
+            std::cerr << "Failed to connect to room: " << connectCallback.error() << std::endl;
         }
     }
 }

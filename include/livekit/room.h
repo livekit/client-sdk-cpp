@@ -27,7 +27,7 @@ namespace livekit
     class Room
     {
     public:
-        void Connect(const std::string& token, const std::string& url);
+        void Connect(const std::string& url, const std::string& token);
 
     private:
         mutable std::mutex lock_;
