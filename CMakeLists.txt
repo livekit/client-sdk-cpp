@@ -1,5 +1,4 @@
 cmake_minimum_required(VERSION 3.0)
-
 project(livekit)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -18,17 +17,27 @@ find_package(Protobuf REQUIRED)
 
 protobuf_generate_cpp(PROTO_SRCS PROTO_HEADERS ${FFI_PROTO_FILES})
 
-file(GLOB_RECURSE SRCS src/*.cpp)
-add_library(livekit ${SRCS} ${PROTO_SRCS} ${PROTO_HEADERS})
+add_library(livekit 
+    include/livekit/room.h
+    include/livekit/ffi_client.h
+    include/livekit/livekit.h
+    src/ffi_client.cpp
+    src/room.cpp
+    ${PROTO_SRCS} 
+    ${PROTO_HEADERS}
+)
 
 # Include the auto-generated files from livekit-ffi (C headers)
-target_include_directories(livekit PRIVATE client-sdk-rust/livekit-ffi/include/)
+target_include_directories(livekit PUBLIC client-sdk-rust/livekit-ffi/include/)
 target_include_directories(livekit PUBLIC include/)
 
 # Used for protobuf
-include_directories(livekit PRIVATE ${Protobuf_INCLUDE_DIRS})
-include_directories(livekit PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_include_directories(livekit PUBLIC ${Protobuf_INCLUDE_DIRS})
+target_include_directories(livekit PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 
 # Link against livekit-ffi
-target_link_libraries(livekit PRIVATE livekit-ffi)
+link_directories(${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(livekit PUBLIC ${PROTOBUF_LIBRARY} livekit_ffi)
 
+# Examples
+add_subdirectory(examples)
