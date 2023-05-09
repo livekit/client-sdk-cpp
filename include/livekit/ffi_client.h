@@ -17,16 +17,51 @@
 #ifndef LIVEKIT_H
 #define LIVEKIT_H
 
-#include "livekit_ffi.h"
+#include <iostream>
+#include <memory>
+#include <functional>
+#include <mutex>
+#include <unordered_map>
+
+#include "ffi.pb.h"
 
 namespace livekit
 {
+    extern "C" void LivekitFfiCallback(const uint8_t *buf, size_t len);
+
     // The FfiClient is used to communicate with the FFI interface of the Rust SDK
     // We use the generated protocol messages to facilitate the communication
     class FfiClient
     {
+    public:
+        using ListenerId = int;
+        using Listener = std::function<void(const FFIEvent&)>;
 
+        FfiClient(const FfiClient&) = delete;
+        FfiClient& operator=(const FfiClient&) = delete;
+
+        static FfiClient& getInstance() {
+            static FfiClient instance;
+            return instance;
+        }
+ 
+        ListenerId AddListener(const Listener& listener);
+        void RemoveListener(ListenerId id);
+
+        FFIResponse SendRequest(const FFIRequest& request)const;
+
+    private:
+        std::unordered_map<ListenerId, Listener> listeners_;
+        ListenerId nextListenerId = 1;
+        mutable std::mutex lock_;
+
+        FfiClient();
+        ~FfiClient() = default;
+
+        void PushEvent(const FFIEvent& event) const;
+        friend void LivekitFfiCallback(const uint8_t *buf, size_t len);
     };
+
 }
 
 #endif /* LIVEKIT_H */
