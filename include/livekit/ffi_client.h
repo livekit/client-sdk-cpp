@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_H
-#define LIVEKIT_H
+#ifndef LIVEKIT_FFI_CLIENT_H
+#define LIVEKIT_FFI_CLIENT_H
 
 #include <iostream>
 #include <memory>
@@ -62,6 +62,12 @@ namespace livekit
         friend void LivekitFfiCallback(const uint8_t *buf, size_t len);
     };
 
+    struct FfiHandle {
+        uintptr_t handle;
+
+        FfiHandle(uintptr_t handle);
+        ~FfiHandle();
+    };
 }
 
-#endif /* LIVEKIT_H */
+#endif /* LIVEKIT_FFI_CLIENT_H */

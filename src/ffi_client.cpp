@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <_types/_uint64_t.h>
 #include <cassert>
 
 #include "livekit/ffi_client.h"
@@ -74,7 +73,7 @@ void FfiClient::PushEvent(const FFIEvent &event) const {
     // Dispatch the events to the internal listeners
     std::lock_guard<std::mutex> guard(lock_);
     for (auto& [_, listener] : listeners_) {
-	listener(event);
+        listener(event);
     }
 }
 
@@ -85,5 +84,14 @@ void LivekitFfiCallback(const uint8_t *buf, size_t len) {
     FfiClient::getInstance().PushEvent(event);
 }
 
+// FfiHandle
+
+FfiHandle::FfiHandle(uintptr_t id) : handle(id) {}
+
+FfiHandle::~FfiHandle() {
+    if (handle != INVALID_HANDLE) {
+        assert(livekit_ffi_drop_handle(handle));
+    }
 }
 
+}

@@ -15,4 +15,3 @@
  */
 
 #include "room.h"
-#include "ffi_client.h"

@@ -14,15 +14,30 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_H
-#define LIVEKIT_H
+#ifndef LIVEKIT_ROOM_H
+#define LIVEKIT_ROOM_H
+
+#include <mutex>
+#include "ffi.pb.h"
+#include "livekit/ffi_client.h"
+#include "livekit_ffi.h"
 
 namespace livekit
 {
     class Room
     {
+    public:
+        void Connect(const std::string& token, const std::string& url);
+
+    private:
+        mutable std::mutex lock_;
+        FfiHandle handle_{INVALID_HANDLE};
+        bool connected_{false};
+        uint64_t connectAsyncId_{0};
         
+
+        void OnEvent(const FFIEvent& event);
     };
 }
 
-#endif /* LIVEKIT_H */
+#endif /* LIVEKIT_ROOM_H */
