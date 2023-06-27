@@ -14,32 +14,29 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_ROOM_H
-#define LIVEKIT_ROOM_H
+#ifndef LIVEKIT_VIDEO_SOURCE_H
+#define LIVEKIT_VIDEO_SOURCE_H
 
-#include <mutex>
-#include "ffi.pb.h"
+#include "livekit/video_frame.h"
 #include "livekit/ffi_client.h"
 #include "livekit_ffi.h"
 
-namespace livekit {
-    class Room
+#include "ffi.pb.h"
+
+namespace livekit
+{
+    class VideoSource
     {
     public:
-        void Connect(const std::string& url, const std::string& token);
-        void OnTrackPublished(const std::string& name, const std::string& sid, const std::string& inputTrackSid);
-        
-        FfiHandle GetHandle() const { return handle_; }
+        VideoSource();
+
+        void CaptureFrame(const VideoFrame& videoFrame);
+        const FfiHandle& GetHandle() const { return handle_; }
 
     private:
-        mutable std::mutex lock_;
         FfiHandle handle_{INVALID_HANDLE};
-        bool connected_{false};
-        uint64_t connectAsyncId_{0};
-        
-
-        void OnEvent(const FFIEvent& event);
+        livekit::VideoSourceInfo sourceInfo_;
     };
 }
 
-#endif /* LIVEKIT_ROOM_H */
+#endif /* LIVEKIT_VIDEO_SOURCE_H */

@@ -15,3 +15,4 @@
  */
 
 #include "room.h"
+#include "participant.h"

@@ -54,6 +54,28 @@ void Room::Connect(const std::string& url, const std::string& token)
     connectAsyncId_ = asyncId.id();
 }
 
+// void Room::PublishVideoTrack(const std::string& name, const std::string& sid, const std::string& inputTrackSid)
+// {
+//     std::lock_guard<std::mutex> guard(lock_);
+//     if (!connected_) {
+//         throw std::runtime_error("not connected");
+//     }
+
+//     PublishTrackRequest *publishTrackRequest = new PublishTrackRequest;
+//     publishTrackRequest->set_kind(TrackType::VIDEO);
+//     publishTrackRequest->set_name(name);
+//     publishTrackRequest->set_sid(sid);
+//     publishTrackRequest->set_input_track_sid(inputTrackSid);
+
+//     FFIRequest request;
+//     request.set_allocated_publish_track(publishTrackRequest);
+
+//     FFIResponse response = FfiClient::getInstance().SendRequest(request);
+//     FFIAsyncId asyncId = response.publish_track().async_id();
+
+//     std::cout << "Publishing video track" << std::endl;
+// }
+
 void Room::OnEvent(const FFIEvent& event)
 {
     std::lock_guard<std::mutex> guard(lock_);
