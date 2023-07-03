@@ -38,7 +38,7 @@ namespace livekit {
         uint64_t connectAsyncId_{0};
         
 
-        void OnEvent(const FFIEvent& event);
+        void OnEvent(const FfiEvent& event);
     };
 }
 

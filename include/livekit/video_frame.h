@@ -22,119 +22,117 @@
 #include "video_frame.pb.h"
 
 namespace livekit {
-class I420Buffer;
+    class I420Buffer;
 
-/**
- * Mainly used to simplify the usage of to_argb method
- * So the users don't need to deal with ctypes
-*/
-struct ArgbFrame {
-    ArgbFrame(VideoFormatType format, int width, int height) : format(format), width(width), height(height) {
-        int size = width * height * sizeof(uint32_t);
-        data = new uint8_t[size];
-    }
+    /**
+     * Mainly used to simplify the usage of to_argb method
+     * So the users don't need to deal with ctypes
+    */
+    struct ArgbFrame {
+        ArgbFrame(VideoFormatType format, int width, int height) : format(format), width(width), height(height) {
+            int size = width * height * sizeof(uint32_t);
+            data = new uint8_t[size];
+        }
 
-    VideoFormatType format;
-    int width;
-    int height;
-    uint8_t* data;
+        VideoFormatType format;
+        int width;
+        int height;
+        uint8_t* data;
 
-    I420Buffer ToI420();
-};
+        I420Buffer ToI420();
+    };
 
-class VideoFrameBuffer {
-public:
-    VideoFrameBuffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : ffiHandle_(std::move(ffiHandle)), info_(std::move(info)) {}
-    VideoFrameBuffer(const FfiHandle& ffiHandle, const VideoFrameBufferInfo& info) : ffiHandle_(ffiHandle), info_(info) {}
+    class VideoFrameBuffer {
+    public:
+        VideoFrameBuffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : ffiHandle_(std::move(ffiHandle)), info_(std::move(info)) {}
+        VideoFrameBuffer(const FfiHandle& ffiHandle, const VideoFrameBufferInfo& info) : ffiHandle_(ffiHandle), info_(info) {}
 
-    const FfiHandle& GetHandle() const {
-        return ffiHandle_;
-    }
+        const FfiHandle& GetHandle() const {
+            return ffiHandle_;
+        }
 
-    int GetWidth() {
-        return info_.width();
-    }
+        int GetWidth() {
+            return info_.width();
+        }
 
-    int GetHeight() {
-        return info_.height();
-    }
+        int GetHeight() {
+            return info_.height();
+        }
 
-    VideoFrameBufferType GetType() {
-        return info_.buffer_type();
-    }
+        VideoFrameBufferType GetType() {
+            return info_.buffer_type();
+        }
 
-    I420Buffer ToI420();
-    void ToArgb(const ArgbFrame& dst);
+        I420Buffer ToI420();
+        void ToArgb(const ArgbFrame& dst);
 
-    static VideoFrameBuffer Create(FfiHandle&& ffi_handle, VideoFrameBufferInfo&& info);
+        static VideoFrameBuffer Create(FfiHandle&& ffi_handle, VideoFrameBufferInfo&& info);
 
-protected:
-    FfiHandle ffiHandle_;
-    VideoFrameBufferInfo info_;
-};
+    protected:
+        FfiHandle ffiHandle_;
+        VideoFrameBufferInfo info_;
+    };
 
-class PlanarYuvBuffer : public VideoFrameBuffer {
-public:
-    PlanarYuvBuffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : VideoFrameBuffer(std::move(ffiHandle), std::move(info)) {}
-    int GetChromaWidth() const {
-        return info_.yuv().chroma_width();
-    }
+    class PlanarYuvBuffer : public VideoFrameBuffer {
+    public:
+        PlanarYuvBuffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : VideoFrameBuffer(std::move(ffiHandle), std::move(info)) {}
+        int GetChromaWidth() const {
+            return info_.yuv().chroma_width();
+        }
 
-    int GetChromaHeight() const {
-        return info_.yuv().chroma_height();
-    }
+        int GetChromaHeight() const {
+            return info_.yuv().chroma_height();
+        }
 
-    int GetStrideY() const {
-        return info_.yuv().stride_y();
-    }
+        int GetStrideY() const {
+            return info_.yuv().stride_y();
+        }
 
-    int GetStrideU() const {
-        return info_.yuv().stride_u();
-    }
+        int GetStrideU() const {
+            return info_.yuv().stride_u();
+        }
 
-    int GetStrideV() const {
-        return info_.yuv().stride_v();
-    }
-};
+        int GetStrideV() const {
+            return info_.yuv().stride_v();
+        }
+    };
 
-class PlanarYuv8Buffer : public PlanarYuvBuffer {
-public:
-    PlanarYuv8Buffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : PlanarYuvBuffer(std::move(ffiHandle), std::move(info)) {}
-    uint8_t* GetDataY() const {
-        reinterpret_cast<uint8_t*>(info_.yuv().data_y_ptr());
-    }
+    class PlanarYuv8Buffer : public PlanarYuvBuffer {
+    public:
+        PlanarYuv8Buffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : PlanarYuvBuffer(std::move(ffiHandle), std::move(info)) {}
+        uint8_t* GetDataY() const {
+            reinterpret_cast<uint8_t*>(info_.yuv().data_y_ptr());
+        }
 
-    uint8_t* GetDataU() const {
-        reinterpret_cast<uint8_t*>(info_.yuv().data_u_ptr());
-    }
+        uint8_t* GetDataU() const {
+            reinterpret_cast<uint8_t*>(info_.yuv().data_u_ptr());
+        }
 
-    uint8_t* GetDataV() const {
-        reinterpret_cast<uint8_t*>(info_.yuv().data_v_ptr());
-    }
-};
+        uint8_t* GetDataV() const {
+            reinterpret_cast<uint8_t*>(info_.yuv().data_v_ptr());
+        }
+    };
 
-class I420Buffer : public PlanarYuv8Buffer{
-public:
-    I420Buffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : PlanarYuv8Buffer(std::move(ffiHandle), std::move(info)) {}
-};
+    class I420Buffer : public PlanarYuv8Buffer{
+    public:
+        I420Buffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : PlanarYuv8Buffer(std::move(ffiHandle), std::move(info)) {}
+    };
 
-class VideoFrame
-{
-public:
-    VideoFrame(VideoFrameInfo&& info, VideoFrameBuffer&& buffer)
-        : info_(std::move(info)), buffer_(std::move(buffer)) {}
+    class VideoFrame
+    {
+    public:
+        VideoFrame(int64_t timestampUs, VideoRotation rotation, const VideoFrameBuffer&& buffer) :
+            timestampUs_(timestampUs), rotation_(rotation), buffer_(buffer) {}
 
-    VideoFrame(const VideoFrameInfo& info, const VideoFrameBuffer&& buffer)
-        : info_(info), buffer_(buffer) {}
+        const VideoFrameBuffer& GetBuffer() const { return buffer_; }
+        const VideoRotation& GetRotation() const { return rotation_; }
+        const int64_t GetTimestamp() const { return timestampUs_; }
 
-    const VideoFrameBuffer& GetBuffer() const { return buffer_; }
-    const VideoRotation& GetRotation() const { return info_.rotation(); }
-    const int64_t& GetTimestamp() const { return info_.timestamp(); }
-
-private:
-    VideoFrameInfo info_;
-    VideoFrameBuffer buffer_;
-};
+    private:
+        VideoFrameBuffer buffer_;
+        int64_t timestampUs_;
+        VideoRotation rotation_;
+    };
 }
 
 #endif /* LIVEKIT_VIDEO_FRAME_H */

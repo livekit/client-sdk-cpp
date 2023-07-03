@@ -22,7 +22,7 @@
 namespace livekit
 {
    I420Buffer ArgbFrame::ToI420() {
-        FFIRequest request;
+        FfiRequest request;
         auto i420Argb = request.mutable_to_i420()->mutable_argb();
         i420Argb->set_format(format);
         i420Argb->set_width(width);
@@ -30,7 +30,7 @@ namespace livekit
         i420Argb->set_stride(width * 4);
         i420Argb->set_ptr(reinterpret_cast<uint64_t>(data));
 
-        FFIResponse response = FfiClient::getInstance().SendRequest(request);
+        FfiResponse response = FfiClient::getInstance().SendRequest(request);
         VideoFrameBufferInfo bufferInfo(std::move(response.to_i420().buffer()));
         FfiHandle ffiHandle(bufferInfo.handle().id());
 
@@ -41,7 +41,7 @@ namespace livekit
     //     FFIRequest request;
     //     request.to_i420.buffer.set_id(ffiHandle_.handle());
 
-    //     FFIResponse response = FfiClient::getInstance().SendReques(request);
+    //     FfiResponse response = FfiClient::getInstance().SendReques(request);
 
     //     VideoFrameBufferInfo new_info = response.to_i420().buffer();
     //     FfiHandle ffi_handle(new_info.handle().id());
@@ -61,10 +61,10 @@ namespace livekit
     // }
 
     I420Buffer VideoFrameBuffer::ToI420() {
-        FFIRequest request;
+        FfiRequest request;
         request.mutable_to_i420()->mutable_buffer()->set_id(ffiHandle_.handle);
 
-        FFIResponse response = FfiClient::getInstance().SendRequest(request);
+        FfiResponse response = FfiClient::getInstance().SendRequest(request);
 
         VideoFrameBufferInfo newInfo = response.to_i420().buffer();
         FfiHandle ffiHandle(newInfo.handle().id());
@@ -72,8 +72,8 @@ namespace livekit
     }
 
     void VideoFrameBuffer::ToArgb(const ArgbFrame& dst) {
-        FFIRequest request;
-        ToARGBRequest* const argb = request.mutable_to_argb();
+        FfiRequest request;
+        ToArgbRequest* const argb = request.mutable_to_argb();
         argb->mutable_buffer()->set_id(ffiHandle_.handle);
         argb->set_dst_ptr(reinterpret_cast<uint64_t>(dst.data));
         argb->set_dst_format(dst.format);

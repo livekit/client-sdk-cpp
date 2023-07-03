@@ -35,7 +35,7 @@ namespace livekit
     {
     public:
         using ListenerId = int;
-        using Listener = std::function<void(const FFIEvent&)>;
+        using Listener = std::function<void(const FfiEvent&)>;
 
         FfiClient(const FfiClient&) = delete;
         FfiClient& operator=(const FfiClient&) = delete;
@@ -48,7 +48,7 @@ namespace livekit
         ListenerId AddListener(const Listener& listener);
         void RemoveListener(ListenerId id);
 
-        FFIResponse SendRequest(const FFIRequest& request)const;
+        FfiResponse SendRequest(const FfiRequest& request)const;
 
     private:
         std::unordered_map<ListenerId, Listener> listeners_;
@@ -58,7 +58,7 @@ namespace livekit
         FfiClient();
         ~FfiClient() = default;
 
-        void PushEvent(const FFIEvent& event) const;
+        void PushEvent(const FfiEvent& event) const;
         friend void LivekitFfiCallback(const uint8_t *buf, size_t len);
     };
 

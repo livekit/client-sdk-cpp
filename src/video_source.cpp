@@ -23,22 +23,22 @@ namespace livekit
     VideoSource::VideoSource()
     {
         ConnectRequest *connectRequest = new ConnectRequest;
-        FFIRequest request;
+        FfiRequest request;
         request.mutable_new_video_source()->set_type(VideoSourceType::VIDEO_SOURCE_NATIVE);
         
-        FFIResponse response = FfiClient::getInstance().SendRequest(request);
+        FfiResponse response = FfiClient::getInstance().SendRequest(request);
         sourceInfo_ = response.new_video_source().source();
         handle_ = FfiHandle(sourceInfo_.handle().id());
     }
 
     void VideoSource::CaptureFrame(const VideoFrame& videoFrame)
     {
-        FFIRequest request;
+        FfiRequest request;
         CaptureVideoFrameRequest* const captureVideoFrame = request.mutable_capture_video_frame();
         captureVideoFrame->mutable_source_handle()->set_id(handle_.handle);
         captureVideoFrame->mutable_buffer_handle()->set_id(videoFrame.GetBuffer().GetHandle().handle);
         captureVideoFrame->mutable_frame()->set_rotation (videoFrame.GetRotation());
-        captureVideoFrame->mutable_frame()->set_timestamp(videoFrame.GetTimestamp());
+        captureVideoFrame->mutable_frame()->set_timestamp_us(videoFrame.GetTimestamp());
         FfiClient::getInstance().SendRequest(request);
     }
 }

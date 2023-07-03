@@ -27,7 +27,7 @@ FfiClient::FfiClient() {
     InitializeRequest *initRequest = new InitializeRequest;
     initRequest->set_event_callback_ptr(reinterpret_cast<uint64_t>(&LivekitFfiCallback));
 
-    FFIRequest request{};
+    FfiRequest request{};
     request.set_allocated_initialize(initRequest);
     SendRequest(request);
 }
@@ -44,7 +44,7 @@ void FfiClient::RemoveListener(ListenerId id) {
     listeners_.erase(id);
 }
 
-FFIResponse FfiClient::SendRequest(const FFIRequest &request) const {
+FfiResponse FfiClient::SendRequest(const FfiRequest &request) const {
     size_t len = request.ByteSizeLong();
     uint8_t *buf = new uint8_t[len];
     assert(request.SerializeToArray(buf, len));
@@ -52,7 +52,7 @@ FFIResponse FfiClient::SendRequest(const FFIRequest &request) const {
     const uint8_t **res_ptr = new const uint8_t*;
     size_t *res_len = new size_t;
     
-    FfiHandleId handle = livekit_ffi_request(buf, len, res_ptr, res_len);
+    auto handle = livekit_ffi_request(buf, len, res_ptr, res_len);
 
     delete[] buf;
     if (handle == INVALID_HANDLE) {
@@ -62,7 +62,7 @@ FFIResponse FfiClient::SendRequest(const FFIRequest &request) const {
     }
     FfiHandle _handle(handle);
 
-    FFIResponse response;
+    FfiResponse response;
     assert(response.ParseFromArray(*res_ptr, *res_len));
     delete res_ptr;
     delete res_len;
@@ -70,7 +70,7 @@ FFIResponse FfiClient::SendRequest(const FFIRequest &request) const {
     return response;
 }
 
-void FfiClient::PushEvent(const FFIEvent &event) const {
+void FfiClient::PushEvent(const FfiEvent &event) const {
     // Dispatch the events to the internal listeners
     std::lock_guard<std::mutex> guard(lock_);
     for (auto& [_, listener] : listeners_) {
@@ -79,7 +79,7 @@ void FfiClient::PushEvent(const FFIEvent &event) const {
 }
 
 void LivekitFfiCallback(const uint8_t *buf, size_t len) {
-    FFIEvent event;
+    FfiEvent event;
     assert(event.ParseFromArray(buf, len));
 
     FfiClient::getInstance().PushEvent(event);
@@ -91,7 +91,7 @@ FfiHandle::FfiHandle(uintptr_t id) : handle(id) {}
 
 FfiHandle::~FfiHandle() {
     if (handle != INVALID_HANDLE) {
-        assert(livekit_ffi_drop_handle(handle));
+        // assert(livekit_ffi_drop_handle(handle));
     }
 }
 

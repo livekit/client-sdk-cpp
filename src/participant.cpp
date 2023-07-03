@@ -32,7 +32,7 @@ namespace livekit
             throw std::runtime_error("room is closed");
         }
 
-        FFIRequest request;
+        FfiRequest request;
         PublishTrackRequest* publishTrackRequest = request.mutable_publish_track();
         publishTrackRequest->mutable_track_handle()->set_id(track->GetHandle().handle);
         publishTrackRequest->mutable_room_handle()->set_id(room->GetHandle().handle);
@@ -48,7 +48,7 @@ namespace livekit
         // TODO: Handle errors
     }
 
-    void LocalParticipant::OnEvent(const FFIEvent& event) {
+    void LocalParticipant::OnEvent(const FfiEvent& event) {
         if (event.has_publish_track()) {
             PublishTrackCallback cb = event.publish_track();
             if (cb.async_id().id() == publishAsyncId_.id()) {

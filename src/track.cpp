@@ -20,14 +20,14 @@
 
 namespace livekit {
     std::unique_ptr<LocalVideoTrack> LocalVideoTrack::CreateVideoTrack(const std::string& name, const VideoSource& source) {
-        FFIRequest request;
+        FfiRequest request;
         request.mutable_create_video_track()->set_name(name);
         request.mutable_create_video_track()->mutable_source_handle()->set_id(source.GetHandle().handle);
 
-        FFIResponse resp = FfiClient::getInstance().SendRequest(request);
+        FfiResponse resp = FfiClient::getInstance().SendRequest(request);
         TrackInfo trackInfo = resp.create_video_track().track();
-        FfiHandle ffiHandle = FfiHandle(trackInfo.opt_handle().id());
-        return std::make_unique(new LocalVideoTrack(ffiHandle, trackInfo));
+        FfiHandle ffiHandle = FfiHandle(trackInfo.handle().id());
+        return std::make_unique<LocalVideoTrack>(ffiHandle, trackInfo);
     }
 
 }

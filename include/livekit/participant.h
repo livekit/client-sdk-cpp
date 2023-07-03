@@ -52,11 +52,11 @@ namespace livekit {
     private:
         mutable std::mutex lock_;
         std::condition_variable cv_;
-        FFIAsyncId publishAsyncId_;
+        FfiAsyncId publishAsyncId_;
         FfiClient::ListenerId listenerId_;
         std::unique_ptr<PublishTrackCallback> publishCallback_;
 
-        void OnEvent(const FFIEvent& event);
+        void OnEvent(const FfiEvent& event);
     };
 
 }
