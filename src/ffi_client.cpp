@@ -91,7 +91,7 @@ FfiHandle::FfiHandle(uintptr_t id) : handle(id) {}
 
 FfiHandle::~FfiHandle() {
     if (handle != INVALID_HANDLE) {
-        // assert(livekit_ffi_drop_handle(handle));
+        assert(livekit_ffi_drop_handle(handle));
     }
 }
 

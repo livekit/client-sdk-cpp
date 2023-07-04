@@ -31,13 +31,15 @@ namespace livekit {
     struct ArgbFrame {
         ArgbFrame(VideoFormatType format, int width, int height) : format(format), width(width), height(height) {
             int size = width * height * sizeof(uint32_t);
-            data = new uint8_t[size];
+            this->data.resize(size);
+            // data = new uint8_t[size];
         }
 
         VideoFormatType format;
         int width;
         int height;
-        uint8_t* data;
+        std::vector<uint8_t> data;
+        // uint8_t* data;
 
         I420Buffer ToI420();
     };

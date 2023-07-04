@@ -1,212 +1,120 @@
 #include "../include/livekit/livekit.h"
 
 #include <cstdio>
-#include <cstdlib>
-#include <fstream>
+#include <vector>
+#include <thread>
+#include <cmath>
+#include <future>
 
 using namespace livekit;
 
-enum STATUS {
-    STATUS_SUCCESS,
-    STATUS_NULL_ARG,
-    STATUS_OPEN_FILE_FAILED,
-    STATUS_BUFFER_TOO_SMALL,
-    STATUS_READ_FILE_FAILED
-};
+const std::string URL = "ws://localhost:7880";
+const std::string TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2ODg0ODg2NTMsImlzcyI6ImRldmtleSIsIm5hbWUiOiJ1c2VyMSIsIm5iZiI6MTY4ODQwMjI1Mywic3ViIjoidXNlcjEiLCJ2aWRlbyI6eyJyb29tIjoibXktZmlyc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlfX0.0U5A8b7AfNyYYaCNDxQJe13mxWeV2RkgNn3VCoCCX1g";
 
-using PCHAR = char*;
-using BOOL = bool;
-using PBYTE = char*;
-using PUINT64 = unsigned long long*;
-using UINT64 = unsigned long long;
-using UINT32 = unsigned int;
-using SIZE_T = size_t;
-
-#define STATUS_SUCCESS 0
-#define STATUS_NULL_ARG 1
-#define STATUS_OPEN_FILE_FAILED 2
-#define STATUS_BUFFER_TOO_SMALL 3
-#define STATUS_READ_FILE_FAILED 4
-
-#define FOPEN(file, mode) fopen(file, mode)
-#define FCLOSE(fp) fclose(fp)
-#define FSEEK(fp, offset, origin) fseek(fp, offset, origin)
-#define FTELL(fp) ftell(fp)
-#define FREAD(buffer, size, count, fp) fread(buffer, size, count, fp)
-
-/**
- * Read a file from the given full/relative filePath into the memory area pointed to by pBuffer.
- * Specifying NULL in pBuffer will return the size of the file.
- *
- * Parameters:
- *     filePath - file path to read from
- *     binMode  - TRUE to read file stream as binary; FALSE to read as a normal text file
- *     pBuffer  - buffer to write contents of the file to. If NULL return the size in pSize.
- *     pSize    - destination PUINT64 to store the size of the file when pBuffer is NULL;
- */
-
-// int readFile(const std::string& filePath, BOOL binMode, PBYTE pBuffer, UINT64* pSize)
-// {
-//     UINT64 fileLen;
-//     int retStatus = STATUS_SUCCESS;
-//     FILE* fp = NULL;
-//     if (filePath.empty() || pSize == NULL) {
-//         return STATUS_NULL_ARG;
-//     }
-//     fp = FOPEN(filePath.c_str(), binMode ? "rb" : "r");
-//     if (fp == NULL) {
-//         return STATUS_OPEN_FILE_FAILED;
-//     }
-//     // Get the size of the file
-//     FSEEK(fp, 0, SEEK_END);
-//     fileLen = FTELL(fp);
-//     if (pBuffer == NULL) {
-//         // requested the length - set and early return
-//         *pSize = fileLen;
-//         return STATUS_SUCCESS;
-//     }
-//     // Validate the buffer size
-//     if (fileLen > *pSize) {
-//         return STATUS_BUFFER_TOO_SMALL;
-//     }
-//     // Read the file into memory buffer
-//     FSEEK(fp, 0, SEEK_SET);
-//     if (FREAD(pBuffer, (size_t)fileLen, 1, fp) != 1) {
-//         return STATUS_READ_FILE_FAILED;
-//     }
-//     CleanUp:
-//     if (fp != NULL) {
-//         FCLOSE(fp);
-//         fp = NULL;
-//     }
-//     return retStatus;
-// }
-
-int readFile(const std::string& filePath, BOOL binMode, PBYTE pBuffer, UINT32* pSize)
-{
-    // Create an ifstream object and open the file
-    std::ifstream rfile(filePath, binMode ? std::ios::binary : std::ios::in);
-    // Check if the file is opened successfully
-    if (!rfile.is_open())
-    {
-        return STATUS_OPEN_FILE_FAILED;
+std::vector<int> hsv_to_rgb(float H, float S,float V) {
+    if(H>360 || H<0 || S>100 || S<0 || V>100 || V<0){
+        std::cout<< "The givem HSV values are not in valid range" << std::endl;
+        return {};
     }
-    
-    // Get the size of the file
-    rfile.seekg(0, std::ios::end); // move to the end of the file
-    if (rfile.fail())
-    {
-        return STATUS_READ_FILE_FAILED;
+    float s = S/100;
+    float v = V/100;
+    float C = s*v;
+    float X = C*(1 - abs(std::fmod(H/60.0, 2)-1));
+    float m = v-C;
+    float r,g,b;
+    if(H >= 0 && H < 60){
+        r = C,g = X,b = 0;
     }
-    UINT64 fileLen = rfile.tellg(); // get the current position
-    printf("readFile(): fileLen = %llu\n", fileLen);
-    if (fileLen == -1)
-    {
-        return STATUS_READ_FILE_FAILED;
+    else if(H >= 60 && H < 120){
+        r = X,g = C,b = 0;
     }
-
-    // Check if buffer is null or too small
-    if (pBuffer == nullptr)
-    {
-        printf("returning fileLen = %llu\n", fileLen);;
-        // requested the length - set and early return
-        *pSize = fileLen;
-        return STATUS_SUCCESS;
+    else if(H >= 120 && H < 180){
+        r = 0,g = C,b = X;
     }
-    // Validate the buffer size
-    if (fileLen > *pSize)
-    {
-        return STATUS_BUFFER_TOO_SMALL;
+    else if(H >= 180 && H < 240){
+        r = 0,g = X,b = C;
     }
-    // Read the file into memory buffer
-    rfile.seekg(0, std::ios::beg); // move to the beginning of the file
-    rfile.read(pBuffer, fileLen); // read fileLen bytes into pBuffer
-    if (rfile.fail() || rfile.gcount() != fileLen)
-    {
-        return STATUS_READ_FILE_FAILED;
+    else if(H >= 240 && H < 300){
+        r = X,g = 0,b = C;
     }
-
-    // Release the resources
-    rfile.close(); // close the file
-    return STATUS_SUCCESS;
+    else{
+        r = C,g = 0,b = X;
+    }
+    int R = (r+m)*255;
+    int G = (g+m)*255;
+    int B = (b+m)*255;
+    // cout<<"R : "<<R<<endl;
+    // cout<<"G : "<<G<<endl;
+    // cout<<"B : "<<B<<endl;
+    return {R, G, B};
 }
 
-int readFrameFromDisk(PBYTE pFrame, UINT32* pSize, const std::string& frameFilePath)
-{
-    printf("readFrameFromDisk(): frameFilePath = %s\n", frameFilePath.c_str());
-    int retStatus = STATUS_SUCCESS;
-    if (pSize == NULL) {
-        printf("readFrameFromDisk(): operation returned status code: %d \n", STATUS_NULL_ARG);
-        return retStatus;
+void publish_frames(const VideoSource& source) {
+    std::cout << "publish_frames" << std::endl;
+    ArgbFrame argb_frame(FORMAT_ARGB, 1280, 720);
+    std::vector<uint8_t> arr = argb_frame.data;
+    double framerate = 1.0 / 30;
+    double hue = 0.0;
+    while (true) {
+        VideoFrame frame(0, VIDEO_ROTATION_0, argb_frame.ToI420());
+        std::vector<int> rgb = std::move(hsv_to_rgb(hue, 1.0, 1.0));
+        std::vector<int> argb_color;
+        argb_color.push_back(255);
+        for (int i = 0; i < arr.size(); i += 4) {
+            arr[i] = argb_color[0];
+            arr[i + 1] = argb_color[1];
+            arr[i + 2] = argb_color[2];
+            arr[i + 3] = argb_color[3];
+        }
+        source.CaptureFrame(frame);
+        hue += framerate / 3;
+        if (hue >= 1.0) {
+            hue = 0.0;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(int(framerate * 1000)));
     }
-    // printf("readFile(): path = %s\n", frameFilePath.c_str());
-    // Get the size and read into frame
-    retStatus = readFile(frameFilePath, true, pFrame, pSize);
-    if (retStatus != STATUS_SUCCESS) {
-        printf("readFile(): operation returned status code: %d \n", retStatus);
-        return retStatus;
-    }
-
-    return STATUS_SUCCESS;
 }
 
-#define MAX_PATH_LEN 4096
 
 int main(int argc, char *argv[])
 {
     std::shared_ptr<Room> room(new Room());
-    room->Connect("ws://localhost:7880", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2ODg0ODg2NTMsImlzcyI6ImRldmtleSIsIm5hbWUiOiJ1c2VyMSIsIm5iZiI6MTY4ODQwMjI1Mywic3ViIjoidXNlcjEiLCJ2aWRlbyI6eyJyb29tIjoibXktZmlyc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlfX0.0U5A8b7AfNyYYaCNDxQJe13mxWeV2RkgNn3VCoCCX1g");
+    room->Connect(URL, TOKEN);
 
-    // ParticipantInfo participantInfo;
-    // participantInfo.set_identity("userId1");
-    // participantInfo.set_sid("id1");
-    // participantInfo.set_metadata("my-first-room");
-    // participantInfo.set_name("user1");
-    // LocalParticipant participant(participantInfo, room);
+    ParticipantInfo participantInfo;
+    participantInfo.set_identity("userId2");
+    participantInfo.set_sid("id1");
+    participantInfo.set_metadata("my-first-room");
+    participantInfo.set_name("user2");
+    LocalParticipant participant(participantInfo, room);
 
-    // int retStatus = STATUS_SUCCESS;
-    // char filePathChars[MAX_PATH_LEN + 1];
-    // UINT32 fileIndex = 1, frameSize = 0;
-    // snprintf(filePathChars, MAX_PATH_LEN, "/home/xgong/Workplace/repos/client-sdk-cpp/examples/simple_room/h264SampleFrames/frame-%04d.h264", fileIndex);
-
-    // const std::string filePath(filePathChars); 
-    
-    // retStatus = readFrameFromDisk(nullptr, &frameSize, filePath);
-    // printf("frameSize: %d\n", frameSize);
-    // if (retStatus != STATUS_SUCCESS) {
-    //     printf("readFrameFromDisk(): operation returned status code: 0x%08x \n", retStatus);
-    //     return 1;
-    // }
-
-    // livekit::ArgbFrame argbFrame(FORMAT_ARGB, 640, 480);
-
-    // retStatus = readFrameFromDisk((PBYTE)argbFrame.data, &frameSize, filePath);
-    // if (retStatus != STATUS_SUCCESS) {
-    //     printf("readFrameFromDisk(): operation returned status code: 0x%08x \n", retStatus);
-    //     return 2;
-    // }
+    livekit::ArgbFrame argbFrame(FORMAT_ARGB, 1280, 720);
 
     // printf("Successfully read frame of size %d\n", frameSize);
 
-    // VideoSource videoSource;
+    VideoSource videoSource;
 
-    // // livekit::ARGBBufferInfo videoFrameBufferInfo;
-    // // videoFrameBufferInfo.set_width(640);
-    // // videoFrameBufferInfo.set_height(480);
-    // // videoFrameBufferInfo.set_stride(640);
-    // // FFIRequest request;
-    // // livekit::ToI420Request* toI420Request = request.mutable_to_i420();
-    // // toI420Request->mutable_argb->set_ptr()
-    // // livekit::FFIResponse response = FfiClient::getInstance().SendRequest(request);
-    // // response.to_i420();
-    // // VideoFrameBuffer videoFrameBuffer = VideoFrameBuffer::Create(std::move(videoFrameHandle), std::move(videoFrameBufferInfo));
-    // VideoFrame videoFrame(0, VIDEO_ROTATION_0, argbFrame.ToI420());
-    // videoSource.CaptureFrame(videoFrame);
+    // livekit::ARGBBufferInfo videoFrameBufferInfo;
+    // videoFrameBufferInfo.set_width(640);
+    // videoFrameBufferInfo.set_height(480);
+    // videoFrameBufferInfo.set_stride(640);
+    // FFIRequest request;
+    // livekit::ToI420Request* toI420Request = request.mutable_to_i420();
+    // toI420Request->mutable_argb->set_ptr()
+    // livekit::FFIResponse response = FfiClient::getInstance().SendRequest(request);
+    // response.to_i420();
+    // VideoFrameBuffer videoFrameBuffer = VideoFrameBuffer::Create(std::move(videoFrameHandle), std::move(videoFrameBufferInfo));
     
-    // std::shared_ptr<LocalVideoTrack> videoTrack = LocalVideoTrack::CreateVideoTrack("video1", videoSource);
-    // livekit::TrackPublishOptions options;
-    // options.set_source(SOURCE_UNKNOWN);
-    // participant.PublishTrack(videoTrack, options);
+    //VideoFrame videoFrame(0, VIDEO_ROTATION_0, argbFrame.ToI420());
+    //videoSource.CaptureFrame(videoFrame);
+    publish_frames(videoSource);
+    auto sourceTask = std::async(std::launch::async, publish_frames, videoSource);
+    // track = livekit::LocalVideoTrack::create_video_track("hue", source);
+    // options.source = livekit::TrackSource::SOURCE_CAMERA;
+        std::shared_ptr<LocalVideoTrack> videoTrack = LocalVideoTrack::CreateVideoTrack("hue", videoSource);
+    livekit::TrackPublishOptions options;
+    options.set_source(SOURCE_UNKNOWN/*SOURCE_CAMERA*/);
+    participant.PublishTrack(videoTrack, options);
 
     // Should we implement a mechanism to PollEvents/WaitEvents? Like SDL2/glfw
     //   - So we can remove the useless loop here

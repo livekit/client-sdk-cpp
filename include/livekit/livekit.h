@@ -16,3 +16,5 @@
 
 #include "room.h"
 #include "participant.h"
+#include "video_frame.h"
+#include "video_source.h"

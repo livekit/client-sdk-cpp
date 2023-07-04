@@ -30,7 +30,7 @@ namespace livekit
     public:
         VideoSource();
 
-        void CaptureFrame(const VideoFrame& videoFrame);
+        void CaptureFrame(const VideoFrame& videoFrame) const;
         const FfiHandle& GetHandle() const { return handle_; }
 
     private:

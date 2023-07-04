@@ -28,7 +28,7 @@ namespace livekit
         i420Argb->set_width(width);
         i420Argb->set_height(height);
         i420Argb->set_stride(width * 4);
-        i420Argb->set_ptr(reinterpret_cast<uint64_t>(data));
+        i420Argb->set_ptr(reinterpret_cast<uint64_t>(data.data()));
 
         FfiResponse response = FfiClient::getInstance().SendRequest(request);
         VideoFrameBufferInfo bufferInfo(std::move(response.to_i420().buffer()));
@@ -75,7 +75,7 @@ namespace livekit
         FfiRequest request;
         ToArgbRequest* const argb = request.mutable_to_argb();
         argb->mutable_buffer()->set_id(ffiHandle_.handle);
-        argb->set_dst_ptr(reinterpret_cast<uint64_t>(dst.data));
+        argb->set_dst_ptr(reinterpret_cast<uint64_t>(dst.data.data()));
         argb->set_dst_format(dst.format);
         argb->set_dst_stride(dst.width * 4);
         argb->set_dst_width(dst.width);

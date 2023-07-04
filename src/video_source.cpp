@@ -31,8 +31,9 @@ namespace livekit
         handle_ = FfiHandle(sourceInfo_.handle().id());
     }
 
-    void VideoSource::CaptureFrame(const VideoFrame& videoFrame)
+    void VideoSource::CaptureFrame(const VideoFrame& videoFrame) const
     {
+        std::cout << "VideoSource::CaptureFrame" << std::endl;
         FfiRequest request;
         CaptureVideoFrameRequest* const captureVideoFrame = request.mutable_capture_video_frame();
         captureVideoFrame->mutable_source_handle()->set_id(handle_.handle);
