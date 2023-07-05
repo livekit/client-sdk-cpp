@@ -62,7 +62,7 @@ namespace livekit
 
     I420Buffer VideoFrameBuffer::ToI420() {
         FfiRequest request;
-        request.mutable_to_i420()->mutable_buffer()->set_id(ffiHandle_.handle);
+        request.mutable_to_i420()->mutable_buffer()->set_id(ffiHandle_.GetHandle());
 
         FfiResponse response = FfiClient::getInstance().SendRequest(request);
 
@@ -74,7 +74,7 @@ namespace livekit
     void VideoFrameBuffer::ToArgb(const ArgbFrame& dst) {
         FfiRequest request;
         ToArgbRequest* const argb = request.mutable_to_argb();
-        argb->mutable_buffer()->set_id(ffiHandle_.handle);
+        argb->mutable_buffer()->set_id(ffiHandle_.GetHandle());
         argb->set_dst_ptr(reinterpret_cast<uint64_t>(dst.data.data()));
         argb->set_dst_format(dst.format);
         argb->set_dst_stride(dst.width * 4);

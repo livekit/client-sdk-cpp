@@ -63,10 +63,16 @@ namespace livekit
     };
 
     struct FfiHandle {
-        uintptr_t handle;
-
+    public:
         FfiHandle(uintptr_t handle);
-        ~FfiHandle();
+        ~FfiHandle() = default;
+
+        uintptr_t GetHandle() const {
+            return *handle;
+        }
+
+    private:
+        std::shared_ptr<uintptr_t> handle;
     };
 }
 

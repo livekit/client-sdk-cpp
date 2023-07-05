@@ -36,8 +36,8 @@ namespace livekit
         std::cout << "VideoSource::CaptureFrame" << std::endl;
         FfiRequest request;
         CaptureVideoFrameRequest* const captureVideoFrame = request.mutable_capture_video_frame();
-        captureVideoFrame->mutable_source_handle()->set_id(handle_.handle);
-        captureVideoFrame->mutable_buffer_handle()->set_id(videoFrame.GetBuffer().GetHandle().handle);
+        captureVideoFrame->mutable_source_handle()->set_id(handle_.GetHandle());
+        captureVideoFrame->mutable_buffer_handle()->set_id(videoFrame.GetBuffer().GetHandle().GetHandle());
         captureVideoFrame->mutable_frame()->set_rotation (videoFrame.GetRotation());
         captureVideoFrame->mutable_frame()->set_timestamp_us(videoFrame.GetTimestamp());
         FfiClient::getInstance().SendRequest(request);

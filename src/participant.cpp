@@ -34,8 +34,8 @@ namespace livekit
 
         FfiRequest request;
         PublishTrackRequest* publishTrackRequest = request.mutable_publish_track();
-        publishTrackRequest->mutable_track_handle()->set_id(track->GetHandle().handle);
-        publishTrackRequest->mutable_room_handle()->set_id(room->GetHandle().handle);
+        publishTrackRequest->mutable_track_handle()->set_id(track->GetHandle().GetHandle());
+        publishTrackRequest->mutable_room_handle()->set_id(room->GetHandle().GetHandle());
         *publishTrackRequest->mutable_options() = options;
 
         PublishTrackResponse resp = FfiClient::getInstance().SendRequest(request).publish_track();

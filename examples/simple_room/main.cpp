@@ -9,7 +9,7 @@
 using namespace livekit;
 
 const std::string URL = "ws://localhost:7880";
-const std::string TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2ODg0ODg2NTMsImlzcyI6ImRldmtleSIsIm5hbWUiOiJ1c2VyMSIsIm5iZiI6MTY4ODQwMjI1Mywic3ViIjoidXNlcjEiLCJ2aWRlbyI6eyJyb29tIjoibXktZmlyc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlfX0.0U5A8b7AfNyYYaCNDxQJe13mxWeV2RkgNn3VCoCCX1g";
+const std::string TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2ODg2ODA4OTIsImlzcyI6ImRldmtleSIsIm5hbWUiOiJ1c2VyMSIsIm5iZiI6MTY4ODU5NDQ5Miwic3ViIjoidXNlcjEiLCJ2aWRlbyI6eyJyb29tIjoibXktZmlyc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlfX0.O9DQv99LDwAYTHzL3pavo6yk3_iZ_HleKo1Cs4P3YgE";
 
 std::vector<int> hsv_to_rgb(float H, float S,float V) {
     if(H>360 || H<0 || S>100 || S<0 || V>100 || V<0){

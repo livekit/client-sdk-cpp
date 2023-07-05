@@ -22,7 +22,7 @@ namespace livekit {
     std::unique_ptr<LocalVideoTrack> LocalVideoTrack::CreateVideoTrack(const std::string& name, const VideoSource& source) {
         FfiRequest request;
         request.mutable_create_video_track()->set_name(name);
-        request.mutable_create_video_track()->mutable_source_handle()->set_id(source.GetHandle().handle);
+        request.mutable_create_video_track()->mutable_source_handle()->set_id(source.GetHandle().GetHandle());
 
         FfiResponse resp = FfiClient::getInstance().SendRequest(request);
         TrackInfo trackInfo = resp.create_video_track().track();

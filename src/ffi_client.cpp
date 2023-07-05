@@ -87,12 +87,13 @@ void LivekitFfiCallback(const uint8_t *buf, size_t len) {
 
 // FfiHandle
 
-FfiHandle::FfiHandle(uintptr_t id) : handle(id) {}
-
-FfiHandle::~FfiHandle() {
-    if (handle != INVALID_HANDLE) {
-        assert(livekit_ffi_drop_handle(handle));
+FfiHandle::FfiHandle(uintptr_t id) : handle(new uintptr_t(id), [](uintptr_t* ptr) {
+        // Only destroy the handle if it's valid
+    if (ptr && *ptr != INVALID_HANDLE) {
+        assert(livekit_ffi_drop_handle(*ptr));
     }
+    delete ptr; // Delete the pointer after calling the deleter function
+}) {
 }
 
 }
