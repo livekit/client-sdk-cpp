@@ -20,14 +20,13 @@
 #include <condition_variable>
 #include <memory>
 
-#include "livekit/room.h"
 #include "livekit/track.h"
 
 #include "participant.pb.h"
 #include "ffi.pb.h"
-#include "room.pb.h"
 
 namespace livekit {
+    class Room;
 
     class Participant {
     public:

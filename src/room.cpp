@@ -24,82 +24,72 @@
 
 namespace livekit
 {
-
-void Room::Connect(const std::string& url, const std::string& token)
-{
-   std::lock_guard<std::mutex> guard(lock_);
-    if (connected_) {
-        throw std::runtime_error("already connected");
+    Room::Room() {
+        eventListenerId_ = FfiClient::getInstance().AddListener(std::bind(&Room::OnEvent, this, std::placeholders::_1));
     }
 
-    connected_ = true;
-
-    RoomOptions *options = new RoomOptions;
-    options->set_auto_subscribe(true);
-    
-    ConnectRequest *connectRequest = new ConnectRequest;
-    connectRequest->set_url(url);
-    connectRequest->set_token(token);
-    connectRequest->set_allocated_options(options);
-
-    FfiRequest request;
-    request.set_allocated_connect(connectRequest);
-    
-    // TODO Free:
-    FfiClient::getInstance().AddListener(std::bind(&Room::OnEvent, this, std::placeholders::_1));
-
-    FfiResponse response = FfiClient::getInstance().SendRequest(request);
-    FfiAsyncId asyncId = response.connect().async_id();
-
-    connectAsyncId_ = asyncId.id();
-}
-
-// void Room::PublishVideoTrack(const std::string& name, const std::string& sid, const std::string& inputTrackSid)
-// {
-//     std::lock_guard<std::mutex> guard(lock_);
-//     if (!connected_) {
-//         throw std::runtime_error("not connected");
-//     }
-
-//     PublishTrackRequest *publishTrackRequest = new PublishTrackRequest;
-//     publishTrackRequest->set_kind(TrackType::VIDEO);
-//     publishTrackRequest->set_name(name);
-//     publishTrackRequest->set_sid(sid);
-//     publishTrackRequest->set_input_track_sid(inputTrackSid);
-
-//     FFIRequest request;
-//     request.set_allocated_publish_track(publishTrackRequest);
-
-//     FfiResponse response = FfiClient::getInstance().SendRequest(request);
-//     FFIAsyncId asyncId = response.publish_track().async_id();
-
-//     std::cout << "Publishing video track" << std::endl;
-// }
-
-void Room::OnEvent(const FfiEvent& event)
-{
-    std::lock_guard<std::mutex> guard(lock_);
-    if (!connected_) {
-        return;
+    Room::~Room() {
+        FfiClient::getInstance().RemoveListener(eventListenerId_);
     }
-    
-    if (event.has_connect()) {
-        ConnectCallback connectCallback = event.connect();
-        if (connectCallback.async_id().id() != connectAsyncId_) {
-            return;
-        }
 
-        std::cout << "Received ConnectCallback" << std::endl;
+    void Room::Connect(const std::string& url, const std::string& token)
+    {
+        // RoomOptions *options = new RoomOptions;
+        // options->set_auto_subscribe(true);
+        
+        FfiRequest request;
+        ConnectRequest *connectRequest = request.mutable_connect();
+        connectRequest->set_url(url);
+        connectRequest->set_token(token);
+        // connectRequest->set_allocated_options(options);
 
-        if (!connectCallback.has_error()) {
-            handle_ = FfiHandle(connectCallback.room().handle().id());
+        FfiResponse response = FfiClient::getInstance().SendRequest(request);
+        connectAsyncId_ = response.connect().async_id().id();
+    }
 
-            std::cout << "Connected to room" << std::endl;
-            std::cout << "Room SID: " << connectCallback.room().sid() << std::endl;
-        } else {
-            std::cerr << "Failed to connect to room: " << connectCallback.error() << std::endl;
+    // void Room::PublishVideoTrack(const std::string& name, const std::string& sid, const std::string& inputTrackSid)
+    // {
+    //     std::lock_guard<std::mutex> guard(lock_);
+    //     if (!connected_) {
+    //         throw std::runtime_error("not connected");
+    //     }
+
+    //     PublishTrackRequest *publishTrackRequest = new PublishTrackRequest;
+    //     publishTrackRequest->set_kind(TrackType::VIDEO);
+    //     publishTrackRequest->set_name(name);
+    //     publishTrackRequest->set_sid(sid);
+    //     publishTrackRequest->set_input_track_sid(inputTrackSid);
+
+    //     FFIRequest request;
+    //     request.set_allocated_publish_track(publishTrackRequest);
+
+    //     FfiResponse response = FfiClient::getInstance().SendRequest(request);
+    //     FFIAsyncId asyncId = response.publish_track().async_id();
+
+    //     std::cout << "Publishing video track" << std::endl;
+    // }
+
+    void Room::OnEvent(const FfiEvent& event)
+    {
+        if (event.has_connect()) {
+            ConnectCallback connectCallback = event.connect();
+            if (connectCallback.async_id().id() != connectAsyncId_) {
+                return;
+            }
+
+            std::cout << "Received ConnectCallback" << std::endl;
+
+            if (!connectCallback.has_error()) {
+                handle_ = FfiHandle(connectCallback.room().handle().id());
+                roomInfo_ = connectCallback.room();
+                localParticipant_ = std::make_shared<LocalParticipant>(connectCallback.room().local_participant(), shared_from_this());
+
+                std::cout << "Connected to room" << std::endl;
+                std::cout << "Room SID: " << connectCallback.room().sid() << std::endl;
+            } else {
+                std::cerr << "Failed to connect to room: " << connectCallback.error() << std::endl;
+            }
         }
     }
-}
 
 }

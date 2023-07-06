@@ -16,6 +16,7 @@
 
 #include "livekit/participant.h"
 #include "livekit/ffi_client.h"
+#include "livekit/room.h"
 
 #include "ffi.pb.h"
 

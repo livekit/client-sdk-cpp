@@ -17,26 +17,37 @@
 #ifndef LIVEKIT_ROOM_H
 #define LIVEKIT_ROOM_H
 
-#include <mutex>
-#include "ffi.pb.h"
 #include "livekit/ffi_client.h"
+#include "livekit/participant.h"
 #include "livekit_ffi.h"
 
+#include <mutex>
+#include "ffi.pb.h"
+#include "room.pb.h"
+
 namespace livekit {
-    class Room
+    class LocalParticipant;
+    class Room : public std::enable_shared_from_this<Room>
     {
     public:
+        Room();
+        ~Room();
         void Connect(const std::string& url, const std::string& token);
         void OnTrackPublished(const std::string& name, const std::string& sid, const std::string& inputTrackSid);
         
         FfiHandle GetHandle() const { return handle_; }
+        const std::string& GetName() const { return roomInfo_.name(); }
+        const std::string& GetSid() const { return roomInfo_.sid(); }
+        const std::string& GetMetadata() const { return roomInfo_.metadata(); }
+        bool IsConnected() const { return handle_.GetHandle() != INVALID_HANDLE; }
 
     private:
-        mutable std::mutex lock_;
+        // mutable std::mutex lock_;
         FfiHandle handle_{INVALID_HANDLE};
-        bool connected_{false};
+        RoomInfo roomInfo_;
         uint64_t connectAsyncId_{0};
-        
+        std::shared_ptr<LocalParticipant> localParticipant_{nullptr};
+        FfiClient::ListenerId eventListenerId_;
 
         void OnEvent(const FfiEvent& event);
     };

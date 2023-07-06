@@ -33,19 +33,19 @@ protobuf_generate(
 
 # livekit
 add_library(livekit
-    include/livekit/room.h
     include/livekit/ffi_client.h
     include/livekit/livekit.h
     include/livekit/video_frame.h
     include/livekit/track.h
     include/livekit/video_source.h
     include/livekit/participant.h
+    include/livekit/room.h
     src/ffi_client.cpp
-    src/room.cpp
     src/video_frame.cpp
     src/track.cpp
     src/video_source.cpp
     src/participant.cpp
+    src/room.cpp
     ${PROTO_SRCS} 
     ${PROTO_HEADERS}
     ${PROTO_FILES}

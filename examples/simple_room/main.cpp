@@ -9,7 +9,7 @@
 using namespace livekit;
 
 const std::string URL = "ws://localhost:7880";
-const std::string TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2ODg2ODA4OTIsImlzcyI6ImRldmtleSIsIm5hbWUiOiJ1c2VyMSIsIm5iZiI6MTY4ODU5NDQ5Miwic3ViIjoidXNlcjEiLCJ2aWRlbyI6eyJyb29tIjoibXktZmlyc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlfX0.O9DQv99LDwAYTHzL3pavo6yk3_iZ_HleKo1Cs4P3YgE";
+const std::string TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2ODg3MDY3OTUsImlzcyI6ImRldmtleSIsIm5hbWUiOiJoZW5nc3RhciIsIm5iZiI6MTY4ODYyMDM5NSwic3ViIjoiaGVuZ3N0YXIiLCJ2aWRlbyI6eyJyb29tIjoibXktZmlyc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlfX0.0eW9RJ5M2DxVZBhAZLPfbbFumklcZFGK3Vr0jaf_wSY";
 
 std::vector<int> hsv_to_rgb(float H, float S,float V) {
     if(H>360 || H<0 || S>100 || S<0 || V>100 || V<0){
@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
     room->Connect(URL, TOKEN);
 
     ParticipantInfo participantInfo;
-    participantInfo.set_identity("userId2");
+    participantInfo.set_identity("hengstar");
     participantInfo.set_sid("id1");
     participantInfo.set_metadata("my-first-room");
     participantInfo.set_name("user2");
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
     // options.source = livekit::TrackSource::SOURCE_CAMERA;
         std::shared_ptr<LocalVideoTrack> videoTrack = LocalVideoTrack::CreateVideoTrack("hue", videoSource);
     livekit::TrackPublishOptions options;
-    options.set_source(SOURCE_UNKNOWN/*SOURCE_CAMERA*/);
+    options.set_source(SOURCE_CAMERA);
     participant.PublishTrack(videoTrack, options);
 
     // Should we implement a mechanism to PollEvents/WaitEvents? Like SDL2/glfw
