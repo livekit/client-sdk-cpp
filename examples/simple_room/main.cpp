@@ -9,7 +9,7 @@
 using namespace livekit;
 
 const std::string URL = "ws://localhost:7880";
-const std::string TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2ODg3MDY3OTUsImlzcyI6ImRldmtleSIsIm5hbWUiOiJoZW5nc3RhciIsIm5iZiI6MTY4ODYyMDM5NSwic3ViIjoiaGVuZ3N0YXIiLCJ2aWRlbyI6eyJyb29tIjoibXktZmlyc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlfX0.0eW9RJ5M2DxVZBhAZLPfbbFumklcZFGK3Vr0jaf_wSY";
+const std::string TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2ODg3NDYzNTgsImlzcyI6ImRldmtleSIsIm5hbWUiOiJoZW5nc3RhciIsIm5iZiI6MTY4ODY1OTk1OCwic3ViIjoiaGVuZ3N0YXIiLCJ2aWRlbyI6eyJyb29tIjoibXktZmlyc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlfX0.BKKLppcGWeaDD-PFP83mGVtnT8vgx0bZneluuZbfjkc";
 
 std::vector<int> hsv_to_rgb(float H, float S,float V) {
     if(H>360 || H<0 || S>100 || S<0 || V>100 || V<0){
@@ -81,12 +81,12 @@ int main(int argc, char *argv[])
     std::shared_ptr<Room> room(new Room());
     room->Connect(URL, TOKEN);
 
-    ParticipantInfo participantInfo;
-    participantInfo.set_identity("hengstar");
-    participantInfo.set_sid("id1");
-    participantInfo.set_metadata("my-first-room");
-    participantInfo.set_name("user2");
-    LocalParticipant participant(participantInfo, room);
+    // ParticipantInfo participantInfo;
+    // participantInfo.set_identity("hengstar");
+    // participantInfo.set_sid("id1");
+    // participantInfo.set_metadata("my-first-room");
+    // participantInfo.set_name("user2");
+    // LocalParticipant participant(participantInfo, room);
 
     livekit::ArgbFrame argbFrame(FORMAT_ARGB, 1280, 720);
 
@@ -107,14 +107,19 @@ int main(int argc, char *argv[])
     
     //VideoFrame videoFrame(0, VIDEO_ROTATION_0, argbFrame.ToI420());
     //videoSource.CaptureFrame(videoFrame);
-    publish_frames(videoSource);
+    // publish_frames(videoSource);
     auto sourceTask = std::async(std::launch::async, publish_frames, videoSource);
     // track = livekit::LocalVideoTrack::create_video_track("hue", source);
     // options.source = livekit::TrackSource::SOURCE_CAMERA;
-        std::shared_ptr<LocalVideoTrack> videoTrack = LocalVideoTrack::CreateVideoTrack("hue", videoSource);
+    std::cout << "[Hengstar] Main Publishing track" << std::endl;
+    std::shared_ptr<LocalVideoTrack> videoTrack = LocalVideoTrack::CreateVideoTrack("hue", videoSource);
     livekit::TrackPublishOptions options;
     options.set_source(SOURCE_CAMERA);
-    participant.PublishTrack(videoTrack, options);
+    while (!room->GetLocalParticipant()) {}
+    std::cout << "[Hengstar] Main Publishing track 2" << std::endl;
+    room->GetLocalParticipant()->PublishTrack(videoTrack, options);
+
+    sourceTask.wait();
 
     // Should we implement a mechanism to PollEvents/WaitEvents? Like SDL2/glfw
     //   - So we can remove the useless loop here

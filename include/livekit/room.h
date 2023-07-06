@@ -40,6 +40,7 @@ namespace livekit {
         const std::string& GetSid() const { return roomInfo_.sid(); }
         const std::string& GetMetadata() const { return roomInfo_.metadata(); }
         bool IsConnected() const { return handle_.GetHandle() != INVALID_HANDLE; }
+        std::shared_ptr<LocalParticipant> GetLocalParticipant() const { return localParticipant_; }
 
     private:
         // mutable std::mutex lock_;

@@ -23,15 +23,19 @@
 namespace livekit
 {
     void LocalParticipant::PublishTrack(std::shared_ptr<Track> track, const TrackPublishOptions& options) {
+        std::cout << "[Hengstar] publish track" << std::endl;
         // TODO: Add audio track support
         if (!dynamic_cast<LocalVideoTrack*>(track.get())) {
             throw std::runtime_error("cannot publish a remote track");
         }
 
+        std::cout << "[Hengstar] publish track 2" << std::endl;
         std::shared_ptr<Room> room = room_.lock();
         if (room == nullptr) {
             throw std::runtime_error("room is closed");
         }
+
+        std::cout << "[Hengstar] publish track 3" << std::endl;
 
         FfiRequest request;
         PublishTrackRequest* publishTrackRequest = request.mutable_publish_track();
@@ -46,13 +50,17 @@ namespace livekit
         std::unique_lock lock(lock_);
         
         cv_.wait(lock, [this]{ return publishCallback_ != nullptr; });
+        std::cout << "[Hengstar] publish track done" << std::endl;
         // TODO: Handle errors
     }
 
     void LocalParticipant::OnEvent(const FfiEvent& event) {
+        std::cout << "[Hengstar] got event for PublishTrack" << std::endl;
         if (event.has_publish_track()) {
+            std::cout << "[Hengstar] got publish track event" << std::endl;
             PublishTrackCallback cb = event.publish_track();
             if (cb.async_id().id() == publishAsyncId_.id()) {
+                std::cout << "[Hengstar] got publish track callback" << std::endl;
                 publishCallback_ = std::make_unique<PublishTrackCallback>(cb);
                 FfiClient::getInstance().RemoveListener(listenerId_);
             }
