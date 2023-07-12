@@ -17,6 +17,9 @@
 #ifndef LIVEKIT_VIDEO_FRAME_H
 #define LIVEKIT_VIDEO_FRAME_H
 
+#include <sys/types.h>
+
+#include <cstddef>
 #include <cstdint>
 
 #include "livekit/ffi_client.h"
@@ -27,13 +30,20 @@ class I420Buffer;
 struct ArgbFrame {
   ArgbFrame(proto::VideoFormatType format, int width, int height)
       : format(format), width(width), height(height) {
-    int size = width * height * sizeof(uint32_t);
-    this->data.resize(size);
+    std::cout << "ArgbFrame::ArgbFrame" << std::endl;
+    size = width * height * sizeof(uint32_t);
+    data = new uint8_t[size];
+  }
+
+  ~ArgbFrame() {
+    std::cout << "ArgbFrame::~ArgbFrame" << std::endl;
+    delete[] data;
   }
 
   proto::VideoFormatType format;
   int width, height;
-  std::vector<uint8_t> data;
+  uint8_t* data;
+  size_t size;
 
   I420Buffer ToI420();
 };

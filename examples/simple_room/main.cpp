@@ -7,16 +7,17 @@
 
 #include "livekit/livekit.h"
 #include "room.pb.h"
+#include "track.pb.h"
 
 using namespace livekit;
 
-const std::string URL = "ws://localhost:7880";
+const std::string URL = "wss://nativesdk.livekit.cloud";
 const std::string TOKEN =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-    "eyJleHAiOjE5MDY2MTMyODgsImlzcyI6IkFQSVRzRWZpZFpqclFvWSIsIm5hbWUiOiJuYXRpdm"
-    "UiLCJuYmYiOjE2NzI2MTMyODgsInN1YiI6Im5hdGl2ZSIsInZpZGVvIjp7InJvb20iOiJ0ZXN0"
-    "Iiwicm9vbUFkbWluIjp0cnVlLCJyb29tQ3JlYXRlIjp0cnVlLCJyb29tSm9pbiI6dHJ1ZSwicm"
-    "9vbUxpc3QiOnRydWV9fQ.uSNIangMRu8jZD5mnRYoCHjcsQWCrJXgHCs0aNIgBFY";
+    "eyJleHAiOjI1OTAwNjQ4MjMsImlzcyI6IkFQSXM4eUdIS0FLZWYyWCIsIm5iZiI6MTY4OTE2ND"
+    "gyMywic3ViIjoibmF0aXZlIiwidmlkZW8iOnsiY2FuUHVibGlzaCI6dHJ1ZSwiY2FuUHVibGlz"
+    "aERhdGEiOnRydWUsImNhblN1YnNjcmliZSI6dHJ1ZSwicm9vbSI6InRlc3QiLCJyb29tSm9pbi"
+    "I6dHJ1ZX19.TS-V3hJVuhBhMk3gBeSRUh5LYxQSA8SdURK10HnUacU";
 
 std::vector<int> hsv_to_rgb(float H, float S, float V) {
   std::vector<int> rgb(3);
@@ -52,7 +53,7 @@ void publish_frames(VideoSource* source) {
   double hue = 0.0;
   while (true) {
     std::vector<int> rgb = hsv_to_rgb(hue, 1.0, 1.0);
-    for (int i = 0; i < frame.data.size(); i += 4) {
+    for (int i = 0; i < frame.size; i += 4) {
       frame.data[i] = 255;
       frame.data[i + 1] = rgb[0];
       frame.data[i + 2] = rgb[1];
@@ -77,23 +78,21 @@ int main(int argc, char* argv[]) {
   std::shared_ptr<Room> room = std::make_shared<Room>();
   room->Connect(URL, TOKEN);
 
-  ArgbFrame argbFrame(proto::FORMAT_ARGB, 1280, 720);
-  VideoSource source{};
-
-  std::shared_ptr<LocalVideoTrack> track =
-      LocalVideoTrack::CreateVideoTrack("hue", source);
-
-  // Create a new thread and call publish_freames
-  std::thread t1(publish_frames, &source);
-
-  proto::TrackPublishOptions options;
-  options.set_source(proto::SOURCE_CAMERA);
-
   // TODO Non blocking ?
   while (!room->GetLocalParticipant()) {
   }
 
+  VideoSource source{};
+  std::thread t(publish_frames, &source);
+
   std::this_thread::sleep_for(std::chrono::seconds(2));
+
+  std::shared_ptr<LocalVideoTrack> track =
+      LocalVideoTrack::CreateVideoTrack("hue", source);
+
+  proto::TrackPublishOptions options{};
+  options.set_source(proto::SOURCE_CAMERA);
+  options.set_simulcast(true);
 
   std::cout << "Publishing track" << std::endl;
   room->GetLocalParticipant()->PublishTrack(track, options);

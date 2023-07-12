@@ -27,6 +27,7 @@ class LocalVideoTrack;
 class VideoSource {
  public:
   VideoSource();
+  ~VideoSource() { std::cout << "VideoSource::~VideoSource" << std::endl; }
 
   void CaptureFrame(const VideoFrame& videoFrame) const;
 

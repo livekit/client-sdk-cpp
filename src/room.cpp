@@ -25,11 +25,13 @@
 
 namespace livekit {
 Room::Room() {
+  std::cout << "Room::Room" << std::endl;
   listenerId_ = FfiClient::getInstance().AddListener(
       std::bind(&Room::OnEvent, this, std::placeholders::_1));
 }
 
 Room::~Room() {
+  std::cout << "Room::~Room" << std::endl;
   FfiClient::getInstance().RemoveListener(listenerId_);
   // localParticipant_->room_ = nullptr; TODO lock before
 }

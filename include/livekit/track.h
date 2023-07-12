@@ -17,6 +17,8 @@
 #ifndef LIVEKIT_TRACK_H
 #define LIVEKIT_TRACK_H
 
+#include <iostream>
+
 #include "livekit/ffi_client.h"
 #include "track.pb.h"
 #include "video_source.h"
@@ -28,7 +30,11 @@ class Track {
  public:
   // Use a move constructor to avoid copying the parameters
   Track(FfiHandle& ffiHandle, const proto::TrackInfo& info)
-      : ffiHandle_(std::move(ffiHandle)), info_(info) {}
+      : ffiHandle_(std::move(ffiHandle)), info_(info) {
+    std::cout << "Track::Track" << std::endl;
+  }
+
+  ~Track() { std::cout << "Track::~Track" << std::endl; }
 
   std::string GetSid() const { return info_.sid(); }
   std::string GetName() const { return info_.name(); }

@@ -32,7 +32,7 @@ void LocalParticipant::PublishTrack(std::shared_ptr<Track> track,
     throw std::runtime_error("cannot publish a remote track");
   }
 
-  proto::FfiRequest request;
+  proto::FfiRequest request{};
   proto::PublishTrackRequest* publishTrackRequest =
       request.mutable_publish_track();
   publishTrackRequest->mutable_track_handle()->set_id(
@@ -61,9 +61,8 @@ void LocalParticipant::OnEvent(const proto::FfiEvent& event) {
     proto::PublishTrackCallback cb = event.publish_track();
     if (cb.async_id().id() == publishAsyncId_.id()) {
       std::cout << "[Hengstar] got publish track callback" << std::endl;
-      std::cout << cb.has_error() << std::endl;
       publishCallback_ = std::make_unique<proto::PublishTrackCallback>(cb);
-      FfiClient::getInstance().RemoveListener(listenerId_);
+      // FfiClient::getInstance().RemoveListener(listenerId_);
     }
   }
 }

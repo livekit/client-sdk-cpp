@@ -19,15 +19,15 @@
 #include <iostream>
 
 #include "ffi.pb.h"
+#include "video_frame.pb.h"
 
 namespace livekit {
 VideoSource::VideoSource() {
+  std::cout << "VideoSource::VideoSource" << std::endl;
   proto::ConnectRequest* connectRequest = new proto::ConnectRequest;
-  proto::FfiRequest request;
+  proto::FfiRequest request{};
   request.mutable_new_video_source()->set_type(
       proto::VideoSourceType::VIDEO_SOURCE_NATIVE);
-  request.mutable_new_video_source()->mutable_resolution()->set_width(1280);
-  request.mutable_new_video_source()->mutable_resolution()->set_height(720);
 
   proto::FfiResponse response = FfiClient::getInstance().SendRequest(request);
   info_ = response.new_video_source().source();
@@ -35,15 +35,14 @@ VideoSource::VideoSource() {
 }
 
 void VideoSource::CaptureFrame(const VideoFrame& videoFrame) const {
-  proto::FfiRequest request;
+  proto::FfiRequest request{};
   proto::CaptureVideoFrameRequest* captureVideoFrame =
       request.mutable_capture_video_frame();
   captureVideoFrame->mutable_source_handle()->set_id(handle_.GetHandle());
   captureVideoFrame->mutable_buffer_handle()->set_id(
       videoFrame.GetBuffer().GetHandle().GetHandle());
-  captureVideoFrame->mutable_frame()->set_rotation(videoFrame.GetRotation());
-  // captureVideoFrame->mutable_frame()->set_timestamp_us(
-  // videoFrame.GetTimestamp());
+  captureVideoFrame->mutable_frame()->set_rotation(proto::VIDEO_ROTATION_0);
+  captureVideoFrame->mutable_frame()->set_timestamp_us(0);
   FfiClient::getInstance().SendRequest(request);
 }
 }  // namespace livekit

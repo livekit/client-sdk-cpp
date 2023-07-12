@@ -21,13 +21,13 @@
 
 namespace livekit {
 I420Buffer ArgbFrame::ToI420() {
-  proto::FfiRequest request;
+  proto::FfiRequest request{};
   auto i420Argb = request.mutable_to_i420()->mutable_argb();
   i420Argb->set_format(format);
   i420Argb->set_width(width);
   i420Argb->set_height(height);
   i420Argb->set_stride(width * 4);
-  i420Argb->set_ptr(reinterpret_cast<uint64_t>(data.data()));
+  i420Argb->set_ptr(reinterpret_cast<uint64_t>(data));
 
   proto::FfiResponse response = FfiClient::getInstance().SendRequest(request);
   proto::VideoFrameBufferInfo info = response.to_i420().buffer();
@@ -37,7 +37,7 @@ I420Buffer ArgbFrame::ToI420() {
 }
 
 I420Buffer VideoFrameBuffer::ToI420() {
-  proto::FfiRequest request;
+  proto::FfiRequest request{};
   request.mutable_to_i420()->mutable_buffer()->set_id(handle_.GetHandle());
 
   proto::FfiResponse response = FfiClient::getInstance().SendRequest(request);
@@ -47,16 +47,16 @@ I420Buffer VideoFrameBuffer::ToI420() {
 }
 
 void VideoFrameBuffer::ToArgb(const ArgbFrame& dst) {
-  proto::FfiRequest request;
-  proto::ToArgbRequest* const argb = request.mutable_to_argb();
-  argb->mutable_buffer()->set_id(handle_.GetHandle());
-  argb->set_dst_ptr(reinterpret_cast<uint64_t>(dst.data.data()));
-  argb->set_dst_format(dst.format);
-  argb->set_dst_stride(dst.width * 4);
-  argb->set_dst_width(dst.width);
-  argb->set_dst_height(dst.height);
+  /*roto::FfiRequest request{};
+    proto::ToArgbRequest* argb = request.mutable_to_argb();
+    argb->mutable_buffer()->set_id(handle_.GetHandle());
+    argb->set_dst_ptr(reinterpret_cast<uint64_t>(dst.data.data()));
+    argb->set_dst_format(dst.format);
+    argb->set_dst_stride(dst.width * 4);
+    argb->set_dst_width(dst.width);
+    argb->set_dst_height(dst.height);
 
-  FfiClient::getInstance().SendRequest(request);
+    FfiClient::getInstance().SendRequest(request);a*/
 }
 
 VideoFrameBuffer VideoFrameBuffer::Create(FfiHandle& ffiHandle,
