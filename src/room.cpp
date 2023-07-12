@@ -15,81 +15,54 @@
  */
 
 #include "livekit/room.h"
-#include "livekit/ffi_client.h"
 
-#include "ffi.pb.h"
-#include "room.pb.h"
 #include <functional>
 #include <iostream>
 
-namespace livekit
-{
-    Room::Room() {
-        eventListenerId_ = FfiClient::getInstance().AddListener(std::bind(&Room::OnEvent, this, std::placeholders::_1));
-    }
+#include "ffi.pb.h"
+#include "livekit/ffi_client.h"
+#include "room.pb.h"
 
-    Room::~Room() {
-        FfiClient::getInstance().RemoveListener(eventListenerId_);
-    }
-
-    void Room::Connect(const std::string& url, const std::string& token)
-    {
-        // RoomOptions *options = new RoomOptions;
-        // options->set_auto_subscribe(true);
-        
-        FfiRequest request;
-        ConnectRequest *connectRequest = request.mutable_connect();
-        connectRequest->set_url(url);
-        connectRequest->set_token(token);
-        // connectRequest->set_allocated_options(options);
-
-        FfiResponse response = FfiClient::getInstance().SendRequest(request);
-        connectAsyncId_ = response.connect().async_id().id();
-    }
-
-    // void Room::PublishVideoTrack(const std::string& name, const std::string& sid, const std::string& inputTrackSid)
-    // {
-    //     std::lock_guard<std::mutex> guard(lock_);
-    //     if (!connected_) {
-    //         throw std::runtime_error("not connected");
-    //     }
-
-    //     PublishTrackRequest *publishTrackRequest = new PublishTrackRequest;
-    //     publishTrackRequest->set_kind(TrackType::VIDEO);
-    //     publishTrackRequest->set_name(name);
-    //     publishTrackRequest->set_sid(sid);
-    //     publishTrackRequest->set_input_track_sid(inputTrackSid);
-
-    //     FFIRequest request;
-    //     request.set_allocated_publish_track(publishTrackRequest);
-
-    //     FfiResponse response = FfiClient::getInstance().SendRequest(request);
-    //     FFIAsyncId asyncId = response.publish_track().async_id();
-
-    //     std::cout << "Publishing video track" << std::endl;
-    // }
-
-    void Room::OnEvent(const FfiEvent& event)
-    {
-        if (event.has_connect()) {
-            ConnectCallback connectCallback = event.connect();
-            if (connectCallback.async_id().id() != connectAsyncId_) {
-                return;
-            }
-
-            std::cout << "Received ConnectCallback" << std::endl;
-
-            if (!connectCallback.has_error()) {
-                handle_ = FfiHandle(connectCallback.room().handle().id());
-                roomInfo_ = connectCallback.room();
-                localParticipant_ = std::make_shared<LocalParticipant>(connectCallback.room().local_participant(), shared_from_this());
-
-                std::cout << "Connected to room" << std::endl;
-                std::cout << "Room SID: " << connectCallback.room().sid() << std::endl;
-            } else {
-                std::cerr << "Failed to connect to room: " << connectCallback.error() << std::endl;
-            }
-        }
-    }
-
+namespace livekit {
+Room::Room() {
+  listenerId_ = FfiClient::getInstance().AddListener(
+      std::bind(&Room::OnEvent, this, std::placeholders::_1));
 }
+
+Room::~Room() {
+  FfiClient::getInstance().RemoveListener(listenerId_);
+  // localParticipant_->room_ = nullptr; TODO lock before
+}
+
+void Room::Connect(const std::string& url, const std::string& token) {
+  proto::FfiRequest request;
+  proto::ConnectRequest* connectRequest = request.mutable_connect();
+  connectRequest->set_url(url);
+  connectRequest->set_token(token);
+
+  proto::FfiResponse response = FfiClient::getInstance().SendRequest(request);
+  connectAsyncId_ = response.connect().async_id().id();
+}
+
+void Room::OnEvent(const proto::FfiEvent& event) {
+  proto::ConnectCallback cb = event.connect();
+  if (cb.async_id().id() != connectAsyncId_) {
+    return;
+  }
+
+  std::cout << "Received ConnectCallback" << std::endl;
+
+  if (!cb.has_error()) {
+    handle_ = FfiHandle(cb.room().handle().id());
+    info_ = cb.room();
+    localParticipant_ =
+        std::make_shared<LocalParticipant>(cb.room().local_participant(), this);
+
+    std::cout << "Connected to room" << std::endl;
+    std::cout << "Room SID: " << cb.room().sid() << std::endl;
+  } else {
+    std::cerr << "Failed to connect to room: " << cb.error() << std::endl;
+  }
+}
+
+}  // namespace livekit

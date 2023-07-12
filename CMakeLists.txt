@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 project(livekit)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(FFI_PROTO_PATH client-sdk-rust/livekit-ffi/protocol)
 set(FFI_PROTO_FILES
@@ -15,7 +16,7 @@ set(FFI_PROTO_FILES
 set(PROTO_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 
-find_package(Protobuf REQUIRED)
+find_package(protobuf REQUIRED CONFIG)
 
 # livekit-proto
 add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
@@ -46,9 +47,6 @@ add_library(livekit
     src/video_source.cpp
     src/participant.cpp
     src/room.cpp
-    ${PROTO_SRCS} 
-    ${PROTO_HEADERS}
-    ${PROTO_FILES}
 )
 
 

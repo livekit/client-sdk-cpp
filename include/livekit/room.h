@@ -17,41 +17,45 @@
 #ifndef LIVEKIT_ROOM_H
 #define LIVEKIT_ROOM_H
 
+#include <mutex>
+
+#include "ffi.pb.h"
 #include "livekit/ffi_client.h"
 #include "livekit/participant.h"
 #include "livekit_ffi.h"
-
-#include <mutex>
-#include "ffi.pb.h"
 #include "room.pb.h"
 
 namespace livekit {
-    class LocalParticipant;
-    class Room : public std::enable_shared_from_this<Room>
-    {
-    public:
-        Room();
-        ~Room();
-        void Connect(const std::string& url, const std::string& token);
-        void OnTrackPublished(const std::string& name, const std::string& sid, const std::string& inputTrackSid);
-        
-        FfiHandle GetHandle() const { return handle_; }
-        const std::string& GetName() const { return roomInfo_.name(); }
-        const std::string& GetSid() const { return roomInfo_.sid(); }
-        const std::string& GetMetadata() const { return roomInfo_.metadata(); }
-        bool IsConnected() const { return handle_.GetHandle() != INVALID_HANDLE; }
-        std::shared_ptr<LocalParticipant> GetLocalParticipant() const { return localParticipant_; }
+class LocalParticipant;
+class Room {
+ public:
+  Room();
+  ~Room();
+  void Connect(const std::string& url, const std::string& token);
+  void OnTrackPublished(const std::string& name,
+                        const std::string& sid,
+                        const std::string& inputTrackSid);
 
-    private:
-        // mutable std::mutex lock_;
-        FfiHandle handle_{INVALID_HANDLE};
-        RoomInfo roomInfo_;
-        uint64_t connectAsyncId_{0};
-        std::shared_ptr<LocalParticipant> localParticipant_{nullptr};
-        FfiClient::ListenerId eventListenerId_;
+  const std::string& GetName() const { return info_.name(); }
+  const std::string& GetSid() const { return info_.sid(); }
+  const std::string& GetMetadata() const { return info_.metadata(); }
+  bool IsConnected() const { return handle_.GetHandle() != INVALID_HANDLE; }
+  std::shared_ptr<LocalParticipant> GetLocalParticipant() const {
+    return localParticipant_;
+  }
 
-        void OnEvent(const FfiEvent& event);
-    };
-}
+ private:
+  friend LocalParticipant;
+  // mutable std::mutex lock_;
+  FfiHandle handle_{INVALID_HANDLE};
+  std::shared_ptr<LocalParticipant> localParticipant_{nullptr};
+  proto::RoomInfo info_;
+
+  uint64_t connectAsyncId_{0};
+  FfiClient::ListenerId listenerId_;
+
+  void OnEvent(const proto::FfiEvent& event);
+};
+}  // namespace livekit
 
 #endif /* LIVEKIT_ROOM_H */

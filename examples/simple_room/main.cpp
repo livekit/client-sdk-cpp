@@ -1,133 +1,109 @@
-#include "../include/livekit/livekit.h"
-
-#include <cstdio>
-#include <vector>
-#include <thread>
 #include <cmath>
+#include <cstdio>
 #include <future>
+#include <iostream>
+#include <thread>
+#include <vector>
+
+#include "livekit/livekit.h"
+#include "room.pb.h"
 
 using namespace livekit;
 
 const std::string URL = "ws://localhost:7880";
-const std::string TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2ODg3NDYzNTgsImlzcyI6ImRldmtleSIsIm5hbWUiOiJoZW5nc3RhciIsIm5iZiI6MTY4ODY1OTk1OCwic3ViIjoiaGVuZ3N0YXIiLCJ2aWRlbyI6eyJyb29tIjoibXktZmlyc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlfX0.BKKLppcGWeaDD-PFP83mGVtnT8vgx0bZneluuZbfjkc";
+const std::string TOKEN =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJleHAiOjE5MDY2MTMyODgsImlzcyI6IkFQSVRzRWZpZFpqclFvWSIsIm5hbWUiOiJuYXRpdm"
+    "UiLCJuYmYiOjE2NzI2MTMyODgsInN1YiI6Im5hdGl2ZSIsInZpZGVvIjp7InJvb20iOiJ0ZXN0"
+    "Iiwicm9vbUFkbWluIjp0cnVlLCJyb29tQ3JlYXRlIjp0cnVlLCJyb29tSm9pbiI6dHJ1ZSwicm"
+    "9vbUxpc3QiOnRydWV9fQ.uSNIangMRu8jZD5mnRYoCHjcsQWCrJXgHCs0aNIgBFY";
 
-std::vector<int> hsv_to_rgb(float H, float S,float V) {
-    if(H>360 || H<0 || S>100 || S<0 || V>100 || V<0){
-        std::cout<< "The givem HSV values are not in valid range" << std::endl;
-        return {};
-    }
-    float s = S/100;
-    float v = V/100;
-    float C = s*v;
-    float X = C*(1 - abs(std::fmod(H/60.0, 2)-1));
-    float m = v-C;
-    float r,g,b;
-    if(H >= 0 && H < 60){
-        r = C,g = X,b = 0;
-    }
-    else if(H >= 60 && H < 120){
-        r = X,g = C,b = 0;
-    }
-    else if(H >= 120 && H < 180){
-        r = 0,g = C,b = X;
-    }
-    else if(H >= 180 && H < 240){
-        r = 0,g = X,b = C;
-    }
-    else if(H >= 240 && H < 300){
-        r = X,g = 0,b = C;
-    }
-    else{
-        r = C,g = 0,b = X;
-    }
-    int R = (r+m)*255;
-    int G = (g+m)*255;
-    int B = (b+m)*255;
-    // cout<<"R : "<<R<<endl;
-    // cout<<"G : "<<G<<endl;
-    // cout<<"B : "<<B<<endl;
-    return {R, G, B};
+std::vector<int> hsv_to_rgb(float H, float S, float V) {
+  std::vector<int> rgb(3);
+  float C = S * V;
+  float X = C * (1 - std::abs(fmod(H * 6, 2) - 1));
+  float m = V - C;
+
+  float R, G, B;
+  if (0 <= H && H < 1 / 6.0) {
+    R = C, G = X, B = 0;
+  } else if (1 / 6.0 <= H && H < 2 / 6.0) {
+    R = X, G = C, B = 0;
+  } else if (2 / 6.0 <= H && H < 3 / 6.0) {
+    R = 0, G = C, B = X;
+  } else if (3 / 6.0 <= H && H < 4 / 6.0) {
+    R = 0, G = X, B = C;
+  } else if (4 / 6.0 <= H && H < 5 / 6.0) {
+    R = X, G = 0, B = C;
+  } else {
+    R = C, G = 0, B = X;
+  }
+
+  rgb[0] = (R + m) * 255;
+  rgb[1] = (G + m) * 255;
+  rgb[2] = (B + m) * 255;
+
+  return rgb;
 }
 
-void publish_frames(const VideoSource& source) {
-    std::cout << "publish_frames" << std::endl;
-    ArgbFrame argb_frame(FORMAT_ARGB, 1280, 720);
-    std::vector<uint8_t> arr = argb_frame.data;
-    double framerate = 1.0 / 30;
-    double hue = 0.0;
-    while (true) {
-        VideoFrame frame(0, VIDEO_ROTATION_0, argb_frame.ToI420());
-        std::vector<int> rgb = std::move(hsv_to_rgb(hue, 1.0, 1.0));
-        std::vector<int> argb_color;
-        argb_color.push_back(255);
-        for (int i = 0; i < arr.size(); i += 4) {
-            arr[i] = argb_color[0];
-            arr[i + 1] = argb_color[1];
-            arr[i + 2] = argb_color[2];
-            arr[i + 3] = argb_color[3];
-        }
-        source.CaptureFrame(frame);
-        hue += framerate / 3;
-        if (hue >= 1.0) {
-            hue = 0.0;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(int(framerate * 1000)));
+void publish_frames(VideoSource* source) {
+  ArgbFrame frame(proto::FORMAT_ARGB, 1280, 720);
+  double framerate = 1.0 / 30;
+  double hue = 0.0;
+  while (true) {
+    std::vector<int> rgb = hsv_to_rgb(hue, 1.0, 1.0);
+    for (int i = 0; i < frame.data.size(); i += 4) {
+      frame.data[i] = 255;
+      frame.data[i + 1] = rgb[0];
+      frame.data[i + 2] = rgb[1];
+      frame.data[i + 3] = rgb[2];
     }
+
+    hue += framerate / 3;
+
+    if (hue >= 1.0) {
+      hue = 0.0;
+    }
+
+    VideoFrame i420(0, proto::VIDEO_ROTATION_0, frame.ToI420());
+    source->CaptureFrame(i420);
+
+    std::this_thread::sleep_for(
+        std::chrono::milliseconds(int(framerate * 1000)));
+  }
 }
 
+int main(int argc, char* argv[]) {
+  std::shared_ptr<Room> room = std::make_shared<Room>();
+  room->Connect(URL, TOKEN);
 
-int main(int argc, char *argv[])
-{
-    std::shared_ptr<Room> room(new Room());
-    room->Connect(URL, TOKEN);
+  ArgbFrame argbFrame(proto::FORMAT_ARGB, 1280, 720);
+  VideoSource source{};
 
-    // ParticipantInfo participantInfo;
-    // participantInfo.set_identity("hengstar");
-    // participantInfo.set_sid("id1");
-    // participantInfo.set_metadata("my-first-room");
-    // participantInfo.set_name("user2");
-    // LocalParticipant participant(participantInfo, room);
+  std::shared_ptr<LocalVideoTrack> track =
+      LocalVideoTrack::CreateVideoTrack("hue", source);
 
-    livekit::ArgbFrame argbFrame(FORMAT_ARGB, 1280, 720);
+  // Create a new thread and call publish_freames
+  std::thread t1(publish_frames, &source);
 
-    // printf("Successfully read frame of size %d\n", frameSize);
+  proto::TrackPublishOptions options;
+  options.set_source(proto::SOURCE_CAMERA);
 
-    VideoSource videoSource;
+  // TODO Non blocking ?
+  while (!room->GetLocalParticipant()) {
+  }
 
-    // livekit::ARGBBufferInfo videoFrameBufferInfo;
-    // videoFrameBufferInfo.set_width(640);
-    // videoFrameBufferInfo.set_height(480);
-    // videoFrameBufferInfo.set_stride(640);
-    // FFIRequest request;
-    // livekit::ToI420Request* toI420Request = request.mutable_to_i420();
-    // toI420Request->mutable_argb->set_ptr()
-    // livekit::FFIResponse response = FfiClient::getInstance().SendRequest(request);
-    // response.to_i420();
-    // VideoFrameBuffer videoFrameBuffer = VideoFrameBuffer::Create(std::move(videoFrameHandle), std::move(videoFrameBufferInfo));
-    
-    //VideoFrame videoFrame(0, VIDEO_ROTATION_0, argbFrame.ToI420());
-    //videoSource.CaptureFrame(videoFrame);
-    // publish_frames(videoSource);
-    auto sourceTask = std::async(std::launch::async, publish_frames, videoSource);
-    // track = livekit::LocalVideoTrack::create_video_track("hue", source);
-    // options.source = livekit::TrackSource::SOURCE_CAMERA;
-    std::cout << "[Hengstar] Main Publishing track" << std::endl;
-    std::shared_ptr<LocalVideoTrack> videoTrack = LocalVideoTrack::CreateVideoTrack("hue", videoSource);
-    livekit::TrackPublishOptions options;
-    options.set_source(SOURCE_CAMERA);
-    while (!room->GetLocalParticipant()) {}
-    std::cout << "[Hengstar] Main Publishing track 2" << std::endl;
-    room->GetLocalParticipant()->PublishTrack(videoTrack, options);
+  std::this_thread::sleep_for(std::chrono::seconds(2));
 
-    sourceTask.wait();
+  std::cout << "Publishing track" << std::endl;
+  room->GetLocalParticipant()->PublishTrack(track, options);
 
-    // Should we implement a mechanism to PollEvents/WaitEvents? Like SDL2/glfw
-    //   - So we can remove the useless loop here
-    // Or is it better to use callback based events?
+  // Should we implement a mechanism to PollEvents/WaitEvents? Like SDL2/glfw
+  //   - So we can remove the useless loop here
+  // Or is it better to use callback based events?
 
-    while(true) {
+  while (true) {
+  }
 
-    }
-
-    return 0;
+  return 0;
 }

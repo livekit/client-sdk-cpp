@@ -17,124 +17,102 @@
 #ifndef LIVEKIT_VIDEO_FRAME_H
 #define LIVEKIT_VIDEO_FRAME_H
 
+#include <cstdint>
+
 #include "livekit/ffi_client.h"
 
-#include "video_frame.pb.h"
-
 namespace livekit {
-    class I420Buffer;
+class I420Buffer;
 
-    /**
-     * Mainly used to simplify the usage of to_argb method
-     * So the users don't need to deal with ctypes
-    */
-    struct ArgbFrame {
-        ArgbFrame(VideoFormatType format, int width, int height) : format(format), width(width), height(height) {
-            int size = width * height * sizeof(uint32_t);
-            this->data.resize(size);
-            // data = new uint8_t[size];
-        }
+struct ArgbFrame {
+  ArgbFrame(proto::VideoFormatType format, int width, int height)
+      : format(format), width(width), height(height) {
+    int size = width * height * sizeof(uint32_t);
+    this->data.resize(size);
+  }
 
-        VideoFormatType format;
-        int width;
-        int height;
-        std::vector<uint8_t> data;
-        // uint8_t* data;
+  proto::VideoFormatType format;
+  int width, height;
+  std::vector<uint8_t> data;
 
-        I420Buffer ToI420();
-    };
+  I420Buffer ToI420();
+};
 
-    class VideoFrameBuffer {
-    public:
-        VideoFrameBuffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : ffiHandle_(std::move(ffiHandle)), info_(std::move(info)) {}
-        VideoFrameBuffer(const FfiHandle& ffiHandle, const VideoFrameBufferInfo& info) : ffiHandle_(ffiHandle), info_(info) {}
+class VideoFrameBuffer {
+ public:
+  VideoFrameBuffer(FfiHandle& ffiHandle, proto::VideoFrameBufferInfo& info)
+      : handle_(std::move(ffiHandle)), info_(info) {}
 
-        const FfiHandle& GetHandle() const {
-            return ffiHandle_;
-        }
+  const FfiHandle& GetHandle() const { return handle_; }
+  int GetWidth() { return info_.width(); }
+  int GetHeight() { return info_.height(); }
+  proto::VideoFrameBufferType GetType() { return info_.buffer_type(); }
 
-        int GetWidth() {
-            return info_.width();
-        }
+  I420Buffer ToI420();
+  void ToArgb(const ArgbFrame& dst);
 
-        int GetHeight() {
-            return info_.height();
-        }
+  static VideoFrameBuffer Create(FfiHandle& ffi_handle,
+                                 proto::VideoFrameBufferInfo& info);
 
-        VideoFrameBufferType GetType() {
-            return info_.buffer_type();
-        }
+ protected:
+  FfiHandle handle_{INVALID_HANDLE};
+  proto::VideoFrameBufferInfo info_;
+};
 
-        I420Buffer ToI420();
-        void ToArgb(const ArgbFrame& dst);
+class PlanarYuvBuffer : public VideoFrameBuffer {
+ public:
+  PlanarYuvBuffer(FfiHandle& ffiHandle, proto::VideoFrameBufferInfo& info)
+      : VideoFrameBuffer(ffiHandle, info) {}
 
-        static VideoFrameBuffer Create(FfiHandle&& ffi_handle, VideoFrameBufferInfo&& info);
+  int GetChromaWidth() const { return info_.yuv().chroma_width(); }
+  int GetChromaHeight() const { return info_.yuv().chroma_height(); }
+  int GetStrideY() const { return info_.yuv().stride_y(); }
+  int GetStrideU() const { return info_.yuv().stride_u(); }
+  int GetStrideV() const { return info_.yuv().stride_v(); }
+};
 
-    protected:
-        FfiHandle ffiHandle_;
-        VideoFrameBufferInfo info_;
-    };
+class PlanarYuv8Buffer : public PlanarYuvBuffer {
+ public:
+  PlanarYuv8Buffer(FfiHandle& ffiHandle, proto::VideoFrameBufferInfo& info)
+      : PlanarYuvBuffer(ffiHandle, info) {}
 
-    class PlanarYuvBuffer : public VideoFrameBuffer {
-    public:
-        PlanarYuvBuffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : VideoFrameBuffer(std::move(ffiHandle), std::move(info)) {}
-        int GetChromaWidth() const {
-            return info_.yuv().chroma_width();
-        }
+  uint8_t* GetDataY() const {
+    return reinterpret_cast<uint8_t*>(info_.yuv().data_y_ptr());
+  }
 
-        int GetChromaHeight() const {
-            return info_.yuv().chroma_height();
-        }
+  uint8_t* GetDataU() const {
+    return reinterpret_cast<uint8_t*>(info_.yuv().data_u_ptr());
+  }
 
-        int GetStrideY() const {
-            return info_.yuv().stride_y();
-        }
+  uint8_t* GetDataV() const {
+    return reinterpret_cast<uint8_t*>(info_.yuv().data_v_ptr());
+  }
+};
 
-        int GetStrideU() const {
-            return info_.yuv().stride_u();
-        }
+class I420Buffer : public PlanarYuv8Buffer {
+ public:
+  I420Buffer(FfiHandle& ffiHandle, proto::VideoFrameBufferInfo& info)
+      : PlanarYuv8Buffer(ffiHandle, info) {}
+};
 
-        int GetStrideV() const {
-            return info_.yuv().stride_v();
-        }
-    };
+class VideoFrame {
+ public:
+  VideoFrame(int64_t timestampUs,
+             proto::VideoRotation rotation,
+             VideoFrameBuffer buffer)
+      : timestampUs_(timestampUs),
+        rotation_(rotation),
+        buffer_(std::move(buffer)) {}
 
-    class PlanarYuv8Buffer : public PlanarYuvBuffer {
-    public:
-        PlanarYuv8Buffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : PlanarYuvBuffer(std::move(ffiHandle), std::move(info)) {}
-        uint8_t* GetDataY() const {
-            reinterpret_cast<uint8_t*>(info_.yuv().data_y_ptr());
-        }
+  const VideoFrameBuffer& GetBuffer() const { return buffer_; }
+  const proto::VideoRotation& GetRotation() const { return rotation_; }
+  const int64_t GetTimestamp() const { return timestampUs_; }
 
-        uint8_t* GetDataU() const {
-            reinterpret_cast<uint8_t*>(info_.yuv().data_u_ptr());
-        }
-
-        uint8_t* GetDataV() const {
-            reinterpret_cast<uint8_t*>(info_.yuv().data_v_ptr());
-        }
-    };
-
-    class I420Buffer : public PlanarYuv8Buffer{
-    public:
-        I420Buffer(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) : PlanarYuv8Buffer(std::move(ffiHandle), std::move(info)) {}
-    };
-
-    class VideoFrame
-    {
-    public:
-        VideoFrame(int64_t timestampUs, VideoRotation rotation, const VideoFrameBuffer&& buffer) :
-            timestampUs_(timestampUs), rotation_(rotation), buffer_(buffer) {}
-
-        const VideoFrameBuffer& GetBuffer() const { return buffer_; }
-        const VideoRotation& GetRotation() const { return rotation_; }
-        const int64_t GetTimestamp() const { return timestampUs_; }
-
-    private:
-        VideoFrameBuffer buffer_;
-        int64_t timestampUs_;
-        VideoRotation rotation_;
-    };
-}
+ private:
+  VideoFrameBuffer buffer_;
+  int64_t timestampUs_;
+  proto::VideoRotation rotation_;
+};
+}  // namespace livekit
 
 #endif /* LIVEKIT_VIDEO_FRAME_H */

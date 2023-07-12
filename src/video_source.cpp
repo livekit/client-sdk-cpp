@@ -16,30 +16,34 @@
 
 #include "livekit/video_source.h"
 
+#include <iostream>
+
 #include "ffi.pb.h"
 
-namespace livekit
-{
-    VideoSource::VideoSource()
-    {
-        ConnectRequest *connectRequest = new ConnectRequest;
-        FfiRequest request;
-        request.mutable_new_video_source()->set_type(VideoSourceType::VIDEO_SOURCE_NATIVE);
-        
-        FfiResponse response = FfiClient::getInstance().SendRequest(request);
-        sourceInfo_ = response.new_video_source().source();
-        handle_ = FfiHandle(sourceInfo_.handle().id());
-    }
+namespace livekit {
+VideoSource::VideoSource() {
+  proto::ConnectRequest* connectRequest = new proto::ConnectRequest;
+  proto::FfiRequest request;
+  request.mutable_new_video_source()->set_type(
+      proto::VideoSourceType::VIDEO_SOURCE_NATIVE);
+  request.mutable_new_video_source()->mutable_resolution()->set_width(1280);
+  request.mutable_new_video_source()->mutable_resolution()->set_height(720);
 
-    void VideoSource::CaptureFrame(const VideoFrame& videoFrame) const
-    {
-        std::cout << "VideoSource::CaptureFrame" << std::endl;
-        FfiRequest request;
-        CaptureVideoFrameRequest* const captureVideoFrame = request.mutable_capture_video_frame();
-        captureVideoFrame->mutable_source_handle()->set_id(handle_.GetHandle());
-        captureVideoFrame->mutable_buffer_handle()->set_id(videoFrame.GetBuffer().GetHandle().GetHandle());
-        captureVideoFrame->mutable_frame()->set_rotation (videoFrame.GetRotation());
-        captureVideoFrame->mutable_frame()->set_timestamp_us(videoFrame.GetTimestamp());
-        FfiClient::getInstance().SendRequest(request);
-    }
+  proto::FfiResponse response = FfiClient::getInstance().SendRequest(request);
+  info_ = response.new_video_source().source();
+  handle_ = FfiHandle(info_.handle().id());
 }
+
+void VideoSource::CaptureFrame(const VideoFrame& videoFrame) const {
+  proto::FfiRequest request;
+  proto::CaptureVideoFrameRequest* captureVideoFrame =
+      request.mutable_capture_video_frame();
+  captureVideoFrame->mutable_source_handle()->set_id(handle_.GetHandle());
+  captureVideoFrame->mutable_buffer_handle()->set_id(
+      videoFrame.GetBuffer().GetHandle().GetHandle());
+  captureVideoFrame->mutable_frame()->set_rotation(videoFrame.GetRotation());
+  // captureVideoFrame->mutable_frame()->set_timestamp_us(
+  // videoFrame.GetTimestamp());
+  FfiClient::getInstance().SendRequest(request);
+}
+}  // namespace livekit

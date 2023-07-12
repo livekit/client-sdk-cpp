@@ -19,91 +19,67 @@
 #include "ffi.pb.h"
 #include "video_frame.pb.h"
 
-namespace livekit
-{
-   I420Buffer ArgbFrame::ToI420() {
-        FfiRequest request;
-        auto i420Argb = request.mutable_to_i420()->mutable_argb();
-        i420Argb->set_format(format);
-        i420Argb->set_width(width);
-        i420Argb->set_height(height);
-        i420Argb->set_stride(width * 4);
-        i420Argb->set_ptr(reinterpret_cast<uint64_t>(data.data()));
+namespace livekit {
+I420Buffer ArgbFrame::ToI420() {
+  proto::FfiRequest request;
+  auto i420Argb = request.mutable_to_i420()->mutable_argb();
+  i420Argb->set_format(format);
+  i420Argb->set_width(width);
+  i420Argb->set_height(height);
+  i420Argb->set_stride(width * 4);
+  i420Argb->set_ptr(reinterpret_cast<uint64_t>(data.data()));
 
-        FfiResponse response = FfiClient::getInstance().SendRequest(request);
-        VideoFrameBufferInfo bufferInfo(std::move(response.to_i420().buffer()));
-        FfiHandle ffiHandle(bufferInfo.handle().id());
+  proto::FfiResponse response = FfiClient::getInstance().SendRequest(request);
+  proto::VideoFrameBufferInfo info = response.to_i420().buffer();
+  FfiHandle handle(info.handle().id());
 
-        return I420Buffer(std::move(ffiHandle), std::move(bufferInfo));
-   }
-
-    // I420Buffer VideoFrameBuffer::ToI420() {
-    //     FFIRequest request;
-    //     request.to_i420.buffer.set_id(ffiHandle_.handle());
-
-    //     FfiResponse response = FfiClient::getInstance().SendReques(request);
-
-    //     VideoFrameBufferInfo new_info = response.to_i420().buffer();
-    //     FfiHandle ffi_handle(new_info.handle().id());
-    //     return I420Buffer(ffi_handle, new_info);
-    // }
-
-    // void ToArgb(const ArgbFrame& dst) {
-    //     FFIRequest request;
-    //     request.to_argb.buffer.set_id(ffiHandle_.handle());
-    //     request.to_argb.dst_ptr = dst.data;
-    //     request.to_argb.dst_format = dst.format;
-    //     request.to_argb.dst_stride = dst.width * 4;
-    //     request.to_argb.dst_width = dst.width;
-    //     request.to_argb.dst_height = dst.height;
-
-    //     FfiClient::getInstance().SendRequest(request);
-    // }
-
-    I420Buffer VideoFrameBuffer::ToI420() {
-        FfiRequest request;
-        request.mutable_to_i420()->mutable_buffer()->set_id(ffiHandle_.GetHandle());
-
-        FfiResponse response = FfiClient::getInstance().SendRequest(request);
-
-        VideoFrameBufferInfo newInfo = response.to_i420().buffer();
-        FfiHandle ffiHandle(newInfo.handle().id());
-        return I420Buffer(std::move(ffiHandle), std::move(newInfo));
-    }
-
-    void VideoFrameBuffer::ToArgb(const ArgbFrame& dst) {
-        FfiRequest request;
-        ToArgbRequest* const argb = request.mutable_to_argb();
-        argb->mutable_buffer()->set_id(ffiHandle_.GetHandle());
-        argb->set_dst_ptr(reinterpret_cast<uint64_t>(dst.data.data()));
-        argb->set_dst_format(dst.format);
-        argb->set_dst_stride(dst.width * 4);
-        argb->set_dst_width(dst.width);
-        argb->set_dst_height(dst.height);
-
-        FfiClient::getInstance().SendRequest(request);
-    }
-
-    VideoFrameBuffer VideoFrameBuffer::Create(FfiHandle&& ffiHandle, VideoFrameBufferInfo&& info) {
-        if (info.buffer_type() == VideoFrameBufferType::I420) {
-            return I420Buffer(std::move(ffiHandle), std::move(info));
-        } else {
-            throw std::runtime_error("unsupported buffer type");
-        }
-        // if (info.buffer_type() == VideoFrameBufferType::NATIVE) {
-        //     return NativeVideoFrameBuffer(ffiHandle, info);
-        // } else if (info.buffer_type() == VideoFrameBufferType::I420) {
-        //     return I420Buffer(ffiHandle, info);
-        // } else if (info.buffer_type() == VideoFrameBufferType::I420A) {
-        //     return I420ABuffer(ffiHandle, info);
-        // } else if (info.buffer_type() == VideoFrameBufferType::I422) {
-        //     return I422Buffer(ffiHandle, info);
-        // } else if (info.buffer_type() == VideoFrameBufferType::I444) {
-        //     return I444Buffer(ffiHandle, info);
-        // } else if (info.buffer_type() == VideoFrameBufferType::I010) {
-        //     return I010Buffer(ffiHandle, info);
-        // } else if (info.buffer_type() == VideoFrameBufferType::NV12) {
-        //     return NV12Buffer(ffiHandle, info);
-        // }
-    }
+  return I420Buffer(handle, info);
 }
+
+I420Buffer VideoFrameBuffer::ToI420() {
+  proto::FfiRequest request;
+  request.mutable_to_i420()->mutable_buffer()->set_id(handle_.GetHandle());
+
+  proto::FfiResponse response = FfiClient::getInstance().SendRequest(request);
+  proto::VideoFrameBufferInfo info = response.to_i420().buffer();
+  FfiHandle handle(info.handle().id());
+  return I420Buffer(handle, info);
+}
+
+void VideoFrameBuffer::ToArgb(const ArgbFrame& dst) {
+  proto::FfiRequest request;
+  proto::ToArgbRequest* const argb = request.mutable_to_argb();
+  argb->mutable_buffer()->set_id(handle_.GetHandle());
+  argb->set_dst_ptr(reinterpret_cast<uint64_t>(dst.data.data()));
+  argb->set_dst_format(dst.format);
+  argb->set_dst_stride(dst.width * 4);
+  argb->set_dst_width(dst.width);
+  argb->set_dst_height(dst.height);
+
+  FfiClient::getInstance().SendRequest(request);
+}
+
+VideoFrameBuffer VideoFrameBuffer::Create(FfiHandle& ffiHandle,
+                                          proto::VideoFrameBufferInfo& info) {
+  if (info.buffer_type() == proto::VideoFrameBufferType::I420) {
+    return I420Buffer(ffiHandle, info);
+  } else {
+    throw std::runtime_error("unsupported buffer type");
+  }
+  // if (info.buffer_type() == VideoFrameBufferType::NATIVE) {
+  //     return NativeVideoFrameBuffer(ffiHandle, info);
+  // } else if (info.buffer_type() == VideoFrameBufferType::I420) {
+  //     return I420Buffer(ffiHandle, info);
+  // } else if (info.buffer_type() == VideoFrameBufferType::I420A) {
+  //     return I420ABuffer(ffiHandle, info);
+  // } else if (info.buffer_type() == VideoFrameBufferType::I422) {
+  //     return I422Buffer(ffiHandle, info);
+  // } else if (info.buffer_type() == VideoFrameBufferType::I444) {
+  //     return I444Buffer(ffiHandle, info);
+  // } else if (info.buffer_type() == VideoFrameBufferType::I010) {
+  //     return I010Buffer(ffiHandle, info);
+  // } else if (info.buffer_type() == VideoFrameBufferType::NV12) {
+  //     return NV12Buffer(ffiHandle, info);
+  // }
+}
+}  // namespace livekit

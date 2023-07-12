@@ -14,28 +14,12 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_VIDEO_SOURCE_H
-#define LIVEKIT_VIDEO_SOURCE_H
-
+#ifndef LIVEKIT_PROTO_H
+#define LIVEKIT_PROTO_H
 #include "ffi.pb.h"
-#include "livekit/ffi_client.h"
-#include "livekit/video_frame.h"
-#include "livekit_ffi.h"
-
+#include "video_frame.pb.h"
 namespace livekit {
-class LocalVideoTrack;
-class VideoSource {
- public:
-  VideoSource();
-
-  void CaptureFrame(const VideoFrame& videoFrame) const;
-
- private:
-  friend LocalVideoTrack;
-
-  FfiHandle handle_{INVALID_HANDLE};
-  proto::VideoSourceInfo info_;
-};
+namespace proto {}  // namespace proto
 }  // namespace livekit
 
-#endif /* LIVEKIT_VIDEO_SOURCE_H */
+#endif /* LIVEKIT_PROTO_H */

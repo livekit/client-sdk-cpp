@@ -21,42 +21,44 @@
 #include <memory>
 
 #include "livekit/track.h"
-
 #include "participant.pb.h"
-#include "ffi.pb.h"
 
 namespace livekit {
-    class Room;
+class Room;
 
-    class Participant {
-    public:
-        Participant(const ParticipantInfo& info, std::weak_ptr<Room> room) : info_(info), room_(room) {}
+class Participant {
+ public:
+  Participant(const proto::ParticipantInfo& info) : info_(info) {}
 
-        const std::string& GetSid() const { return info_.sid(); }
-        const std::string& GetIdentity() const { return info_.identity(); }
-        const std::string& GetName() const { return info_.name(); }
-        const std::string& GetMetadata() const { return info_.metadata(); }
+  const std::string& GetSid() const { return info_.sid(); }
+  const std::string& GetIdentity() const { return info_.identity(); }
+  const std::string& GetName() const { return info_.name(); }
+  const std::string& GetMetadata() const { return info_.metadata(); }
 
-    protected:
-        ParticipantInfo info_;
-        std::weak_ptr<Room> room_;
-    };
+ protected:
+  proto::ParticipantInfo info_;
+};
 
-    class LocalParticipant : public Participant {
-    public:
-        LocalParticipant(const ParticipantInfo& info, std::weak_ptr<Room> room) : Participant(info, room) {}
+class LocalParticipant : public Participant {
+ public:
+  LocalParticipant(const proto::ParticipantInfo& info, Room* room)
+      : Participant(info), room_(room) {}
 
-        void PublishTrack(std::shared_ptr<Track> track, const TrackPublishOptions& options);
+  void PublishTrack(std::shared_ptr<Track> track,
+                    const proto::TrackPublishOptions& options);
 
-    private:
-        mutable std::mutex lock_;
-        std::condition_variable cv_;
-        FfiAsyncId publishAsyncId_;
-        FfiClient::ListenerId listenerId_;
-        std::unique_ptr<PublishTrackCallback> publishCallback_;
+ private:
+  friend Room;
 
-        void OnEvent(const FfiEvent& event);
-    };
+  mutable std::mutex lock_;
+  std::condition_variable cv_;  // Should we block?
+  proto::FfiAsyncId publishAsyncId_;
+  FfiClient::ListenerId listenerId_;
+  std::unique_ptr<proto::PublishTrackCallback> publishCallback_;
+  Room* room_{nullptr};
 
-}
+  void OnEvent(const proto::FfiEvent& event);
+};
+
+}  // namespace livekit
 #endif /* LIVEKIT_PARTICIPANT_H */

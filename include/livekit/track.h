@@ -22,62 +22,42 @@
 #include "video_source.h"
 
 namespace livekit {
+class LocalParticipant;
+
 class Track {
-public:
-    // Use a move constructor to avoid copying the parameters
-    Track(FfiHandle&& ffiHandle, TrackInfo&& info) : ffiHandle_(std::move(ffiHandle)), info_(std::move(info)) {}
-    Track(const FfiHandle& ffiHandle, const TrackInfo& info) : ffiHandle_(ffiHandle), info_(info) {}
+ public:
+  // Use a move constructor to avoid copying the parameters
+  Track(FfiHandle& ffiHandle, const proto::TrackInfo& info)
+      : ffiHandle_(std::move(ffiHandle)), info_(info) {}
 
-    // For dynamic_cast to work, we need a virtual function
-    virtual ~Track() {}
+  std::string GetSid() const { return info_.sid(); }
+  std::string GetName() const { return info_.name(); }
+  proto::TrackKind Getkind() const { return info_.kind(); }
+  proto::StreamState GetStreamState() const { return info_.stream_state(); }
+  bool IsMuted() const { return info_.muted(); }
 
-    std::string GetSid() const {
-        return info_.sid();
-    }
+ private:
+  friend LocalParticipant;
 
-    std::string GetName() const {
-        return info_.name();
-    }
-
-    TrackKind Getkind() const {
-        return info_.kind();
-    }
-
-    StreamState GetStreamState() const {
-        return info_.stream_state();
-    }
-
-    bool IsMuted() const {
-        return info_.muted();
-    }
-
-    void SetUpdateInfo(const TrackInfo& info) {
-        info_ = info;
-    }
-
-    FfiHandle GetHandle() const {
-        return ffiHandle_;
-    }
-
-private:
-    TrackInfo info_;
-    FfiHandle ffiHandle_;
+  proto::TrackInfo info_;
+  FfiHandle ffiHandle_;
 };
 
-
 class LocalVideoTrack : public Track {
-public:
-    // Use a move constructor to avoid copying the parameters
-    LocalVideoTrack(FfiHandle&& ffiHandle, TrackInfo&& info) : Track(std::move(ffiHandle), std::move(info)) {}
-    LocalVideoTrack(const FfiHandle& ffiHandle, const TrackInfo& info) : Track(ffiHandle, info) {}
-    
+ public:
+  // Use a move constructor to avoid copying the parameters
+  LocalVideoTrack(FfiHandle& ffiHandle, const proto::TrackInfo& info)
+      : Track(ffiHandle, info) {}
 
-    static std::unique_ptr<LocalVideoTrack> CreateVideoTrack(const std::string& name, const VideoSource& source);
+  static std::unique_ptr<LocalVideoTrack> CreateVideoTrack(
+      const std::string& name,
+      const VideoSource& source);
 };
 
 class RemoteVideoTrack : public Track {
-    RemoteVideoTrack(const FfiHandle& ffiHandle, const TrackInfo& info): Track(ffiHandle, info) {}
+  RemoteVideoTrack(FfiHandle& ffiHandle, const proto::TrackInfo& info)
+      : Track(ffiHandle, info) {}
 };
-}
+}  // namespace livekit
 
 #endif /* LIVEKIT_TRACK_H */
