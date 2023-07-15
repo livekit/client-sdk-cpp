@@ -1,3 +1,19 @@
+/*
+ * Copyright 2023 LiveKit
+ *
+ * Licensed under the Apache License, Version 2.0 (the “License”);
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an “AS IS” BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <cmath>
 #include <cstdio>
 #include <future>
@@ -11,13 +27,9 @@
 
 using namespace livekit;
 
-const std::string URL = "wss://nativesdk.livekit.cloud";
+const std::string URL = "ws://localhost:7880";
 const std::string TOKEN =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-    "eyJleHAiOjI1OTAwNjQ4MjMsImlzcyI6IkFQSXM4eUdIS0FLZWYyWCIsIm5iZiI6MTY4OTE2ND"
-    "gyMywic3ViIjoibmF0aXZlIiwidmlkZW8iOnsiY2FuUHVibGlzaCI6dHJ1ZSwiY2FuUHVibGlz"
-    "aERhdGEiOnRydWUsImNhblN1YnNjcmliZSI6dHJ1ZSwicm9vbSI6InRlc3QiLCJyb29tSm9pbi"
-    "I6dHJ1ZX19.TS-V3hJVuhBhMk3gBeSRUh5LYxQSA8SdURK10HnUacU";
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2ODk0NjY2MzcsImlzcyI6ImRldmtleSIsIm5hbWUiOiJoZW5nc3RhciIsIm5iZiI6MTY4OTM4MDIzNywic3ViIjoiaGVuZ3N0YXIiLCJ2aWRlbyI6eyJyb29tIjoibXktZmlyc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlfX0.xL-C63HAGR4RHQ1X472SVY40-Ukh69bgRZOOzwHj2YE";
 
 std::vector<int> hsv_to_rgb(float H, float S, float V) {
   std::vector<int> rgb(3);
@@ -75,7 +87,7 @@ void publish_frames(VideoSource* source) {
 }
 
 int main(int argc, char* argv[]) {
-  std::shared_ptr<Room> room = std::make_shared<Room>();
+  std::shared_ptr<Room> room = Room::Create();
   room->Connect(URL, TOKEN);
 
   // TODO Non blocking ?

@@ -38,9 +38,9 @@ void VideoSource::CaptureFrame(const VideoFrame& videoFrame) const {
   proto::FfiRequest request{};
   proto::CaptureVideoFrameRequest* captureVideoFrame =
       request.mutable_capture_video_frame();
-  captureVideoFrame->mutable_source_handle()->set_id(handle_.GetHandle());
+  captureVideoFrame->mutable_source_handle()->set_id(handle_.GetHandleId());
   captureVideoFrame->mutable_buffer_handle()->set_id(
-      videoFrame.GetBuffer().GetHandle().GetHandle());
+      videoFrame.GetBuffer().GetHandle().GetHandleId());
   captureVideoFrame->mutable_frame()->set_rotation(proto::VIDEO_ROTATION_0);
   captureVideoFrame->mutable_frame()->set_timestamp_us(0);
   FfiClient::getInstance().SendRequest(request);

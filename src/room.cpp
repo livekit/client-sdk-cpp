@@ -26,14 +26,20 @@
 namespace livekit {
 Room::Room() {
   std::cout << "Room::Room" << std::endl;
-  listenerId_ = FfiClient::getInstance().AddListener(
-      std::bind(&Room::OnEvent, this, std::placeholders::_1));
 }
 
 Room::~Room() {
   std::cout << "Room::~Room" << std::endl;
   FfiClient::getInstance().RemoveListener(listenerId_);
-  // localParticipant_->room_ = nullptr; TODO lock before
+}
+
+std::shared_ptr<Room> Room::Create() {
+  std::shared_ptr<Room> ptr = std::make_shared<Room>();
+
+  ptr->listenerId_ = FfiClient::getInstance().AddListener(
+    std::bind(&Room::OnEvent, ptr, std::placeholders::_1));
+
+  return ptr;
 }
 
 void Room::Connect(const std::string& url, const std::string& token) {
@@ -57,8 +63,13 @@ void Room::OnEvent(const proto::FfiEvent& event) {
   if (!cb.has_error()) {
     handle_ = FfiHandle(cb.room().handle().id());
     info_ = cb.room();
-    localParticipant_ =
-        std::make_shared<LocalParticipant>(cb.room().local_participant(), this);
+    try {
+      localParticipant_ = std::make_shared<LocalParticipant>(cb.room().local_participant(), shared_from_this());
+    }
+    catch (std::exception& e) {
+      std::cerr << "Failed to create local participant: " << e.what() << std::endl;
+      return;
+    }    
 
     std::cout << "Connected to room" << std::endl;
     std::cout << "Room SID: " << cb.room().sid() << std::endl;

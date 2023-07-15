@@ -27,8 +27,10 @@
 
 namespace livekit {
 class LocalParticipant;
-class Room {
+// Only create it with Room::Create()
+class Room : public std::enable_shared_from_this<Room> {
  public:
+  static std::shared_ptr<Room> Create();
   Room();
   ~Room();
   void Connect(const std::string& url, const std::string& token);
@@ -39,7 +41,7 @@ class Room {
   const std::string& GetName() const { return info_.name(); }
   const std::string& GetSid() const { return info_.sid(); }
   const std::string& GetMetadata() const { return info_.metadata(); }
-  bool IsConnected() const { return handle_.GetHandle() != INVALID_HANDLE; }
+  bool IsConnected() const { return handle_.GetHandleId() != INVALID_HANDLE; }
   std::shared_ptr<LocalParticipant> GetLocalParticipant() const {
     return localParticipant_;
   }
@@ -52,7 +54,7 @@ class Room {
   proto::RoomInfo info_;
 
   uint64_t connectAsyncId_{0};
-  FfiClient::ListenerId listenerId_;
+  FfiClient::ListenerId listenerId_{0};
 
   void OnEvent(const proto::FfiEvent& event);
 };

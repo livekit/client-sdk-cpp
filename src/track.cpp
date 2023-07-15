@@ -25,7 +25,7 @@ std::unique_ptr<LocalVideoTrack> LocalVideoTrack::CreateVideoTrack(
   proto::FfiRequest request{};
   request.mutable_create_video_track()->set_name(name);
   request.mutable_create_video_track()->mutable_source_handle()->set_id(
-      source.handle_.GetHandle());
+      source.handle_.GetHandleId());
 
   proto::FfiResponse resp = FfiClient::getInstance().SendRequest(request);
   proto::TrackInfo info = resp.create_video_track().track();

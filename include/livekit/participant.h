@@ -18,7 +18,6 @@
 #define LIVEKIT_PARTICIPANT_H
 
 #include <condition_variable>
-#include <memory>
 
 #include "livekit/track.h"
 #include "participant.pb.h"
@@ -29,6 +28,7 @@ class Room;
 class Participant {
  public:
   Participant(const proto::ParticipantInfo& info) : info_(info) {}
+  Participant(proto::ParticipantInfo&& info) : info_(std::move(info)) {}
 
   const std::string& GetSid() const { return info_.sid(); }
   const std::string& GetIdentity() const { return info_.identity(); }
@@ -41,21 +41,22 @@ class Participant {
 
 class LocalParticipant : public Participant {
  public:
-  LocalParticipant(const proto::ParticipantInfo& info, Room* room)
+  LocalParticipant(const proto::ParticipantInfo& info, std::shared_ptr<Room> room)
       : Participant(info), room_(room) {}
+  LocalParticipant(proto::ParticipantInfo&& info, std::shared_ptr<Room> room)
+      : Participant(std::move(info)), room_(room) {}
+
+  ~LocalParticipant();
 
   void PublishTrack(std::shared_ptr<Track> track,
                     const proto::TrackPublishOptions& options);
 
  private:
-  friend Room;
-
-  mutable std::mutex lock_;
   std::condition_variable cv_;  // Should we block?
   proto::FfiAsyncId publishAsyncId_;
-  FfiClient::ListenerId listenerId_;
+  FfiClient::ListenerId listenerId_{0};
   std::unique_ptr<proto::PublishTrackCallback> publishCallback_;
-  Room* room_{nullptr};
+  std::weak_ptr<Room> room_;
 
   void OnEvent(const proto::FfiEvent& event);
 };

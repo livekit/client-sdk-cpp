@@ -63,16 +63,16 @@ class FfiClient {
 
 struct FfiHandle {
  public:
-  FfiHandle(FfiHandleId handle) : handle_(handle) {}
+  FfiHandle(FfiHandleId handleId) : handleId_(handleId) {}
 
   FfiHandle(FfiHandle&& handle) {
-    handle_ = handle.handle_;
-    handle.handle_ = INVALID_HANDLE;
+    handleId_ = handle.handleId_;
+    handle.handleId_ = INVALID_HANDLE;
   }
 
   ~FfiHandle() {
-    if (handle_ != INVALID_HANDLE) {
-      assert(livekit_ffi_drop_handle(handle_));
+    if (handleId_ != INVALID_HANDLE) {
+      assert(livekit_ffi_drop_handle(handleId_));
     }
   }
 
@@ -80,15 +80,15 @@ struct FfiHandle {
   FfiHandle& operator=(FfiHandle const&) = delete;
 
   FfiHandle& operator=(FfiHandle&& other) noexcept {
-    handle_ = other.handle_;
-    other.handle_ = INVALID_HANDLE;
+    handleId_ = other.handleId_;
+    other.handleId_ = INVALID_HANDLE;
     return *this;
   }
 
-  FfiHandleId GetHandle() const { return handle_; }
+  FfiHandleId GetHandleId() const { return handleId_; }
 
  private:
-  FfiHandleId handle_;
+  FfiHandleId handleId_;
 };
 }  // namespace livekit
 
