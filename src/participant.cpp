@@ -44,10 +44,8 @@ void LocalParticipant::PublishTrack(std::shared_ptr<Track> track,
   proto::FfiRequest request{};
   proto::PublishTrackRequest* publishTrackRequest =
       request.mutable_publish_track();
-  publishTrackRequest->mutable_track_handle()->set_id(
+  publishTrackRequest->set_track_handle(
       track->ffiHandle_.GetHandleId());
-  publishTrackRequest->mutable_room_handle()->set_id(
-      room->handle_.GetHandleId());
   *publishTrackRequest->mutable_options() = options;
 
   proto::PublishTrackResponse resp =
@@ -67,7 +65,7 @@ void LocalParticipant::OnEvent(const proto::FfiEvent& event) {
   if (event.has_publish_track()) {
     std::cout << "[LocalParticipant] got publish track event" << std::endl;
     proto::PublishTrackCallback cb = event.publish_track();
-    if (cb.async_id().id() == publishAsyncId_.id()) {
+    if (cb.async_id() == publishAsyncId_) {
       std::cout << "[LocalParticipant] got publish track callback" << std::endl;
       publishCallback_ = std::make_unique<proto::PublishTrackCallback>(cb);
     }

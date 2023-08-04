@@ -53,7 +53,7 @@ class LocalParticipant : public Participant {
 
  private:
   std::condition_variable cv_;  // Should we block?
-  proto::FfiAsyncId publishAsyncId_;
+  uint64_t publishAsyncId_;
   FfiClient::ListenerId listenerId_{0};
   std::unique_ptr<proto::PublishTrackCallback> publishCallback_;
   std::weak_ptr<Room> room_;

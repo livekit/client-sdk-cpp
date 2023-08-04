@@ -38,7 +38,7 @@ I420Buffer ArgbFrame::ToI420() {
 
 I420Buffer VideoFrameBuffer::ToI420() {
   proto::FfiRequest request{};
-  request.mutable_to_i420()->mutable_buffer()->set_id(handle_.GetHandleId());
+  request.mutable_to_i420()->set_buffer_handle(handle_.GetHandleId());
 
   proto::FfiResponse response = FfiClient::getInstance().SendRequest(request);
   proto::VideoFrameBufferInfo info = response.to_i420().buffer();

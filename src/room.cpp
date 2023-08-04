@@ -49,12 +49,12 @@ void Room::Connect(const std::string& url, const std::string& token) {
   connectRequest->set_token(token);
 
   proto::FfiResponse response = FfiClient::getInstance().SendRequest(request);
-  connectAsyncId_ = response.connect().async_id().id();
+  connectAsyncId_ = response.connect().async_id();
 }
 
 void Room::OnEvent(const proto::FfiEvent& event) {
   proto::ConnectCallback cb = event.connect();
-  if (cb.async_id().id() != connectAsyncId_) {
+  if (cb.async_id() != connectAsyncId_) {
     return;
   }
 
@@ -64,7 +64,7 @@ void Room::OnEvent(const proto::FfiEvent& event) {
     handle_ = FfiHandle(cb.room().handle().id());
     info_ = cb.room();
     try {
-      localParticipant_ = std::make_shared<LocalParticipant>(cb.room().local_participant(), shared_from_this());
+      localParticipant_ = std::make_shared<LocalParticipant>(cb.local_participant(), shared_from_this());
     }
     catch (std::exception& e) {
       std::cerr << "Failed to create local participant: " << e.what() << std::endl;
