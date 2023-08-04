@@ -119,9 +119,9 @@ class VideoFrame {
   const int64_t GetTimestamp() const { return timestampUs_; }
 
  private:
-  VideoFrameBuffer buffer_;
-  int64_t timestampUs_;
+ int64_t timestampUs_;
   proto::VideoRotation rotation_;
+  VideoFrameBuffer buffer_;
 };
 }  // namespace livekit
 

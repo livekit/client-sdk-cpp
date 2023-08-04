@@ -32,6 +32,7 @@ const std::string TOKEN =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2ODk0NjY2MzcsImlzcyI6ImRldmtleSIsIm5hbWUiOiJoZW5nc3RhciIsIm5iZiI6MTY4OTM4MDIzNywic3ViIjoiaGVuZ3N0YXIiLCJ2aWRlbyI6eyJyb29tIjoibXktZmlyc3Qtcm9vbSIsInJvb21Kb2luIjp0cnVlfX0.xL-C63HAGR4RHQ1X472SVY40-Ukh69bgRZOOzwHj2YE";
 
 std::vector<int> hsv_to_rgb(float H, float S, float V) {
+  
   std::vector<int> rgb(3);
   float C = S * V;
   float X = C * (1 - std::abs(fmod(H * 6, 2) - 1));

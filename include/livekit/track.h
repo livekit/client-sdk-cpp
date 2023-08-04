@@ -45,8 +45,8 @@ class Track {
  private:
   friend LocalParticipant;
 
-  proto::TrackInfo info_;
   FfiHandle ffiHandle_;
+  proto::TrackInfo info_;
 };
 
 class LocalVideoTrack : public Track {
