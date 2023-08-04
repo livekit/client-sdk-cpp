@@ -46,18 +46,18 @@ I420Buffer VideoFrameBuffer::ToI420() {
   return I420Buffer(handle, info);
 }
 
-void VideoFrameBuffer::ToArgb(const ArgbFrame& dst) {
-  /*roto::FfiRequest request{};
-    proto::ToArgbRequest* argb = request.mutable_to_argb();
-    argb->mutable_buffer()->set_id(handle_.GetHandle());
-    argb->set_dst_ptr(reinterpret_cast<uint64_t>(dst.data.data()));
-    argb->set_dst_format(dst.format);
-    argb->set_dst_stride(dst.width * 4);
-    argb->set_dst_width(dst.width);
-    argb->set_dst_height(dst.height);
+// void VideoFrameBuffer::ToArgb(const ArgbFrame& dst) {
+//   /*roto::FfiRequest request{};
+//     proto::ToArgbRequest* argb = request.mutable_to_argb();
+//     argb->mutable_buffer()->set_id(handle_.GetHandle());
+//     argb->set_dst_ptr(reinterpret_cast<uint64_t>(dst.data.data()));
+//     argb->set_dst_format(dst.format);
+//     argb->set_dst_stride(dst.width * 4);
+//     argb->set_dst_width(dst.width);
+//     argb->set_dst_height(dst.height);
 
-    FfiClient::getInstance().SendRequest(request);a*/
-}
+//     FfiClient::getInstance().SendRequest(request);a*/
+// }
 
 VideoFrameBuffer VideoFrameBuffer::Create(FfiHandle& ffiHandle,
                                           proto::VideoFrameBufferInfo& info) {

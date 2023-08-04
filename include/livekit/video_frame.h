@@ -116,7 +116,7 @@ class VideoFrame {
 
   const VideoFrameBuffer& GetBuffer() const { return buffer_; }
   const proto::VideoRotation& GetRotation() const { return rotation_; }
-  const int64_t GetTimestamp() const { return timestampUs_; }
+  int64_t GetTimestamp() const { return timestampUs_; }
 
  private:
  int64_t timestampUs_;

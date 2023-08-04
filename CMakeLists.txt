@@ -3,7 +3,7 @@ project(livekit)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=reorder")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wunused-but-set-parameter -Wformat-security -Wformat-security -Wstrict-null-sentinel -Werror")
 set(FFI_PROTO_PATH client-sdk-rust/livekit-ffi/protocol)
 set(FFI_PROTO_FILES
     ${FFI_PROTO_PATH}/handle.proto

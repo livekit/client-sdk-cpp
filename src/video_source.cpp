@@ -24,7 +24,6 @@
 namespace livekit {
 VideoSource::VideoSource() {
   std::cout << "VideoSource::VideoSource" << std::endl;
-  proto::ConnectRequest* connectRequest = new proto::ConnectRequest;
   proto::FfiRequest request{};
   request.mutable_new_video_source()->set_type(
       proto::VideoSourceType::VIDEO_SOURCE_NATIVE);
