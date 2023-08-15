@@ -35,18 +35,13 @@ void LocalParticipant::PublishTrack(std::shared_ptr<Track> track,
     throw std::runtime_error("cannot publish a remote track");
   }
 
-  auto room = room_.lock();
-
-  if (!room) {
-    throw std::runtime_error("room is not available");
-  }
-
   proto::FfiRequest request{};
-  proto::PublishTrackRequest* publishTrackRequest =
-      request.mutable_publish_track();
-  publishTrackRequest->set_track_handle(
-      track->ffiHandle_.GetHandleId());
+  proto::PublishTrackRequest* publishTrackRequest = request.mutable_publish_track();
+  publishTrackRequest->set_track_handle(track->ffiHandle_.GetHandleId());
+
+  std::cout << "track->ffiHandle_.GetHandleId(): " << track->ffiHandle_.GetHandleId() << std::endl;
   *publishTrackRequest->mutable_options() = options;
+  publishTrackRequest->set_local_participant_handle(handle_.GetHandleId());
 
   proto::PublishTrackResponse resp =
       FfiClient::getInstance().SendRequest(request).publish_track();

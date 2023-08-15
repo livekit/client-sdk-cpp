@@ -64,7 +64,8 @@ void Room::OnEvent(const proto::FfiEvent& event) {
     handle_ = FfiHandle(cb.room().handle().id());
     info_ = cb.room();
     try {
-      localParticipant_ = std::make_shared<LocalParticipant>(cb.local_participant(), shared_from_this());
+      lpHandle_ = FfiHandle(cb.local_participant().handle().id());
+      localParticipant_ = std::make_shared<LocalParticipant>(lpHandle_, cb.local_participant());
     }
     catch (std::exception& e) {
       std::cerr << "Failed to create local participant: " << e.what() << std::endl;

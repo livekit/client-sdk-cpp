@@ -19,6 +19,7 @@
 
 #include <condition_variable>
 
+#include "livekit/ffi_client.h"
 #include "livekit/track.h"
 #include "participant.pb.h"
 
@@ -27,8 +28,8 @@ class Room;
 
 class Participant {
  public:
-  Participant(const proto::ParticipantInfo& info) : info_(info) {}
-  Participant(proto::ParticipantInfo&& info) : info_(std::move(info)) {}
+  Participant(const FfiHandle& handle, const proto::ParticipantInfo& info) : handle_(handle), info_(info) {}
+  Participant(FfiHandle&& handle, proto::ParticipantInfo&& info) : handle_(std::move(handle)), info_(std::move(info)) {}
 
   const std::string& GetSid() const { return info_.sid(); }
   const std::string& GetIdentity() const { return info_.identity(); }
@@ -36,15 +37,16 @@ class Participant {
   const std::string& GetMetadata() const { return info_.metadata(); }
 
  protected:
+  FfiHandle handle_;
   proto::ParticipantInfo info_;
 };
 
 class LocalParticipant : public Participant {
  public:
-  LocalParticipant(const proto::ParticipantInfo& info, std::shared_ptr<Room> room)
-      : Participant(info), room_(room) {}
-  LocalParticipant(proto::ParticipantInfo&& info, std::shared_ptr<Room> room)
-      : Participant(std::move(info)), room_(room) {}
+  LocalParticipant(const FfiHandle& handle, const proto::ParticipantInfo& info)
+      : Participant(handle, info) {}
+  LocalParticipant(FfiHandle&& handle, proto::ParticipantInfo&& info)
+      : Participant(std::move(handle), std::move(info)) {}
 
   ~LocalParticipant();
 
@@ -56,7 +58,6 @@ class LocalParticipant : public Participant {
   uint64_t publishAsyncId_;
   FfiClient::ListenerId listenerId_{0};
   std::unique_ptr<proto::PublishTrackCallback> publishCallback_;
-  std::weak_ptr<Room> room_;
 
   void OnEvent(const proto::FfiEvent& event);
 };

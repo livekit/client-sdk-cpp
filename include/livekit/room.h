@@ -26,9 +26,8 @@
 #include "room.pb.h"
 
 namespace livekit {
-class LocalParticipant;
 // Only create it with Room::Create()
-class Room : public std::enable_shared_from_this<Room> {
+class Room {
  public:
   static std::shared_ptr<Room> Create();
   Room();
@@ -47,9 +46,9 @@ class Room : public std::enable_shared_from_this<Room> {
   }
 
  private:
-  friend LocalParticipant;
   // mutable std::mutex lock_;
   FfiHandle handle_{INVALID_HANDLE};
+  FfiHandle lpHandle_{INVALID_HANDLE}; // LocalParticipant handle
   std::shared_ptr<LocalParticipant> localParticipant_{nullptr};
   proto::RoomInfo info_;
 

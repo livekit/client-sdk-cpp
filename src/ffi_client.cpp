@@ -91,4 +91,13 @@ void LivekitFfiCallback(const uint8_t* buf, size_t len) {
   FfiClient::getInstance().PushEvent(event);
 }
 
+FfiHandle::FfiHandle(FfiHandleId id) : handleId_(new FfiHandleId(id), [](uintptr_t* ptr) {
+        // Only destroy the handle if it's valid
+    if (ptr && *ptr != INVALID_HANDLE) {
+        assert(livekit_ffi_drop_handle(*ptr));
+    }
+    delete ptr; // Delete the pointer after calling the deleter function
+}) {
+}
+
 }  // namespace livekit
