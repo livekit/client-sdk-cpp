@@ -17,57 +17,63 @@
 #ifndef LIVEKIT_FFI_CLIENT_H
 #define LIVEKIT_FFI_CLIENT_H
 
+#include <functional>
 #include <iostream>
 #include <memory>
-#include <functional>
 #include <mutex>
 #include <unordered_map>
 
-#include "ffi.pb.h"
+#include "livekit/proto.h"
+#include "livekit_ffi.h"
 
-namespace livekit
-{
-    extern "C" void LivekitFfiCallback(const uint8_t *buf, size_t len);
+namespace livekit {
+extern "C" void LivekitFfiCallback(const u_int8_t* buf, size_t len);
 
-    // The FfiClient is used to communicate with the FFI interface of the Rust SDK
-    // We use the generated protocol messages to facilitate the communication
-    class FfiClient
-    {
-    public:
-        using ListenerId = int;
-        using Listener = std::function<void(const FFIEvent&)>;
+// The FfiClient is used to communicate with the FFI interface of the Rust SDK
+// We use the generated protocol messages to facilitate the communication
+class FfiClient {
+ public:
+  using ListenerId = int;
+  using Listener = std::function<void(const proto::FfiEvent&)>;
 
-        FfiClient(const FfiClient&) = delete;
-        FfiClient& operator=(const FfiClient&) = delete;
+  FfiClient(const FfiClient&) = delete;
+  FfiClient& operator=(const FfiClient&) = delete;
 
-        static FfiClient& getInstance() {
-            static FfiClient instance;
-            return instance;
-        }
- 
-        ListenerId AddListener(const Listener& listener);
-        void RemoveListener(ListenerId id);
+  static FfiClient& getInstance() {
+    static FfiClient instance;
+    return instance;
+  }
 
-        FFIResponse SendRequest(const FFIRequest& request)const;
+  ListenerId AddListener(const Listener& listener);
+  void RemoveListener(ListenerId id);
 
-    private:
-        std::unordered_map<ListenerId, Listener> listeners_;
-        ListenerId nextListenerId = 1;
-        mutable std::mutex lock_;
+  proto::FfiResponse SendRequest(const proto::FfiRequest& request) const;
 
-        FfiClient();
-        ~FfiClient() = default;
+ private:
+  std::unordered_map<ListenerId, Listener> listeners_;
+  ListenerId nextListenerId = 1;
+  mutable std::mutex lock_;
 
-        void PushEvent(const FFIEvent& event) const;
-        friend void LivekitFfiCallback(const uint8_t *buf, size_t len);
-    };
+  FfiClient();
+  ~FfiClient() = default;
 
-    struct FfiHandle {
-        uintptr_t handle;
+  void PushEvent(const proto::FfiEvent& event) const;
+  friend void LivekitFfiCallback(const uint8_t* buf, size_t len);
+};
 
-        FfiHandle(uintptr_t handle);
-        ~FfiHandle();
-    };
-}
+struct FfiHandle {
+ public:
+  FfiHandle(FfiHandleId handleId);
+  ~FfiHandle() = default;
+
+  FfiHandleId GetHandleId() const { return *handleId_; }
+  bool IsValid() {
+    return handleId_ && *handleId_ != INVALID_HANDLE;
+  }
+
+ private:
+  std::shared_ptr<FfiHandleId> handleId_;
+};
+}  // namespace livekit
 
 #endif /* LIVEKIT_FFI_CLIENT_H */

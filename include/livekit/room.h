@@ -18,26 +18,45 @@
 #define LIVEKIT_ROOM_H
 
 #include <mutex>
+
 #include "ffi.pb.h"
 #include "livekit/ffi_client.h"
+#include "livekit/participant.h"
 #include "livekit_ffi.h"
+#include "room.pb.h"
 
-namespace livekit
-{
-    class Room
-    {
-    public:
-        void Connect(const std::string& url, const std::string& token);
+namespace livekit {
+// Only create it with Room::Create()
+class Room {
+ public:
+  static std::shared_ptr<Room> Create();
+  Room();
+  ~Room();
+  void Connect(const std::string& url, const std::string& token);
+  void OnTrackPublished(const std::string& name,
+                        const std::string& sid,
+                        const std::string& inputTrackSid);
 
-    private:
-        mutable std::mutex lock_;
-        FfiHandle handle_{INVALID_HANDLE};
-        bool connected_{false};
-        uint64_t connectAsyncId_{0};
-        
+  const std::string& GetName() const { return info_.name(); }
+  const std::string& GetSid() const { return info_.sid(); }
+  const std::string& GetMetadata() const { return info_.metadata(); }
+  bool IsConnected() const { return handle_.GetHandleId() != INVALID_HANDLE; }
+  std::shared_ptr<LocalParticipant> GetLocalParticipant() const {
+    return localParticipant_;
+  }
 
-        void OnEvent(const FFIEvent& event);
-    };
-}
+ private:
+  // mutable std::mutex lock_;
+  FfiHandle handle_{INVALID_HANDLE};
+  FfiHandle lpHandle_{INVALID_HANDLE}; // LocalParticipant handle
+  std::shared_ptr<LocalParticipant> localParticipant_{nullptr};
+  proto::RoomInfo info_;
+
+  uint64_t connectAsyncId_{0};
+  FfiClient::ListenerId listenerId_{0};
+
+  void OnEvent(const proto::FfiEvent& event);
+};
+}  // namespace livekit
 
 #endif /* LIVEKIT_ROOM_H */

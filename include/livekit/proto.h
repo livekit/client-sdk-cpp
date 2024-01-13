@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
-#include "participant.h"
-#include "room.h"
-#include "video_frame.h"
-#include "video_source.h"
+#ifndef LIVEKIT_PROTO_H
+#define LIVEKIT_PROTO_H
+#include "ffi.pb.h"
+#include "video_frame.pb.h"
+namespace livekit {
+namespace proto {}  // namespace proto
+}  // namespace livekit
+
+#endif /* LIVEKIT_PROTO_H */
