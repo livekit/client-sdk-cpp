@@ -1,0 +1,136 @@
+name: Builds
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - src/**
+      - include/**
+      - examples/**
+      - client-sdk-rust/**
+      - CMakeLists.txt
+      - build.sh
+      - .github/workflows/**
+  pull_request:
+    branches: ["main"]
+    paths:
+      - src/**
+      - include/**
+      - examples/**
+      - client-sdk-rust/**
+      - CMakeLists.txt
+      - build.sh
+      - .github/workflows/**
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: macos-latest
+          - os: windows-latest
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      # ---------- Protobuf (protoc) ----------
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: "25.2"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # ---------- Rust toolchain ----------
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      # ---------- Cache Cargo ----------
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-reg-
+
+      - name: Cache Cargo target
+        uses: actions/cache@v4
+        with:
+          path: client-sdk-rust/target
+          key: ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-target-
+
+      # ---------- OS-specific deps ----------
+      - name: Install deps (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential
+          # Optional audio/video libs if your FFI/examples need them:
+          # sudo apt-get install -y libasound2-dev libx11-dev libgl1-mesa-dev libxext-dev
+          protoc --version
+
+      - name: Install deps (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install cmake protobuf ninja
+          protoc --version
+
+      - name: Install deps (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          choco install -y cmake ninja protoc
+          protoc --version || true
+
+      # ---------- Build (Debug) ----------
+      - name: Build Debug
+        shell: bash
+        run: |
+          chmod +x build.sh
+          ./build.sh debug
+
+      # ---------- Build (Release) ----------
+      - name: Build Release
+        shell: bash
+        run: |
+          ./build.sh release
+
+      # ---------- Smoke test example (link/usage only) ----------
+      - name: Smoke test example (Debug)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          if [[ -x build/examples/SimpleRoom ]]; then
+            build/examples/SimpleRoom --help || true
+          fi
+
+      - name: Smoke test example (Release)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          if [ -f "build/examples/Release/SimpleRoom.exe" ]; then
+            ./build/examples/Release/SimpleRoom.exe --help || true
+          fi
+
+      # Optional: keep workspace tidy in CI
+      - name: Clean after build (best-effort)
+        if: always()
+        shell: bash
+        run: |
+          [[ -x build.sh ]] && ./build.sh clean-all || true
