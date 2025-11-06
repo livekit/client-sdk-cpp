@@ -96,11 +96,6 @@ add_custom_target(build_rust_ffi ALL
   VERBATIM
 )
 
-# Ensure cargo runs before linking livekit (and examples if needed)
-# 
-# If you have example targets like SimpleRoom:
-# add_dependencies(SimpleRoom build_rust_ffi)
-
 # ---- C++ wrapper library ----
 add_library(livekit
   include/livekit/room.h
@@ -186,15 +181,6 @@ add_custom_target(cargo_clean
   COMMENT "Clean Rust target directory via cargo"
   VERBATIM
 )
-
-# If you prefer hard deletes of specific profiles instead of 'cargo clean', use:
-# add_custom_target(cargo_clean_debug
-#   COMMAND ${CMAKE_COMMAND} -E rm -rf "${RUST_ROOT}/target/debug"
-#   COMMENT "Remove Rust target/debug")
-# add_custom_target(cargo_clean_release
-#   COMMAND ${CMAKE_COMMAND} -E rm -rf "${RUST_ROOT}/target/release"
-#   COMMENT "Remove Rust target/release")
-# add_custom_target(cargo_clean_all DEPENDS cargo_clean_debug cargo_clean_release)
 
 # Combined "clean-all" (C++ clean + generated + cargo)
 # Note: 'clean' is CMake's built-in target that removes CMake-built artifacts.
