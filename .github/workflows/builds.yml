@@ -34,7 +34,9 @@ jobs:
         include:
           - os: ubuntu-latest
           - os: macos-latest
-          - os: windows-latest
+          # Windows needs protobuf *libraries* too (not just protoc).
+          # Enable after wiring vcpkg (see notes below).
+          # - os: windows-latest
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
@@ -45,12 +47,31 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # ---------- Protobuf (protoc) ----------
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "25.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      # ---------- OS-specific deps: install protoc + libprotobuf that MATCH ----------
+      - name: Install deps (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential \
+                                  protobuf-compiler libprotobuf-dev
+          protoc --version
+          pkg-config --modversion protobuf
+          # Fail if versions don't match (best-effort)
+          test "$(protoc --version | awk '{print $2}')" = "$(pkg-config --modversion protobuf)" || {
+            echo "protoc and libprotobuf versions differ"; exit 1; }
+
+      - name: Install deps (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -eux
+          brew update
+          # EITHER: latest protobuf
+          brew install cmake protobuf ninja
+          # OR pin a specific version (e.g., protobuf@6) if you need it:
+          # brew install protobuf@6 && brew link --overwrite --force protobuf@6
+          protoc --version
+          pkg-config --modversion protobuf
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
@@ -74,44 +95,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-target-
 
-      # ---------- OS-specific deps ----------
-      - name: Install deps (Ubuntu)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build build-essential
-          # Optional audio/video libs if your FFI/examples need them:
-          # sudo apt-get install -y libasound2-dev libx11-dev libgl1-mesa-dev libxext-dev
-          protoc --version
-
-      - name: Install deps (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew update
-          brew install cmake protobuf ninja
-          protoc --version
-
-      - name: Install deps (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          choco install -y cmake ninja protoc
-          protoc --version || true
-
-      # ---------- Build (Debug) ----------
+      # ---------- Build (Debug / Release) ----------
       - name: Build Debug
         shell: bash
         run: |
           chmod +x build.sh
           ./build.sh debug
 
-      # ---------- Build (Release) ----------
       - name: Build Release
         shell: bash
         run: |
           ./build.sh release
 
-      # ---------- Smoke test example (link/usage only) ----------
+      # ---------- Smoke test example (no server needed) ----------
       - name: Smoke test example (Debug)
         if: runner.os != 'Windows'
         shell: bash
@@ -120,15 +116,7 @@ jobs:
             build/examples/SimpleRoom --help || true
           fi
 
-      - name: Smoke test example (Release)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          if [ -f "build/examples/Release/SimpleRoom.exe" ]; then
-            ./build/examples/Release/SimpleRoom.exe --help || true
-          fi
-
-      # Optional: keep workspace tidy in CI
+      # ---------- Cleanup ----------
       - name: Clean after build (best-effort)
         if: always()
         shell: bash
