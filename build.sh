@@ -16,7 +16,7 @@ Commands:
   debug             Configure + build Debug version
   release           Configure + build Release version
   clean             Run CMake's built-in clean target
-  clean-all         Run your custom clean_all (clears C++ + Rust targets)
+  clean-all         Run clean_all (clears C++ + Rust targets)
   verbose           Build with verbose output (implies last configured type)
   help              Show this help
 
@@ -51,13 +51,11 @@ clean() {
 clean_all() {
   echo "==> Running full clean-all (C++ + Rust)..."
   if [[ -d "${BUILD_DIR}" ]]; then
-    # This may delete the entire build dir; that's fine.
     cmake --build "${BUILD_DIR}" --target clean_all || true
   else
     echo "   (info) ${BUILD_DIR} does not exist; doing manual deep clean..."
   fi
 
-  # Be tolerant if these paths already don't exist.
   rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/debug" || true
   rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/release" || true
   rm -rf "${BUILD_DIR}" || true

@@ -1,6 +1,5 @@
 # LiveKit C++ Client SDK
 
-A C++ wrapper around the [LiveKit Rust Client SDK](https://github.com/livekit/client-sdk-rust), built using **CMake** and integrated with the Rust FFI layer.  
 This SDK enables native C++ applications to connect to LiveKit servers for real-time audio/video communication.
 
 ---
