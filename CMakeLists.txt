@@ -143,11 +143,42 @@ target_link_libraries(livekit
   PUBLIC
     livekit_ffi
     protobuf::libprotobuf
-    absl::log
-    absl::check
-    absl::strings
-    absl::base
 )
+# Ensure protoc matches headers/libs
+message(STATUS "Protobuf: version=${Protobuf_VERSION}; protoc=${Protobuf_PROTOC_EXECUTABLE}")
+
+# Only Protobuf >= 6 needs Abseil
+if (Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
+  # Try modern package name/namespace
+  find_package(absl CONFIG QUIET)
+  # Some distros export as "Abseil::"
+  if (NOT absl_FOUND)
+    find_package(Abseil QUIET)
+  endif()
+
+  if (absl_FOUND)
+    target_link_libraries(livekit PUBLIC
+      absl::log
+      absl::check
+      absl::strings
+      absl::base
+    )
+  elseif (Abseil_FOUND)
+    target_link_libraries(livekit PUBLIC
+      Abseil::log
+      Abseil::check
+      Abseil::strings
+      Abseil::base
+    )
+  else()
+    message(FATAL_ERROR
+      "Protobuf ${Protobuf_VERSION} requires Abseil but no CMake package was found.\n"
+      "Install Abseil (macOS: 'brew install abseil', Ubuntu: 'sudo apt-get install libabsl-dev'), "
+      "or use Protobuf < 6.")
+  endif()
+else()
+  message(STATUS "Protobuf < 6 detected; skipping Abseil linking.")
+endif()
 
 
 # Ensure cargo runs before we try to link livekit
