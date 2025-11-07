@@ -180,6 +180,11 @@ else()
   message(STATUS "Protobuf < 6 detected; skipping Abseil linking.")
 endif()
 
+# On Linux, it needs to link OpenSSL
+if(UNIX AND NOT APPLE)
+  find_package(OpenSSL REQUIRED)
+  target_link_libraries(livekit PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+endif()
 
 # Ensure cargo runs before we try to link livekit
 add_dependencies(livekit build_rust_ffi)

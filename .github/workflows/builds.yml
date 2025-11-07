@@ -55,7 +55,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build build-essential \
                                   protobuf-compiler libprotobuf-dev libabsl-dev \
-                                  libx11-dev libxext-dev libgl1-mesa-dev
+                                  libx11-dev libxext-dev libgl1-mesa-dev libssl-dev
           protoc --version
           pkg-config --modversion protobuf
           # Fail if versions don't match (best-effort)
