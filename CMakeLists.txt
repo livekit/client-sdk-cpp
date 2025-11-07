@@ -104,31 +104,6 @@ add_library(livekit
   src/ffi_client.cpp
   src/room.cpp
 )
-if(APPLE)
-  find_library(FW_COREAUDIO      CoreAudio      REQUIRED)
-  find_library(FW_AUDIOTOOLBOX   AudioToolbox   REQUIRED)
-  find_library(FW_COREFOUNDATION CoreFoundation REQUIRED)
-  find_library(FW_SECURITY       Security       REQUIRED)
-  find_library(FW_COREGRAPHICS   CoreGraphics   REQUIRED)
-  find_library(FW_COREMEDIA      CoreMedia      REQUIRED)
-  find_library(FW_VIDEOTOOLBOX   VideoToolbox   REQUIRED)
-  find_library(FW_AVFOUNDATION   AVFoundation   REQUIRED)
-  find_library(FW_COREVIDEO      CoreVideo      REQUIRED)
-  find_library(FW_FOUNDATION     Foundation     REQUIRED)
-
-  target_link_libraries(livekit PUBLIC
-    ${FW_COREAUDIO}
-    ${FW_AUDIOTOOLBOX}
-    ${FW_COREFOUNDATION}
-    ${FW_SECURITY}
-    ${FW_COREGRAPHICS}
-    ${FW_COREMEDIA}
-    ${FW_VIDEOTOOLBOX}
-    ${FW_AVFOUNDATION}
-    ${FW_COREVIDEO}
-    ${FW_FOUNDATION}
-  )
-endif()
 
 # Add generated proto objects to the wrapper
 target_sources(livekit PRIVATE $<TARGET_OBJECTS:livekit_proto>)
@@ -146,6 +121,54 @@ target_link_libraries(livekit
 )
 # Ensure protoc matches headers/libs
 message(STATUS "Protobuf: version=${Protobuf_VERSION}; protoc=${Protobuf_PROTOC_EXECUTABLE}")
+
+# Ensure cargo runs before we try to link livekit
+add_dependencies(livekit build_rust_ffi)
+
+
+########### Platform specific settings  ########### 
+
+if(APPLE)
+  find_library(FW_COREAUDIO      CoreAudio      REQUIRED)
+  find_library(FW_AUDIOTOOLBOX   AudioToolbox   REQUIRED)
+  find_library(FW_COREFOUNDATION CoreFoundation REQUIRED)
+  find_library(FW_SECURITY       Security       REQUIRED)
+  find_library(FW_COREGRAPHICS   CoreGraphics   REQUIRED)
+  find_library(FW_COREMEDIA      CoreMedia      REQUIRED)
+  find_library(FW_VIDEOTOOLBOX   VideoToolbox   REQUIRED)
+  find_library(FW_AVFOUNDATION   AVFoundation   REQUIRED)
+  find_library(FW_COREVIDEO      CoreVideo      REQUIRED)
+  find_library(FW_FOUNDATION     Foundation     REQUIRED)
+  find_library(FW_APPKIT         AppKit         REQUIRED) 
+  find_library(FW_QUARTZCORE     QuartzCore     REQUIRED)
+  find_library(FW_OPENGL         OpenGL         REQUIRED)
+  find_library(FW_IOSURFACE      IOSurface    REQUIRED)
+  find_library(FW_METAL          Metal        REQUIRED)
+  find_library(FW_METALKIT       MetalKit       REQUIRED)
+
+  target_link_libraries(livekit PUBLIC
+    ${FW_COREAUDIO}
+    ${FW_AUDIOTOOLBOX}
+    ${FW_COREFOUNDATION}
+    ${FW_SECURITY}
+    ${FW_COREGRAPHICS}
+    ${FW_COREMEDIA}
+    ${FW_VIDEOTOOLBOX}
+    ${FW_AVFOUNDATION}
+    ${FW_COREVIDEO}
+    ${FW_FOUNDATION}
+    ${FW_APPKIT}
+    ${FW_QUARTZCORE}
+    ${FW_OPENGL}
+    ${FW_IOSURFACE}
+    ${FW_METAL}
+    ${FW_METALKIT}
+  )
+
+  # Ensure Objective-C categories/classes in static archives are loaded (WebRTC needs this)
+  # Use LINKER: to guarantee it is passed to the linker (CMake >= 3.13)
+  target_link_options(livekit INTERFACE "LINKER:-ObjC")
+endif()
 
 # Only Protobuf >= 6 needs Abseil
 if (Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
@@ -186,8 +209,6 @@ if(UNIX AND NOT APPLE)
   target_link_libraries(livekit PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 endif()
 
-# Ensure cargo runs before we try to link livekit
-add_dependencies(livekit build_rust_ffi)
 
 # Warnings
 if (MSVC)
