@@ -26,7 +26,7 @@ namespace livekit
 FfiClient::FfiClient() {
     livekit_ffi_initialize(&LivekitFfiCallback,
                            true,
-                           "client-sdk-cpp",
+                           "cpp",
                            "0.0.0-dev");
 }
 
