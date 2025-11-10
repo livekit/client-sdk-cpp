@@ -25,6 +25,13 @@
 namespace livekit
 {
 
+using proto::FfiRequest;
+using proto::FfiResponse;
+using proto::ConnectRequest;
+using proto::RoomOptions;
+using proto::ConnectCallback;
+using proto::FfiEvent;
+
 void Room::Connect(const std::string& url, const std::string& token)
 {
    std::lock_guard<std::mutex> guard(lock_);
@@ -42,42 +49,51 @@ void Room::Connect(const std::string& url, const std::string& token)
     connectRequest->set_token(token);
     connectRequest->set_allocated_options(options);
 
-    FFIRequest request;
+    proto::FfiRequest request;
     request.set_allocated_connect(connectRequest);
     
     // TODO Free:
     FfiClient::getInstance().AddListener(std::bind(&Room::OnEvent, this, std::placeholders::_1));
-
-    FFIResponse response = FfiClient::getInstance().SendRequest(request);
-    FFIAsyncId asyncId = response.connect().async_id();
-
-    connectAsyncId_ = asyncId.id();
+    proto::FfiResponse response = FfiClient::getInstance().SendRequest(request);
+    connectAsyncId_ = response.connect().async_id();
 }
 
-void Room::OnEvent(const FFIEvent& event)
-{
+void Room::OnEvent(const FfiEvent& event) {
     std::lock_guard<std::mutex> guard(lock_);
-    if (!connected_) {
+    switch (event.message_case()) {
+        case FfiEvent::kConnect:
+            OnConnect(event.connect());
+            break;
+
+        // TODO: Handle other FfiEvent types here (e.g. room_event, track_event, etc.)
+        default:
+            break;
+    }
+}
+
+
+void Room::OnConnect(const ConnectCallback& cb) {
+    // Match the async_id with the pending connectAsyncId_
+    if (cb.async_id() != connectAsyncId_) {
         return;
     }
-    
-    if (event.has_connect()) {
-        ConnectCallback connectCallback = event.connect();
-        if (connectCallback.async_id().id() != connectAsyncId_) {
-            return;
-        }
-
-        std::cout << "Received ConnectCallback" << std::endl;
-
-        if (!connectCallback.has_error()) {
-            handle_ = FfiHandle(connectCallback.room().handle().id());
-
-            std::cout << "Connected to room" << std::endl;
-            std::cout << "Room SID: " << connectCallback.room().sid() << std::endl;
-        } else {
-            std::cerr << "Failed to connect to room: " << connectCallback.error() << std::endl;
-        }
+    std::cout << "Received ConnectCallback" << std::endl;
+    if (cb.message_case() == ConnectCallback::kError) {
+        std::cerr << "Failed to connect to room: " << cb.error() << std::endl;
+        connected_ = false;
+        return;
     }
+    // Success path
+    const auto& result = cb.result();
+    const auto& owned_room = result.room();
+    // OwnedRoom { FfiOwnedHandle handle = 1; RoomInfo info = 2; }
+    handle_ = FfiHandle(static_cast<uintptr_t>(owned_room.handle().id()));
+    if (owned_room.info().has_sid()) {
+        std::cout << "Room SID: " << owned_room.info().sid() << std::endl;
+    }
+
+    connected_ = true;
+    std::cout << "Connected to room" << std::endl;
 }
 
 }

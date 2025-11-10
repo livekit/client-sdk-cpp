@@ -24,12 +24,6 @@ namespace livekit
 {
 
 FfiClient::FfiClient() {
-    InitializeRequest *initRequest = new InitializeRequest;
-    initRequest->set_event_callback_ptr(reinterpret_cast<uint64_t>(&LivekitFfiCallback));
-
-    FFIRequest request{};
-    request.set_allocated_initialize(initRequest);
-    SendRequest(request);
 }
 
 FfiClient::ListenerId FfiClient::AddListener(const FfiClient::Listener& listener) {
@@ -44,7 +38,7 @@ void FfiClient::RemoveListener(ListenerId id) {
     listeners_.erase(id);
 }
 
-FFIResponse FfiClient::SendRequest(const FFIRequest &request) const {
+proto::FfiResponse FfiClient::SendRequest(const proto::FfiRequest &request) const {
     size_t len = request.ByteSizeLong();
     uint8_t *buf = new uint8_t[len];
     assert(request.SerializeToArray(buf, len));
@@ -53,24 +47,25 @@ FFIResponse FfiClient::SendRequest(const FFIRequest &request) const {
     size_t *res_len = new size_t;
     
     FfiHandleId handle = livekit_ffi_request(buf, len, res_ptr, res_len);
+    std::cout << "receive a handle " <<  handle << std::endl;
 
-    delete[] buf;
+   // delete[] buf;
     if (handle == INVALID_HANDLE) {
         delete res_ptr;
         delete res_len;
         throw std::runtime_error("failed to send request, received an invalid handle");
     }
-    FfiHandle _handle(handle);
+    FfiHandle handleDeleter(handle);
 
-    FFIResponse response;
+    proto::FfiResponse response;
     assert(response.ParseFromArray(*res_ptr, *res_len));
-    delete res_ptr;
-    delete res_len;
+   // delete res_ptr;
+   // delete res_len;
 
     return response;
 }
 
-void FfiClient::PushEvent(const FFIEvent &event) const {
+void FfiClient::PushEvent(const proto::FfiEvent &event) const {
     // Dispatch the events to the internal listeners
     std::lock_guard<std::mutex> guard(lock_);
     for (auto& [_, listener] : listeners_) {
@@ -79,7 +74,7 @@ void FfiClient::PushEvent(const FFIEvent &event) const {
 }
 
 void LivekitFfiCallback(const uint8_t *buf, size_t len) {
-    FFIEvent event;
+    proto::FfiEvent event;
     assert(event.ParseFromArray(buf, len));
 
     FfiClient::getInstance().PushEvent(event);

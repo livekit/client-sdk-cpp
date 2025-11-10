@@ -16,6 +16,11 @@ set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/track.proto
     ${FFI_PROTO_DIR}/video_frame.proto
     ${FFI_PROTO_DIR}/audio_frame.proto
+    ${FFI_PROTO_DIR}/e2ee.proto
+    ${FFI_PROTO_DIR}/stats.proto
+    ${FFI_PROTO_DIR}/data_stream.proto
+    ${FFI_PROTO_DIR}/rpc.proto
+    ${FFI_PROTO_DIR}/track_publication.proto
 )
 set(PROTO_BINARY_DIR ${CMAKE_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
@@ -25,11 +30,11 @@ find_package(absl CONFIG REQUIRED)
 
 # Object library that owns generated .pb.cc/.pb.h
 add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
-target_include_directories(livekit_proto PUBLIC
+target_include_directories(livekit_proto PRIVATE
   "$<BUILD_INTERFACE:${PROTO_BINARY_DIR}>"
   ${Protobuf_INCLUDE_DIRS}
 )
-target_link_libraries(livekit_proto PUBLIC protobuf::libprotobuf)
+target_link_libraries(livekit_proto PRIVATE protobuf::libprotobuf)
 
 # Generate .pb sources into ${PROTO_BINARY_DIR} and attach to livekit_proto
 protobuf_generate(
@@ -129,6 +134,11 @@ add_dependencies(livekit build_rust_ffi)
 ########### Platform specific settings  ########### 
 
 if(APPLE)
+# (12.3 is when ScreenCaptureKit was introduced)
+if(NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET OR CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS "12.3")
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "12.3" CACHE STRING "Minimum macOS version" FORCE)
+endif()
+
   find_library(FW_COREAUDIO      CoreAudio      REQUIRED)
   find_library(FW_AUDIOTOOLBOX   AudioToolbox   REQUIRED)
   find_library(FW_COREFOUNDATION CoreFoundation REQUIRED)
@@ -142,9 +152,10 @@ if(APPLE)
   find_library(FW_APPKIT         AppKit         REQUIRED) 
   find_library(FW_QUARTZCORE     QuartzCore     REQUIRED)
   find_library(FW_OPENGL         OpenGL         REQUIRED)
-  find_library(FW_IOSURFACE      IOSurface    REQUIRED)
-  find_library(FW_METAL          Metal        REQUIRED)
+  find_library(FW_IOSURFACE      IOSurface      REQUIRED)
+  find_library(FW_METAL          Metal          REQUIRED)
   find_library(FW_METALKIT       MetalKit       REQUIRED)
+  find_library(FW_SCREENCAPTUREKIT ScreenCaptureKit REQUIRED)
 
   target_link_libraries(livekit PUBLIC
     ${FW_COREAUDIO}
@@ -163,6 +174,7 @@ if(APPLE)
     ${FW_IOSURFACE}
     ${FW_METAL}
     ${FW_METALKIT}
+    ${FW_SCREENCAPTUREKIT}
   )
 
   # Ensure Objective-C categories/classes in static archives are loaded (WebRTC needs this)
