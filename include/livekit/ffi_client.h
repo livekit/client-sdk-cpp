@@ -27,7 +27,14 @@
 
 namespace livekit
 {
+    using FfiCallbackFn = void(*)(const uint8_t*, size_t);
+    extern "C" void livekit_ffi_initialize(FfiCallbackFn cb,
+                            bool capture_logs,
+                            const char* sdk,
+                            const char* sdk_version);
+
     extern "C" void LivekitFfiCallback(const uint8_t *buf, size_t len);
+
 
     // The FfiClient is used to communicate with the FFI interface of the Rust SDK
     // We use the generated protocol messages to facilitate the communication
@@ -35,7 +42,7 @@ namespace livekit
     {
     public:
         using ListenerId = int;
-        using Listener = std::function<void(const FFIEvent&)>;
+        using Listener = std::function<void(const proto::FfiEvent&)>;
 
         FfiClient(const FfiClient&) = delete;
         FfiClient& operator=(const FfiClient&) = delete;
@@ -48,7 +55,7 @@ namespace livekit
         ListenerId AddListener(const Listener& listener);
         void RemoveListener(ListenerId id);
 
-        FFIResponse SendRequest(const FFIRequest& request)const;
+        proto::FfiResponse SendRequest(const proto::FfiRequest& request)const;
 
     private:
         std::unordered_map<ListenerId, Listener> listeners_;
@@ -58,7 +65,7 @@ namespace livekit
         FfiClient();
         ~FfiClient() = default;
 
-        void PushEvent(const FFIEvent& event) const;
+        void PushEvent(const proto::FfiEvent& event) const;
         friend void LivekitFfiCallback(const uint8_t *buf, size_t len);
     };
 

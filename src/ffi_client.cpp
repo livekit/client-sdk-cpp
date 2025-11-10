@@ -24,12 +24,10 @@ namespace livekit
 {
 
 FfiClient::FfiClient() {
-    InitializeRequest *initRequest = new InitializeRequest;
-    initRequest->set_event_callback_ptr(reinterpret_cast<uint64_t>(&LivekitFfiCallback));
-
-    FFIRequest request{};
-    request.set_allocated_initialize(initRequest);
-    SendRequest(request);
+    livekit_ffi_initialize(&LivekitFfiCallback,
+                           true,
+                           "cpp",
+                           "0.0.0-dev");
 }
 
 FfiClient::ListenerId FfiClient::AddListener(const FfiClient::Listener& listener) {
@@ -44,33 +42,36 @@ void FfiClient::RemoveListener(ListenerId id) {
     listeners_.erase(id);
 }
 
-FFIResponse FfiClient::SendRequest(const FFIRequest &request) const {
-    size_t len = request.ByteSizeLong();
-    uint8_t *buf = new uint8_t[len];
-    assert(request.SerializeToArray(buf, len));
+proto::FfiResponse FfiClient::SendRequest(const proto::FfiRequest &request) const {
+    std::string bytes;
+    if (!request.SerializeToString(&bytes) || bytes.empty()) {
+      throw std::runtime_error("failed to serialize FfiRequest");
+    }
+    const uint8_t* resp_ptr = nullptr;
+    size_t resp_len = 0;
+    FfiHandleId handle = livekit_ffi_request(
+        reinterpret_cast<const uint8_t*>(bytes.data()),
+        bytes.size(), &resp_ptr, &resp_len);
+    std::cout << "receive a handle " <<  handle << std::endl;
 
-    const uint8_t **res_ptr = new const uint8_t*;
-    size_t *res_len = new size_t;
-    
-    FfiHandleId handle = livekit_ffi_request(buf, len, res_ptr, res_len);
-
-    delete[] buf;
-    if (handle == INVALID_HANDLE) {
-        delete res_ptr;
-        delete res_len;
+   if (handle == INVALID_HANDLE) {
         throw std::runtime_error("failed to send request, received an invalid handle");
     }
-    FfiHandle _handle(handle);
 
-    FFIResponse response;
-    assert(response.ParseFromArray(*res_ptr, *res_len));
-    delete res_ptr;
-    delete res_len;
+    // Ensure we drop the handle exactly once on all paths
+    FfiHandle handle_guard(static_cast<uintptr_t>(handle));
+    if (!resp_ptr || resp_len == 0) {
+        throw std::runtime_error("FFI returned empty response bytes");
+    }
 
+    proto::FfiResponse response;
+    if (!response.ParseFromArray(resp_ptr, static_cast<int>(resp_len))) {
+        throw std::runtime_error("failed to parse FfiResponse");
+    }
     return response;
 }
 
-void FfiClient::PushEvent(const FFIEvent &event) const {
+void FfiClient::PushEvent(const proto::FfiEvent &event) const {
     // Dispatch the events to the internal listeners
     std::lock_guard<std::mutex> guard(lock_);
     for (auto& [_, listener] : listeners_) {
@@ -79,8 +80,8 @@ void FfiClient::PushEvent(const FFIEvent &event) const {
 }
 
 void LivekitFfiCallback(const uint8_t *buf, size_t len) {
-    FFIEvent event;
-    assert(event.ParseFromArray(buf, len));
+    proto::FfiEvent event;
+    event.ParseFromArray(buf, len);
 
     FfiClient::getInstance().PushEvent(event);
 }
@@ -91,7 +92,7 @@ FfiHandle::FfiHandle(uintptr_t id) : handle(id) {}
 
 FfiHandle::~FfiHandle() {
     if (handle != INVALID_HANDLE) {
-        assert(livekit_ffi_drop_handle(handle));
+        livekit_ffi_drop_handle(handle);
     }
 }
 

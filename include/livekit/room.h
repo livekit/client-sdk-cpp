@@ -30,13 +30,15 @@ namespace livekit
         void Connect(const std::string& url, const std::string& token);
 
     private:
+        void OnConnect(const proto::ConnectCallback& cb);
+
         mutable std::mutex lock_;
         FfiHandle handle_{INVALID_HANDLE};
         bool connected_{false};
         uint64_t connectAsyncId_{0};
         
 
-        void OnEvent(const FFIEvent& event);
+        void OnEvent(const proto::FfiEvent& event);
     };
 }
 
