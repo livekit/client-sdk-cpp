@@ -64,3 +64,34 @@ sudo apt update
 sudo apt install -y cmake protobuf-compiler build-essential
 curl https://sh.rustup.rs -sSf | sh
 ```
+
+## 🛠️ Development Tips
+###  Update Rust version
+```bash
+git fetch origin
+git switch -c try-rust-main origin/main
+
+# Sync submodule URLs and check out what origin/main pins (recursively):
+git submodule sync --recursive
+git submodule update --init --recursive --checkout
+
+# Now, in case the nested submodule under yuv-sys didn’t materialize, force it explicitly:
+git -C client-sdk-rust/yuv-sys submodule sync --recursive
+git -C client-sdk-rust/yuv-sys submodule update --init --recursive --checkout
+
+# Sanity check:
+git submodule status --recursive
+```
+
+###  If yuv-sys fails to build
+```bash
+cargo clean -p yuv-sys
+cargo build -p yuv-sys -vv
+```
+
+### Full clean (Rust + C++ build folders)
+
+In some cases, you may need to perform a full clean that deletes all build artifacts from both the Rust and C++ folders:
+```bash
+./build.sh clean-all
+```
