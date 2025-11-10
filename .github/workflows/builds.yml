@@ -58,7 +58,8 @@ jobs:
                                   libx11-dev libxext-dev libgl1-mesa-dev libssl-dev \
                                   libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
                                   libxrandr-dev libxi-dev libxkbcommon-dev \
-                                  libdrm-dev libgbm-dev libva-dev
+                                  libdrm-dev libgbm-dev libva-dev \
+                                  libasound2-dev libpulse-dev
           protoc --version
           pkg-config --modversion protobuf
           # Fail if versions don't match (best-effort)
