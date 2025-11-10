@@ -32,33 +32,39 @@ using proto::RoomOptions;
 using proto::ConnectCallback;
 using proto::FfiEvent;
 
-void Room::Connect(const std::string& url, const std::string& token)
-{
-   std::lock_guard<std::mutex> guard(lock_);
-    if (connected_) {
-        throw std::runtime_error("already connected");
+void Room::Connect(const std::string& url, const std::string& token) {
+    // Register listener first (outside Room lock to avoid lock inversion)
+    auto listenerId = FfiClient::getInstance().AddListener(
+        std::bind(&Room::OnEvent, this, std::placeholders::_1));
+
+    // Build request without heap allocs
+    livekit::proto::FfiRequest req;
+    auto* connect = req.mutable_connect();
+    connect->set_url(url);
+    connect->set_token(token);
+    connect->mutable_options()->set_auto_subscribe(true);
+
+    // Mark “connecting” under lock, but DO NOT keep the lock across SendRequest
+    {
+        std::lock_guard<std::mutex> g(lock_);
+        if (connected_) {
+            FfiClient::getInstance().RemoveListener(listenerId);
+            throw std::runtime_error("already connected");
+        }
+        connectAsyncId_ = listenerId;
     }
 
-    connected_ = true;
-
-    RoomOptions *options = new RoomOptions;
-    options->set_auto_subscribe(true);
-    
-    ConnectRequest *connectRequest = new ConnectRequest;
-    connectRequest->set_url(url);
-    connectRequest->set_token(token);
-    connectRequest->set_allocated_options(options);
-
-    proto::FfiRequest request;
-    request.set_allocated_connect(connectRequest);
-    
-    // TODO Free:
-    FfiClient::getInstance().AddListener(std::bind(&Room::OnEvent, this, std::placeholders::_1));
-    proto::FfiResponse response = FfiClient::getInstance().SendRequest(request);
-    connectAsyncId_ = response.connect().async_id();
+    // Call into FFI with no Room lock held (avoid re-entrancy deadlock)
+    livekit::proto::FfiResponse resp = FfiClient::getInstance().SendRequest(req);
+    // Store async id under lock
+    {
+        std::lock_guard<std::mutex> g(lock_);
+        connectAsyncId_ = resp.connect().async_id();
+    }
 }
 
 void Room::OnEvent(const FfiEvent& event) {
+    // TODO, it is not a good idea to lock all the callbacks, improve it.
     std::lock_guard<std::mutex> guard(lock_);
     switch (event.message_case()) {
         case FfiEvent::kConnect:
@@ -71,18 +77,20 @@ void Room::OnEvent(const FfiEvent& event) {
     }
 }
 
-
 void Room::OnConnect(const ConnectCallback& cb) {
     // Match the async_id with the pending connectAsyncId_
     if (cb.async_id() != connectAsyncId_) {
         return;
     }
+
     std::cout << "Received ConnectCallback" << std::endl;
+
     if (cb.message_case() == ConnectCallback::kError) {
         std::cerr << "Failed to connect to room: " << cb.error() << std::endl;
         connected_ = false;
         return;
     }
+
     // Success path
     const auto& result = cb.result();
     const auto& owned_room = result.room();

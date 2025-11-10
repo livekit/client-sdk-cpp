@@ -27,7 +27,14 @@
 
 namespace livekit
 {
+    using FfiCallbackFn = void(*)(const uint8_t*, size_t);
+    extern "C" void livekit_ffi_initialize(FfiCallbackFn cb,
+                            bool capture_logs,
+                            const char* sdk,
+                            const char* sdk_version);
+
     extern "C" void LivekitFfiCallback(const uint8_t *buf, size_t len);
+
 
     // The FfiClient is used to communicate with the FFI interface of the Rust SDK
     // We use the generated protocol messages to facilitate the communication
