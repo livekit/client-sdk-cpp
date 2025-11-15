@@ -15,9 +15,12 @@
  */
 
 #include "livekit/room.h"
+
 #include "livekit/ffi_client.h"
+#include "livekit/room_delegate.h"
 
 #include "ffi.pb.h"
+#include "room_event_converter.h"
 #include "room.pb.h"
 #include <functional>
 #include <iostream>
@@ -32,76 +35,267 @@ using proto::RoomOptions;
 using proto::ConnectCallback;
 using proto::FfiEvent;
 
-void Room::Connect(const std::string& url, const std::string& token) {
-    // Register listener first (outside Room lock to avoid lock inversion)
-    auto listenerId = FfiClient::getInstance().AddListener(
+void Room::setDelegate(RoomDelegate* delegate) {
+    std::lock_guard<std::mutex> g(lock_);
+    delegate_ = delegate;
+}
+
+bool Room::Connect(const std::string& url, const std::string& token) {
+    auto listenerId = FfiClient::instance().AddListener(
         std::bind(&Room::OnEvent, this, std::placeholders::_1));
-
-    // Build request without heap allocs
-    livekit::proto::FfiRequest req;
-    auto* connect = req.mutable_connect();
-    connect->set_url(url);
-    connect->set_token(token);
-    connect->mutable_options()->set_auto_subscribe(true);
-
-    // Mark “connecting” under lock, but DO NOT keep the lock across SendRequest
     {
         std::lock_guard<std::mutex> g(lock_);
         if (connected_) {
-            FfiClient::getInstance().RemoveListener(listenerId);
+            FfiClient::instance().RemoveListener(listenerId);
             throw std::runtime_error("already connected");
         }
-        connectAsyncId_ = listenerId;
     }
+    auto fut = FfiClient::instance().connectAsync(url, token);
+    try {
+        auto info = fut.get();  // fut will throw if it fails to connect to the room
+        {
+            std::lock_guard<std::mutex> g(lock_);
+            connected_ = true;
+            room_info_ = fromProto(info);
+        }
+        return true;
+    } catch (const std::exception& e) {
+        // On error, remove the listener and rethrow
+        FfiClient::instance().RemoveListener(listenerId);
+        std::cerr << "Room::Connect failed: " << e.what() << std::endl;
+        return false;
+    }
+}
 
-    // Call into FFI with no Room lock held (avoid re-entrancy deadlock)
-    livekit::proto::FfiResponse resp = FfiClient::getInstance().SendRequest(req);
-    // Store async id under lock
-    {
-        std::lock_guard<std::mutex> g(lock_);
-        connectAsyncId_ = resp.connect().async_id();
-    }
+RoomInfoData Room::room_info() const {
+    std::lock_guard<std::mutex> g(lock_);
+    return room_info_;
 }
 
 void Room::OnEvent(const FfiEvent& event) {
-    // TODO, it is not a good idea to lock all the callbacks, improve it.
+  // Take a snapshot of the delegate under lock, but do NOT call it under the lock.
+  RoomDelegate* delegate_snapshot = nullptr;
+
+  {
     std::lock_guard<std::mutex> guard(lock_);
-    switch (event.message_case()) {
-        case FfiEvent::kConnect:
-            OnConnect(event.connect());
-            break;
+    delegate_snapshot = delegate_;
+    // If you want, you can also update internal state here (participants, room info, etc.).
+  }
 
-        // TODO: Handle other FfiEvent types here (e.g. room_event, track_event, etc.)
+  if (!delegate_snapshot) {
+    return;
+  }
+
+  switch (event.message_case()) {
+    case FfiEvent::kRoomEvent: {
+      const proto::RoomEvent& re = event.room_event();
+
+      // Optional generic hook
+      delegate_snapshot->onRoomEvent(*this);
+
+      switch (re.message_case()) {
+        case proto::RoomEvent::kParticipantConnected: {
+          auto ev = fromProto(re.participant_connected());
+          delegate_snapshot->onParticipantConnected(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kParticipantDisconnected: {
+          auto ev = fromProto(re.participant_disconnected());
+          delegate_snapshot->onParticipantDisconnected(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kLocalTrackPublished: {
+          auto ev = fromProto(re.local_track_published());
+          delegate_snapshot->onLocalTrackPublished(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kLocalTrackUnpublished: {
+          auto ev = fromProto(re.local_track_unpublished());
+          delegate_snapshot->onLocalTrackUnpublished(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kLocalTrackSubscribed: {
+          auto ev = fromProto(re.local_track_subscribed());
+          delegate_snapshot->onLocalTrackSubscribed(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kTrackPublished: {
+          auto ev = fromProto(re.track_published());
+          delegate_snapshot->onTrackPublished(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kTrackUnpublished: {
+          auto ev = fromProto(re.track_unpublished());
+          delegate_snapshot->onTrackUnpublished(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kTrackSubscribed: {
+          auto ev = fromProto(re.track_subscribed());
+          delegate_snapshot->onTrackSubscribed(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kTrackUnsubscribed: {
+          auto ev = fromProto(re.track_unsubscribed());
+          delegate_snapshot->onTrackUnsubscribed(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kTrackSubscriptionFailed: {
+          auto ev = fromProto(re.track_subscription_failed());
+          delegate_snapshot->onTrackSubscriptionFailed(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kTrackMuted: {
+          auto ev = fromProto(re.track_muted());
+          delegate_snapshot->onTrackMuted(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kTrackUnmuted: {
+          auto ev = fromProto(re.track_unmuted());
+          delegate_snapshot->onTrackUnmuted(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kActiveSpeakersChanged: {
+          auto ev = fromProto(re.active_speakers_changed());
+          delegate_snapshot->onActiveSpeakersChanged(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kRoomMetadataChanged: {
+          auto ev = fromProto(re.room_metadata_changed());
+          delegate_snapshot->onRoomMetadataChanged(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kRoomSidChanged: {
+          auto ev = fromProto(re.room_sid_changed());
+          delegate_snapshot->onRoomSidChanged(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kParticipantMetadataChanged: {
+          auto ev = fromProto(re.participant_metadata_changed());
+          delegate_snapshot->onParticipantMetadataChanged(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kParticipantNameChanged: {
+          auto ev = fromProto(re.participant_name_changed());
+          delegate_snapshot->onParticipantNameChanged(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kParticipantAttributesChanged: {
+          auto ev = fromProto(re.participant_attributes_changed());
+          delegate_snapshot->onParticipantAttributesChanged(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kParticipantEncryptionStatusChanged: {
+          auto ev = fromProto(re.participant_encryption_status_changed());
+          delegate_snapshot->onParticipantEncryptionStatusChanged(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kConnectionQualityChanged: {
+          auto ev = fromProto(re.connection_quality_changed());
+          delegate_snapshot->onConnectionQualityChanged(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kConnectionStateChanged: {
+          auto ev = fromProto(re.connection_state_changed());
+          delegate_snapshot->onConnectionStateChanged(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kDisconnected: {
+          auto ev = fromProto(re.disconnected());
+          delegate_snapshot->onDisconnected(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kReconnecting: {
+          auto ev = fromProto(re.reconnecting());
+          delegate_snapshot->onReconnecting(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kReconnected: {
+          auto ev = fromProto(re.reconnected());
+          delegate_snapshot->onReconnected(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kE2EeStateChanged: {
+          auto ev = fromProto(re.e2ee_state_changed());
+          delegate_snapshot->onE2eeStateChanged(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kEos: {
+          auto ev = fromProto(re.eos());
+          delegate_snapshot->onRoomEos(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kDataPacketReceived: {
+          auto ev = fromProto(re.data_packet_received());
+          delegate_snapshot->onDataPacketReceived(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kTranscriptionReceived: {
+          auto ev = fromProto(re.transcription_received());
+          delegate_snapshot->onTranscriptionReceived(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kChatMessage: {
+          auto ev = fromProto(re.chat_message());
+          delegate_snapshot->onChatMessageReceived(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kStreamHeaderReceived: {
+          auto ev = fromProto(re.stream_header_received());
+          delegate_snapshot->onDataStreamHeaderReceived(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kStreamChunkReceived: {
+          auto ev = fromProto(re.stream_chunk_received());
+          delegate_snapshot->onDataStreamChunkReceived(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kStreamTrailerReceived: {
+          auto ev = fromProto(re.stream_trailer_received());
+          delegate_snapshot->onDataStreamTrailerReceived(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kDataChannelLowThresholdChanged: {
+          auto ev = fromProto(re.data_channel_low_threshold_changed());
+          delegate_snapshot->onDataChannelBufferedAmountLowThresholdChanged(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kByteStreamOpened: {
+          auto ev = fromProto(re.byte_stream_opened());
+          delegate_snapshot->onByteStreamOpened(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kTextStreamOpened: {
+          auto ev = fromProto(re.text_stream_opened());
+          delegate_snapshot->onTextStreamOpened(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kRoomUpdated: {
+          auto ev = roomUpdatedFromProto(re.room_updated());
+          delegate_snapshot->onRoomUpdated(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kMoved: {
+          auto ev = roomMovedFromProto(re.moved());
+          delegate_snapshot->onRoomMoved(*this, ev);
+          break;
+        }
+        case proto::RoomEvent::kParticipantsUpdated: {
+          auto ev = fromProto(re.participants_updated());
+          delegate_snapshot->onParticipantsUpdated(*this, ev);
+          break;
+        }
+
+        case proto::RoomEvent::MESSAGE_NOT_SET:
         default:
-            break;
-    }
-}
+          break;
+      }
 
-void Room::OnConnect(const ConnectCallback& cb) {
-    // Match the async_id with the pending connectAsyncId_
-    if (cb.async_id() != connectAsyncId_) {
-        return;
+      break;
     }
 
-    std::cout << "Received ConnectCallback" << std::endl;
-
-    if (cb.message_case() == ConnectCallback::kError) {
-        std::cerr << "Failed to connect to room: " << cb.error() << std::endl;
-        connected_ = false;
-        return;
-    }
-
-    // Success path
-    const auto& result = cb.result();
-    const auto& owned_room = result.room();
-    // OwnedRoom { FfiOwnedHandle handle = 1; RoomInfo info = 2; }
-    handle_ = FfiHandle(static_cast<uintptr_t>(owned_room.handle().id()));
-    if (owned_room.info().has_sid()) {
-        std::cout << "Room SID: " << owned_room.info().sid() << std::endl;
-    }
-
-    connected_ = true;
-    std::cout << "Connected to room" << std::endl;
+    default:
+      break;
+  }
 }
 
 }

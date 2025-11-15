@@ -18,26 +18,36 @@
 #define LIVEKIT_ROOM_H
 
 #include <mutex>
-#include "ffi.pb.h"
 #include "livekit/ffi_client.h"
-#include "livekit_ffi.h"
+#include "livekit/ffi_handle.h"
+#include "livekit/room_delegate.h"
 
 namespace livekit
 {
+
+class RoomDelegate;
+class RoomInfoData;
+namespace proto {
+class FfiEvent;
+}
+
     class Room
     {
     public:
-        void Connect(const std::string& url, const std::string& token);
+        Room() = default;
+        void setDelegate(RoomDelegate* delegate);
+        bool Connect(const std::string& url, const std::string& token);
+
+        // Accessors
+        RoomInfoData room_info() const;
 
     private:
-        void OnConnect(const proto::ConnectCallback& cb);
 
         mutable std::mutex lock_;
-        FfiHandle handle_{INVALID_HANDLE};
         bool connected_{false};
-        uint64_t connectAsyncId_{0};
+        RoomDelegate* delegate_ = nullptr;  // Not owned
+        RoomInfoData room_info_;
         
-
         void OnEvent(const proto::FfiEvent& event);
     };
 }
