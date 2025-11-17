@@ -1,3 +1,19 @@
+/*
+ * Copyright 2023 LiveKit
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an “AS IS” BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #pragma once
 
 #include <cstdint>
@@ -66,7 +82,7 @@ struct ChatMessageData {
 
 struct UserPacketData {
   std::vector<std::uint8_t> data;
-  std::optional<std::string> topic;  // optional
+  std::optional<std::string> topic; // optional
 };
 
 struct SipDtmfData {
@@ -146,7 +162,7 @@ struct DataStreamTrailerData {
 
 struct ParticipantConnectedEvent {
   // Typically you’d also attach a handle / participant object
-  std::string identity;           // from OwnedParticipant / ParticipantInfo
+  std::string identity; // from OwnedParticipant / ParticipantInfo
   std::string metadata;
   std::string name;
 };
@@ -250,7 +266,7 @@ struct ConnectionQualityChangedEvent {
 
 struct DataPacketReceivedEvent {
   DataPacketKind kind = DataPacketKind::Reliable;
-  std::string participant_identity;  // may be empty
+  std::string participant_identity; // may be empty
   std::optional<UserPacketData> user;
   std::optional<SipDtmfData> sip_dtmf;
 };
@@ -295,12 +311,12 @@ struct DataChannelBufferedAmountLowThresholdChangedEvent {
 };
 
 struct ByteStreamOpenedEvent {
-  std::uint64_t reader_handle = 0;  // from OwnedByteStreamReader.handle
+  std::uint64_t reader_handle = 0; // from OwnedByteStreamReader.handle
   std::string participant_identity;
 };
 
 struct TextStreamOpenedEvent {
-  std::uint64_t reader_handle = 0;  // from OwnedTextStreamReader.handle
+  std::uint64_t reader_handle = 0; // from OwnedTextStreamReader.handle
   std::string participant_identity;
 };
 
@@ -336,113 +352,100 @@ public:
   virtual ~RoomDelegate() = default;
 
   // Optional: generic hook with no payload
-  virtual void onRoomEvent(Room& /*room*/) {}
+  virtual void onRoomEvent(Room & /*room*/) {}
 
   // Per-event callbacks. All default no-op so you can add more later
   // without breaking existing user code.
 
   // Participant lifecycle
-  virtual void onParticipantConnected(Room& room,
-                                      const ParticipantConnectedEvent& ev) {}
-  virtual void onParticipantDisconnected(Room& room,
-                                         const ParticipantDisconnectedEvent& ev) {}
+  virtual void onParticipantConnected(Room &,
+                                      const ParticipantConnectedEvent &) {}
+  virtual void onParticipantDisconnected(Room &,
+                                         const ParticipantDisconnectedEvent &) {
+  }
 
   // Local track publication
-  virtual void onLocalTrackPublished(Room& room,
-                                     const LocalTrackPublishedEvent& ev) {}
-  virtual void onLocalTrackUnpublished(Room& room,
-                                       const LocalTrackUnpublishedEvent& ev) {}
-  virtual void onLocalTrackSubscribed(Room& room,
-                                      const LocalTrackSubscribedEvent& ev) {}
+  virtual void onLocalTrackPublished(Room &, const LocalTrackPublishedEvent &) {
+  }
+  virtual void onLocalTrackUnpublished(Room &,
+                                       const LocalTrackUnpublishedEvent &) {}
+  virtual void onLocalTrackSubscribed(Room &,
+                                      const LocalTrackSubscribedEvent &) {}
 
   // Remote track publication/subscription
-  virtual void onTrackPublished(Room& room,
-                                const TrackPublishedEvent& ev) {}
-  virtual void onTrackUnpublished(Room& room,
-                                  const TrackUnpublishedEvent& ev) {}
-  virtual void onTrackSubscribed(Room& room,
-                                 const TrackSubscribedEvent& ev) {}
-  virtual void onTrackUnsubscribed(Room& room,
-                                   const TrackUnsubscribedEvent& ev) {}
-  virtual void onTrackSubscriptionFailed(Room& room,
-                                         const TrackSubscriptionFailedEvent& ev) {}
-  virtual void onTrackMuted(Room& room,
-                            const TrackMutedEvent& ev) {}
-  virtual void onTrackUnmuted(Room& room,
-                              const TrackUnmutedEvent& ev) {}
+  virtual void onTrackPublished(Room &, const TrackPublishedEvent &) {}
+  virtual void onTrackUnpublished(Room &, const TrackUnpublishedEvent &) {}
+  virtual void onTrackSubscribed(Room &, const TrackSubscribedEvent &) {}
+  virtual void onTrackUnsubscribed(Room &, const TrackUnsubscribedEvent &) {}
+  virtual void onTrackSubscriptionFailed(Room &,
+                                         const TrackSubscriptionFailedEvent &) {
+  }
+  virtual void onTrackMuted(Room &, const TrackMutedEvent &) {}
+  virtual void onTrackUnmuted(Room &, const TrackUnmutedEvent &) {}
 
   // Active speakers
-  virtual void onActiveSpeakersChanged(Room& room,
-                                       const ActiveSpeakersChangedEvent& ev) {}
+  virtual void onActiveSpeakersChanged(Room &,
+                                       const ActiveSpeakersChangedEvent &) {}
 
   // Room info / metadata
-  virtual void onRoomMetadataChanged(Room& room,
-                                     const RoomMetadataChangedEvent& ev) {}
-  virtual void onRoomSidChanged(Room& room,
-                                const RoomSidChangedEvent& ev) {}
-  virtual void onRoomUpdated(Room& room,
-                             const RoomUpdatedEvent& ev) {}
-  virtual void onRoomMoved(Room& room,
-                           const RoomMovedEvent& ev) {}
+  virtual void onRoomMetadataChanged(Room &, const RoomMetadataChangedEvent &) {
+  }
+  virtual void onRoomSidChanged(Room &, const RoomSidChangedEvent &) {}
+  virtual void onRoomUpdated(Room &, const RoomUpdatedEvent &) {}
+  virtual void onRoomMoved(Room &, const RoomMovedEvent &) {}
 
   // Participant info changes
-  virtual void onParticipantMetadataChanged(Room& room,
-                                            const ParticipantMetadataChangedEvent& ev) {}
-  virtual void onParticipantNameChanged(Room& room,
-                                        const ParticipantNameChangedEvent& ev) {}
-  virtual void onParticipantAttributesChanged(Room& room,
-                                              const ParticipantAttributesChangedEvent& ev) {}
-  virtual void onParticipantEncryptionStatusChanged(Room& room,
-                                                    const ParticipantEncryptionStatusChangedEvent& ev) {}
+  virtual void
+  onParticipantMetadataChanged(Room &,
+                               const ParticipantMetadataChangedEvent &) {}
+  virtual void onParticipantNameChanged(Room &,
+                                        const ParticipantNameChangedEvent &) {}
+  virtual void
+  onParticipantAttributesChanged(Room &,
+                                 const ParticipantAttributesChangedEvent &) {}
+  virtual void onParticipantEncryptionStatusChanged(
+      Room &, const ParticipantEncryptionStatusChangedEvent &) {}
 
   // Connection quality / state
-  virtual void onConnectionQualityChanged(Room& room,
-                                          const ConnectionQualityChangedEvent& ev) {}
-  virtual void onConnectionStateChanged(Room& room,
-                                        const ConnectionStateChangedEvent& ev) {}
-  virtual void onDisconnected(Room& room,
-                              const DisconnectedEvent& ev) {}
-  virtual void onReconnecting(Room& room,
-                              const ReconnectingEvent& ev) {}
-  virtual void onReconnected(Room& room,
-                             const ReconnectedEvent& ev) {}
+  virtual void
+  onConnectionQualityChanged(Room &, const ConnectionQualityChangedEvent &) {}
+  virtual void onConnectionStateChanged(Room &,
+                                        const ConnectionStateChangedEvent &) {}
+  virtual void onDisconnected(Room &, const DisconnectedEvent &) {}
+  virtual void onReconnecting(Room &, const ReconnectingEvent &) {}
+  virtual void onReconnected(Room &, const ReconnectedEvent &) {}
 
   // E2EE
-  virtual void onE2eeStateChanged(Room& room,
-                                  const E2eeStateChangedEvent& ev) {}
+  virtual void onE2eeStateChanged(Room &, const E2eeStateChangedEvent &) {}
 
   // EOS
-  virtual void onRoomEos(Room& room,
-                         const RoomEosEvent& ev) {}
+  virtual void onRoomEos(Room &, const RoomEosEvent &) {}
 
   // Data / transcription / chat
-  virtual void onDataPacketReceived(Room& room,
-                                    const DataPacketReceivedEvent& ev) {}
-  virtual void onTranscriptionReceived(Room& room,
-                                       const TranscriptionReceivedEvent& ev) {}
-  virtual void onChatMessageReceived(Room& room,
-                                     const ChatMessageReceivedEvent& ev) {}
+  virtual void onDataPacketReceived(Room &, const DataPacketReceivedEvent &) {}
+  virtual void onTranscriptionReceived(Room &,
+                                       const TranscriptionReceivedEvent &) {}
+  virtual void onChatMessageReceived(Room &, const ChatMessageReceivedEvent &) {
+  }
 
   // Data streams
-  virtual void onDataStreamHeaderReceived(Room& room,
-                                          const DataStreamHeaderReceivedEvent& ev) {}
-  virtual void onDataStreamChunkReceived(Room& room,
-                                         const DataStreamChunkReceivedEvent& ev) {}
-  virtual void onDataStreamTrailerReceived(Room& room,
-                                           const DataStreamTrailerReceivedEvent& ev) {}
+  virtual void
+  onDataStreamHeaderReceived(Room &, const DataStreamHeaderReceivedEvent &) {}
+  virtual void onDataStreamChunkReceived(Room &,
+                                         const DataStreamChunkReceivedEvent &) {
+  }
+  virtual void
+  onDataStreamTrailerReceived(Room &, const DataStreamTrailerReceivedEvent &) {}
   virtual void onDataChannelBufferedAmountLowThresholdChanged(
-      Room& room,
-      const DataChannelBufferedAmountLowThresholdChangedEvent& ev) {}
+      Room &, const DataChannelBufferedAmountLowThresholdChangedEvent &) {}
 
   // High-level byte/text streams
-  virtual void onByteStreamOpened(Room& room,
-                                  const ByteStreamOpenedEvent& ev) {}
-  virtual void onTextStreamOpened(Room& room,
-                                  const TextStreamOpenedEvent& ev) {}
+  virtual void onByteStreamOpened(Room &, const ByteStreamOpenedEvent &) {}
+  virtual void onTextStreamOpened(Room &, const TextStreamOpenedEvent &) {}
 
   // Participants snapshot
-  virtual void onParticipantsUpdated(Room& room,
-                                     const ParticipantsUpdatedEvent& ev) {}
+  virtual void onParticipantsUpdated(Room &, const ParticipantsUpdatedEvent &) {
+  }
 };
 
-}  // namespace livekit
+} // namespace livekit

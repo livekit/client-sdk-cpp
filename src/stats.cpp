@@ -1,3 +1,19 @@
+/*
+ * Copyright 2023 LiveKit
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an “AS IS” BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include "livekit/stats.h"
 
 #include "stats.pb.h"
@@ -11,128 +27,178 @@ namespace {
 DataChannelState fromProto(livekit::proto::DataChannelState s) {
   using P = livekit::proto::DataChannelState;
   switch (s) {
-    case P::DC_CONNECTING: return DataChannelState::Connecting;
-    case P::DC_OPEN:       return DataChannelState::Open;
-    case P::DC_CLOSING:    return DataChannelState::Closing;
-    case P::DC_CLOSED:     return DataChannelState::Closed;
-    default:               return DataChannelState::Unknown;
+  case P::DC_CONNECTING:
+    return DataChannelState::Connecting;
+  case P::DC_OPEN:
+    return DataChannelState::Open;
+  case P::DC_CLOSING:
+    return DataChannelState::Closing;
+  case P::DC_CLOSED:
+    return DataChannelState::Closed;
+  default:
+    return DataChannelState::Unknown;
   }
 }
 
 QualityLimitationReason fromProto(livekit::proto::QualityLimitationReason r) {
   using P = livekit::proto::QualityLimitationReason;
   switch (r) {
-    case P::LIMITATION_NONE:      return QualityLimitationReason::None;
-    case P::LIMITATION_CPU:       return QualityLimitationReason::Cpu;
-    case P::LIMITATION_BANDWIDTH: return QualityLimitationReason::Bandwidth;
-    case P::LIMITATION_OTHER:     return QualityLimitationReason::Other;
-    default:                      return QualityLimitationReason::Other;
+  case P::LIMITATION_NONE:
+    return QualityLimitationReason::None;
+  case P::LIMITATION_CPU:
+    return QualityLimitationReason::Cpu;
+  case P::LIMITATION_BANDWIDTH:
+    return QualityLimitationReason::Bandwidth;
+  case P::LIMITATION_OTHER:
+    return QualityLimitationReason::Other;
+  default:
+    return QualityLimitationReason::Other;
   }
 }
 
 IceRole fromProto(livekit::proto::IceRole r) {
   using P = livekit::proto::IceRole;
   switch (r) {
-    case P::ICE_CONTROLLING: return IceRole::Controlling;
-    case P::ICE_CONTROLLED:  return IceRole::Controlled;
-    case P::ICE_UNKNOWN:
-    default:                 return IceRole::Unknown;
+  case P::ICE_CONTROLLING:
+    return IceRole::Controlling;
+  case P::ICE_CONTROLLED:
+    return IceRole::Controlled;
+  case P::ICE_UNKNOWN:
+  default:
+    return IceRole::Unknown;
   }
 }
 
 DtlsTransportState fromProto(livekit::proto::DtlsTransportState s) {
   using P = livekit::proto::DtlsTransportState;
   switch (s) {
-    case P::DTLS_TRANSPORT_NEW:        return DtlsTransportState::New;
-    case P::DTLS_TRANSPORT_CONNECTING: return DtlsTransportState::Connecting;
-    case P::DTLS_TRANSPORT_CONNECTED:  return DtlsTransportState::Connected;
-    case P::DTLS_TRANSPORT_CLOSED:     return DtlsTransportState::Closed;
-    case P::DTLS_TRANSPORT_FAILED:     return DtlsTransportState::Failed;
-    default:                           return DtlsTransportState::Unknown;
+  case P::DTLS_TRANSPORT_NEW:
+    return DtlsTransportState::New;
+  case P::DTLS_TRANSPORT_CONNECTING:
+    return DtlsTransportState::Connecting;
+  case P::DTLS_TRANSPORT_CONNECTED:
+    return DtlsTransportState::Connected;
+  case P::DTLS_TRANSPORT_CLOSED:
+    return DtlsTransportState::Closed;
+  case P::DTLS_TRANSPORT_FAILED:
+    return DtlsTransportState::Failed;
+  default:
+    return DtlsTransportState::Unknown;
   }
 }
 
 IceTransportState fromProto(livekit::proto::IceTransportState s) {
   using P = livekit::proto::IceTransportState;
   switch (s) {
-    case P::ICE_TRANSPORT_NEW:          return IceTransportState::New;
-    case P::ICE_TRANSPORT_CHECKING:     return IceTransportState::Checking;
-    case P::ICE_TRANSPORT_CONNECTED:    return IceTransportState::Connected;
-    case P::ICE_TRANSPORT_COMPLETED:    return IceTransportState::Completed;
-    case P::ICE_TRANSPORT_DISCONNECTED: return IceTransportState::Disconnected;
-    case P::ICE_TRANSPORT_FAILED:       return IceTransportState::Failed;
-    case P::ICE_TRANSPORT_CLOSED:       return IceTransportState::Closed;
-    default:                            return IceTransportState::Unknown;
+  case P::ICE_TRANSPORT_NEW:
+    return IceTransportState::New;
+  case P::ICE_TRANSPORT_CHECKING:
+    return IceTransportState::Checking;
+  case P::ICE_TRANSPORT_CONNECTED:
+    return IceTransportState::Connected;
+  case P::ICE_TRANSPORT_COMPLETED:
+    return IceTransportState::Completed;
+  case P::ICE_TRANSPORT_DISCONNECTED:
+    return IceTransportState::Disconnected;
+  case P::ICE_TRANSPORT_FAILED:
+    return IceTransportState::Failed;
+  case P::ICE_TRANSPORT_CLOSED:
+    return IceTransportState::Closed;
+  default:
+    return IceTransportState::Unknown;
   }
 }
 
 DtlsRole fromProto(livekit::proto::DtlsRole r) {
   using P = livekit::proto::DtlsRole;
   switch (r) {
-    case P::DTLS_CLIENT:  return DtlsRole::Client;
-    case P::DTLS_SERVER:  return DtlsRole::Server;
-    case P::DTLS_UNKNOWN:
-    default:              return DtlsRole::Unknown;
+  case P::DTLS_CLIENT:
+    return DtlsRole::Client;
+  case P::DTLS_SERVER:
+    return DtlsRole::Server;
+  case P::DTLS_UNKNOWN:
+  default:
+    return DtlsRole::Unknown;
   }
 }
 
 IceCandidatePairState fromProto(livekit::proto::IceCandidatePairState s) {
   using P = livekit::proto::IceCandidatePairState;
   switch (s) {
-    case P::PAIR_FROZEN:     return IceCandidatePairState::Frozen;
-    case P::PAIR_WAITING:    return IceCandidatePairState::Waiting;
-    case P::PAIR_IN_PROGRESS:return IceCandidatePairState::InProgress;
-    case P::PAIR_FAILED:     return IceCandidatePairState::Failed;
-    case P::PAIR_SUCCEEDED:  return IceCandidatePairState::Succeeded;
-    default:                 return IceCandidatePairState::Unknown;
+  case P::PAIR_FROZEN:
+    return IceCandidatePairState::Frozen;
+  case P::PAIR_WAITING:
+    return IceCandidatePairState::Waiting;
+  case P::PAIR_IN_PROGRESS:
+    return IceCandidatePairState::InProgress;
+  case P::PAIR_FAILED:
+    return IceCandidatePairState::Failed;
+  case P::PAIR_SUCCEEDED:
+    return IceCandidatePairState::Succeeded;
+  default:
+    return IceCandidatePairState::Unknown;
   }
 }
 
 IceCandidateType fromProto(livekit::proto::IceCandidateType t) {
   using P = livekit::proto::IceCandidateType;
   switch (t) {
-    case P::HOST:  return IceCandidateType::Host;
-    case P::SRFLX: return IceCandidateType::Srflx;
-    case P::PRFLX: return IceCandidateType::Prflx;
-    case P::RELAY: return IceCandidateType::Relay;
-    default:       return IceCandidateType::Unknown;
+  case P::HOST:
+    return IceCandidateType::Host;
+  case P::SRFLX:
+    return IceCandidateType::Srflx;
+  case P::PRFLX:
+    return IceCandidateType::Prflx;
+  case P::RELAY:
+    return IceCandidateType::Relay;
+  default:
+    return IceCandidateType::Unknown;
   }
 }
 
-IceServerTransportProtocol fromProto(livekit::proto::IceServerTransportProtocol p) {
+IceServerTransportProtocol
+fromProto(livekit::proto::IceServerTransportProtocol p) {
   using P = livekit::proto::IceServerTransportProtocol;
   switch (p) {
-    case P::TRANSPORT_UDP: return IceServerTransportProtocol::Udp;
-    case P::TRANSPORT_TCP: return IceServerTransportProtocol::Tcp;
-    case P::TRANSPORT_TLS: return IceServerTransportProtocol::Tls;
-    default:               return IceServerTransportProtocol::Unknown;
+  case P::TRANSPORT_UDP:
+    return IceServerTransportProtocol::Udp;
+  case P::TRANSPORT_TCP:
+    return IceServerTransportProtocol::Tcp;
+  case P::TRANSPORT_TLS:
+    return IceServerTransportProtocol::Tls;
+  default:
+    return IceServerTransportProtocol::Unknown;
   }
 }
 
 IceTcpCandidateType fromProto(livekit::proto::IceTcpCandidateType t) {
   using P = livekit::proto::IceTcpCandidateType;
   switch (t) {
-    case P::CANDIDATE_ACTIVE:  return IceTcpCandidateType::Active;
-    case P::CANDIDATE_PASSIVE: return IceTcpCandidateType::Passive;
-    case P::CANDIDATE_SO:      return IceTcpCandidateType::So;
-    default:                   return IceTcpCandidateType::Unknown;
+  case P::CANDIDATE_ACTIVE:
+    return IceTcpCandidateType::Active;
+  case P::CANDIDATE_PASSIVE:
+    return IceTcpCandidateType::Passive;
+  case P::CANDIDATE_SO:
+    return IceTcpCandidateType::So;
+  default:
+    return IceTcpCandidateType::Unknown;
   }
 }
 
-}  // namespace
+} // namespace
 
 // ----------------------
 // Leaf conversions
 // ----------------------
 
-RtcStatsData fromProto(const proto::RtcStatsData& s) {
+RtcStatsData fromProto(const proto::RtcStatsData &s) {
   RtcStatsData out;
   out.id = s.id();
   out.timestamp_ms = s.timestamp();
   return out;
 }
 
-CodecStats fromProto(const proto::CodecStats& s) {
+CodecStats fromProto(const proto::CodecStats &s) {
   CodecStats out;
   out.payload_type = s.payload_type();
   out.transport_id = s.transport_id();
@@ -143,7 +209,7 @@ CodecStats fromProto(const proto::CodecStats& s) {
   return out;
 }
 
-RtpStreamStats fromProto(const proto::RtpStreamStats& s) {
+RtpStreamStats fromProto(const proto::RtpStreamStats &s) {
   RtpStreamStats out;
   out.ssrc = s.ssrc();
   out.kind = s.kind();
@@ -152,7 +218,7 @@ RtpStreamStats fromProto(const proto::RtpStreamStats& s) {
   return out;
 }
 
-ReceivedRtpStreamStats fromProto(const proto::ReceivedRtpStreamStats& s) {
+ReceivedRtpStreamStats fromProto(const proto::ReceivedRtpStreamStats &s) {
   ReceivedRtpStreamStats out;
   out.packets_received = s.packets_received();
   out.packets_lost = s.packets_lost();
@@ -160,7 +226,7 @@ ReceivedRtpStreamStats fromProto(const proto::ReceivedRtpStreamStats& s) {
   return out;
 }
 
-InboundRtpStreamStats fromProto(const proto::InboundRtpStreamStats& s) {
+InboundRtpStreamStats fromProto(const proto::InboundRtpStreamStats &s) {
   InboundRtpStreamStats out;
   out.track_identifier = s.track_identifier();
   out.mid = s.mid();
@@ -209,7 +275,8 @@ InboundRtpStreamStats fromProto(const proto::InboundRtpStreamStats& s) {
   out.decoder_implementation = s.decoder_implementation();
   out.playout_id = s.playout_id();
   out.power_efficient_decoder = s.power_efficient_decoder();
-  out.frames_assembled_from_multiple_packets = s.frames_assembled_from_multiple_packets();
+  out.frames_assembled_from_multiple_packets =
+      s.frames_assembled_from_multiple_packets();
   out.total_assembly_time = s.total_assembly_time();
   out.retransmitted_packets_received = s.retransmitted_packets_received();
   out.retransmitted_bytes_received = s.retransmitted_bytes_received();
@@ -218,14 +285,14 @@ InboundRtpStreamStats fromProto(const proto::InboundRtpStreamStats& s) {
   return out;
 }
 
-SentRtpStreamStats fromProto(const proto::SentRtpStreamStats& s) {
+SentRtpStreamStats fromProto(const proto::SentRtpStreamStats &s) {
   SentRtpStreamStats out;
   out.packets_sent = s.packets_sent();
   out.bytes_sent = s.bytes_sent();
   return out;
 }
 
-OutboundRtpStreamStats fromProto(const proto::OutboundRtpStreamStats& s) {
+OutboundRtpStreamStats fromProto(const proto::OutboundRtpStreamStats &s) {
   OutboundRtpStreamStats out;
   out.mid = s.mid();
   out.media_source_id = s.media_source_id();
@@ -249,10 +316,11 @@ OutboundRtpStreamStats fromProto(const proto::OutboundRtpStreamStats& s) {
   out.total_packet_send_delay = s.total_packet_send_delay();
   out.quality_limitation_reason = fromProto(s.quality_limitation_reason());
   out.quality_limitation_durations.clear();
-  for (const auto& kv : s.quality_limitation_durations()) {
+  for (const auto &kv : s.quality_limitation_durations()) {
     out.quality_limitation_durations.emplace(kv.first, kv.second);
   }
-  out.quality_limitation_resolution_changes = s.quality_limitation_resolution_changes();
+  out.quality_limitation_resolution_changes =
+      s.quality_limitation_resolution_changes();
   out.nack_count = s.nack_count();
   out.fir_count = s.fir_count();
   out.pli_count = s.pli_count();
@@ -263,7 +331,8 @@ OutboundRtpStreamStats fromProto(const proto::OutboundRtpStreamStats& s) {
   return out;
 }
 
-RemoteInboundRtpStreamStats fromProto(const proto::RemoteInboundRtpStreamStats& s) {
+RemoteInboundRtpStreamStats
+fromProto(const proto::RemoteInboundRtpStreamStats &s) {
   RemoteInboundRtpStreamStats out;
   out.local_id = s.local_id();
   out.round_trip_time = s.round_trip_time();
@@ -273,7 +342,8 @@ RemoteInboundRtpStreamStats fromProto(const proto::RemoteInboundRtpStreamStats& 
   return out;
 }
 
-RemoteOutboundRtpStreamStats fromProto(const proto::RemoteOutboundRtpStreamStats& s) {
+RemoteOutboundRtpStreamStats
+fromProto(const proto::RemoteOutboundRtpStreamStats &s) {
   RemoteOutboundRtpStreamStats out;
   out.local_id = s.local_id();
   out.remote_timestamp = s.remote_timestamp();
@@ -284,14 +354,14 @@ RemoteOutboundRtpStreamStats fromProto(const proto::RemoteOutboundRtpStreamStats
   return out;
 }
 
-MediaSourceStats fromProto(const proto::MediaSourceStats& s) {
+MediaSourceStats fromProto(const proto::MediaSourceStats &s) {
   MediaSourceStats out;
   out.track_identifier = s.track_identifier();
   out.kind = s.kind();
   return out;
 }
 
-AudioSourceStats fromProto(const proto::AudioSourceStats& s) {
+AudioSourceStats fromProto(const proto::AudioSourceStats &s) {
   AudioSourceStats out;
   out.audio_level = s.audio_level();
   out.total_audio_energy = s.total_audio_energy();
@@ -305,7 +375,7 @@ AudioSourceStats fromProto(const proto::AudioSourceStats& s) {
   return out;
 }
 
-VideoSourceStats fromProto(const proto::VideoSourceStats& s) {
+VideoSourceStats fromProto(const proto::VideoSourceStats &s) {
   VideoSourceStats out;
   out.width = s.width();
   out.height = s.height();
@@ -314,7 +384,7 @@ VideoSourceStats fromProto(const proto::VideoSourceStats& s) {
   return out;
 }
 
-AudioPlayoutStats fromProto(const proto::AudioPlayoutStats& s) {
+AudioPlayoutStats fromProto(const proto::AudioPlayoutStats &s) {
   AudioPlayoutStats out;
   out.kind = s.kind();
   out.synthesized_samples_duration = s.synthesized_samples_duration();
@@ -325,14 +395,14 @@ AudioPlayoutStats fromProto(const proto::AudioPlayoutStats& s) {
   return out;
 }
 
-PeerConnectionStats fromProto(const proto::PeerConnectionStats& s) {
+PeerConnectionStats fromProto(const proto::PeerConnectionStats &s) {
   PeerConnectionStats out;
   out.data_channels_opened = s.data_channels_opened();
   out.data_channels_closed = s.data_channels_closed();
   return out;
 }
 
-DataChannelStats fromProto(const proto::DataChannelStats& s) {
+DataChannelStats fromProto(const proto::DataChannelStats &s) {
   DataChannelStats out;
   out.label = s.label();
   out.protocol = s.protocol();
@@ -349,7 +419,7 @@ DataChannelStats fromProto(const proto::DataChannelStats& s) {
   return out;
 }
 
-TransportStats fromProto(const proto::TransportStats& s) {
+TransportStats fromProto(const proto::TransportStats &s) {
   TransportStats out;
   out.packets_sent = s.packets_sent();
   out.packets_received = s.packets_received();
@@ -378,7 +448,7 @@ TransportStats fromProto(const proto::TransportStats& s) {
   return out;
 }
 
-CandidatePairStats fromProto(const proto::CandidatePairStats& s) {
+CandidatePairStats fromProto(const proto::CandidatePairStats &s) {
   CandidatePairStats out;
   out.transport_id = s.transport_id();
   out.local_candidate_id = s.local_candidate_id();
@@ -409,7 +479,7 @@ CandidatePairStats fromProto(const proto::CandidatePairStats& s) {
   return out;
 }
 
-IceCandidateStats fromProto(const proto::IceCandidateStats& s) {
+IceCandidateStats fromProto(const proto::IceCandidateStats &s) {
   IceCandidateStats out;
   out.transport_id = s.transport_id();
   out.address = s.address();
@@ -439,7 +509,7 @@ IceCandidateStats fromProto(const proto::IceCandidateStats& s) {
   return out;
 }
 
-CertificateStats fromProto(const proto::CertificateStats& s) {
+CertificateStats fromProto(const proto::CertificateStats &s) {
   CertificateStats out;
   out.fingerprint = s.fingerprint();
   out.fingerprint_algorithm = s.fingerprint_algorithm();
@@ -448,7 +518,7 @@ CertificateStats fromProto(const proto::CertificateStats& s) {
   return out;
 }
 
-StreamStats fromProto(const proto::StreamStats& s) {
+StreamStats fromProto(const proto::StreamStats &s) {
   StreamStats out;
   out.id = s.id();
   out.stream_identifier = s.stream_identifier();
@@ -459,130 +529,130 @@ StreamStats fromProto(const proto::StreamStats& s) {
 // High-level RtcStats fromProto
 // ----------------------
 
-RtcStats fromProto(const proto::RtcStats& s) {
+RtcStats fromProto(const proto::RtcStats &s) {
   using P = proto::RtcStats;
 
   switch (s.stats_case()) {
-    case P::kCodec: {
-      RtcCodecStats out;
-      out.rtc = fromProto(s.codec().rtc());
-      out.codec = fromProto(s.codec().codec());
-      return RtcStats{std::move(out)};
-    }
-    case P::kInboundRtp: {
-      RtcInboundRtpStats out;
-      out.rtc = fromProto(s.inbound_rtp().rtc());
-      out.stream = fromProto(s.inbound_rtp().stream());
-      out.received = fromProto(s.inbound_rtp().received());
-      out.inbound = fromProto(s.inbound_rtp().inbound());
-      return RtcStats{std::move(out)};
-    }
-    case P::kOutboundRtp: {
-      RtcOutboundRtpStats out;
-      out.rtc = fromProto(s.outbound_rtp().rtc());
-      out.stream = fromProto(s.outbound_rtp().stream());
-      out.sent = fromProto(s.outbound_rtp().sent());
-      out.outbound = fromProto(s.outbound_rtp().outbound());
-      return RtcStats{std::move(out)};
-    }
-    case P::kRemoteInboundRtp: {
-      RtcRemoteInboundRtpStats out;
-      out.rtc = fromProto(s.remote_inbound_rtp().rtc());
-      out.stream = fromProto(s.remote_inbound_rtp().stream());
-      out.received = fromProto(s.remote_inbound_rtp().received());
-      out.remote_inbound = fromProto(s.remote_inbound_rtp().remote_inbound());
-      return RtcStats{std::move(out)};
-    }
-    case P::kRemoteOutboundRtp: {
-      RtcRemoteOutboundRtpStats out;
-      out.rtc = fromProto(s.remote_outbound_rtp().rtc());
-      out.stream = fromProto(s.remote_outbound_rtp().stream());
-      out.sent = fromProto(s.remote_outbound_rtp().sent());
-      out.remote_outbound = fromProto(s.remote_outbound_rtp().remote_outbound());
-      return RtcStats{std::move(out)};
-    }
-    case P::kMediaSource: {
-      RtcMediaSourceStats out;
-      out.rtc = fromProto(s.media_source().rtc());
-      out.source = fromProto(s.media_source().source());
-      out.audio = fromProto(s.media_source().audio());
-      out.video = fromProto(s.media_source().video());
-      return RtcStats{std::move(out)};
-    }
-    case P::kMediaPlayout: {
-      RtcMediaPlayoutStats out;
-      out.rtc = fromProto(s.media_playout().rtc());
-      out.audio_playout = fromProto(s.media_playout().audio_playout());
-      return RtcStats{std::move(out)};
-    }
-    case P::kPeerConnection: {
-      RtcPeerConnectionStats out;
-      out.rtc = fromProto(s.peer_connection().rtc());
-      out.pc = fromProto(s.peer_connection().pc());
-      return RtcStats{std::move(out)};
-    }
-    case P::kDataChannel: {
-      RtcDataChannelStats out;
-      out.rtc = fromProto(s.data_channel().rtc());
-      out.dc = fromProto(s.data_channel().dc());
-      return RtcStats{std::move(out)};
-    }
-    case P::kTransport: {
-      RtcTransportStats out;
-      out.rtc = fromProto(s.transport().rtc());
-      out.transport = fromProto(s.transport().transport());
-      return RtcStats{std::move(out)};
-    }
-    case P::kCandidatePair: {
-      RtcCandidatePairStats out;
-      out.rtc = fromProto(s.candidate_pair().rtc());
-      out.candidate_pair = fromProto(s.candidate_pair().candidate_pair());
-      return RtcStats{std::move(out)};
-    }
-    case P::kLocalCandidate: {
-      RtcLocalCandidateStats out;
-      out.rtc = fromProto(s.local_candidate().rtc());
-      out.candidate = fromProto(s.local_candidate().candidate());
-      return RtcStats{std::move(out)};
-    }
-    case P::kRemoteCandidate: {
-      RtcRemoteCandidateStats out;
-      out.rtc = fromProto(s.remote_candidate().rtc());
-      out.candidate = fromProto(s.remote_candidate().candidate());
-      return RtcStats{std::move(out)};
-    }
-    case P::kCertificate: {
-      RtcCertificateStats out;
-      out.rtc = fromProto(s.certificate().rtc());
-      out.certificate = fromProto(s.certificate().certificate());
-      return RtcStats{std::move(out)};
-    }
-    case P::kStream: {
-      RtcStreamStats out;
-      out.rtc = fromProto(s.stream().rtc());
-      out.stream = fromProto(s.stream().stream());
-      return RtcStats{std::move(out)};
-    }
-    case P::kTrack:
-      // Deprecated; fall through to default
-    case P::STATS_NOT_SET:
-    default: {
-      // You might want to handle this differently (throw, assert, etc.)
-      RtcCodecStats dummy{};
-      dummy.rtc = RtcStatsData{};
-      dummy.codec = CodecStats{};
-      return RtcStats{std::move(dummy)};
-    }
+  case P::kCodec: {
+    RtcCodecStats out;
+    out.rtc = fromProto(s.codec().rtc());
+    out.codec = fromProto(s.codec().codec());
+    return RtcStats{std::move(out)};
+  }
+  case P::kInboundRtp: {
+    RtcInboundRtpStats out;
+    out.rtc = fromProto(s.inbound_rtp().rtc());
+    out.stream = fromProto(s.inbound_rtp().stream());
+    out.received = fromProto(s.inbound_rtp().received());
+    out.inbound = fromProto(s.inbound_rtp().inbound());
+    return RtcStats{std::move(out)};
+  }
+  case P::kOutboundRtp: {
+    RtcOutboundRtpStats out;
+    out.rtc = fromProto(s.outbound_rtp().rtc());
+    out.stream = fromProto(s.outbound_rtp().stream());
+    out.sent = fromProto(s.outbound_rtp().sent());
+    out.outbound = fromProto(s.outbound_rtp().outbound());
+    return RtcStats{std::move(out)};
+  }
+  case P::kRemoteInboundRtp: {
+    RtcRemoteInboundRtpStats out;
+    out.rtc = fromProto(s.remote_inbound_rtp().rtc());
+    out.stream = fromProto(s.remote_inbound_rtp().stream());
+    out.received = fromProto(s.remote_inbound_rtp().received());
+    out.remote_inbound = fromProto(s.remote_inbound_rtp().remote_inbound());
+    return RtcStats{std::move(out)};
+  }
+  case P::kRemoteOutboundRtp: {
+    RtcRemoteOutboundRtpStats out;
+    out.rtc = fromProto(s.remote_outbound_rtp().rtc());
+    out.stream = fromProto(s.remote_outbound_rtp().stream());
+    out.sent = fromProto(s.remote_outbound_rtp().sent());
+    out.remote_outbound = fromProto(s.remote_outbound_rtp().remote_outbound());
+    return RtcStats{std::move(out)};
+  }
+  case P::kMediaSource: {
+    RtcMediaSourceStats out;
+    out.rtc = fromProto(s.media_source().rtc());
+    out.source = fromProto(s.media_source().source());
+    out.audio = fromProto(s.media_source().audio());
+    out.video = fromProto(s.media_source().video());
+    return RtcStats{std::move(out)};
+  }
+  case P::kMediaPlayout: {
+    RtcMediaPlayoutStats out;
+    out.rtc = fromProto(s.media_playout().rtc());
+    out.audio_playout = fromProto(s.media_playout().audio_playout());
+    return RtcStats{std::move(out)};
+  }
+  case P::kPeerConnection: {
+    RtcPeerConnectionStats out;
+    out.rtc = fromProto(s.peer_connection().rtc());
+    out.pc = fromProto(s.peer_connection().pc());
+    return RtcStats{std::move(out)};
+  }
+  case P::kDataChannel: {
+    RtcDataChannelStats out;
+    out.rtc = fromProto(s.data_channel().rtc());
+    out.dc = fromProto(s.data_channel().dc());
+    return RtcStats{std::move(out)};
+  }
+  case P::kTransport: {
+    RtcTransportStats out;
+    out.rtc = fromProto(s.transport().rtc());
+    out.transport = fromProto(s.transport().transport());
+    return RtcStats{std::move(out)};
+  }
+  case P::kCandidatePair: {
+    RtcCandidatePairStats out;
+    out.rtc = fromProto(s.candidate_pair().rtc());
+    out.candidate_pair = fromProto(s.candidate_pair().candidate_pair());
+    return RtcStats{std::move(out)};
+  }
+  case P::kLocalCandidate: {
+    RtcLocalCandidateStats out;
+    out.rtc = fromProto(s.local_candidate().rtc());
+    out.candidate = fromProto(s.local_candidate().candidate());
+    return RtcStats{std::move(out)};
+  }
+  case P::kRemoteCandidate: {
+    RtcRemoteCandidateStats out;
+    out.rtc = fromProto(s.remote_candidate().rtc());
+    out.candidate = fromProto(s.remote_candidate().candidate());
+    return RtcStats{std::move(out)};
+  }
+  case P::kCertificate: {
+    RtcCertificateStats out;
+    out.rtc = fromProto(s.certificate().rtc());
+    out.certificate = fromProto(s.certificate().certificate());
+    return RtcStats{std::move(out)};
+  }
+  case P::kStream: {
+    RtcStreamStats out;
+    out.rtc = fromProto(s.stream().rtc());
+    out.stream = fromProto(s.stream().stream());
+    return RtcStats{std::move(out)};
+  }
+  case P::kTrack:
+    // Deprecated; fall through to default
+  case P::STATS_NOT_SET:
+  default: {
+    // You might want to handle this differently (throw, assert, etc.)
+    RtcCodecStats dummy{};
+    dummy.rtc = RtcStatsData{};
+    dummy.codec = CodecStats{};
+    return RtcStats{std::move(dummy)};
+  }
   }
 }
 
-std::vector<RtcStats> fromProto(const std::vector<proto::RtcStats>& src) {
+std::vector<RtcStats> fromProto(const std::vector<proto::RtcStats> &src) {
   std::vector<RtcStats> out;
   out.reserve(src.size());
-  for (const auto& s : src) {
+  for (const auto &s : src) {
     out.push_back(fromProto(s));
   }
   return out;
 }
 
-}  // namespace livekit
+} // namespace livekit

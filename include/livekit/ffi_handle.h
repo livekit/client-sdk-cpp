@@ -1,7 +1,7 @@
 /*
  * Copyright 2023 LiveKit
  *
- * Licensed under the Apache License, Version 2.0 (the “License”);
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
- #pragma once
+#pragma once
 
 #include <cstdint>
 
@@ -23,21 +23,21 @@ namespace livekit {
 /**
  * @brief RAII wrapper for an FFI handle (uintptr_t) coming from Rust.
  *
- * Ensures that the handle is automatically released via livekit_ffi_drop_handle()
- * when the object goes out of scope.
+ * Ensures that the handle is automatically released via
+ * livekit_ffi_drop_handle() when the object goes out of scope.
  */
 class FfiHandle {
- public:
+public:
   explicit FfiHandle(uintptr_t h = 0) noexcept;
   ~FfiHandle();
 
   // Non-copyable
-  FfiHandle(const FfiHandle&) = delete;
-  FfiHandle& operator=(const FfiHandle&) = delete;
+  FfiHandle(const FfiHandle &) = delete;
+  FfiHandle &operator=(const FfiHandle &) = delete;
 
   // Movable
-  FfiHandle(FfiHandle&& other) noexcept;
-  FfiHandle& operator=(FfiHandle&& other) noexcept;
+  FfiHandle(FfiHandle &&other) noexcept;
+  FfiHandle &operator=(FfiHandle &&other) noexcept;
 
   // Replace the current handle with a new one, dropping the old if needed
   void reset(uintptr_t new_handle = 0) noexcept;
@@ -54,8 +54,8 @@ class FfiHandle {
   // Allow `if (handle)` syntax
   explicit operator bool() const noexcept { return valid(); }
 
- private:
+private:
   uintptr_t handle_{0};
 };
 
-}  // namespace livekit
+} // namespace livekit

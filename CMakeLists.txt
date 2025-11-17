@@ -108,7 +108,6 @@ add_library(livekit
   include/livekit/room.h
   include/livekit/ffi_handle.h
   include/livekit/ffi_client.h
-  include/livekit/eventEmitter.h
   include/livekit/participant.h
   include/livekit/livekit.h
   include/livekit/stats.h

@@ -68,6 +68,7 @@ curl https://sh.rustup.rs -sSf | sh
 ## 🛠️ Development Tips
 ###  Update Rust version
 ```bash
+cd client-sdk-cpp
 git fetch origin
 git switch -c try-rust-main origin/main
 
@@ -76,6 +77,7 @@ git submodule sync --recursive
 git submodule update --init --recursive --checkout
 
 # Now, in case the nested submodule under yuv-sys didn’t materialize, force it explicitly:
+cd ..
 git -C client-sdk-rust/yuv-sys submodule sync --recursive
 git -C client-sdk-rust/yuv-sys submodule update --init --recursive --checkout
 
@@ -90,8 +92,13 @@ cargo build -p yuv-sys -vv
 ```
 
 ### Full clean (Rust + C++ build folders)
-
 In some cases, you may need to perform a full clean that deletes all build artifacts from both the Rust and C++ folders:
 ```bash
 ./build.sh clean-all
+```
+
+### Clang format
+CPP SDK is using clang C++ format
+```bash
+brew install clang-format
 ```

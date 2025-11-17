@@ -1,7 +1,7 @@
 /*
  * Copyright 2023 LiveKit
  *
- * Licensed under the Apache License, Version 2.0 (the “License”);
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -17,39 +17,36 @@
 #ifndef LIVEKIT_ROOM_H
 #define LIVEKIT_ROOM_H
 
-#include <mutex>
 #include "livekit/ffi_client.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_delegate.h"
+#include <mutex>
 
-namespace livekit
-{
+namespace livekit {
 
 class RoomDelegate;
-class RoomInfoData;
+struct RoomInfoData;
 namespace proto {
 class FfiEvent;
 }
 
-    class Room
-    {
-    public:
-        Room() = default;
-        void setDelegate(RoomDelegate* delegate);
-        bool Connect(const std::string& url, const std::string& token);
+class Room {
+public:
+  Room() = default;
+  void setDelegate(RoomDelegate *delegate);
+  bool Connect(const std::string &url, const std::string &token);
 
-        // Accessors
-        RoomInfoData room_info() const;
+  // Accessors
+  RoomInfoData room_info() const;
 
-    private:
+private:
+  mutable std::mutex lock_;
+  bool connected_{false};
+  RoomDelegate *delegate_ = nullptr; // Not owned
+  RoomInfoData room_info_;
 
-        mutable std::mutex lock_;
-        bool connected_{false};
-        RoomDelegate* delegate_ = nullptr;  // Not owned
-        RoomInfoData room_info_;
-        
-        void OnEvent(const proto::FfiEvent& event);
-    };
-}
+  void OnEvent(const proto::FfiEvent &event);
+};
+} // namespace livekit
 
 #endif /* LIVEKIT_ROOM_H */

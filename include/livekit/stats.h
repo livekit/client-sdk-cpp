@@ -1,7 +1,7 @@
 /*
  * Copyright 2023 LiveKit
  *
- * Licensed under the Apache License, Version 2.0 (the “License”);
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -17,11 +17,11 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
-#include <optional>
-#include <unordered_map>
 
 namespace livekit {
 
@@ -47,7 +47,7 @@ class CandidatePairStats;
 class IceCandidateStats;
 class CertificateStats;
 class StreamStats;
-}  // namespace proto
+} // namespace proto
 
 // ----------------------
 // SDK enums (decoupled from proto enums)
@@ -485,22 +485,13 @@ struct RtcStreamStats {
 
 // Deprecated Track omitted on purpose.
 
-using RtcStatsVariant = std::variant<
-    RtcCodecStats,
-    RtcInboundRtpStats,
-    RtcOutboundRtpStats,
-    RtcRemoteInboundRtpStats,
-    RtcRemoteOutboundRtpStats,
-    RtcMediaSourceStats,
-    RtcMediaPlayoutStats,
-    RtcPeerConnectionStats,
-    RtcDataChannelStats,
-    RtcTransportStats,
-    RtcCandidatePairStats,
-    RtcLocalCandidateStats,
-    RtcRemoteCandidateStats,
-    RtcCertificateStats,
-    RtcStreamStats>;
+using RtcStatsVariant =
+    std::variant<RtcCodecStats, RtcInboundRtpStats, RtcOutboundRtpStats,
+                 RtcRemoteInboundRtpStats, RtcRemoteOutboundRtpStats,
+                 RtcMediaSourceStats, RtcMediaPlayoutStats,
+                 RtcPeerConnectionStats, RtcDataChannelStats, RtcTransportStats,
+                 RtcCandidatePairStats, RtcLocalCandidateStats,
+                 RtcRemoteCandidateStats, RtcCertificateStats, RtcStreamStats>;
 
 struct RtcStats {
   RtcStatsVariant stats;
@@ -510,32 +501,34 @@ struct RtcStats {
 // fromProto declarations
 // ----------------------
 
-RtcStatsData fromProto(const proto::RtcStatsData&);
+RtcStatsData fromProto(const proto::RtcStatsData &);
 
-CodecStats fromProto(const proto::CodecStats&);
-RtpStreamStats fromProto(const proto::RtpStreamStats&);
-ReceivedRtpStreamStats fromProto(const proto::ReceivedRtpStreamStats&);
-InboundRtpStreamStats fromProto(const proto::InboundRtpStreamStats&);
-SentRtpStreamStats fromProto(const proto::SentRtpStreamStats&);
-OutboundRtpStreamStats fromProto(const proto::OutboundRtpStreamStats&);
-RemoteInboundRtpStreamStats fromProto(const proto::RemoteInboundRtpStreamStats&);
-RemoteOutboundRtpStreamStats fromProto(const proto::RemoteOutboundRtpStreamStats&);
-MediaSourceStats fromProto(const proto::MediaSourceStats&);
-AudioSourceStats fromProto(const proto::AudioSourceStats&);
-VideoSourceStats fromProto(const proto::VideoSourceStats&);
-AudioPlayoutStats fromProto(const proto::AudioPlayoutStats&);
-PeerConnectionStats fromProto(const proto::PeerConnectionStats&);
-DataChannelStats fromProto(const proto::DataChannelStats&);
-TransportStats fromProto(const proto::TransportStats&);
-CandidatePairStats fromProto(const proto::CandidatePairStats&);
-IceCandidateStats fromProto(const proto::IceCandidateStats&);
-CertificateStats fromProto(const proto::CertificateStats&);
-StreamStats fromProto(const proto::StreamStats&);
+CodecStats fromProto(const proto::CodecStats &);
+RtpStreamStats fromProto(const proto::RtpStreamStats &);
+ReceivedRtpStreamStats fromProto(const proto::ReceivedRtpStreamStats &);
+InboundRtpStreamStats fromProto(const proto::InboundRtpStreamStats &);
+SentRtpStreamStats fromProto(const proto::SentRtpStreamStats &);
+OutboundRtpStreamStats fromProto(const proto::OutboundRtpStreamStats &);
+RemoteInboundRtpStreamStats
+fromProto(const proto::RemoteInboundRtpStreamStats &);
+RemoteOutboundRtpStreamStats
+fromProto(const proto::RemoteOutboundRtpStreamStats &);
+MediaSourceStats fromProto(const proto::MediaSourceStats &);
+AudioSourceStats fromProto(const proto::AudioSourceStats &);
+VideoSourceStats fromProto(const proto::VideoSourceStats &);
+AudioPlayoutStats fromProto(const proto::AudioPlayoutStats &);
+PeerConnectionStats fromProto(const proto::PeerConnectionStats &);
+DataChannelStats fromProto(const proto::DataChannelStats &);
+TransportStats fromProto(const proto::TransportStats &);
+CandidatePairStats fromProto(const proto::CandidatePairStats &);
+IceCandidateStats fromProto(const proto::IceCandidateStats &);
+CertificateStats fromProto(const proto::CertificateStats &);
+StreamStats fromProto(const proto::StreamStats &);
 
 // High-level:
-RtcStats fromProto(const proto::RtcStats&);
+RtcStats fromProto(const proto::RtcStats &);
 
 // helper if you have repeated RtcStats in proto:
-std::vector<RtcStats> fromProto(const std::vector<proto::RtcStats>&);
+std::vector<RtcStats> fromProto(const std::vector<proto::RtcStats> &);
 
-}  // namespace livekit
+} // namespace livekit
