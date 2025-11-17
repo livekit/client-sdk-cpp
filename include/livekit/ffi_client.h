@@ -29,8 +29,11 @@
 namespace livekit {
 
 namespace proto {
-class FfiEvent
-}
+class FfiEvent;
+class FfiResponse;
+class FfiRequest;
+class RoomInfo;
+} // namespace proto
 
 using FfiCallbackFn = void (*)(const uint8_t *, size_t);
 extern "C" void livekit_ffi_initialize(FfiCallbackFn cb, bool capture_logs,
@@ -67,8 +70,8 @@ public:
   void RemoveListener(ListenerId id);
 
   // Room APIs
-  std::future<livekit::proto::RoomInfo> connectAsync(const std::string &url,
-                                                     const std::string &token);
+  std::future<proto::RoomInfo> connectAsync(const std::string &url,
+                                            const std::string &token);
 
   // Track APIs
   std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);
