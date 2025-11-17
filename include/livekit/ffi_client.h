@@ -73,12 +73,9 @@ public:
   std::future<proto::RoomInfo> connectAsync(const std::string &url,
                                             const std::string &token);
 
-  // Track APIs
-  std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);
-  std::future<bool> localTrackMuteAsync(uintptr_t track_handle, bool mute);
-  std::future<bool> enableRemoteTrackAsync(uintptr_t track_handle,
-                                           bool enabled);
-
+  // Generic function for sending a request to the Rust FFI.
+  // Note: For asynchronous requests, use the dedicated async functions instead
+  // of SendRequest.
   proto::FfiResponse SendRequest(const proto::FfiRequest &request) const;
 
 private:
