@@ -141,6 +141,19 @@ add_custom_target(build_rust_ffi ALL
   VERBATIM
 )
 
+# A workaround to strip out the protozero_plugin.o symbols which cause our examples fail to link on Linux.
+# Make sure CMAKE_AR is defined; if not, you can hardcode "ar"
+if(NOT CMAKE_AR)
+  find_program(CMAKE_AR ar REQUIRED)
+endif()
+
+add_custom_command(
+  TARGET build_rust_ffi
+  POST_BUILD
+  COMMAND ${CMAKE_AR} -dv $<TARGET_FILE:livekit_ffi> protozero_plugin.o
+  COMMENT "Removing protozero_plugin.o (stray main) from liblivekit_ffi.a"
+)
+
 # ---- C++ wrapper library ----
 add_library(livekit
   include/livekit/audio_frame.h
