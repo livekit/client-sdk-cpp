@@ -143,20 +143,37 @@ add_custom_target(build_rust_ffi ALL
 
 # ---- C++ wrapper library ----
 add_library(livekit
+  include/livekit/audio_frame.h
+  include/livekit/audio_source.h
   include/livekit/room.h
+  include/livekit/room_delegate.h
   include/livekit/ffi_handle.h
   include/livekit/ffi_client.h
+  include/livekit/local_audio_track.h
   include/livekit/participant.h
+  include/livekit/local_participant.h
   include/livekit/livekit.h
   include/livekit/stats.h
   include/livekit/track.h
+  include/livekit/track_publication.h
+  include/livekit/local_track_publication.h
+  include/livekit/remote_track_publication.h
+  src/audio_frame.cpp
+  src/audio_source.cpp
   src/ffi_handle.cpp
   src/ffi_client.cpp
+  src/local_audio_track.cpp
   src/room.cpp
-  src/room_event_converter.cpp
-  src/room_event_converter.h
+  src/room_proto_converter.cpp
+  src/room_proto_converter.h
+  src/local_participant.cpp
   src/stats.cpp
   src/track.cpp
+  src/track_proto_converter.cpp
+  src/track_proto_converter.h
+  src/track_publication.cpp
+  src/local_track_publication.cpp
+  src/remote_track_publication.cpp
 )
 
 # Add generated proto objects to the wrapper

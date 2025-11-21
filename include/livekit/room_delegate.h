@@ -25,6 +25,8 @@
 namespace livekit {
 
 class Room;
+enum class VideoCodec;
+enum class TrackSource;
 
 enum class ConnectionQuality {
   Poor,
@@ -52,24 +54,27 @@ enum class EncryptionState {
 };
 
 enum class DisconnectReason {
-  // mirror your proto DisconnectReason values as needed
-  Unknown,
+  Unknown = 0,
   ClientInitiated,
-  ServerInitiated,
+  DuplicateIdentity,
+  ServerShutdown,
+  ParticipantRemoved,
+  RoomDeleted,
+  StateMismatch,
+  JoinFailure,
+  Migration,
+  SignalClose,
+  RoomClosed,
+  UserUnavailable,
+  UserRejected,
+  SipTrunkFailure,
+  ConnectionTimeout,
+  MediaFailure
 };
 
 // ---------------------------------------------------------
 // Basic data types corresponding to proto messages
 // ---------------------------------------------------------
-
-struct TranscriptionSegmentData {
-  std::string id;
-  std::string text;
-  std::uint64_t start_time = 0;
-  std::uint64_t end_time = 0;
-  bool is_final = false;
-  std::string language;
-};
 
 struct ChatMessageData {
   std::string id;
@@ -154,6 +159,40 @@ struct DataStreamTrailerData {
   std::string stream_id;
   std::string reason;
   std::map<std::string, std::string> attributes;
+};
+
+// ------------- rooom.proto options ------------------------
+
+struct VideoEncodingOptions {
+  std::uint64_t max_bitrate = 0;
+  double max_framerate = 0.0;
+};
+
+struct AudioEncodingOptions {
+  std::uint64_t max_bitrate = 0;
+};
+
+struct TrackPublishOptions {
+  std::optional<VideoEncodingOptions> video_encoding;
+  std::optional<AudioEncodingOptions> audio_encoding;
+  std::optional<VideoCodec> video_codec;
+  std::optional<bool> dtx;
+  std::optional<bool> red;
+  std::optional<bool> simulcast;
+  std::optional<TrackSource> source;
+  std::optional<std::string> stream;
+  std::optional<bool> preconnect_buffer;
+};
+
+// ------------- rooom.proto Transcription ------------------------
+
+struct TranscriptionSegment {
+  std::string id;
+  std::string text;
+  std::uint64_t start_time = 0;
+  std::uint64_t end_time = 0;
+  bool final = false;
+  std::string language;
 };
 
 // ---------------------------------------------------------
@@ -271,10 +310,10 @@ struct DataPacketReceivedEvent {
   std::optional<SipDtmfData> sip_dtmf;
 };
 
-struct TranscriptionReceivedEvent {
+struct Transcription {
   std::optional<std::string> participant_identity;
   std::optional<std::string> track_sid;
-  std::vector<TranscriptionSegmentData> segments;
+  std::vector<TranscriptionSegment> segments;
 };
 
 struct ConnectionStateChangedEvent {
@@ -423,8 +462,7 @@ public:
 
   // Data / transcription / chat
   virtual void onDataPacketReceived(Room &, const DataPacketReceivedEvent &) {}
-  virtual void onTranscriptionReceived(Room &,
-                                       const TranscriptionReceivedEvent &) {}
+  virtual void onTranscriptionReceived(Room &, const Transcription &) {}
   virtual void onChatMessageReceived(Room &, const ChatMessageReceivedEvent &) {
   }
 

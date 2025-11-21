@@ -22,7 +22,7 @@
 
 namespace livekit {
 
-Track::Track(std::weak_ptr<FfiHandle> handle, std::string sid, std::string name,
+Track::Track(FfiHandle handle, std::string sid, std::string name,
              TrackKind kind, StreamState state, bool muted, bool remote)
     : handle_(std::move(handle)), sid_(std::move(sid)), name_(std::move(name)),
       kind_(kind), state_(state), muted_(muted), remote_(remote) {}

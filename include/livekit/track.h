@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 LiveKit
+ * Copyright 2025 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -58,6 +58,12 @@ enum class AudioTrackFeature {
   TF_PRECONNECT_BUFFER = 6,
 };
 
+struct ParticipantTrackPermission {
+  std::string participant_identity;
+  std::optional<bool> allow_all;
+  std::vector<std::string> allowed_track_sids;
+};
+
 // ============================================================
 // Base Track
 // ============================================================
@@ -81,16 +87,8 @@ public:
   std::optional<std::string> mime_type() const noexcept { return mime_type_; }
 
   // Handle access
-  bool has_handle() const noexcept { return !handle_.expired(); }
-  uintptr_t ffi_handle_id() const noexcept {
-    if (auto h = handle_.lock())
-      return h->get();
-    return 0;
-  }
-  std::shared_ptr<const FfiHandle> lock_handle() const noexcept {
-    return handle_.lock();
-  }
-
+  bool has_handle() const noexcept { return !handle_.valid(); }
+  uintptr_t ffi_handle_id() const noexcept { return handle_.get(); }
   // Async get stats
   std::future<std::vector<RtcStats>> getStats() const;
 
@@ -100,8 +98,8 @@ public:
   void setName(std::string n) noexcept { name_ = std::move(n); }
 
 protected:
-  Track(std::weak_ptr<FfiHandle> handle, std::string sid, std::string name,
-        TrackKind kind, StreamState state, bool muted, bool remote);
+  Track(FfiHandle handle, std::string sid, std::string name, TrackKind kind,
+        StreamState state, bool muted, bool remote);
 
   void setPublicationFields(std::optional<TrackSource> source,
                             std::optional<bool> simulcasted,
@@ -110,7 +108,7 @@ protected:
                             std::optional<std::string> mime_type);
 
 private:
-  std::weak_ptr<FfiHandle> handle_; // non-owning
+  FfiHandle handle_; // Owned
 
   std::string sid_;
   std::string name_;

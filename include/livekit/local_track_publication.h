@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 LiveKit
+ * Copyright 2025 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,25 @@
  * limitations under the License.
  */
 
-#include "audio_frame.h"
-#include "audio_source.h"
-#include "local_audio_track.h"
-#include "local_participant.h"
-#include "local_track_publication.h"
-#include "participant.h"
-#include "room.h"
-#include "room_delegate.h"
-#include "track_publication.h"
+#pragma once
+
+#include "livekit/track_publication.h"
+
+namespace livekit {
+
+namespace proto {
+class OwnedTrackPublication;
+}
+
+class Track;
+
+class LocalTrackPublication : public TrackPublication {
+public:
+  /// Construct from an OwnedTrackPublication proto.
+  explicit LocalTrackPublication(const proto::OwnedTrackPublication &owned);
+
+  /// Typed accessor for the attached LocalTrack (if any).
+  std::shared_ptr<Track> track() const noexcept;
+};
+
+} // namespace livekit

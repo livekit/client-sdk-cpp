@@ -168,6 +168,32 @@ int main(int argc, char *argv[]) {
             << info.reliable_dc_buffered_amount_low_threshold << "\n"
             << "  Creation time (ms): " << info.creation_time << "\n";
 
+  auto audioSource = std::make_shared<AudioSource>(44100, 1, 10);
+  auto audioTrack =
+      LocalAudioTrack::createLocalAudioTrack("micTrack", audioSource);
+
+  TrackPublishOptions opts;
+  opts.source = TrackSource::SOURCE_MICROPHONE;
+  opts.dtx = false;
+  opts.simulcast = false;
+
+  try {
+    // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
+    // Track
+    auto pub = room.local_participant()->publishTrack(audioTrack, opts);
+
+    std::cout << "Published track:\n"
+              << "  SID: " << pub->sid() << "\n"
+              << "  Name: " << pub->name() << "\n"
+              << "  Kind: " << static_cast<int>(pub->kind()) << "\n"
+              << "  Source: " << static_cast<int>(pub->source()) << "\n"
+              << "  Simulcasted: " << std::boolalpha << pub->simulcasted()
+              << "\n"
+              << "  Muted: " << std::boolalpha << pub->muted() << "\n";
+  } catch (const std::exception &e) {
+    std::cerr << "Failed to publish track: " << e.what() << std::endl;
+  }
+
   // TOD(shijing), implement local and remoteParticipants in the room
 
   // Keep the app alive until Ctrl-C so we continue receiving events,

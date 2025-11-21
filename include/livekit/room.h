@@ -20,6 +20,7 @@
 #include "livekit/ffi_client.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_delegate.h"
+#include <memory>
 #include <mutex>
 
 namespace livekit {
@@ -30,20 +31,26 @@ namespace proto {
 class FfiEvent;
 }
 
+class LocalParticipant;
+
 class Room {
 public:
-  Room() = default;
+  Room();
+  ~Room();
   void setDelegate(RoomDelegate *delegate);
   bool Connect(const std::string &url, const std::string &token);
 
   // Accessors
   RoomInfoData room_info() const;
+  LocalParticipant *local_participant() const;
 
 private:
   mutable std::mutex lock_;
   bool connected_{false};
   RoomDelegate *delegate_ = nullptr; // Not owned
   RoomInfoData room_info_;
+  std::shared_ptr<FfiHandle> room_handle_;
+  std::unique_ptr<LocalParticipant> local_participant_;
 
   void OnEvent(const proto::FfiEvent &event);
 };
