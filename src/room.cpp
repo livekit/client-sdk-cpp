@@ -86,7 +86,6 @@ bool Room::Connect(const std::string &url, const std::string &token) {
       local_participant_ = std::make_unique<LocalParticipant>(
           std::move(participant_handle), pinfo.sid(), pinfo.name(),
           pinfo.identity(), pinfo.metadata(), std::move(attrs), kind, reason);
-      std::cout << "creating local participant " << std::endl;
     }
     // Setup remote particpants
     {

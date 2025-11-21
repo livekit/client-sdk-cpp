@@ -93,7 +93,8 @@ void AudioSource::clearQueue() {
   resetQueueTracking();
 }
 
-void AudioSource::captureFrame(const AudioFrame &frame) {
+void AudioSource::captureFrame(const AudioFrame &frame, int timeout_ms) {
+  using namespace std::chrono_literals;
   if (!handle_) {
     return;
   }
@@ -105,10 +106,8 @@ void AudioSource::captureFrame(const AudioFrame &frame) {
   // Queue tracking, same logic as before
   double now = now_seconds();
   double elapsed = (last_capture_ == 0.0) ? 0.0 : (now - last_capture_);
-
   double frame_duration = static_cast<double>(frame.samples_per_channel()) /
                           static_cast<double>(sample_rate_);
-
   q_size_ += frame_duration - elapsed;
   if (q_size_ < 0.0) {
     q_size_ = 0.0; // clamp
@@ -117,12 +116,21 @@ void AudioSource::captureFrame(const AudioFrame &frame) {
 
   // Build AudioFrameBufferInfo from the wrapper
   proto::AudioFrameBufferInfo buf = frame.toProto();
-
   // Use async FFI API and block until the callback completes
   auto fut = FfiClient::instance().captureAudioFrameAsync(handle_.get(), buf);
-
+  if (timeout_ms == 0) {
+    fut.get(); // may throw std::runtime_error from async layer
+    return;
+  }
   // This will throw std::runtime_error if the callback reported an error
-  fut.get();
+  auto status = fut.wait_for(std::chrono::milliseconds(timeout_ms));
+  if (status == std::future_status::ready ||
+      status == std::future_status::deferred) {
+    fut.get();
+  } else { // std::future_status::timeout
+    std::cerr << "captureAudioFrameAsync timed out after " << timeout_ms
+              << " ms\n";
+  }
 }
 
 void AudioSource::waitForPlayout() const {

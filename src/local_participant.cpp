@@ -204,20 +204,16 @@ LocalParticipant::publishTrack(const std::shared_ptr<Track> &track,
   }
 
   auto participant_handle = ffiHandleId();
-  std::cout << "participant_handle is " << participant_handle << std::endl;
   if (participant_handle == 0) {
     throw std::runtime_error(
         "LocalParticipant::publishTrack: invalid participant FFI handle");
   }
 
   auto track_handle = track->ffi_handle_id();
-  std::cout << "track_handle is " << track_handle << std::endl;
-
   if (track_handle == 0) {
     throw std::runtime_error(
         "LocalParticipant::publishTrack: invalid track FFI handle");
   }
-  std::cout << "calling  publishTrackAsync" << std::endl;
   auto fut = FfiClient::instance().publishTrackAsync(
       static_cast<std::uint64_t>(participant_handle),
       static_cast<std::uint64_t>(track_handle), options);

@@ -72,16 +72,36 @@ public:
   void clearQueue();
 
   /**
-   * Push an AudioFrame into the audio source.
+   * Push an AudioFrame into the audio source and BLOCK until the FFI callback
+   * confirms that the native side has finished processing (consuming) the
+   * frame. Safe usage: The frame's internal buffer must remain valid only until
+   * this function returns. Because this call blocks until the corresponding FFI
+   * callback arrives, the caller may safely destroy or reuse the frame
+   * afterward.
+   * @param frame       The audio frame to send. No-op if the frame contains
+   * zero samples.
+   * @param timeout_ms  Maximum time to wait for the FFI callback.
+   *                    - If timeout_ms > 0: block up to this duration.
+   *                      A timeout will cause std::runtime_error.
+   *                    - If timeout_ms == 0: wait indefinitely until the
+   * callback arrives (recommended for production unless the caller needs
+   * explicit timeout control).
    *
-   * It sends a capture_audio_frame FFI request and may throw on error
-   * (depending on what the FFI response exposes).
+   * Notes:
+   *   - This is a blocking call.
+   *   - timeout_ms == 0 (infinite wait) is the safest mode because it
+   * guarantees the callback completes before the function returns, which in
+   * turn guarantees that the audio buffer lifetime is fully protected. The
+   * caller does not need to manage or extend the frame lifetime manually.
    *
-   * If the frame has zero samples, this method is a no-op.
+   *   - May throw std::runtime_error if:
+   *       • the FFI reports an error
    *
-   * @throws std::runtime_error on FFI-reported error (if available).
+   *   - The underlying FFI request *must* eventually produce a callback for
+   * each frame. If the FFI layer is misbehaving or the event loop is stalled,
+   *     a timeout may occur in bounded-wait mode.
    */
-  void captureFrame(const AudioFrame &frame);
+  void captureFrame(const AudioFrame &frame, int timeout_ms = 20);
 
   /**
    * Block until the currently queued audio has (roughly) played out.

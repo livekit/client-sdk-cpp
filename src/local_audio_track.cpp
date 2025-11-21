@@ -29,9 +29,7 @@ LocalAudioTrack::LocalAudioTrack(FfiHandle handle,
     : Track(std::move(handle), track.info().sid(), track.info().name(),
             fromProto(track.info().kind()),
             fromProto(track.info().stream_state()), track.info().muted(),
-            false) {
-  std::cout << "LocalAudioTrack handle is " << ffi_handle_id() << std::endl;
-}
+            false) {}
 
 std::shared_ptr<LocalAudioTrack> LocalAudioTrack::createLocalAudioTrack(
     const std::string &name, const std::shared_ptr<AudioSource> &source) {
@@ -43,8 +41,6 @@ std::shared_ptr<LocalAudioTrack> LocalAudioTrack::createLocalAudioTrack(
   proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   const proto::OwnedTrack &owned = resp.create_audio_track().track();
   FfiHandle handle(static_cast<uintptr_t>(owned.handle().id()));
-  std::cout << "createLocalAudioTrack handle is " << owned.handle().id()
-            << std::endl;
   return std::make_shared<LocalAudioTrack>(std::move(handle), owned);
 }
 
