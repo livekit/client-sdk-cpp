@@ -194,8 +194,6 @@ int main(int argc, char *argv[]) {
     std::cerr << "Failed to publish track: " << e.what() << std::endl;
   }
 
-  // TOD(shijing), implement local and remoteParticipants in the room
-
   // Keep the app alive until Ctrl-C so we continue receiving events,
   // similar to asyncio.run(main()) keeping the loop running.
   while (g_running.load()) {

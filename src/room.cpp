@@ -90,7 +90,7 @@ bool Room::Connect(const std::string &url, const std::string &token) {
     }
     // Setup remote particpants
     {
-      // TODO
+      // TODO, implement this remote participant feature
     }
     return true;
   } catch (const std::exception &e) {

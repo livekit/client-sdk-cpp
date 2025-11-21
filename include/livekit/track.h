@@ -89,6 +89,7 @@ public:
   // Handle access
   bool has_handle() const noexcept { return !handle_.valid(); }
   uintptr_t ffi_handle_id() const noexcept { return handle_.get(); }
+
   // Async get stats
   std::future<std::vector<RtcStats>> getStats() const;
 
