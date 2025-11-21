@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 LiveKit
+ * Copyright 2025 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,41 +22,24 @@
 #include <unordered_map>
 
 #include "livekit/ffi_handle.h"
+#include "livekit/room_delegate.h"
 #include "livekit_ffi.h"
 
 namespace livekit {
 
 enum class ParticipantKind { Standard = 0, Ingress, Egress, Sip, Agent };
 
-enum class DisconnectReason {
-  Unknown = 0,
-  ClientInitiated,
-  DuplicateIdentity,
-  ServerShutdown,
-  ParticipantRemoved,
-  RoomDeleted,
-  StateMismatch,
-  JoinFailure,
-  Migration,
-  SignalClose,
-  RoomClosed,
-  UserUnavailable,
-  UserRejected,
-  SipTrunkFailure,
-  ConnectionTimeout,
-  MediaFailure
-};
-
 class Participant {
 public:
   // TODO, consider holding a weak ptr of FfiHandle if it is useful.
-  Participant(std::weak_ptr<FfiHandle> handle, std::string sid,
-              std::string name, std::string identity, std::string metadata,
+  Participant(FfiHandle handle, std::string sid, std::string name,
+              std::string identity, std::string metadata,
               std::unordered_map<std::string, std::string> attributes,
               ParticipantKind kind, DisconnectReason reason)
-      : handle_(handle), sid_(std::move(sid)), name_(std::move(name)),
-        identity_(std::move(identity)), metadata_(std::move(metadata)),
-        attributes_(std::move(attributes)), kind_(kind), reason_(reason) {}
+      : handle_(std::move(handle)), sid_(std::move(sid)),
+        name_(std::move(name)), identity_(std::move(identity)),
+        metadata_(std::move(metadata)), attributes_(std::move(attributes)),
+        kind_(kind), reason_(reason) {}
 
   // Plain getters/setters (caller ensures threading)
   const std::string &sid() const noexcept { return sid_; }
@@ -70,15 +53,10 @@ public:
   ParticipantKind kind() const noexcept { return kind_; }
   DisconnectReason disconnectReason() const noexcept { return reason_; }
 
-  uintptr_t ffiHandleId() const noexcept {
-    if (auto h = handle_.lock()) {
-      return h->get();
-    }
-    return INVALID_HANDLE;
-  }
+  uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
 
 private:
-  std::weak_ptr<FfiHandle> handle_;
+  FfiHandle handle_;
   std::string sid_, name_, identity_, metadata_;
   std::unordered_map<std::string, std::string> attributes_;
   ParticipantKind kind_;

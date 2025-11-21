@@ -29,11 +29,16 @@
 namespace livekit {
 
 namespace proto {
+class AudioFrameBufferInfo;
+class ConnectCallback;
 class FfiEvent;
 class FfiResponse;
 class FfiRequest;
-class RoomInfo;
+class OwnedTrackPublication;
+class TranscriptionSegment;
 } // namespace proto
+
+struct TrackPublishOptions;
 
 using FfiCallbackFn = void (*)(const uint8_t *, size_t);
 extern "C" void livekit_ffi_initialize(FfiCallbackFn cb, bool capture_logs,
@@ -70,16 +75,45 @@ public:
   void RemoveListener(ListenerId id);
 
   // Room APIs
-  std::future<proto::RoomInfo> connectAsync(const std::string &url,
-                                            const std::string &token);
+  std::future<proto::ConnectCallback> connectAsync(const std::string &url,
+                                                   const std::string &token);
 
   // Track APIs
   std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);
 
+  // Participant APIs
+  std::future<proto::OwnedTrackPublication>
+  publishTrackAsync(std::uint64_t local_participant_handle,
+                    std::uint64_t track_handle,
+                    const TrackPublishOptions &options);
+  std::future<void> unpublishTrackAsync(std::uint64_t local_participant_handle,
+                                        const std::string &track_sid,
+                                        bool stop_on_unpublish);
+  std::future<void>
+  publishDataAsync(std::uint64_t local_participant_handle,
+                   const std::uint8_t *data_ptr, std::uint64_t data_len,
+                   bool reliable,
+                   const std::vector<std::string> &destination_identities,
+                   const std::string &topic);
+  std::future<void> publishTranscriptionAsync(
+      std::uint64_t local_participant_handle,
+      const std::string &participant_identity, const std::string &track_id,
+      const std::vector<proto::TranscriptionSegment> &segments);
+  std::future<void>
+  publishSipDtmfAsync(std::uint64_t local_participant_handle,
+                      std::uint32_t code, const std::string &digit,
+                      const std::vector<std::string> &destination_identities);
+  std::future<void>
+  setLocalMetadataAsync(std::uint64_t local_participant_handle,
+                        const std::string &metadata);
+  std::future<void>
+  captureAudioFrameAsync(std::uint64_t source_handle,
+                         const proto::AudioFrameBufferInfo &buffer);
+
   // Generic function for sending a request to the Rust FFI.
   // Note: For asynchronous requests, use the dedicated async functions instead
-  // of SendRequest.
-  proto::FfiResponse SendRequest(const proto::FfiRequest &request) const;
+  // of sendRequest.
+  proto::FfiResponse sendRequest(const proto::FfiRequest &request) const;
 
 private:
   // Base class for type-erased pending ops

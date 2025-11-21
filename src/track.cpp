@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 LiveKit
+ * Copyright 2025 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@
 
 namespace livekit {
 
-Track::Track(std::weak_ptr<FfiHandle> handle, std::string sid, std::string name,
+Track::Track(FfiHandle handle, std::string sid, std::string name,
              TrackKind kind, StreamState state, bool muted, bool remote)
     : handle_(std::move(handle)), sid_(std::move(sid)), name_(std::move(name)),
       kind_(kind), state_(state), muted_(muted), remote_(remote) {}

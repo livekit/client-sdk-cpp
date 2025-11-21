@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 LiveKit
+ * Copyright 2025 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,11 +17,13 @@
 #include "livekit/room.h"
 
 #include "livekit/ffi_client.h"
+#include "livekit/local_participant.h"
 #include "livekit/room_delegate.h"
 
 #include "ffi.pb.h"
 #include "room.pb.h"
-#include "room_event_converter.h"
+#include "room_proto_converter.h"
+#include "track_proto_converter.h"
 #include <functional>
 #include <iostream>
 
@@ -33,6 +35,10 @@ using proto::FfiEvent;
 using proto::FfiRequest;
 using proto::FfiResponse;
 using proto::RoomOptions;
+
+Room::Room() {}
+
+Room::~Room() {}
 
 void Room::setDelegate(RoomDelegate *delegate) {
   std::lock_guard<std::mutex> g(lock_);
@@ -51,11 +57,39 @@ bool Room::Connect(const std::string &url, const std::string &token) {
   }
   auto fut = FfiClient::instance().connectAsync(url, token);
   try {
-    auto info = fut.get(); // fut will throw if it fails to connect to the room
+    auto connectCb =
+        fut.get(); // fut will throw if it fails to connect to the room
     {
       std::lock_guard<std::mutex> g(lock_);
       connected_ = true;
-      room_info_ = fromProto(info);
+      const auto &ownedRoom = connectCb.result().room();
+      room_handle_ = std::make_shared<FfiHandle>(ownedRoom.handle().id());
+      room_info_ = fromProto(ownedRoom.info());
+    }
+    // Setup local particpant
+    {
+      const auto &owned_local = connectCb.result().local_participant();
+      const auto &pinfo = owned_local.info();
+
+      // Build attributes map
+      std::unordered_map<std::string, std::string> attrs;
+      for (const auto &kv : pinfo.attributes()) {
+        attrs.emplace(kv.first, kv.second);
+      }
+
+      auto kind = fromProto(pinfo.kind());
+      auto reason = toDisconnectReason(pinfo.disconnect_reason());
+
+      // Participant base stores a weak_ptr<FfiHandle>, so share the room handle
+      FfiHandle participant_handle(
+          static_cast<uintptr_t>(owned_local.handle().id()));
+      local_participant_ = std::make_unique<LocalParticipant>(
+          std::move(participant_handle), pinfo.sid(), pinfo.name(),
+          pinfo.identity(), pinfo.metadata(), std::move(attrs), kind, reason);
+    }
+    // Setup remote particpants
+    {
+      // TODO, implement this remote participant feature
     }
     return true;
   } catch (const std::exception &e) {
@@ -69,6 +103,11 @@ bool Room::Connect(const std::string &url, const std::string &token) {
 RoomInfoData Room::room_info() const {
   std::lock_guard<std::mutex> g(lock_);
   return room_info_;
+}
+
+LocalParticipant *Room::local_participant() const {
+  std::lock_guard<std::mutex> g(lock_);
+  return local_participant_.get();
 }
 
 void Room::OnEvent(const FfiEvent &event) {

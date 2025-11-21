@@ -3,6 +3,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
+#include <random>
 #include <string>
 #include <thread>
 #include <vector>
@@ -28,7 +29,7 @@ void print_usage(const char *prog) {
             << "  LIVEKIT_URL, LIVEKIT_TOKEN\n";
 }
 
-void handle_sigint(int) { g_running = false; }
+void handle_sigint(int) { g_running.store(false); }
 
 bool parse_args(int argc, char *argv[], std::string &url, std::string &token) {
   // 1) --help
@@ -118,6 +119,47 @@ public:
   }
 };
 
+// Test utils to run a capture loop to publish noisy audio frames to the room
+void runNoiseCaptureLoop(const std::shared_ptr<AudioSource> &source) {
+  const int sample_rate = source->sample_rate();
+  const int num_channels = source->num_channels();
+  const int frame_ms = 10;
+  const int samples_per_channel = sample_rate * frame_ms / 1000;
+
+  std::mt19937 rng(std::random_device{}());
+  std::uniform_int_distribution<int16_t> noise_dist(-5000, 5000);
+  using Clock = std::chrono::steady_clock;
+  auto next_deadline = Clock::now();
+  while (g_running.load(std::memory_order_relaxed)) {
+    AudioFrame frame =
+        AudioFrame::create(sample_rate, num_channels, samples_per_channel);
+    const std::size_t total_samples =
+        static_cast<std::size_t>(num_channels) *
+        static_cast<std::size_t>(samples_per_channel);
+    for (std::size_t i = 0; i < total_samples; ++i) {
+      frame.data()[i] = noise_dist(rng);
+    }
+    try {
+      source->captureFrame(frame);
+    } catch (const std::exception &e) {
+      // If something goes wrong, log and break out
+      std::cerr << "Error in captureFrame: " << e.what() << std::endl;
+      break;
+    }
+
+    // Pace the loop to roughly real-time
+    next_deadline += std::chrono::milliseconds(frame_ms);
+    std::this_thread::sleep_until(next_deadline);
+  }
+
+  // Optionally clear queued audio on exit
+  try {
+    source->clearQueue();
+  } catch (...) {
+    // ignore errors on shutdown
+    std::cout << "Error in clearQueue" << std::endl;
+  }
+}
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -168,12 +210,44 @@ int main(int argc, char *argv[]) {
             << info.reliable_dc_buffered_amount_low_threshold << "\n"
             << "  Creation time (ms): " << info.creation_time << "\n";
 
-  // TOD(shijing), implement local and remoteParticipants in the room
+  auto audioSource = std::make_shared<AudioSource>(44100, 1, 10);
+  auto audioTrack =
+      LocalAudioTrack::createLocalAudioTrack("micTrack", audioSource);
 
+  TrackPublishOptions opts;
+  opts.source = TrackSource::SOURCE_MICROPHONE;
+  opts.dtx = false;
+  opts.simulcast = false;
+
+  try {
+    // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
+    // Track
+    auto pub = room.local_participant()->publishTrack(audioTrack, opts);
+
+    std::cout << "Published track:\n"
+              << "  SID: " << pub->sid() << "\n"
+              << "  Name: " << pub->name() << "\n"
+              << "  Kind: " << static_cast<int>(pub->kind()) << "\n"
+              << "  Source: " << static_cast<int>(pub->source()) << "\n"
+              << "  Simulcasted: " << std::boolalpha << pub->simulcasted()
+              << "\n"
+              << "  Muted: " << std::boolalpha << pub->muted() << "\n";
+  } catch (const std::exception &e) {
+    std::cerr << "Failed to publish track: " << e.what() << std::endl;
+  }
+
+  // TODO, if we have pre-buffering feature, we might consider starting the
+  // thread right after creating the source.
+  std::thread audioThread(runNoiseCaptureLoop, audioSource);
   // Keep the app alive until Ctrl-C so we continue receiving events,
   // similar to asyncio.run(main()) keeping the loop running.
   while (g_running.load()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+
+  // Shutdown the audio thread.
+  if (audioThread.joinable()) {
+    audioThread.join();
   }
 
   FfiClient::instance().shutdown();
