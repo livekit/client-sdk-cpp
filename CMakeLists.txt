@@ -163,6 +163,7 @@ add_library(livekit
   include/livekit/ffi_handle.h
   include/livekit/ffi_client.h
   include/livekit/local_audio_track.h
+  include/livekit/remote_audio_track.h
   include/livekit/participant.h
   include/livekit/local_participant.h
   include/livekit/livekit.h
@@ -171,11 +172,16 @@ add_library(livekit
   include/livekit/track_publication.h
   include/livekit/local_track_publication.h
   include/livekit/remote_track_publication.h
+  include/livekit/video_frame.h
+  include/livekit/video_source.h
+  include/livekit/local_video_track.h
+  include/livekit/remote_video_track.h
   src/audio_frame.cpp
   src/audio_source.cpp
   src/ffi_handle.cpp
   src/ffi_client.cpp
   src/local_audio_track.cpp
+  src/remote_audio_track.cpp
   src/room.cpp
   src/room_proto_converter.cpp
   src/room_proto_converter.h
@@ -187,6 +193,12 @@ add_library(livekit
   src/track_publication.cpp
   src/local_track_publication.cpp
   src/remote_track_publication.cpp
+  src/video_frame.cpp
+  src/video_source.cpp
+  src/local_video_track.cpp
+  src/remote_video_track.cpp
+  src/video_utils.cpp
+  src/video_utils.h
 )
 
 # Add generated proto objects to the wrapper

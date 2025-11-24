@@ -13,6 +13,9 @@
 // TODO(shijing), remove this livekit_ffi.h as it should be internal only.
 #include "livekit_ffi.h"
 
+// Consider expose this video_utils.h to public ?
+#include "video_utils.h"
+
 using namespace livekit;
 
 namespace {
@@ -160,6 +163,58 @@ void runNoiseCaptureLoop(const std::shared_ptr<AudioSource> &source) {
     std::cout << "Error in clearQueue" << std::endl;
   }
 }
+
+void runFakeVideoCaptureLoop(const std::shared_ptr<VideoSource> &source) {
+  auto frame = LKVideoFrame::create(1280, 720, VideoBufferType::ARGB);
+  double framerate = 1.0 / 30;
+  while (g_running.load(std::memory_order_relaxed)) {
+    static auto start = std::chrono::high_resolution_clock::now();
+    float t = std::chrono::duration<float>(
+                  std::chrono::high_resolution_clock::now() - start)
+                  .count();
+    // Cycle every 4 seconds: 0=red, 1=green, 2=blue, 3 black
+    int stage = static_cast<int>(t) % 4;
+    std::vector<int> rgb(4);
+    switch (stage) {
+    case 0: // red
+      rgb[0] = 255;
+      rgb[1] = 0;
+      rgb[2] = 0;
+      break;
+    case 1: // green
+      rgb[0] = 0;
+      rgb[1] = 255;
+      rgb[2] = 0;
+      break;
+    case 2: // blue
+      rgb[0] = 0;
+      rgb[1] = 0;
+      rgb[2] = 255;
+      break;
+    case 4: // black
+      rgb[0] = 0;
+      rgb[1] = 0;
+      rgb[2] = 0;
+    }
+    for (size_t i = 0; i < frame.dataSize(); i += 4) {
+      frame.data()[i] = 255;
+      frame.data()[i + 1] = rgb[0];
+      frame.data()[i + 2] = rgb[1];
+      frame.data()[i + 3] = rgb[2];
+    }
+    LKVideoFrame i420 = convertViaFfi(frame, VideoBufferType::I420, false);
+    try {
+      source->captureFrame(frame, 0, VideoRotation::VIDEO_ROTATION_0);
+    } catch (const std::exception &e) {
+      // If something goes wrong, log and break out
+      std::cerr << "Error in captureFrame: " << e.what() << std::endl;
+      break;
+    }
+
+    std::this_thread::sleep_for(std::chrono::duration<double>(framerate));
+  }
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -210,28 +265,29 @@ int main(int argc, char *argv[]) {
             << info.reliable_dc_buffered_amount_low_threshold << "\n"
             << "  Creation time (ms): " << info.creation_time << "\n";
 
+  // Setup Audio Source / Track
   auto audioSource = std::make_shared<AudioSource>(44100, 1, 10);
   auto audioTrack =
       LocalAudioTrack::createLocalAudioTrack("micTrack", audioSource);
 
-  TrackPublishOptions opts;
-  opts.source = TrackSource::SOURCE_MICROPHONE;
-  opts.dtx = false;
-  opts.simulcast = false;
-
+  TrackPublishOptions audioOpts;
+  audioOpts.source = TrackSource::SOURCE_MICROPHONE;
+  audioOpts.dtx = false;
+  audioOpts.simulcast = false;
+  std::shared_ptr<LocalTrackPublication> audioPub;
   try {
     // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
     // Track
-    auto pub = room.local_participant()->publishTrack(audioTrack, opts);
+    audioPub = room.local_participant()->publishTrack(audioTrack, audioOpts);
 
     std::cout << "Published track:\n"
-              << "  SID: " << pub->sid() << "\n"
-              << "  Name: " << pub->name() << "\n"
-              << "  Kind: " << static_cast<int>(pub->kind()) << "\n"
-              << "  Source: " << static_cast<int>(pub->source()) << "\n"
-              << "  Simulcasted: " << std::boolalpha << pub->simulcasted()
+              << "  SID: " << audioPub->sid() << "\n"
+              << "  Name: " << audioPub->name() << "\n"
+              << "  Kind: " << static_cast<int>(audioPub->kind()) << "\n"
+              << "  Source: " << static_cast<int>(audioPub->source()) << "\n"
+              << "  Simulcasted: " << std::boolalpha << audioPub->simulcasted()
               << "\n"
-              << "  Muted: " << std::boolalpha << pub->muted() << "\n";
+              << "  Muted: " << std::boolalpha << audioPub->muted() << "\n";
   } catch (const std::exception &e) {
     std::cerr << "Failed to publish track: " << e.what() << std::endl;
   }
@@ -239,6 +295,34 @@ int main(int argc, char *argv[]) {
   // TODO, if we have pre-buffering feature, we might consider starting the
   // thread right after creating the source.
   std::thread audioThread(runNoiseCaptureLoop, audioSource);
+
+  // Setup Video Source / Track
+  auto videoSource = std::make_shared<VideoSource>(1280, 720);
+  std::shared_ptr<LocalVideoTrack> videoTrack =
+      LocalVideoTrack::createLocalVideoTrack("cam", videoSource);
+  TrackPublishOptions videoOpts;
+  videoOpts.source = TrackSource::SOURCE_CAMERA;
+  videoOpts.dtx = false;
+  videoOpts.simulcast = true;
+  std::shared_ptr<LocalTrackPublication> videoPub;
+  try {
+    // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
+    // Track
+    videoPub = room.local_participant()->publishTrack(videoTrack, videoOpts);
+
+    std::cout << "Published track:\n"
+              << "  SID: " << videoPub->sid() << "\n"
+              << "  Name: " << videoPub->name() << "\n"
+              << "  Kind: " << static_cast<int>(videoPub->kind()) << "\n"
+              << "  Source: " << static_cast<int>(videoPub->source()) << "\n"
+              << "  Simulcasted: " << std::boolalpha << videoPub->simulcasted()
+              << "\n"
+              << "  Muted: " << std::boolalpha << videoPub->muted() << "\n";
+  } catch (const std::exception &e) {
+    std::cerr << "Failed to publish track: " << e.what() << std::endl;
+  }
+  std::thread videoThread(runFakeVideoCaptureLoop, videoSource);
+
   // Keep the app alive until Ctrl-C so we continue receiving events,
   // similar to asyncio.run(main()) keeping the loop running.
   while (g_running.load()) {
@@ -249,6 +333,14 @@ int main(int argc, char *argv[]) {
   if (audioThread.joinable()) {
     audioThread.join();
   }
+  // Clean up the audio track publishment
+  room.local_participant()->unpublishTrack(audioPub->sid());
+
+  if (videoThread.joinable()) {
+    videoThread.join();
+  }
+  // Clean up the video track publishment
+  room.local_participant()->unpublishTrack(videoPub->sid());
 
   FfiClient::instance().shutdown();
   std::cout << "Exiting.\n";
