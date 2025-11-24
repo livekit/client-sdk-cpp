@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "livekit/livekit.h"
+#include "wav_audio_source.h"
 
 // TODO(shijing), remove this livekit_ffi.h as it should be internal only.
 #include "livekit_ffi.h"
@@ -126,19 +127,13 @@ void runNoiseCaptureLoop(const std::shared_ptr<AudioSource> &source) {
   const int frame_ms = 10;
   const int samples_per_channel = sample_rate * frame_ms / 1000;
 
-  std::mt19937 rng(std::random_device{}());
-  std::uniform_int_distribution<int16_t> noise_dist(-5000, 5000);
+  WavAudioSource WavAudioSource("data/welcome.wav", 48000, 1, false);
   using Clock = std::chrono::steady_clock;
   auto next_deadline = Clock::now();
   while (g_running.load(std::memory_order_relaxed)) {
     AudioFrame frame =
         AudioFrame::create(sample_rate, num_channels, samples_per_channel);
-    const std::size_t total_samples =
-        static_cast<std::size_t>(num_channels) *
-        static_cast<std::size_t>(samples_per_channel);
-    for (std::size_t i = 0; i < total_samples; ++i) {
-      frame.data()[i] = noise_dist(rng);
-    }
+    WavAudioSource.fillFrame(frame);
     try {
       source->captureFrame(frame);
     } catch (const std::exception &e) {
