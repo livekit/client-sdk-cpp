@@ -42,7 +42,6 @@ public:
                  int expected_channels, bool loop_enabled = true);
 
   // Fill a frame with the next chunk of audio.
-  // This does NOT call captureFrame(): you do that outside.
   void fillFrame(AudioFrame &frame);
 
 private:
