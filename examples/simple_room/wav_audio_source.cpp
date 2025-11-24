@@ -26,7 +26,9 @@
 WavData load_wav16(const std::string &path) {
   std::ifstream file(path, std::ios::binary);
   if (!file) {
-    throw std::runtime_error("Failed to open WAV file: " + path);
+    throw std::runtime_error("Failed to open WAV file: " + path +
+                             " (If this file exists in the repo, ensure Git "
+                             "LFS is installed and run `git lfs pull`)");
   }
 
   auto read_u32 = [&](uint32_t &out_value) {
