@@ -158,6 +158,7 @@ add_custom_command(
 add_library(livekit
   include/livekit/audio_frame.h
   include/livekit/audio_source.h
+  include/livekit/audio_stream.h
   include/livekit/room.h
   include/livekit/room_delegate.h
   include/livekit/ffi_handle.h
@@ -175,10 +176,12 @@ add_library(livekit
   include/livekit/remote_track_publication.h
   include/livekit/video_frame.h
   include/livekit/video_source.h
+  include/livekit/video_stream.h
   include/livekit/local_video_track.h
   include/livekit/remote_video_track.h
   src/audio_frame.cpp
   src/audio_source.cpp
+  src/audio_stream.cpp
   src/ffi_handle.cpp
   src/ffi_client.cpp
   src/local_audio_track.cpp
@@ -197,6 +200,7 @@ add_library(livekit
   src/remote_track_publication.cpp
   src/video_frame.cpp
   src/video_source.cpp
+  src/video_stream.cpp
   src/local_video_track.cpp
   src/remote_video_track.cpp
   src/video_utils.cpp

@@ -11,10 +11,7 @@
 
 namespace livekit {
 
-namespace {
-
-// Map SDK enum -> proto enum
-proto::VideoBufferType toProtoBufferType(VideoBufferType t) {
+proto::VideoBufferType toProto(VideoBufferType t) {
   switch (t) {
   case VideoBufferType::ARGB:
     return proto::VideoBufferType::ARGB;
@@ -39,12 +36,12 @@ proto::VideoBufferType toProtoBufferType(VideoBufferType t) {
   case VideoBufferType::NV12:
     return proto::VideoBufferType::NV12;
   default:
-    throw std::runtime_error("Unknown VideoBufferType in toProtoBufferType");
+    throw std::runtime_error("Unknown VideoBufferType in toProto");
   }
 }
 
 // Map proto enum -> SDK enum
-VideoBufferType fromProtoBufferType(proto::VideoBufferType t) {
+VideoBufferType fromProto(proto::VideoBufferType t) {
   switch (t) {
   case proto::VideoBufferType::ARGB:
     return VideoBufferType::ARGB;
@@ -69,12 +66,9 @@ VideoBufferType fromProtoBufferType(proto::VideoBufferType t) {
   case proto::VideoBufferType::NV12:
     return VideoBufferType::NV12;
   default:
-    throw std::runtime_error(
-        "Unknown proto::VideoBufferType in fromProtoBufferType");
+    throw std::runtime_error("Unknown proto::VideoBufferType in fromProto");
   }
 }
-
-} // namespace
 
 proto::VideoBufferInfo toProto(const LKVideoFrame &frame) {
   proto::VideoBufferInfo info;
@@ -83,7 +77,7 @@ proto::VideoBufferInfo toProto(const LKVideoFrame &frame) {
   const int h = frame.height();
   info.set_width(w);
   info.set_height(h);
-  info.set_type(toProtoBufferType(frame.type()));
+  info.set_type(toProto(frame.type()));
 
   // Backing data pointer for the whole buffer
   auto base_ptr = reinterpret_cast<std::uint64_t>(frame.data());
@@ -123,7 +117,7 @@ LKVideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned) {
 
   const int width = static_cast<int>(info.width());
   const int height = static_cast<int>(info.height());
-  const VideoBufferType type = fromProtoBufferType(info.type());
+  const VideoBufferType type = fromProto(info.type());
 
   // Allocate a new LKVideoFrame with the correct size/format
   LKVideoFrame frame = LKVideoFrame::create(width, height, type);
@@ -154,7 +148,7 @@ LKVideoFrame convertViaFfi(const LKVideoFrame &frame, VideoBufferType dst,
   proto::FfiRequest req;
   auto *vc = req.mutable_video_convert();
   vc->set_flip_y(flip_y);
-  vc->set_dst_type(toProtoBufferType(dst));
+  vc->set_dst_type(toProto(dst));
   vc->mutable_buffer()->CopyFrom(toProto(frame));
 
   proto::FfiResponse resp = FfiClient::instance().sendRequest(req);

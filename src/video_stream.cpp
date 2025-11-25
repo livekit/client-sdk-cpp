@@ -1,11 +1,12 @@
-#include "video_stream.h"
+#include "livekit/video_stream.h"
 
 #include <utility>
 
-#include "ffi_client.h"
-// Include your actual generated proto headers here:
-#include "proto/ffi_rpc.pb.h"
-#include "proto/video_frame.pb.h"
+#include "ffi.pb.h"
+#include "livekit/ffi_client.h"
+#include "livekit/track.h"
+#include "video_frame.pb.h"
+#include "video_utils.h"
 
 namespace livekit {
 
@@ -86,19 +87,17 @@ void VideoStream::initFromTrack(const std::shared_ptr<Track> &track,
 
   // 1) Subscribe to FFI events
   listener_id_ = FfiClient::instance().AddListener(
-      [this](const FfiEvent &e) { this->onFfiEvent(e); });
+      [this](const proto::FfiEvent &e) { this->onFfiEvent(e); });
 
   // 2) Send FFI request to create a new video stream bound to this track
   FfiRequest req;
   auto *new_video_stream = req.mutable_new_video_stream();
-  new_video_stream->set_track_handle(track->ffiHandleId());
+  new_video_stream->set_track_handle(track->ffi_handle_id());
   new_video_stream->set_type(proto::VideoStreamType::VIDEO_STREAM_NATIVE);
   new_video_stream->set_normalize_stride(true);
-  if (options.format.has_value()) {
-    new_video_stream->set_format(static_cast<int>(*options.format));
-  }
+  new_video_stream->set_format(toProto(options.format));
 
-  auto resp = FfiClient::instance().request(req);
+  auto resp = FfiClient::instance().sendRequest(req);
   // Adjust field names to match your proto exactly:
   const auto &stream = resp.new_video_stream().stream();
   stream_handle_ = FfiHandle(static_cast<uintptr_t>(stream.handle().id()));
@@ -120,13 +119,11 @@ void VideoStream::initFromParticipant(Participant &participant,
   auto *vs = req.mutable_video_stream_from_participant();
   vs->set_participant_handle(participant.ffiHandleId());
   vs->set_type(proto::VideoStreamType::VIDEO_STREAM_NATIVE);
-  vs->set_track_source(static_cast<int>(track_source));
+  vs->set_track_source(static_cast<proto::TrackSource>(track_source));
   vs->set_normalize_stride(true);
-  if (options.format.has_value()) {
-    vs->set_format(static_cast<int>(*options.format));
-  }
+  vs->set_format(toProto(options.format));
 
-  auto resp = FfiClient::instance().request(req);
+  auto resp = FfiClient::instance().sendRequest(req);
   // Adjust field names to match your proto exactly:
   const auto &stream = resp.video_stream_from_participant().stream();
   stream_handle_ = FfiHandle(static_cast<uintptr_t>(stream.handle().id()));
@@ -161,7 +158,7 @@ void VideoStream::close() {
 
   // Dispose FFI handle
   if (stream_handle_.get() != 0) {
-    stream_handle_.dispose();
+    stream_handle_.reset();
   }
 
   // Remove listener
@@ -178,27 +175,23 @@ void VideoStream::close() {
 // Internal helpers
 // ------------------------
 
-void VideoStream::onFfiEvent(const FfiEvent &event) {
+void VideoStream::onFfiEvent(const proto::FfiEvent &event) {
   // Filter for video_stream_event first.
   if (event.message_case() != FfiEvent::kVideoStreamEvent) {
     return;
   }
-
   const auto &vse = event.video_stream_event();
-
   // Check if this event is for our stream handle.
-  if (static_cast<uintptr_t>(vse.stream_handle().id()) !=
-      stream_handle_.get()) {
+  if (vse.stream_handle() != static_cast<std::uint64_t>(stream_handle_.get())) {
     return;
   }
-
   // Handle frame_received or eos.
   if (vse.has_frame_received()) {
     const auto &fr = vse.frame_received();
 
     // Convert owned buffer->VideoFrame via a helper.
     // You should implement this static function in your VideoFrame class.
-    VideoFrame frame = VideoFrame::fromOwnedInfo(fr.buffer());
+    LKVideoFrame frame = LKVideoFrame::fromOwnedInfo(fr.buffer());
 
     VideoFrameEvent ev{std::move(frame), fr.timestamp_us(),
                        static_cast<VideoRotation>(fr.rotation())};

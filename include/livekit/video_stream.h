@@ -1,3 +1,19 @@
+/*
+ * Copyright 2025 LiveKit
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an “AS IS” BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #pragma once
 
 #include <condition_variable>
@@ -11,32 +27,36 @@
 #include "participant.h"
 #include "track.h"
 #include "video_frame.h"
+#include "video_source.h"
 
 namespace livekit {
 
 // C++ equivalent of Python VideoFrameEvent
 struct VideoFrameEvent {
-  VideoFrame frame;
+  LKVideoFrame frame;
   std::int64_t timestamp_us;
   VideoRotation rotation;
 };
 
+namespace proto {
+class FfiEvent;
+}
+
 class VideoStream {
 public:
   struct Options {
-    std::size_t capacity{0};               // 0 = unbounded
-    std::optional<VideoBufferType> format; // optional pixel format
+    std::size_t capacity{0}; // 0 = unbounded
+    VideoBufferType format;
   };
 
   // Factory: create a VideoStream bound to a specific Track
   static std::unique_ptr<VideoStream>
-  fromTrack(const std::shared_ptr<Track> &track,
-            const Options &options = Options{});
+  fromTrack(const std::shared_ptr<Track> &track, const Options &options);
 
   // Factory: create a VideoStream from a Participant + TrackSource
-  static std::unique_ptr<VideoStream>
-  fromParticipant(Participant &participant, TrackSource track_source,
-                  const Options &options = Options{});
+  static std::unique_ptr<VideoStream> fromParticipant(Participant &participant,
+                                                      TrackSource track_source,
+                                                      const Options &options);
 
   ~VideoStream();
 
@@ -63,7 +83,7 @@ private:
                            const Options &options);
 
   // FFI event handler (registered with FfiClient)
-  void onFfiEvent(const FfiEvent &event);
+  void onFfiEvent(const proto::FfiEvent &event);
 
   // Queue helpers
   void pushFrame(VideoFrameEvent &&ev);

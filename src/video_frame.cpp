@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <vector>
 
+#include "livekit/ffi_handle.h"
 #include "video_utils.h"
 
 namespace livekit {
@@ -271,37 +272,7 @@ LKVideoFrame::LKVideoFrame(int width, int height, VideoBufferType type,
     throw std::invalid_argument("LKVideoFrame: provided data is too small for "
                                 "the specified format and size");
   }
-  std::cout << "width_ is " << width_ << std::endl;
-  std::cout << "height_ is " << height_ << std::endl;
 }
-/*
-LKVideoFrame& LKVideoFrame::operator=(LKVideoFrame&& other) noexcept {
-    // 1. Self-assignment check
-    if (this == &other) {
-        return *this;
-    }
-
-    // 2. Resource cleanup (The std::vector handles its own memory cleanup,
-    // but the simple members must be transferred.)
-
-    // 3. Transfer simple members (width, height, type)
-    width_ = other.width_;
-    height_ = other.height_;
-    type_ = other.type_;
-
-    // 4. Transfer complex resource (std::vector)
-    // std::move() is used to invoke std::vector's move assignment operator
-    data_ = std::move(other.data_);
-
-    // 5. Optional: Reset the 'other' object to a valid but empty/default state.
-    // This is good practice for the object that has been moved-from.
-    other.width_ = 0;
-    other.height_ = 0;
-    // other.data_ is already empty after the move assignment
-
-    // 6. Return reference to the assigned object
-    return *this;
-}*/
 
 LKVideoFrame LKVideoFrame::create(int width, int height, VideoBufferType type) {
   const std::size_t size = computeBufferSize(width, height, type);
@@ -333,6 +304,60 @@ LKVideoFrame LKVideoFrame::convert(VideoBufferType dst, bool flip_y) const {
   // General path: delegate to the FFI-based conversion helper.
   // This returns a brand new LKVideoFrame (move-constructed / elided).
   return convertViaFfi(*this, dst, flip_y);
+}
+
+LKVideoFrame LKVideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
+  const auto &info = owned.info();
+  const int width = static_cast<int>(info.width());
+  const int height = static_cast<int>(info.height());
+  // Assuming your C++ enum matches proto's underlying values.
+  const VideoBufferType type = static_cast<VideoBufferType>(info.type());
+
+  std::vector<std::uint8_t> buffer;
+
+  if (info.components_size() > 0) {
+    // Multi-plane (e.g. I420, NV12, etc.). We pack planes back-to-back.
+    std::size_t total_size = 0;
+    for (const auto &comp : info.components()) {
+      total_size += static_cast<std::size_t>(comp.size());
+    }
+
+    buffer.resize(total_size);
+    std::size_t offset = 0;
+    for (const auto &comp : info.components()) {
+      const auto sz = static_cast<std::size_t>(comp.size());
+      const auto src_ptr = reinterpret_cast<const std::uint8_t *>(
+          static_cast<std::uintptr_t>(comp.data_ptr()));
+
+      std::memcpy(buffer.data() + offset, src_ptr, sz);
+      offset += sz;
+    }
+  } else {
+    // Packed format: treat top-level data_ptr as a single contiguous buffer.
+    const auto src_ptr = reinterpret_cast<const std::uint8_t *>(
+        static_cast<std::uintptr_t>(info.data_ptr()));
+
+    std::size_t total_size = 0;
+    if (info.has_stride()) {
+      // Use stride * height as total size (includes per-row padding if any).
+      total_size = static_cast<std::size_t>(info.stride()) *
+                   static_cast<std::size_t>(height);
+    } else {
+      // Use our generic buffer-size helper (width/height/type).
+      total_size = computeBufferSize(width, height, type);
+    }
+
+    buffer.resize(total_size);
+    std::memcpy(buffer.data(), src_ptr, total_size);
+  }
+
+  // Release the FFI-owned buffer after copying the data.
+  {
+    FfiHandle owned_handle(static_cast<std::uintptr_t>(owned.handle().id()));
+    // owned_handle destroyed at end of scope → native buffer disposed.
+  }
+
+  return LKVideoFrame(width, height, type, std::move(buffer));
 }
 
 } // namespace livekit
