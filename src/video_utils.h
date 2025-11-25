@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 LiveKit
+ * Copyright 2025 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-#include "audio_frame.h"
-#include "audio_source.h"
-#include "local_audio_track.h"
-#include "local_participant.h"
-#include "local_track_publication.h"
-#include "local_video_track.h"
-#include "participant.h"
-#include "room.h"
-#include "room_delegate.h"
-#include "track_publication.h"
-#include "video_frame.h"
-#include "video_source.h"
+#pragma once
+
+#include "livekit/video_frame.h"
+#include "video_frame.pb.h"
+
+namespace livekit {
+
+// Video FFI Utils
+proto::VideoBufferInfo toProto(const LKVideoFrame &frame);
+LKVideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned);
+LKVideoFrame convertViaFfi(const LKVideoFrame &frame, VideoBufferType dst,
+                           bool flip_y);
+
+} // namespace livekit
