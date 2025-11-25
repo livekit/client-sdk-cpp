@@ -41,7 +41,7 @@ public:
         metadata_(std::move(metadata)), attributes_(std::move(attributes)),
         kind_(kind), reason_(reason) {}
 
-  // Plain getters/setters (caller ensures threading)
+  // Plain getters (caller ensures threading)
   const std::string &sid() const noexcept { return sid_; }
   const std::string &name() const noexcept { return name_; }
   const std::string &identity() const noexcept { return identity_; }
@@ -54,6 +54,24 @@ public:
   DisconnectReason disconnectReason() const noexcept { return reason_; }
 
   uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
+
+  // Setters (caller ensures threading)
+  void set_name(std::string name) noexcept { name_ = std::move(name); }
+  void set_metadata(std::string metadata) noexcept {
+    metadata_ = std::move(metadata);
+  }
+  void
+  set_attributes(std::unordered_map<std::string, std::string> attrs) noexcept {
+    attributes_ = std::move(attrs);
+  }
+  void set_attribute(const std::string &key, const std::string &value) {
+    attributes_[key] = value;
+  }
+  void remove_attribute(const std::string &key) { attributes_.erase(key); }
+  void set_kind(ParticipantKind kind) noexcept { kind_ = kind; }
+  void set_disconnect_reason(DisconnectReason reason) noexcept {
+    reason_ = reason;
+  }
 
 private:
   FfiHandle handle_;

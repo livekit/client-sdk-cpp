@@ -215,12 +215,12 @@ DataStreamTrailerData fromProto(const proto::DataStream_Trailer &in) {
 
 // --------- event conversions ---------
 
-ParticipantConnectedEvent
-fromProto(const proto::ParticipantConnected & /*in*/) {
+ParticipantConnectedEvent fromProto(const proto::ParticipantConnected &in) {
   ParticipantConnectedEvent ev;
-  // in.info() is OwnedParticipant; you can fill more fields once you inspect
-  // it. For now, leave metadata/name/identity as TODO.
-  // TODO: map in.info().info().identity(), name(), metadata(), etc.
+  const auto &pinfo = in.info().info();
+  ev.identity = pinfo.identity();
+  ev.name = pinfo.name();
+  ev.metadata = pinfo.metadata();
   return ev;
 }
 

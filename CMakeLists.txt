@@ -166,6 +166,7 @@ add_library(livekit
   include/livekit/remote_audio_track.h
   include/livekit/participant.h
   include/livekit/local_participant.h
+  include/livekit/remote_participant.h
   include/livekit/livekit.h
   include/livekit/stats.h
   include/livekit/track.h
@@ -186,6 +187,7 @@ add_library(livekit
   src/room_proto_converter.cpp
   src/room_proto_converter.h
   src/local_participant.cpp
+  src/remote_participant.cpp
   src/stats.cpp
   src/track.cpp
   src/track_proto_converter.cpp

@@ -21,6 +21,7 @@
 #include "local_track_publication.h"
 #include "local_video_track.h"
 #include "participant.h"
+#include "remote_participant.h"
 #include "room.h"
 #include "room_delegate.h"
 #include "track_publication.h"
