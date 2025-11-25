@@ -9,6 +9,9 @@ This SDK enables native C++ applications to connect to LiveKit servers for real-
 - **Rust / Cargo** (latest stable toolchain)  
 - **Protobuf** compiler (`protoc`)  
 - **macOS** users: System frameworks (CoreAudio, AudioToolbox, etc.) are automatically linked via CMake.
+- **Git LFS** (required for examples)
+  Some example data files (e.g., audio assets) are stored using Git LFS.
+  You must install Git LFS before cloning or pulling the repo if you want to run the examples.
 
 
 ## 🧩 Clone the Repository
@@ -50,7 +53,6 @@ export LIVEKIT_TOKEN=<jwt-token>
 ```
 
 Press Ctrl-C to exit the example.
-
 
 ##  🧰 Recommended Setup
 ### macOS
