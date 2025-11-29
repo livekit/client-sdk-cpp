@@ -84,6 +84,7 @@ public:
 
   ~AudioStream();
 
+  // No copy, assignment constructors.
   AudioStream(const AudioStream &) = delete;
   AudioStream &operator=(const AudioStream &) = delete;
   AudioStream(AudioStream &&) noexcept;
