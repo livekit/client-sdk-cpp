@@ -28,6 +28,9 @@
 
 namespace livekit {
 
+AudioFrame::AudioFrame()
+    : sample_rate_(0), num_channels_(0), samples_per_channel_(0) {}
+
 AudioFrame::AudioFrame(std::vector<std::int16_t> data, int sample_rate,
                        int num_channels, int samples_per_channel)
     : data_(std::move(data)), sample_rate_(sample_rate),

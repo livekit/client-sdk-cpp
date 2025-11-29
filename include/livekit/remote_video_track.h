@@ -33,11 +33,7 @@ class VideoSource;
 // ============================================================
 class RemoteVideoTrack : public Track {
 public:
-  explicit RemoteVideoTrack(FfiHandle handle, const proto::OwnedTrack &track);
-
-  static std::shared_ptr<RemoteVideoTrack>
-  createRemoteVideoTrack(const std::string &name,
-                         const std::shared_ptr<VideoSource> &source);
+  explicit RemoteVideoTrack(const proto::OwnedTrack &track);
 
   std::string to_string() const;
 

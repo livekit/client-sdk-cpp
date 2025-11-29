@@ -17,11 +17,14 @@
 #include <cassert>
 
 #include "build.h"
+#include "e2ee.pb.h"
 #include "ffi.pb.h"
 #include "livekit/ffi_client.h"
 #include "livekit/ffi_handle.h"
+#include "livekit/room.h" // TODO, maybe avoid circular deps by moving RoomOptions to a room_types.h ?
 #include "livekit/track.h"
 #include "livekit_ffi.h"
+#include "room.pb.h"
 #include "room_proto_converter.h"
 
 namespace livekit {
@@ -133,14 +136,64 @@ std::future<T> FfiClient::registerAsync(
 
 // Room APIs Implementation
 std::future<proto::ConnectCallback>
-FfiClient::connectAsync(const std::string &url, const std::string &token) {
+FfiClient::connectAsync(const std::string &url, const std::string &token,
+                        const RoomOptions &options) {
 
   proto::FfiRequest req;
   auto *connect = req.mutable_connect();
   connect->set_url(url);
   connect->set_token(token);
-  connect->mutable_options()->set_auto_subscribe(true);
+  auto *opts = connect->mutable_options();
+  opts->set_auto_subscribe(options.auto_subscribe);
+  opts->set_dynacast(options.dynacast);
+  std::cout << "connectAsync " << std::endl;
+  // --- E2EE / encryption (optional) ---
+  if (options.e2ee.has_value()) {
+    std::cout << "connectAsync e2ee " << std::endl;
+    const E2EEOptions &eo = *options.e2ee;
 
+    // Use the non-deprecated encryption field
+    auto *enc = opts->mutable_encryption();
+
+    enc->set_encryption_type(
+        static_cast<proto::EncryptionType>(eo.encryption_type));
+
+    auto *kp = enc->mutable_key_provider_options();
+    kp->set_shared_key(eo.shared_key);
+    kp->set_ratchet_salt(eo.ratchet_salt);
+    kp->set_failure_tolerance(eo.failure_tolerance);
+    kp->set_ratchet_window_size(eo.ratchet_window_size);
+  }
+
+  // --- RTC configuration (optional) ---
+  if (options.rtc_config.has_value()) {
+    std::cout << "options.rtc_config.has_value() " << std::endl;
+    const RtcConfig &rc = *options.rtc_config;
+    auto *rtc = opts->mutable_rtc_config();
+
+    rtc->set_ice_transport_type(
+        static_cast<proto::IceTransportType>(rc.ice_transport_type));
+    rtc->set_continual_gathering_policy(
+        static_cast<proto::ContinualGatheringPolicy>(
+            rc.continual_gathering_policy));
+
+    for (const IceServer &ice : rc.ice_servers) {
+      auto *s = rtc->add_ice_servers();
+
+      // proto: repeated string urls = 1
+      if (!ice.url.empty()) {
+        s->add_urls(ice.url);
+      }
+      if (!ice.username.empty()) {
+        s->set_username(ice.username);
+      }
+      if (!ice.credential.empty()) {
+        // proto: password = 3
+        s->set_password(ice.credential);
+      }
+    }
+  }
+  std::cout << "connectAsync sendRequest  " << std::endl;
   proto::FfiResponse resp = sendRequest(req);
   if (!resp.has_connect()) {
     throw std::runtime_error("FfiResponse missing connect");

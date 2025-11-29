@@ -16,16 +16,21 @@
 
 #include "livekit/room.h"
 
+#include "livekit/audio_stream.h"
 #include "livekit/ffi_client.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
+#include "livekit/remote_audio_track.h"
 #include "livekit/remote_participant.h"
 #include "livekit/remote_track_publication.h"
+#include "livekit/remote_video_track.h"
 #include "livekit/room_delegate.h"
+#include "livekit/video_stream.h"
 
 #include "ffi.pb.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
+#include "track.pb.h"
 #include "track_proto_converter.h"
 #include <functional>
 #include <iostream>
@@ -37,7 +42,6 @@ using proto::ConnectRequest;
 using proto::FfiEvent;
 using proto::FfiRequest;
 using proto::FfiResponse;
-using proto::RoomOptions;
 
 namespace {
 
@@ -67,7 +71,8 @@ void Room::setDelegate(RoomDelegate *delegate) {
   delegate_ = delegate;
 }
 
-bool Room::Connect(const std::string &url, const std::string &token) {
+bool Room::Connect(const std::string &url, const std::string &token,
+                   const RoomOptions &options) {
   auto listenerId = FfiClient::instance().AddListener(
       std::bind(&Room::OnEvent, this, std::placeholders::_1));
   {
@@ -77,7 +82,7 @@ bool Room::Connect(const std::string &url, const std::string &token) {
       throw std::runtime_error("already connected");
     }
   }
-  auto fut = FfiClient::instance().connectAsync(url, token);
+  auto fut = FfiClient::instance().connectAsync(url, token, options);
   try {
     auto connectCb =
         fut.get(); // fut will throw if it fails to connect to the room
@@ -261,8 +266,61 @@ void Room::OnEvent(const FfiEvent &event) {
       break;
     }
     case proto::RoomEvent::kTrackSubscribed: {
-      auto ev = fromProto(re.track_subscribed());
+      const auto &ts = re.track_subscribed();
+      const std::string &identity = ts.participant_identity();
+      const auto &owned_track = ts.track();
+      const auto &track_info = owned_track.info();
+      std::shared_ptr<RemoteTrackPublication> rpublication;
+      RemoteParticipant *rparticipant = nullptr;
+      std::shared_ptr<Track> remote_track;
+      {
+        std::lock_guard<std::mutex> guard(lock_);
+        // Find participant
+        auto pit = remote_participants_.find(identity);
+        if (pit == remote_participants_.end()) {
+          std::cerr << "track_subscribed for unknown participant: " << identity
+                    << "\n";
+          break;
+        }
+        rparticipant = pit->second.get();
+        // Find existing publication by track SID (from track_published)
+        auto &pubs = rparticipant->mutable_track_publications();
+        auto pubIt = pubs.find(track_info.sid());
+        if (pubIt == pubs.end()) {
+          std::cerr << "track_subscribed for unknown publication sid "
+                    << track_info.sid() << " (participant " << identity
+                    << ")\n";
+          break;
+        }
+        rpublication = pubIt->second;
+
+        // Create RemoteVideoTrack / RemoteAudioTrack
+        if (track_info.kind() == proto::TrackKind::KIND_VIDEO) {
+          remote_track = std::make_shared<RemoteVideoTrack>(owned_track);
+        } else if (track_info.kind() == proto::TrackKind::KIND_AUDIO) {
+          remote_track = std::make_shared<RemoteAudioTrack>(owned_track);
+        } else {
+          std::cerr << "track_subscribed with unsupported kind: "
+                    << track_info.kind() << "\n";
+          break;
+        }
+        std::cout << "before setTrack " << std::endl;
+
+        // Attach to publication, mark subscribed
+        rpublication->setTrack(remote_track);
+        std::cout << "setTrack " << std::endl;
+        rpublication->setSubscribed(true);
+        std::cout << "setSubscribed " << std::endl;
+      }
+
+      // Emit remote track_subscribed-style callback
+      TrackSubscribedEvent ev;
+      ev.track = remote_track;
+      ev.publication = rpublication;
+      ev.participant = rparticipant;
+      std::cout << "onTrackSubscribed " << std::endl;
       delegate_snapshot->onTrackSubscribed(*this, ev);
+      std::cout << "after onTrackSubscribed " << std::endl;
       break;
     }
     case proto::RoomEvent::kTrackUnsubscribed: {

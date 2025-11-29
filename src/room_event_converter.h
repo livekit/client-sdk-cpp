@@ -52,7 +52,6 @@ LocalTrackSubscribedEvent fromProto(const proto::LocalTrackSubscribed &src);
 
 TrackPublishedEvent fromProto(const proto::TrackPublished &src);
 TrackUnpublishedEvent fromProto(const proto::TrackUnpublished &src);
-TrackSubscribedEvent fromProto(const proto::TrackSubscribed &src);
 TrackUnsubscribedEvent fromProto(const proto::TrackUnsubscribed &src);
 TrackSubscriptionFailedEvent
 fromProto(const proto::TrackSubscriptionFailed &src);

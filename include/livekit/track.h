@@ -25,9 +25,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include <iostream>
+
 namespace livekit {
 
-// ----- Enums from track.proto -----
 enum class TrackKind {
   KIND_UNKNOWN = 0,
   KIND_AUDIO = 1,

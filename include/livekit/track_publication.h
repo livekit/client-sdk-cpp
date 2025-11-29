@@ -38,7 +38,7 @@ class LocalTrack;
 class RemoteTrack;
 
 /**
- * C++ analogue of Python TrackPublication.
+ * C++ TrackPublication.
  *
  * Wraps the immutable publication info plus an FFI handle, and
  * holds a weak reference to the associated Track (if any).
@@ -72,8 +72,9 @@ public:
   uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
 
   /// Associated Track (if attached).
-  std::shared_ptr<Track> track() const noexcept { return track_.lock(); }
+  std::shared_ptr<Track> track() const noexcept { return track_; }
   void setTrack(const std::shared_ptr<Track> &track) noexcept {
+    std::cout << "track_ is null " << (track_.get() == nullptr) << std::endl;
     track_ = track;
   }
 
@@ -86,7 +87,7 @@ protected:
                    std::vector<AudioTrackFeature> audio_features);
 
   FfiHandle handle_;
-  std::weak_ptr<Track> track_;
+  std::shared_ptr<Track> track_;
 
   std::string sid_;
   std::string name_;

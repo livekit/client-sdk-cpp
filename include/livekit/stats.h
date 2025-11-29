@@ -49,10 +49,6 @@ class CertificateStats;
 class StreamStats;
 } // namespace proto
 
-// ----------------------
-// SDK enums (decoupled from proto enums)
-// ----------------------
-
 enum class DataChannelState {
   Connecting,
   Open,

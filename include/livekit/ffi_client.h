@@ -38,6 +38,7 @@ class OwnedTrackPublication;
 class TranscriptionSegment;
 } // namespace proto
 
+struct RoomOptions;
 struct TrackPublishOptions;
 
 using FfiCallbackFn = void (*)(const uint8_t *, size_t);
@@ -76,7 +77,8 @@ public:
 
   // Room APIs
   std::future<proto::ConnectCallback> connectAsync(const std::string &url,
-                                                   const std::string &token);
+                                                   const std::string &token,
+                                                   const RoomOptions &options);
 
   // Track APIs
   std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);

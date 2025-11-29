@@ -269,18 +269,6 @@ TrackUnpublishedEvent fromProto(const proto::TrackUnpublished &in) {
   return ev;
 }
 
-TrackSubscribedEvent fromProto(const proto::TrackSubscribed &in) {
-  TrackSubscribedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  // OwnedTrack track = 2;
-  // TODO: map track info once you inspect OwnedTrack
-  // ev.track_sid   = in.track().info().sid();
-  // ev.track_name  = in.track().info().name();
-  // ev.track_kind  = ...;
-  // ev.track_source = ...;
-  return ev;
-}
-
 TrackUnsubscribedEvent fromProto(const proto::TrackUnsubscribed &in) {
   TrackUnsubscribedEvent ev;
   ev.participant_identity = in.participant_identity();

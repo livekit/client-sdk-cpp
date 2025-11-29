@@ -14,29 +14,21 @@ using proto::FfiEvent;
 using proto::FfiRequest;
 using proto::VideoStreamEvent;
 
-// ------------------------
-// Factory helpers
-// ------------------------
-
-std::unique_ptr<VideoStream>
+std::shared_ptr<VideoStream>
 VideoStream::fromTrack(const std::shared_ptr<Track> &track,
                        const Options &options) {
-  auto stream = std::unique_ptr<VideoStream>(new VideoStream());
+  auto stream = std::shared_ptr<VideoStream>(new VideoStream());
   stream->initFromTrack(track, options);
   return stream;
 }
 
-std::unique_ptr<VideoStream>
+std::shared_ptr<VideoStream>
 VideoStream::fromParticipant(Participant &participant, TrackSource track_source,
                              const Options &options) {
-  auto stream = std::unique_ptr<VideoStream>(new VideoStream());
+  auto stream = std::shared_ptr<VideoStream>(new VideoStream());
   stream->initFromParticipant(participant, track_source, options);
   return stream;
 }
-
-// ------------------------
-// Destructor / move
-// ------------------------
 
 VideoStream::~VideoStream() { close(); }
 
@@ -77,31 +69,76 @@ VideoStream &VideoStream::operator=(VideoStream &&other) noexcept {
   return *this;
 }
 
-// ------------------------
-// Init internals
-// ------------------------
+// --------------------- Public API ---------------------
+
+bool VideoStream::read(VideoFrameEvent &out) {
+  std::unique_lock<std::mutex> lock(mutex_);
+
+  cv_.wait(lock, [this] { return !queue_.empty() || eof_ || closed_; });
+
+  if (closed_ || (queue_.empty() && eof_)) {
+    return false; // EOS / closed
+  }
+
+  out = std::move(queue_.front());
+  queue_.pop_front();
+  return true;
+}
+
+void VideoStream::close() {
+  std::cout << "VideoSream::close() \n";
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (closed_) {
+      return;
+    }
+    closed_ = true;
+  }
+
+  // Dispose FFI handle
+  if (stream_handle_.get() != 0) {
+    stream_handle_.reset();
+  }
+
+  // Remove listener
+  if (listener_id_ != 0) {
+    FfiClient::instance().RemoveListener(listener_id_);
+    listener_id_ = 0;
+  }
+
+  // Wake any waiting readers
+  cv_.notify_all();
+}
+
+// --------------------- Internal helpers ---------------------
 
 void VideoStream::initFromTrack(const std::shared_ptr<Track> &track,
                                 const Options &options) {
   capacity_ = options.capacity;
 
-  // 1) Subscribe to FFI events
+  // Subscribe to FFI events, this is essential to get video frames from FFI.
   listener_id_ = FfiClient::instance().AddListener(
       [this](const proto::FfiEvent &e) { this->onFfiEvent(e); });
 
-  // 2) Send FFI request to create a new video stream bound to this track
+  // Send FFI request to create a new video stream bound to this track
   FfiRequest req;
   auto *new_video_stream = req.mutable_new_video_stream();
-  new_video_stream->set_track_handle(track->ffi_handle_id());
+  new_video_stream->set_track_handle(
+      static_cast<uint64_t>(track->ffi_handle_id()));
   new_video_stream->set_type(proto::VideoStreamType::VIDEO_STREAM_NATIVE);
   new_video_stream->set_normalize_stride(true);
   new_video_stream->set_format(toProto(options.format));
 
   auto resp = FfiClient::instance().sendRequest(req);
+  if (!resp.has_new_video_stream()) {
+    std::cerr << "VideoStream::initFromTrack: FFI response missing "
+                 "new_video_stream()\n";
+    throw std::runtime_error("new_video_stream FFI request failed");
+  }
   // Adjust field names to match your proto exactly:
   const auto &stream = resp.new_video_stream().stream();
   stream_handle_ = FfiHandle(static_cast<uintptr_t>(stream.handle().id()));
-  // stream.info() is available if you want to cache metadata.
+  // TODO, do we need to cache the metadata from stream.info ?
 }
 
 void VideoStream::initFromParticipant(Participant &participant,
@@ -129,52 +166,6 @@ void VideoStream::initFromParticipant(Participant &participant,
   stream_handle_ = FfiHandle(static_cast<uintptr_t>(stream.handle().id()));
 }
 
-// ------------------------
-// Public API
-// ------------------------
-
-bool VideoStream::read(VideoFrameEvent &out) {
-  std::unique_lock<std::mutex> lock(mutex_);
-
-  cv_.wait(lock, [this] { return !queue_.empty() || eof_ || closed_; });
-
-  if (closed_ || (queue_.empty() && eof_)) {
-    return false; // EOS / closed
-  }
-
-  out = std::move(queue_.front());
-  queue_.pop_front();
-  return true;
-}
-
-void VideoStream::close() {
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (closed_) {
-      return;
-    }
-    closed_ = true;
-  }
-
-  // Dispose FFI handle
-  if (stream_handle_.get() != 0) {
-    stream_handle_.reset();
-  }
-
-  // Remove listener
-  if (listener_id_ != 0) {
-    FfiClient::instance().RemoveListener(listener_id_);
-    listener_id_ = 0;
-  }
-
-  // Wake any waiting readers
-  cv_.notify_all();
-}
-
-// ------------------------
-// Internal helpers
-// ------------------------
-
 void VideoStream::onFfiEvent(const proto::FfiEvent &event) {
   // Filter for video_stream_event first.
   if (event.message_case() != FfiEvent::kVideoStreamEvent) {
@@ -195,7 +186,6 @@ void VideoStream::onFfiEvent(const proto::FfiEvent &event) {
 
     VideoFrameEvent ev{std::move(frame), fr.timestamp_us(),
                        static_cast<VideoRotation>(fr.rotation())};
-
     pushFrame(std::move(ev));
   } else if (vse.has_eos()) {
     pushEos();
@@ -221,14 +211,17 @@ void VideoStream::pushFrame(VideoFrameEvent &&ev) {
 }
 
 void VideoStream::pushEos() {
+  std::cout << "pushEos 1" << std::endl;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (eof_) {
+      std::cout << "pushEos 2" << std::endl;
       return;
     }
     eof_ = true;
   }
   cv_.notify_all();
+  std::cout << "pushEos 3" << std::endl;
 }
 
 } // namespace livekit

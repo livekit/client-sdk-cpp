@@ -25,9 +25,9 @@ namespace livekit {
 
 // Mirror of WebRTC video buffer type
 enum class VideoBufferType {
-  ARGB,
+  RGBA = 0,
   ABGR,
-  RGBA,
+  ARGB,
   BGRA,
   RGB24,
   I420,
@@ -58,7 +58,7 @@ class OwnedVideoBuffer;
  */
 class LKVideoFrame {
 public:
-  LKVideoFrame() = delete;
+  LKVideoFrame();
   LKVideoFrame(int width, int height, VideoBufferType type,
                std::vector<std::uint8_t> data);
 

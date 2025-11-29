@@ -38,8 +38,7 @@ struct Transcription;
 /**
  * Represents the local participant in a room.
  *
- * C++ analogue of the Python LocalParticipant, built on top of the C++
- * Participant base class.
+ * LocalParticipant, built on top of the participant.h base class.
  */
 class LocalParticipant : public Participant {
 public:

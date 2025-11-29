@@ -27,6 +27,9 @@ namespace livekit {
 class Room;
 enum class VideoCodec;
 enum class TrackSource;
+class Track;
+class RemoteTrackPublication;
+class RemoteParticipant;
 
 enum class ConnectionQuality {
   Poor,
@@ -237,11 +240,9 @@ struct TrackUnpublishedEvent {
 };
 
 struct TrackSubscribedEvent {
-  std::string participant_identity;
-  std::string track_sid;
-  std::string track_name;
-  std::string track_kind;   // or enum
-  std::string track_source; // or enum
+  std::shared_ptr<Track> track;
+  std::shared_ptr<RemoteTrackPublication> publication;
+  RemoteParticipant *participant = nullptr;
 };
 
 struct TrackUnsubscribedEvent {

@@ -1,13 +1,28 @@
 cmake_minimum_required(VERSION 3.31.0)
 project (livekit-examples)
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(sdl3)
+
 add_executable(SimpleRoom
     simple_room/main.cpp
+    simple_room/fallback_capture.cpp
+    simple_room/fallback_capture.h
+    simple_room/sdl_media.cpp
+    simple_room/sdl_media.h
+    simple_room/sdl_media_manager.cpp
+    simple_room/sdl_media_manager.h
+    simple_room/sdl_video_renderer.cpp
+    simple_room/sdl_video_renderer.h
     simple_room/wav_audio_source.cpp
     simple_room/wav_audio_source.h
 )
 
-target_link_libraries(SimpleRoom livekit)
+target_link_libraries(SimpleRoom
+    PRIVATE
+        livekit
+        SDL3::SDL3
+)
 
 add_custom_command(TARGET SimpleRoom POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
