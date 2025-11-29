@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "livekit/ffi_handle.h"
-#include "livekit/track.h" // TrackKind, TrackSource, AudioTrackFeature
+#include "livekit/track.h"
 
 namespace livekit {
 

@@ -18,6 +18,9 @@
 
 #include "livekit/ffi_client.h"
 #include "livekit/local_participant.h"
+#include "livekit/local_track_publication.h"
+#include "livekit/remote_participant.h"
+#include "livekit/remote_track_publication.h"
 #include "livekit/room_delegate.h"
 
 #include "ffi.pb.h"
@@ -36,6 +39,25 @@ using proto::FfiRequest;
 using proto::FfiResponse;
 using proto::RoomOptions;
 
+namespace {
+
+std::unique_ptr<livekit::RemoteParticipant>
+createRemoteParticipant(const proto::OwnedParticipant &owned) {
+  const auto &pinfo = owned.info();
+  std::unordered_map<std::string, std::string> attrs;
+  attrs.reserve(pinfo.attributes_size());
+  for (const auto &kv : pinfo.attributes()) {
+    attrs.emplace(kv.first, kv.second);
+  }
+  auto kind = livekit::fromProto(pinfo.kind());
+  auto reason = livekit::toDisconnectReason(pinfo.disconnect_reason());
+  livekit::FfiHandle handle(static_cast<uintptr_t>(owned.handle().id()));
+  return std::make_unique<livekit::RemoteParticipant>(
+      std::move(handle), pinfo.sid(), pinfo.name(), pinfo.identity(),
+      pinfo.metadata(), std::move(attrs), kind, reason);
+}
+
+} // namespace
 Room::Room() {}
 
 Room::~Room() {}
@@ -87,10 +109,25 @@ bool Room::Connect(const std::string &url, const std::string &token) {
           std::move(participant_handle), pinfo.sid(), pinfo.name(),
           pinfo.identity(), pinfo.metadata(), std::move(attrs), kind, reason);
     }
-    // Setup remote particpants
+    // Setup remote participants
     {
-      // TODO, implement this remote participant feature
+      const auto &participants = connectCb.result().participants();
+      std::lock_guard<std::mutex> g(lock_);
+      for (const auto &pt : participants) {
+        const auto &owned = pt.participant();
+        auto rp = createRemoteParticipant(owned);
+        // Add the initial remote participant tracks (like Python does)
+        for (const auto &owned_publication_info : pt.publications()) {
+          auto publication =
+              std::make_shared<RemoteTrackPublication>(owned_publication_info);
+          rp->mutable_track_publications().emplace(publication->sid(),
+                                                   std::move(publication));
+        }
+
+        remote_participants_.emplace(rp->identity(), std::move(rp));
+      }
     }
+
     return true;
   } catch (const std::exception &e) {
     // On error, remove the listener and rethrow
@@ -108,6 +145,12 @@ RoomInfoData Room::room_info() const {
 LocalParticipant *Room::local_participant() const {
   std::lock_guard<std::mutex> g(lock_);
   return local_participant_.get();
+}
+
+RemoteParticipant *Room::remote_participant(const std::string &identity) const {
+  std::lock_guard<std::mutex> g(lock_);
+  auto it = remote_participants_.find(identity);
+  return it == remote_participants_.end() ? nullptr : it->second.get();
 }
 
 void Room::OnEvent(const FfiEvent &event) {
@@ -136,11 +179,37 @@ void Room::OnEvent(const FfiEvent &event) {
     switch (re.message_case()) {
     case proto::RoomEvent::kParticipantConnected: {
       auto ev = fromProto(re.participant_connected());
+      std::cout << "kParticipantConnected " << std::endl;
+      // Create and register RemoteParticipant
+      {
+        std::lock_guard<std::mutex> guard(lock_);
+        auto rp = createRemoteParticipant(re.participant_connected().info());
+        remote_participants_.emplace(rp->identity(), std::move(rp));
+      }
+      // TODO, use better public callback events
       delegate_snapshot->onParticipantConnected(*this, ev);
+
       break;
     }
     case proto::RoomEvent::kParticipantDisconnected: {
       auto ev = fromProto(re.participant_disconnected());
+      {
+        std::lock_guard<std::mutex> guard(lock_);
+        const auto &pd = re.participant_disconnected();
+        const std::string &identity = pd.participant_identity();
+        auto it = remote_participants_.find(identity);
+        if (it != remote_participants_.end()) {
+          remote_participants_.erase(it);
+        } else {
+          // We saw a disconnect event for a participant we don't track
+          // internally. This can happen on races or if we never created a
+          // RemoteParticipant
+          std::cerr << "participant_disconnected for unknown identity: "
+                    << identity << std::endl;
+        }
+      }
+      // TODO, should we trigger onParticipantDisconnected if remote
+      // participants can't be found ?
       delegate_snapshot->onParticipantDisconnected(*this, ev);
       break;
     }
@@ -161,6 +230,28 @@ void Room::OnEvent(const FfiEvent &event) {
     }
     case proto::RoomEvent::kTrackPublished: {
       auto ev = fromProto(re.track_published());
+      {
+        std::lock_guard<std::mutex> guard(lock_);
+        const auto &tp = re.track_published();
+        const std::string &identity = tp.participant_identity();
+        auto it = remote_participants_.find(identity);
+        if (it != remote_participants_.end()) {
+          RemoteParticipant *rparticipant = it->second.get();
+          const auto &owned_publication = tp.publication();
+          auto rpublication =
+              std::make_shared<RemoteTrackPublication>(owned_publication);
+          // Store it on the participant, keyed by SID
+          rparticipant->mutable_track_publications().emplace(
+              rpublication->sid(), std::move(rpublication));
+
+        } else {
+          // Optional: log if we get a track for an unknown participant
+          std::cerr << "track_published for unknown participant: " << identity
+                    << "\n";
+          // Don't emit the
+          break;
+        }
+      }
       delegate_snapshot->onTrackPublished(*this, ev);
       break;
     }
@@ -322,6 +413,46 @@ void Room::OnEvent(const FfiEvent &event) {
     }
     case proto::RoomEvent::kParticipantsUpdated: {
       auto ev = fromProto(re.participants_updated());
+      {
+        std::lock_guard<std::mutex> guard(lock_);
+        const auto &pu = re.participants_updated();
+        for (const auto &info : pu.participants()) {
+          const std::string &identity = info.identity();
+          Participant *participant = nullptr;
+          // First, check local participant.
+          if (local_participant_ &&
+              identity == local_participant_->identity()) {
+            participant = local_participant_.get();
+          } else {
+            // Otherwise, look for a remote participant.
+            auto it = remote_participants_.find(identity);
+            if (it != remote_participants_.end()) {
+              participant = it->second.get();
+            }
+          }
+
+          if (!participant) {
+            // Participant might not exist yet; ignore for now.
+            std::cerr << "Room::RoomEvent::kParticipantsUpdated participant "
+                         "does not exist: "
+                      << identity << std::endl;
+            continue;
+          }
+
+          // Update basic fields
+          participant->set_name(info.name());
+          participant->set_metadata(info.metadata());
+          std::unordered_map<std::string, std::string> attrs;
+          attrs.reserve(info.attributes_size());
+          for (const auto &kv : info.attributes()) {
+            attrs.emplace(kv.first, kv.second);
+          }
+          participant->set_attributes(std::move(attrs));
+          participant->set_kind(fromProto(info.kind()));
+          participant->set_disconnect_reason(
+              toDisconnectReason(info.disconnect_reason()));
+        }
+      }
       delegate_snapshot->onParticipantsUpdated(*this, ev);
       break;
     }

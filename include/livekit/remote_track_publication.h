@@ -28,6 +28,8 @@ class Track;
 
 class RemoteTrackPublication : public TrackPublication {
 public:
+  /// Note, this RemoteTrackPublication is constructed internally only;
+  /// safe to accept proto::OwnedTrackPublication.
   explicit RemoteTrackPublication(const proto::OwnedTrackPublication &owned);
 
   /// Typed accessor for the attached RemoteTrack (if any).

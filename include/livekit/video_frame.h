@@ -44,6 +44,10 @@ struct VideoPlaneInfo {
   std::uint32_t size;      // plane size in bytes
 };
 
+namespace proto {
+class OwnedVideoBuffer;
+}
+
 /**
  * Public SDK representation of a video frame.
  *
@@ -62,16 +66,6 @@ public:
   LKVideoFrame &operator=(const LKVideoFrame &) = delete;
   LKVideoFrame(LKVideoFrame &&) noexcept = default;
   LKVideoFrame &operator=(LKVideoFrame &&) noexcept = default;
-
-  /* LKVideoFrame(LKVideoFrame&& other) noexcept
-      : width_(other.width_),
-        height_(other.height_),
-        type_(other.type_),
-        data_(std::move(other.data_)) {
-      other.width_ = 0;
-      other.height_ = 0;
-  }
-  LKVideoFrame& operator=(LKVideoFrame&& other) noexcept;*/
 
   /**
    * Allocate a new frame with the correct buffer size for the given format.
@@ -122,6 +116,12 @@ public:
    *        LKVideoFrame i420 = frame.convert(VideoBufferType::I420);
    */
   LKVideoFrame convert(VideoBufferType dst, bool flip_y = false) const;
+
+protected:
+  friend class VideoStream;
+  // Only internal classes (e.g., VideoStream)
+  // should construct frames directly from FFI buffers.
+  static LKVideoFrame fromOwnedInfo(const proto::OwnedVideoBuffer &owned);
 
 private:
   int width_;

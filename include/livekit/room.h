@@ -32,6 +32,7 @@ class FfiEvent;
 }
 
 class LocalParticipant;
+class RemoteParticipant;
 
 class Room {
 public:
@@ -43,6 +44,7 @@ public:
   // Accessors
   RoomInfoData room_info() const;
   LocalParticipant *local_participant() const;
+  RemoteParticipant *remote_participant(const std::string &identity) const;
 
 private:
   mutable std::mutex lock_;
@@ -51,6 +53,8 @@ private:
   RoomInfoData room_info_;
   std::shared_ptr<FfiHandle> room_handle_;
   std::unique_ptr<LocalParticipant> local_participant_;
+  std::unordered_map<std::string, std::unique_ptr<RemoteParticipant>>
+      remote_participants_;
 
   void OnEvent(const proto::FfiEvent &event);
 };
