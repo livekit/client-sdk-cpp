@@ -39,52 +39,55 @@ struct AudioFrameEvent {
   AudioFrame frame;
 };
 
-// Represents a pull-based stream of decoded PCM audio frames coming from
-// a remote (or local) LiveKit track. Similar to VideoStream, but for audio.
-//
-// Typical usage:
-//
-//   AudioStream::Options opts;
-//   auto stream = AudioStream::fromTrack(remoteAudioTrack, opts);
-//
-//   AudioFrameEvent ev;
-//   while (stream->read(ev)) {
-//     // ev.frame contains interleaved int16 PCM samples
-//   }
-//
-//   stream->close();  // optional, called automatically in destructor
+/**
+ * Represents a pull-based stream of decoded PCM audio frames coming from
+ * a remote (or local) LiveKit track. Similar to VideoStream, but for audio.
+ *
+ * Typical usage:
+ *
+ *   AudioStream::Options opts;
+ *   auto stream = AudioStream::fromTrack(remoteAudioTrack, opts);
+ *
+ *  AudioFrameEvent ev;
+ *    while (stream->read(ev)) {
+ *     // ev.frame contains interleaved int16 PCM samples
+ *   }
+ *
+ *   stream->close();  // optional, called automatically in destructor
+ */
 class AudioStream {
 public:
-  // Configuration options for AudioStream creation.
+  /// Configuration options for AudioStream creation.
   struct Options {
-    // Maximum number of AudioFrameEvent items buffered in the internal queue.
-    // 0 means "unbounded" (the queue can grow without limit).
-    //
-    // Using a small non-zero capacity gives ring-buffer semantics:
-    // if the queue is full, the oldest frame is dropped when a new one arrives.
+    /// Maximum number of AudioFrameEvent items buffered in the internal queue.
+    /// 0 means "unbounded" (the queue can grow without limit).
+    ///
+    /// Using a small non-zero capacity gives ring-buffer semantics:
+    /// if the queue is full, the oldest frame is dropped when a new one
+    /// arrives.
     std::size_t capacity{0};
 
-    // Optional: name of a noise cancellation module to enable for this stream.
-    // Empty string means "no noise cancellation".
+    /// Optional: name of a noise cancellation module to enable for this stream.
+    /// Empty string means "no noise cancellation".
     std::string noise_cancellation_module;
 
-    // Optional: JSON-encoded configuration for the noise cancellation module.
-    // Empty string means "use module defaults".
+    /// Optional: JSON-encoded configuration for the noise cancellation module.
+    /// Empty string means "use module defaults".
     std::string noise_cancellation_options_json;
   };
 
-  // Factory: create an AudioStream bound to a specific Track
+  /// Factory: create an AudioStream bound to a specific Track
   static std::shared_ptr<AudioStream>
   fromTrack(const std::shared_ptr<Track> &track, const Options &options);
 
-  // Factory: create an AudioStream from a Participant + TrackSource
+  /// Factory: create an AudioStream from a Participant + TrackSource
   static std::shared_ptr<AudioStream> fromParticipant(Participant &participant,
                                                       TrackSource track_source,
                                                       const Options &options);
 
   ~AudioStream();
 
-  // No copy, assignment constructors.
+  /// No copy, assignment constructors.
   AudioStream(const AudioStream &) = delete;
   AudioStream &operator=(const AudioStream &) = delete;
   AudioStream(AudioStream &&) noexcept;

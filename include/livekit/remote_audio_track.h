@@ -28,16 +28,28 @@ class OwnedTrack;
 
 class AudioSource;
 
-// ============================================================
-// RemoteAudioTrack
-// ============================================================
+/**
+ * Represents an audio track published by a remote participant and
+ * subscribed to by the local participant.
+ *
+ * `RemoteAudioTrack` instances are created internally when the SDK receives a
+ * `kTrackSubscribed` event. Each instance is owned by its associated
+ * `RemoteParticipant` and delivered to the application via
+ * `TrackSubscribedEvent`.
+ *
+ * Applications generally interact with `RemoteAudioTrack` through events and
+ * `RemoteTrackPublication`, not through direct construction.
+ */
 class RemoteAudioTrack : public Track {
 public:
+  /// Constructs a `RemoteAudioTrack` from an internal protocol-level
+  /// `OwnedTrack` description provided by the signaling/FFI layer.
+  /// This constructor is intended for internal SDK use only.
   explicit RemoteAudioTrack(const proto::OwnedTrack &track);
 
+  /// Returns a concise, human-readable string summarizing the track,
+  /// including its SID and name. Useful for debugging and logging.
   std::string to_string() const;
-
-private:
 };
 
 } // namespace livekit
