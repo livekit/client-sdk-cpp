@@ -31,7 +31,6 @@ enum class ParticipantKind { Standard = 0, Ingress, Egress, Sip, Agent };
 
 class Participant {
 public:
-  // TODO, consider holding a weak ptr of FfiHandle if it is useful.
   Participant(FfiHandle handle, std::string sid, std::string name,
               std::string identity, std::string metadata,
               std::unordered_map<std::string, std::string> attributes,

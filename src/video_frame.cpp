@@ -264,6 +264,9 @@ computePlaneInfos(uintptr_t base, int width, int height, VideoBufferType type) {
 // LKVideoFrame implementation
 // ----------------------------------------------------------------------------
 
+LKVideoFrame::LKVideoFrame()
+    : width_{0}, height_{0}, type_{VideoBufferType::BGRA}, data_{} {}
+
 LKVideoFrame::LKVideoFrame(int width, int height, VideoBufferType type,
                            std::vector<std::uint8_t> data)
     : width_(width), height_(height), type_(type), data_(std::move(data)) {
@@ -310,8 +313,7 @@ LKVideoFrame LKVideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
   const auto &info = owned.info();
   const int width = static_cast<int>(info.width());
   const int height = static_cast<int>(info.height());
-  // Assuming your C++ enum matches proto's underlying values.
-  const VideoBufferType type = static_cast<VideoBufferType>(info.type());
+  const VideoBufferType type = fromProto(info.type());
 
   std::vector<std::uint8_t> buffer;
 

@@ -28,25 +28,54 @@ class OwnedTrack;
 
 class AudioSource;
 
-// ============================================================
-// LocalAudioTrack
-// ============================================================
+/**
+ * Represents a user-provided audio track sourced from the local device.
+ *
+ *  `LocalAudioTrack` is used to publish microphone audio (or any custom
+ *  audio source) to a LiveKit room. It wraps a platform-specific audio
+ *  source and exposes simple controls such as `mute()` and `unmute()`.
+ *
+ *  Typical usage:
+ *
+ *    auto source = AudioSource::create(...);
+ *    auto track = LocalAudioTrack::createLocalAudioTrack("mic", source);
+ *    room->localParticipant()->publishTrack(track);
+ *
+ *  Muting a local audio track stops transmitting audio to the room, but
+ *  the underlying source may continue capturing depending on platform
+ *  behavior.
+ *
+ *  The track name provided during creation is visible to remote
+ *  participants and can be used for debugging or UI display.
+ */
 class LocalAudioTrack : public Track {
 public:
-  explicit LocalAudioTrack(FfiHandle handle, const proto::OwnedTrack &track);
-
+  /// Creates a new local audio track backed by the given `AudioSource`.
+  ///
+  /// @param name   Human-readable name for the track. This may appear to
+  ///               remote participants and in analytics/debug logs.
+  /// @param source The audio source that produces PCM frames for this track.
+  ///
+  /// @return A shared pointer to the newly constructed `LocalAudioTrack`.
   static std::shared_ptr<LocalAudioTrack>
   createLocalAudioTrack(const std::string &name,
                         const std::shared_ptr<AudioSource> &source);
 
-  // Mute/unmute
+  /// Mutes the audio track.
+  ///
+  /// A muted track stops sending audio to the room, but the track remains
+  /// published and can be unmuted later without renegotiation.
   void mute();
+
+  /// Unmutes the audio track and resumes sending audio to the room.
   void unmute();
 
+  /// Returns a human-readable string representation of the track,
+  /// including its SID and name. Useful for debugging and logging.
   std::string to_string() const;
 
 private:
-  // Optional: you may add private helpers if needed
+  explicit LocalAudioTrack(FfiHandle handle, const proto::OwnedTrack &track);
 };
 
 } // namespace livekit

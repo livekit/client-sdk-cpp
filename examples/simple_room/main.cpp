@@ -1,14 +1,33 @@
+/*
+ * Copyright 2025 LiveKit, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
+#include <queue>
 #include <random>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "livekit/livekit.h"
+#include "sdl_media_manager.h"
 #include "wav_audio_source.h"
 
 // TODO(shijing), remove this livekit_ffi.h as it should be internal only.
@@ -103,8 +122,37 @@ bool parse_args(int argc, char *argv[], std::string &url, std::string &token) {
   return !(url.empty() || token.empty());
 }
 
+class MainThreadDispatcher {
+public:
+  static void dispatch(std::function<void()> fn) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    queue_.push(std::move(fn));
+  }
+
+  static void update() {
+    std::queue<std::function<void()>> local;
+
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      std::swap(local, queue_);
+    }
+
+    // Run everything on main thread
+    while (!local.empty()) {
+      local.front()();
+      local.pop();
+    }
+  }
+
+private:
+  static inline std::mutex mutex_;
+  static inline std::queue<std::function<void()>> queue_;
+};
+
 class SimpleRoomDelegate : public livekit::RoomDelegate {
 public:
+  explicit SimpleRoomDelegate(SDLMediaManager &media) : media_(media) {}
+
   void onParticipantConnected(
       livekit::Room & /*room*/,
       const livekit::ParticipantConnectedEvent &ev) override {
@@ -114,101 +162,54 @@ public:
 
   void onTrackSubscribed(livekit::Room & /*room*/,
                          const livekit::TrackSubscribedEvent &ev) override {
+    const char *participant_identity =
+        ev.participant ? ev.participant->identity().c_str() : "<unknown>";
+    const std::string track_sid =
+        ev.publication ? ev.publication->sid() : "<unknown>";
+    const std::string track_name =
+        ev.publication ? ev.publication->name() : "<unknown>";
     std::cout << "[Room] track subscribed: participant_identity="
-              << ev.participant_identity << " track_sid=" << ev.track_sid
-              << " name=" << ev.track_name << "\n";
-    // TODO(shijing): when you expose Track kind/source here, you can check
-    // whether this is a video track and start a VideoStream-like consumer. Use
-    // the python code as reference.
+              << participant_identity << " track_sid=" << track_sid
+              << " name=" << track_name;
+    if (ev.track) {
+      std::cout << " kind=" << static_cast<int>(ev.track->kind()) << "\n";
+    }
+    if (ev.publication) {
+      std::cout << " source=" << static_cast<int>(ev.publication->source())
+                << "\n";
+    }
+
+    // If this is a VIDEO track, create a VideoStream and attach to renderer
+    if (ev.track && ev.track->kind() == TrackKind::KIND_VIDEO) {
+      VideoStream::Options opts;
+      opts.format = livekit::VideoBufferType::RGBA;
+      auto video_stream = VideoStream::fromTrack(ev.track, opts);
+      std::cout << "after fromTrack " << std::endl;
+      if (!video_stream) {
+        std::cerr << "Failed to create VideoStream for track " << track_sid
+                  << "\n";
+        return;
+      }
+
+      MainThreadDispatcher::dispatch([this, video_stream] {
+        if (!media_.initRenderer(video_stream)) {
+          std::cerr << "SDLMediaManager::startRenderer failed for track\n";
+        }
+      });
+    } else if (ev.track && ev.track->kind() == TrackKind::KIND_AUDIO) {
+      AudioStream::Options opts;
+      auto audio_stream = AudioStream::fromTrack(ev.track, opts);
+      MainThreadDispatcher::dispatch([this, audio_stream] {
+        if (!media_.startSpeaker(audio_stream)) {
+          std::cerr << "SDLMediaManager::startRenderer failed for track\n";
+        }
+      });
+    }
   }
+
+private:
+  SDLMediaManager &media_;
 };
-
-// Test utils to run a capture loop to publish noisy audio frames to the room
-void runNoiseCaptureLoop(const std::shared_ptr<AudioSource> &source) {
-  const int sample_rate = source->sample_rate();
-  const int num_channels = source->num_channels();
-  const int frame_ms = 10;
-  const int samples_per_channel = sample_rate * frame_ms / 1000;
-
-  WavAudioSource WavAudioSource("data/welcome.wav", 48000, 1, false);
-  using Clock = std::chrono::steady_clock;
-  auto next_deadline = Clock::now();
-  while (g_running.load(std::memory_order_relaxed)) {
-    AudioFrame frame =
-        AudioFrame::create(sample_rate, num_channels, samples_per_channel);
-    WavAudioSource.fillFrame(frame);
-    try {
-      source->captureFrame(frame);
-    } catch (const std::exception &e) {
-      // If something goes wrong, log and break out
-      std::cerr << "Error in captureFrame: " << e.what() << std::endl;
-      break;
-    }
-
-    // Pace the loop to roughly real-time
-    next_deadline += std::chrono::milliseconds(frame_ms);
-    std::this_thread::sleep_until(next_deadline);
-  }
-
-  // Optionally clear queued audio on exit
-  try {
-    source->clearQueue();
-  } catch (...) {
-    // ignore errors on shutdown
-    std::cout << "Error in clearQueue" << std::endl;
-  }
-}
-
-void runFakeVideoCaptureLoop(const std::shared_ptr<VideoSource> &source) {
-  auto frame = LKVideoFrame::create(1280, 720, VideoBufferType::ARGB);
-  double framerate = 1.0 / 30;
-  while (g_running.load(std::memory_order_relaxed)) {
-    static auto start = std::chrono::high_resolution_clock::now();
-    float t = std::chrono::duration<float>(
-                  std::chrono::high_resolution_clock::now() - start)
-                  .count();
-    // Cycle every 4 seconds: 0=red, 1=green, 2=blue, 3 black
-    int stage = static_cast<int>(t) % 4;
-    std::vector<int> rgb(4);
-    switch (stage) {
-    case 0: // red
-      rgb[0] = 255;
-      rgb[1] = 0;
-      rgb[2] = 0;
-      break;
-    case 1: // green
-      rgb[0] = 0;
-      rgb[1] = 255;
-      rgb[2] = 0;
-      break;
-    case 2: // blue
-      rgb[0] = 0;
-      rgb[1] = 0;
-      rgb[2] = 255;
-      break;
-    case 4: // black
-      rgb[0] = 0;
-      rgb[1] = 0;
-      rgb[2] = 0;
-    }
-    for (size_t i = 0; i < frame.dataSize(); i += 4) {
-      frame.data()[i] = 255;
-      frame.data()[i + 1] = rgb[0];
-      frame.data()[i + 2] = rgb[1];
-      frame.data()[i + 3] = rgb[2];
-    }
-    LKVideoFrame i420 = convertViaFfi(frame, VideoBufferType::I420, false);
-    try {
-      source->captureFrame(frame, 0, VideoRotation::VIDEO_ROTATION_0);
-    } catch (const std::exception &e) {
-      // If something goes wrong, log and break out
-      std::cerr << "Error in captureFrame: " << e.what() << std::endl;
-      break;
-    }
-
-    std::this_thread::sleep_for(std::chrono::duration<double>(framerate));
-  }
-}
 
 } // namespace
 
@@ -225,16 +226,28 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  if (!SDL_Init(SDL_INIT_VIDEO)) {
+    std::cerr << "SDL_Init(SDL_INIT_VIDEO) failed: " << SDL_GetError() << "\n";
+    // You can choose to exit, or run in "headless" mode without renderer.
+    // return 1;
+  }
+
+  // Setup media;
+  SDLMediaManager media;
+
   std::cout << "Connecting to: " << url << std::endl;
 
   // Handle Ctrl-C to exit the idle loop
   std::signal(SIGINT, handle_sigint);
 
   livekit::Room room{};
-  SimpleRoomDelegate delegate;
+  SimpleRoomDelegate delegate(media);
   room.setDelegate(&delegate);
 
-  bool res = room.Connect(url, token);
+  RoomOptions options;
+  options.auto_subscribe = true;
+  options.dynacast = false;
+  bool res = room.Connect(url, token, options);
   std::cout << "Connect result is " << std::boolalpha << res << std::endl;
   if (!res) {
     std::cerr << "Failed to connect to room\n";
@@ -287,9 +300,7 @@ int main(int argc, char *argv[]) {
     std::cerr << "Failed to publish track: " << e.what() << std::endl;
   }
 
-  // TODO, if we have pre-buffering feature, we might consider starting the
-  // thread right after creating the source.
-  std::thread audioThread(runNoiseCaptureLoop, audioSource);
+  media.startMic(audioSource);
 
   // Setup Video Source / Track
   auto videoSource = std::make_shared<VideoSource>(1280, 720);
@@ -316,24 +327,24 @@ int main(int argc, char *argv[]) {
   } catch (const std::exception &e) {
     std::cerr << "Failed to publish track: " << e.what() << std::endl;
   }
-  std::thread videoThread(runFakeVideoCaptureLoop, videoSource);
+  media.startCamera(videoSource);
 
   // Keep the app alive until Ctrl-C so we continue receiving events,
   // similar to asyncio.run(main()) keeping the loop running.
   while (g_running.load()) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    MainThreadDispatcher::update();
+    media.render();
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
   // Shutdown the audio thread.
-  if (audioThread.joinable()) {
-    audioThread.join();
-  }
+  media.stopMic();
+
   // Clean up the audio track publishment
   room.local_participant()->unpublishTrack(audioPub->sid());
 
-  if (videoThread.joinable()) {
-    videoThread.join();
-  }
+  media.stopCamera();
+
   // Clean up the video track publishment
   room.local_participant()->unpublishTrack(videoPub->sid());
 

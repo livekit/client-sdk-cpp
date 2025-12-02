@@ -41,7 +41,8 @@ std::shared_ptr<LocalVideoTrack> LocalVideoTrack::createLocalVideoTrack(
   proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   const proto::OwnedTrack &owned = resp.create_video_track().track();
   FfiHandle handle(static_cast<uintptr_t>(owned.handle().id()));
-  return std::make_shared<LocalVideoTrack>(std::move(handle), owned);
+  return std::shared_ptr<LocalVideoTrack>(
+      new LocalVideoTrack(std::move(handle), owned));
 }
 
 void LocalVideoTrack::mute() {

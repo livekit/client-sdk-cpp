@@ -24,25 +24,12 @@
 
 namespace livekit {
 
-RemoteVideoTrack::RemoteVideoTrack(FfiHandle handle,
-                                   const proto::OwnedTrack &track)
-    : Track(std::move(handle), track.info().sid(), track.info().name(),
+RemoteVideoTrack::RemoteVideoTrack(const proto::OwnedTrack &track)
+    : Track(FfiHandle{static_cast<uintptr_t>(track.handle().id())},
+            track.info().sid(), track.info().name(),
             fromProto(track.info().kind()),
             fromProto(track.info().stream_state()), track.info().muted(),
             true) {}
-
-std::shared_ptr<RemoteVideoTrack> RemoteVideoTrack::createRemoteVideoTrack(
-    const std::string &name, const std::shared_ptr<VideoSource> &source) {
-  proto::FfiRequest req;
-  auto *msg = req.mutable_create_video_track();
-  msg->set_name(name);
-  msg->set_source_handle(static_cast<uint64_t>(source->ffi_handle_id()));
-
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-  const proto::OwnedTrack &owned = resp.create_video_track().track();
-  FfiHandle handle(static_cast<uintptr_t>(owned.handle().id()));
-  return std::make_shared<RemoteVideoTrack>(std::move(handle), owned);
-}
 
 std::string RemoteVideoTrack::to_string() const {
   return "rtc.RemoteVideoTrack(sid=" + sid() + ", name=" + name() + ")";

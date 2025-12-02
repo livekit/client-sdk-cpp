@@ -260,34 +260,10 @@ LocalTrackSubscribedEvent fromProto(const proto::LocalTrackSubscribed &src) {
   return ev;
 }
 
-TrackPublishedEvent fromProto(const proto::TrackPublished &src) {
-  TrackPublishedEvent ev;
-  ev.participant_identity = src.participant_identity();
-  // OwnedTrackPublication publication = 2;
-  // TODO: map publication info once you inspect OwnedTrackPublication
-  // ev.publication_sid = src.publication().info().sid();
-  // ev.track_name      = src.publication().info().name();
-  // ev.track_kind      = ...;
-  // ev.track_source    = ...;
-  return ev;
-}
-
 TrackUnpublishedEvent fromProto(const proto::TrackUnpublished &src) {
   TrackUnpublishedEvent ev;
   ev.participant_identity = src.participant_identity();
   ev.publication_sid = src.publication_sid();
-  return ev;
-}
-
-TrackSubscribedEvent fromProto(const proto::TrackSubscribed &src) {
-  TrackSubscribedEvent ev;
-  ev.participant_identity = src.participant_identity();
-  // OwnedTrack track = 2;
-  // TODO: map track info once you inspect OwnedTrack
-  // ev.track_sid   = src.track().info().sid();
-  // ev.track_name  = src.track().info().name();
-  // ev.track_kind  = ...;
-  // ev.track_source = ...;
   return ev;
 }
 

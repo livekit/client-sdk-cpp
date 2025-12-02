@@ -28,25 +28,54 @@ class OwnedTrack;
 
 class VideoSource;
 
-// ============================================================
-// LocalAudioTrack
-// ============================================================
+/**
+ * Represents a user-provided video track sourced from the local device.
+ *
+ *  `LocalVideoTrack` is used to publish camera video (or any custom
+ *  video source) to a LiveKit room. It wraps a platform-specific video
+ *  source and exposes simple controls such as `mute()` and `unmute()`.
+ *
+ *  Typical usage:
+ *
+ *    auto source = VideoSource::create(...);
+ *    auto track = LocalVideoTrack::createLocalVideoTrack("cam", source);
+ *    room->localParticipant()->publishTrack(track);
+ *
+ *  Muting a local video track stops transmitting video to the room, but
+ *  the underlying source may continue capturing depending on platform
+ *  behavior.
+ *
+ *  The track name provided during creation is visible to remote
+ *  participants and can be used for debugging or UI display.
+ */
 class LocalVideoTrack : public Track {
 public:
-  explicit LocalVideoTrack(FfiHandle handle, const proto::OwnedTrack &track);
-
+  /// Creates a new local video track backed by the given `VideoSource`.
+  ///
+  /// @param name   Human-readable name for the track. This may appear to
+  ///               remote participants and in analytics/debug logs.
+  /// @param source The video source that produces video frames for this track.
+  ///
+  /// @return A shared pointer to the newly constructed `LocalVideoTrack`.
   static std::shared_ptr<LocalVideoTrack>
   createLocalVideoTrack(const std::string &name,
                         const std::shared_ptr<VideoSource> &source);
 
-  // Mute/unmute
+  /// Mutes the video track.
+  ///
+  /// A muted track stops sending video to the room, but the track remains
+  /// published and can be unmuted later without renegotiation.
   void mute();
+
+  /// Unmutes the video track and resumes sending video to the room.
   void unmute();
 
+  /// Returns a human-readable string representation of the track,
+  /// including its SID and name. Useful for debugging and logging.
   std::string to_string() const;
 
 private:
-  // Optional: you may add private helpers if needed
+  explicit LocalVideoTrack(FfiHandle handle, const proto::OwnedTrack &track);
 };
 
 } // namespace livekit
