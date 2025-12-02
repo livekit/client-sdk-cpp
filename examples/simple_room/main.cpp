@@ -18,7 +18,9 @@
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
+#include <queue>
 #include <random>
 #include <string>
 #include <thread>

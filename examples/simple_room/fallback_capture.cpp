@@ -16,6 +16,9 @@
 
 #include "fallback_capture.h"
 
+#include <chrono>
+#include <thread>
+
 #include "livekit/livekit.h"
 #include "wav_audio_source.h"
 
