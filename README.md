@@ -71,7 +71,7 @@ The SimpleRpc example demonstrates how to:
 - Observe round-trip times (RTT) for each RPC call
 
 #### 🔑 Generate Tokens
-Before running any participant, create JWT tokens with "caller", "greeter" and "math-genius" identities and room name.
+Before running any participant, create JWT tokens with **caller**, **greeter** and **math-genius** identities and room name.
 ```bash
 lk token create -r test -i caller --join --valid-for 99999h --dev --room=your_own_room
 lk token create -r test -i greeter --join --valid-for 99999h --dev --room=your_own_room

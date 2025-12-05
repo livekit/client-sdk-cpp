@@ -32,16 +32,12 @@
 #include <vector>
 
 #include "livekit/livekit.h"
-#include "livekit_ffi.h" // same as simple_room; internal but used here
+#include "livekit_ffi.h"
 
 using namespace livekit;
 using namespace std::chrono_literals;
 
 namespace {
-
-// ------------------------------------------------------------
-// Global control (same pattern as simple_room)
-// ------------------------------------------------------------
 
 std::atomic<bool> g_running{true};
 
@@ -91,38 +87,31 @@ bool ensurePeerPresent(Room &room, const std::string &identity,
   std::cout << "[Caller] Waiting up to " << timeout.count() << "s for "
             << friendly_role << " (identity=\"" << identity
             << "\") to join...\n";
-
   bool present = waitForParticipant(
       room, identity,
       std::chrono::duration_cast<std::chrono::milliseconds>(timeout));
-
   if (present) {
     std::cout << "[Caller] " << friendly_role << " is present.\n";
     return true;
   }
-
   // Timed out
   auto info = room.room_info();
   const std::string room_name = info.name;
-
   std::cout << "[Caller] Timed out after " << timeout.count()
             << "s waiting for " << friendly_role << " (identity=\"" << identity
             << "\").\n";
   std::cout << "[Caller] No participant with identity \"" << identity
             << "\" appears to be connected to room \"" << room_name
             << "\".\n\n";
-
   std::cout << "To start a " << friendly_role
             << " in another terminal, run:\n\n"
             << "  lk token create -r test -i " << identity
             << " --join --valid-for 99999h --dev --room=" << room_name << "\n"
             << "  ./build/examples/SimpleRpc " << url
             << " $token --role=" << friendly_role << "\n\n";
-
   return false;
 }
 
-// Parse args similar to simple_room, plus optional --role / role positional
 bool parseArgs(int argc, char *argv[], std::string &url, std::string &token,
                std::string &role) {
   // --help
@@ -206,26 +195,18 @@ bool parseArgs(int argc, char *argv[], std::string &url, std::string &token,
   return !(url.empty() || token.empty());
 }
 
-// ------------------------------------------------------------
-// Tiny helpers for the simple JSON used in the sample
-// (to avoid bringing in a json library)
-// ------------------------------------------------------------
-
-// create {"key":number}
 std::string makeNumberJson(const std::string &key, double value) {
   std::ostringstream oss;
   oss << "{\"" << key << "\":" << value << "}";
   return oss.str();
 }
 
-// create {"key":"value"}
 std::string makeStringJson(const std::string &key, const std::string &value) {
   std::ostringstream oss;
   oss << "{\"" << key << "\":\"" << value << "\"}";
   return oss.str();
 }
 
-// very naive parse of {"key":number}
 double parseNumberFromJson(const std::string &json) {
   auto colon = json.find(':');
   if (colon == std::string::npos)
@@ -236,7 +217,6 @@ double parseNumberFromJson(const std::string &json) {
   return std::stod(num_str);
 }
 
-// very naive parse of {"key":"value"}
 std::string parseStringFromJson(const std::string &json) {
   auto colon = json.find(':');
   if (colon == std::string::npos)
@@ -250,10 +230,7 @@ std::string parseStringFromJson(const std::string &json) {
   return json.substr(first_quote + 1, second_quote - first_quote - 1);
 }
 
-// ------------------------------------------------------------
-// RPC handler registration (for greeter & math-genius)
-// ------------------------------------------------------------
-
+// RPC handler registration
 void registerReceiverMethods(Room &greeters_room, Room &math_genius_room) {
   LocalParticipant *greeter_lp = greeters_room.local_participant();
   LocalParticipant *math_genius_lp = math_genius_room.local_participant();
@@ -321,18 +298,14 @@ void registerReceiverMethods(Room &greeters_room, Room &math_genius_room) {
         std::cout << "[Math Genius] This will take 30 seconds even though "
                      "you're only giving me "
                   << data.response_timeout_sec << " seconds\n";
-
+        // Sleep for 30 seconds to mimic a long running task.
         std::this_thread::sleep_for(30s);
         return makeStringJson("result", "Calculation complete!");
       });
 
   // Note: we do NOT register "quantum-hypergeometric-series" here,
-  // so the caller sees UNSUPPORTED_METHOD, just like in Python.
+  // so the caller sees UNSUPPORTED_METHOD
 }
-
-// ------------------------------------------------------------
-// Caller-side helpers (like perform_* in rpc.py)
-// ------------------------------------------------------------
 
 void performGreeting(Room &room) {
   std::cout << "[Caller] Letting the greeter know that I've arrived\n";
@@ -460,10 +433,6 @@ void performLongCalculation(Room &room) {
 
 } // namespace
 
-// ------------------------------------------------------------
-// main – similar style to simple_room/main.cpp
-// ------------------------------------------------------------
-
 int main(int argc, char *argv[]) {
   std::string url, token, role;
   if (!parseArgs(argc, argv, url, token, role)) {
@@ -479,7 +448,7 @@ int main(int argc, char *argv[]) {
   std::cout << "Connecting to: " << url << "\n";
   std::cout << "Role: " << role << "\n";
 
-  // Ctrl-C
+  // Ctrl-C to quit the program
   std::signal(SIGINT, handleSignal);
 
   Room room{};
