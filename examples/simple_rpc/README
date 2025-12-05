@@ -34,7 +34,7 @@ Each RPC call includes:
 
 ##  📍 Location of APIs in C++
 All public-facing RPC APIs live in:
-[include/livekit/local_participant.h](https://github.com/livekit/client-sdk-cpp/blob/main/include/livekit/local_participant.h#L124)
+[include/livekit/local_participant.h](https://github.com/livekit/client-sdk-cpp/blob/main/include/livekit/local_participant.h#L160)
 
 ### Key methods:
 
