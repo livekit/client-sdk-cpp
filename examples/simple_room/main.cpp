@@ -42,7 +42,7 @@ namespace {
 
 std::atomic<bool> g_running{true};
 
-void print_usage(const char *prog) {
+void printUsage(const char *prog) {
   std::cerr << "Usage:\n"
             << "  " << prog << " <ws-url> <token>\n"
             << "or:\n"
@@ -52,9 +52,9 @@ void print_usage(const char *prog) {
             << "  LIVEKIT_URL, LIVEKIT_TOKEN\n";
 }
 
-void handle_sigint(int) { g_running.store(false); }
+void handleSignal(int) { g_running.store(false); }
 
-bool parse_args(int argc, char *argv[], std::string &url, std::string &token) {
+bool parseArgs(int argc, char *argv[], std::string &url, std::string &token) {
   // 1) --help
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
@@ -215,8 +215,8 @@ private:
 
 int main(int argc, char *argv[]) {
   std::string url, token;
-  if (!parse_args(argc, argv, url, token)) {
-    print_usage(argv[0]);
+  if (!parseArgs(argc, argv, url, token)) {
+    printUsage(argv[0]);
     return 1;
   }
 
@@ -238,7 +238,7 @@ int main(int argc, char *argv[]) {
   std::cout << "Connecting to: " << url << std::endl;
 
   // Handle Ctrl-C to exit the idle loop
-  std::signal(SIGINT, handle_sigint);
+  std::signal(SIGINT, handleSignal);
 
   livekit::Room room{};
   SimpleRoomDelegate delegate(media);

@@ -169,6 +169,7 @@ add_library(livekit
   include/livekit/local_participant.h
   include/livekit/remote_participant.h
   include/livekit/livekit.h
+  include/livekit/rpc_error.h
   include/livekit/stats.h
   include/livekit/track.h
   include/livekit/track_publication.h
@@ -198,6 +199,7 @@ add_library(livekit
   src/track_publication.cpp
   src/local_track_publication.cpp
   src/remote_track_publication.cpp
+  src/rpc_error.cpp
   src/video_frame.cpp
   src/video_source.cpp
   src/video_stream.cpp

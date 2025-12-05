@@ -19,6 +19,7 @@
 #include "livekit/ffi_handle.h"
 #include "livekit/participant.h"
 #include "livekit/room_delegate.h"
+#include "livekit/rpc_error.h"
 
 #include <cstdint>
 #include <memory>
@@ -33,7 +34,15 @@ struct ParticipantTrackPermission;
 class FfiClient;
 class Track;
 class LocalTrackPublication;
+// TODO, should consider moving Transcription to local_participant.h?
 struct Transcription;
+
+struct RpcInvocationData {
+  std::string request_id;
+  std::string caller_identity;
+  std::string payload;
+  double response_timeout_sec; // seconds
+};
 
 /**
  * Represents the local participant in a room.
@@ -44,6 +53,19 @@ class LocalParticipant : public Participant {
 public:
   using PublicationMap =
       std::unordered_map<std::string, std::shared_ptr<LocalTrackPublication>>;
+
+  /**
+   * Type of callback used to handle incoming RPC method invocations.
+   *
+   * The handler receives an RpcInvocationData describing the incoming call
+   * and may return an optional response payload. To signal an error to the
+   * remote caller, throw an RpcError; it will be serialized and forwarded.
+   *
+   * Returning std::nullopt means "no payload" and results in an empty
+   * response body being sent back to the caller.
+   */
+  using RpcHandler =
+      std::function<std::optional<std::string>(const RpcInvocationData &)>;
 
   LocalParticipant(FfiHandle handle, std::string sid, std::string name,
                    std::string identity, std::string metadata,
@@ -91,10 +113,6 @@ public:
   void
   setAttributes(const std::unordered_map<std::string, std::string> &attributes);
 
-  // -------------------------------------------------------------------------
-  // Subscription permissions
-  // -------------------------------------------------------------------------
-
   /**
    * Set track subscription permissions for this participant.
    *
@@ -105,10 +123,6 @@ public:
   setTrackSubscriptionPermissions(bool allow_all_participants,
                                   const std::vector<ParticipantTrackPermission>
                                       &participant_permissions = {});
-
-  // -------------------------------------------------------------------------
-  // Track publish / unpublish (synchronous analogue)
-  // -------------------------------------------------------------------------
 
   /**
    * Publish a local track to the room.
@@ -126,8 +140,73 @@ public:
    */
   void unpublishTrack(const std::string &track_sid);
 
+  /**
+   * Initiate an RPC call to a remote participant.
+   *
+   * @param destination_identity  Identity of the destination participant.
+   * @param method                Name of the RPC method to invoke.
+   * @param payload               Request payload to send to the remote handler.
+   * @param response_timeout      Optional timeout in seconds for receiving
+   *                              a response. If not set, the server default
+   *                              timeout (15 seconds) is used.
+   *
+   * @return The response payload returned by the remote handler.
+   *
+   * @throws RpcError   If the remote side returns an RPC error, times out,
+   *                    or rejects the request.
+   * @throws std::runtime_error If the underlying FFI handle is invalid or
+   *                             the FFI call fails unexpectedly.
+   */
+  std::string performRpc(const std::string &destination_identity,
+                         const std::string &method, const std::string &payload,
+                         std::optional<double> response_timeout = std::nullopt);
+
+  /**
+   * Register a handler for an incoming RPC method.
+   *
+   * Once registered, the provided handler will be invoked whenever a remote
+   * participant calls the given method name on this LocalParticipant.
+   *
+   * @param method_name  Name of the RPC method to handle. This must match
+   *                     the method name used by remote callers.
+   * @param handler      Callback to execute when an invocation is received.
+   *                     The handler may return an optional response payload
+   *                     or throw an RpcError to signal failure.
+   *
+   * If a handler is already registered for the same method_name, it will be
+   * replaced by the new handler.
+   */
+
+  void registerRpcMethod(const std::string &method_name, RpcHandler handler);
+
+  /**
+   * Unregister a previously registered RPC method handler.
+   *
+   * After this call, invocations for the given method_name will no longer
+   * be dispatched to a local handler and will instead result in an
+   * "unsupported method" error being returned to the caller.
+   *
+   * @param method_name  Name of the RPC method to unregister.
+   *                     If no handler is registered for this name, the call
+   *                     is a no-op.
+   */
+  void unregisterRpcMethod(const std::string &method_name);
+
+protected:
+  // Called by Room when an rpc_method_invocation event is received from the
+  // SFU. This is internal plumbing and not intended to be called directly by
+  // SDK users.
+  void handleRpcMethodInvocation(std::uint64_t invocation_id,
+                                 const std::string &method,
+                                 const std::string &request_id,
+                                 const std::string &caller_identity,
+                                 const std::string &payload,
+                                 double response_timeout);
+  friend class Room;
+
 private:
   PublicationMap track_publications_;
+  std::unordered_map<std::string, RpcHandler> rpc_handlers_;
 };
 
 } // namespace livekit
