@@ -22,6 +22,7 @@
 #include "livekit/ffi_client.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h" // TODO, maybe avoid circular deps by moving RoomOptions to a room_types.h ?
+#include "livekit/rpc_error.h"
 #include "livekit/track.h"
 #include "livekit_ffi.h"
 #include "room.pb.h"
@@ -502,6 +503,45 @@ FfiClient::captureAudioFrameAsync(std::uint64_t source_handle,
           return;
         }
         pr.set_value();
+      });
+}
+
+std::future<std::string>
+FfiClient::performRpcAsync(std::uint64_t local_participant_handle,
+                           const std::string &destination_identity,
+                           const std::string &method,
+                           const std::string &payload,
+                           std::optional<std::uint32_t> response_timeout_ms) {
+  proto::FfiRequest req;
+  auto *msg = req.mutable_perform_rpc();
+  msg->set_local_participant_handle(local_participant_handle);
+  msg->set_destination_identity(destination_identity);
+  msg->set_method(method);
+  msg->set_payload(payload);
+  if (response_timeout_ms.has_value()) {
+    msg->set_response_timeout_ms(*response_timeout_ms);
+  }
+  proto::FfiResponse resp = sendRequest(req);
+  if (!resp.has_perform_rpc()) {
+    throw std::runtime_error("FfiResponse missing perform_rpc");
+  }
+  const AsyncId async_id = resp.perform_rpc().async_id();
+  return registerAsync<std::string>(
+      // match predicate
+      [async_id](const proto::FfiEvent &event) {
+        return event.has_perform_rpc() &&
+               event.perform_rpc().async_id() == async_id;
+      },
+      [](const proto::FfiEvent &event, std::promise<std::string> &pr) {
+        const auto &cb = event.perform_rpc();
+
+        if (cb.has_error()) {
+          // RpcError is a proto message; convert to C++ RpcError and throw
+          pr.set_exception(
+              std::make_exception_ptr(RpcError::fromProto(cb.error())));
+          return;
+        }
+        pr.set_value(cb.payload());
       });
 }
 

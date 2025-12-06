@@ -166,8 +166,35 @@ void Room::OnEvent(const FfiEvent &event) {
   {
     std::lock_guard<std::mutex> guard(lock_);
     delegate_snapshot = delegate_;
-    // If you want, you can also update internal state here (participants, room
-    // info, etc.).
+  }
+
+  // First, handle RPC method invocations (not part of RoomEvent).
+  if (event.message_case() == FfiEvent::kRpcMethodInvocation) {
+    const auto &rpc = event.rpc_method_invocation();
+    std::cout << "kRpcMethodInvocation \n";
+
+    LocalParticipant *lp = nullptr;
+    {
+      std::lock_guard<std::mutex> guard(lock_);
+      if (!local_participant_) {
+        return;
+      }
+      auto local_handle = local_participant_->ffiHandleId();
+      if (local_handle == 0 || rpc.local_participant_handle() !=
+                                   static_cast<std::uint64_t>(local_handle)) {
+        // RPC is not targeted at this room's local participant; ignore.
+        return;
+      }
+      lp = local_participant_.get();
+    }
+
+    // Call outside the lock to avoid deadlocks / re-entrancy issues.
+    lp->handleRpcMethodInvocation(
+        rpc.invocation_id(), rpc.method(), rpc.request_id(),
+        rpc.caller_identity(), rpc.payload(),
+        static_cast<double>(rpc.response_timeout_ms()) / 1000.0);
+
+    return;
   }
 
   if (!delegate_snapshot) {

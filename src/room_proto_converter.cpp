@@ -16,6 +16,7 @@
 
 #include "room_proto_converter.h"
 
+#include "livekit/local_participant.h"
 #include "room.pb.h"
 
 namespace livekit {

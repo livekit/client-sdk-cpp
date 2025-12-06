@@ -111,6 +111,11 @@ public:
   std::future<void>
   captureAudioFrameAsync(std::uint64_t source_handle,
                          const proto::AudioFrameBufferInfo &buffer);
+  std::future<std::string> performRpcAsync(
+      std::uint64_t local_participant_handle,
+      const std::string &destination_identity, const std::string &method,
+      const std::string &payload,
+      std::optional<std::uint32_t> response_timeout_ms = std::nullopt);
 
   // Generic function for sending a request to the Rust FFI.
   // Note: For asynchronous requests, use the dedicated async functions instead

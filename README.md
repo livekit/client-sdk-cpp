@@ -41,8 +41,16 @@ All build actions are managed by the provided build.sh script.
 
 ## 🧪 Run Example
 
+### Generate Tokens
+Before running any participant, create JWT tokens with the proper identity and room name, example
 ```bash
-./build/examples/SimpleRoom --url ws://localhost:7880 --token <jwt-token>
+lk token create -r test -i your_own_identity  --join --valid-for 99999h --dev --room=your_own_room
+```
+
+### SimpleRoom
+
+```bash
+./build/examples/SimpleRoom --url $URL --token <jwt-token>
 ```
 
 You can also provide the URL and token via environment variables:
@@ -53,6 +61,33 @@ export LIVEKIT_TOKEN=<jwt-token>
 ```
 
 Press Ctrl-C to exit the example.
+
+### SimpleRpc
+The SimpleRpc example demonstrates how to:
+- Connect multiple participants to the same LiveKit room
+- Register RPC handlers (e.g., arrival, square-root, divide, long-calculation)
+- Send RPC requests from one participant to another
+- Handle success, application errors, unsupported methods, and timeouts
+- Observe round-trip times (RTT) for each RPC call
+
+#### 🔑 Generate Tokens
+Before running any participant, create JWT tokens with **caller**, **greeter** and **math-genius** identities and room name.
+```bash
+lk token create -r test -i caller --join --valid-for 99999h --dev --room=your_own_room
+lk token create -r test -i greeter --join --valid-for 99999h --dev --room=your_own_room
+lk token create -r test -i math-genius --join --valid-for 99999h --dev --room=your_own_room
+```
+
+#### ▶ Start Participants
+Every participant is run as a separate terminal process, note --role needs to match the token identity.
+```bash
+./build/examples/SimpleRpc --url $URL --token <jwt-token> --role=math-genius
+```
+The caller will automatically:
+- Wait for the greeter and math-genius to join
+- Perform RPC calls
+- Print round-trip times
+- Annotate expected successes or expected failures
 
 ##  🧰 Recommended Setup
 ### macOS
