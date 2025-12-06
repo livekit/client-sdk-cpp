@@ -22,6 +22,7 @@
 #include "livekit/rpc_error.h"
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
