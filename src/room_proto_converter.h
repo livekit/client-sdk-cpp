@@ -44,28 +44,7 @@ DataStreamTrailerData fromProto(const proto::DataStream_Trailer &in);
 
 // --------- event conversions (RoomEvent.oneof message) ---------
 
-ParticipantConnectedEvent fromProto(const proto::ParticipantConnected &in);
-ParticipantDisconnectedEvent
-fromProto(const proto::ParticipantDisconnected &in);
-
-LocalTrackPublishedEvent fromProto(const proto::LocalTrackPublished &in);
-LocalTrackUnpublishedEvent fromProto(const proto::LocalTrackUnpublished &in);
-LocalTrackSubscribedEvent fromProto(const proto::LocalTrackSubscribed &in);
-
-TrackPublishedEvent fromProto(const proto::TrackPublished &in);
-TrackUnpublishedEvent fromProto(const proto::TrackUnpublished &in);
-TrackUnsubscribedEvent fromProto(const proto::TrackUnsubscribed &in);
-TrackSubscriptionFailedEvent
-fromProto(const proto::TrackSubscriptionFailed &in);
-TrackMutedEvent fromProto(const proto::TrackMuted &in);
-TrackUnmutedEvent fromProto(const proto::TrackUnmuted &in);
-
-ActiveSpeakersChangedEvent fromProto(const proto::ActiveSpeakersChanged &in);
-
 RoomSidChangedEvent fromProto(const proto::RoomSidChanged &in);
-
-ConnectionQualityChangedEvent
-fromProto(const proto::ConnectionQualityChanged &in);
 
 ConnectionStateChangedEvent fromProto(const proto::ConnectionStateChanged &in);
 DisconnectedEvent fromProto(const proto::Disconnected &in);
@@ -90,8 +69,6 @@ RoomUpdatedEvent
 roomUpdatedFromProto(const proto::RoomInfo &in);              // room_updated
 RoomMovedEvent roomMovedFromProto(const proto::RoomInfo &in); // moved
 
-ParticipantsUpdatedEvent fromProto(const proto::ParticipantsUpdated &in);
-E2eeStateChangedEvent fromProto(const proto::E2eeStateChanged &in);
 ChatMessageReceivedEvent fromProto(const proto::ChatMessageReceived &in);
 
 // --------- room options conversions ---------
