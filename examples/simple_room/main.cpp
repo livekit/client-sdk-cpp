@@ -156,8 +156,9 @@ public:
   void onParticipantConnected(
       livekit::Room & /*room*/,
       const livekit::ParticipantConnectedEvent &ev) override {
-    std::cout << "[Room] participant connected: identity=" << ev.identity
-              << " name=" << ev.name << "\n";
+    std::cout << "[Room] participant connected: identity="
+              << ev.participant->identity()
+              << " name=" << ev.participant->name() << "\n";
   }
 
   void onTrackSubscribed(livekit::Room & /*room*/,
@@ -172,19 +173,18 @@ public:
               << participant_identity << " track_sid=" << track_sid
               << " name=" << track_name;
     if (ev.track) {
-      std::cout << " kind=" << static_cast<int>(ev.track->kind()) << "\n";
+      std::cout << " kind=" << static_cast<int>(ev.track->kind());
     }
     if (ev.publication) {
-      std::cout << " source=" << static_cast<int>(ev.publication->source())
-                << "\n";
+      std::cout << " source=" << static_cast<int>(ev.publication->source());
     }
+    std::cout << std::endl;
 
     // If this is a VIDEO track, create a VideoStream and attach to renderer
     if (ev.track && ev.track->kind() == TrackKind::KIND_VIDEO) {
       VideoStream::Options opts;
       opts.format = livekit::VideoBufferType::RGBA;
       auto video_stream = VideoStream::fromTrack(ev.track, opts);
-      std::cout << "after fromTrack " << std::endl;
       if (!video_stream) {
         std::cerr << "Failed to create VideoStream for track " << track_sid
                   << "\n";

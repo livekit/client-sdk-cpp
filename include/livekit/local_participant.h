@@ -203,6 +203,9 @@ protected:
                                  const std::string &caller_identity,
                                  const std::string &payload,
                                  double response_timeout);
+  // Called by Room events like kTrackMuted.
+  std::shared_ptr<TrackPublication>
+  findTrackPublication(const std::string &sid) const override;
   friend class Room;
 
 private:

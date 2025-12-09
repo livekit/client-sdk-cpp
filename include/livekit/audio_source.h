@@ -43,8 +43,7 @@ public:
    * @param queue_size_ms Max buffer duration for the internal queue in ms.
    */
   AudioSource(int sample_rate, int num_channels, int queue_size_ms = 1000);
-
-  ~AudioSource();
+  virtual ~AudioSource() = default;
 
   AudioSource(const AudioSource &) = delete;
   AudioSource &operator=(const AudioSource &) = delete;

@@ -52,9 +52,7 @@ public:
    * does not contain the expected new_video_source field.
    */
   VideoSource(int width, int height);
-
-  // Owned FFI handle will be released by FfiHandle's destructor.
-  ~VideoSource() = default;
+  virtual ~VideoSource() = default;
 
   VideoSource(const VideoSource &) = delete;
   VideoSource &operator=(const VideoSource &) = delete;

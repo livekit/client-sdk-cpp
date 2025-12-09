@@ -23,24 +23,29 @@
 #include <string>
 #include <vector>
 
+#include "livekit/local_track_publication.h"
+#include "livekit/remote_track_publication.h"
+#include "livekit/track_publication.h"
+
 namespace livekit {
 
 class Room;
 enum class VideoCodec;
 enum class TrackSource;
 class Track;
-class RemoteTrackPublication;
 class RemoteParticipant;
+class LocalTrackPublication;
+class Participant;
 
 enum class ConnectionQuality {
-  Poor,
+  Poor = 0,
   Good,
   Excellent,
   Lost,
 };
 
 enum class ConnectionState {
-  Disconnected,
+  Disconnected = 0,
   Connected,
   Reconnecting,
 };
@@ -51,10 +56,13 @@ enum class DataPacketKind {
 };
 
 enum class EncryptionState {
-  // mirror your proto enum values as needed
-  Unknown,
-  On,
-  Off,
+  New = 0,
+  Ok,
+  EncryptionFailed,
+  DecryptionFailed,
+  MissingKey,
+  KeyRatcheted,
+  InternalError,
 };
 
 enum class DisconnectReason {
@@ -75,10 +83,6 @@ enum class DisconnectReason {
   ConnectionTimeout,
   MediaFailure
 };
-
-// ---------------------------------------------------------
-// Basic data types corresponding to proto messages
-// ---------------------------------------------------------
 
 struct ChatMessageData {
   std::string id;
@@ -117,6 +121,9 @@ struct RoomInfoData {
 struct AttributeEntry {
   std::string key;
   std::string value;
+  AttributeEntry() = default;
+  AttributeEntry(std::string k, std::string v)
+      : key(std::move(k)), value(std::move(v)) {}
 };
 
 struct DataStreamHeaderData {
@@ -204,75 +211,72 @@ struct TranscriptionSegment {
 // ---------------------------------------------------------
 
 struct ParticipantConnectedEvent {
-  // Typically you’d also attach a handle / participant object
-  std::string identity; // from OwnedParticipant / ParticipantInfo
-  std::string metadata;
-  std::string name;
+  RemoteParticipant *participant = nullptr; // Owned by room
 };
 
 struct ParticipantDisconnectedEvent {
-  std::string participant_identity;
+  RemoteParticipant *participant = nullptr; // Owned by room
   DisconnectReason reason = DisconnectReason::Unknown;
 };
 
 struct LocalTrackPublishedEvent {
-  std::string track_sid;
+  std::shared_ptr<LocalTrackPublication> publication;
+  std::shared_ptr<Track> track;
 };
 
 struct LocalTrackUnpublishedEvent {
-  std::string publication_sid;
+  std::shared_ptr<LocalTrackPublication> publication;
 };
 
 struct LocalTrackSubscribedEvent {
-  std::string track_sid;
+  std::shared_ptr<Track> track;
 };
 
 struct TrackPublishedEvent {
-  std::string participant_identity;
-  std::string publication_sid;
-  std::string track_name;
-  std::string track_kind;   // or an enum if you have one
-  std::string track_source; // or enum
+  std::shared_ptr<RemoteTrackPublication> publication;
+  RemoteParticipant *participant = nullptr; // Owned by room
 };
 
 struct TrackUnpublishedEvent {
-  std::string participant_identity;
-  std::string publication_sid;
+  std::shared_ptr<RemoteTrackPublication> publication;
+  RemoteParticipant *participant = nullptr;
 };
 
 struct TrackSubscribedEvent {
   std::shared_ptr<Track> track;
   std::shared_ptr<RemoteTrackPublication> publication;
-  RemoteParticipant *participant = nullptr;
+  RemoteParticipant *participant = nullptr; // Owned by room
 };
 
 struct TrackUnsubscribedEvent {
-  std::string participant_identity;
-  std::string track_sid;
+  std::shared_ptr<Track> track;
+  std::shared_ptr<RemoteTrackPublication> publication;
+  RemoteParticipant *participant = nullptr; // Owned by room
 };
 
 struct TrackSubscriptionFailedEvent {
-  std::string participant_identity;
+  RemoteParticipant *participant = nullptr; // Owned by room
   std::string track_sid;
   std::string error;
 };
 
 struct TrackMutedEvent {
-  std::string participant_identity;
-  std::string track_sid;
+  Participant *participant = nullptr; // Local or Remote, owned by room
+  std::shared_ptr<TrackPublication> publication;
 };
 
 struct TrackUnmutedEvent {
-  std::string participant_identity;
-  std::string track_sid;
+  Participant *participant = nullptr; // Local or Remote, owned by room
+  std::shared_ptr<TrackPublication> publication;
 };
 
 struct ActiveSpeakersChangedEvent {
-  std::vector<std::string> participant_identities;
+  std::vector<Participant *> speakers;
 };
 
 struct RoomMetadataChangedEvent {
-  std::string metadata;
+  std::string old_metadata;
+  std::string new_metadata;
 };
 
 struct RoomSidChangedEvent {
@@ -280,42 +284,55 @@ struct RoomSidChangedEvent {
 };
 
 struct ParticipantMetadataChangedEvent {
-  std::string participant_identity;
-  std::string metadata;
+  Participant *participant = nullptr; // Local or Remote, owned by room
+  std::string old_metadata;
+  std::string new_metadata;
 };
 
 struct ParticipantNameChangedEvent {
-  std::string participant_identity;
-  std::string name;
+  Participant *participant = nullptr; // Local or Remote, owned by room
+  std::string old_name;
+  std::string new_name;
 };
 
 struct ParticipantAttributesChangedEvent {
-  std::string participant_identity;
-  std::vector<AttributeEntry> attributes;
+  Participant *participant = nullptr; // Local or Remote, owned by room
   std::vector<AttributeEntry> changed_attributes;
 };
 
 struct ParticipantEncryptionStatusChangedEvent {
-  std::string participant_identity;
+  Participant *participant = nullptr; // Local or Remote, owned by room
   bool is_encrypted = false;
 };
 
 struct ConnectionQualityChangedEvent {
-  std::string participant_identity;
+  Participant *participant = nullptr; // Local or Remote, owned by room
   ConnectionQuality quality = ConnectionQuality::Good;
 };
 
-struct DataPacketReceivedEvent {
+struct UserDataPacketEvent {
+  std::vector<std::uint8_t> data;
   DataPacketKind kind = DataPacketKind::Reliable;
-  std::string participant_identity; // may be empty
-  std::optional<UserPacketData> user;
-  std::optional<SipDtmfData> sip_dtmf;
+  RemoteParticipant *participant = nullptr; // may be null, owned by room
+  std::string topic;
+};
+
+struct SipDtmfReceivedEvent {
+  int code = 0;
+  std::string digit;
+  RemoteParticipant *participant = nullptr; // owned by room
 };
 
 struct Transcription {
   std::optional<std::string> participant_identity;
   std::optional<std::string> track_sid;
   std::vector<TranscriptionSegment> segments;
+};
+
+struct TranscriptionReceivedEvent {
+  std::vector<TranscriptionSegment> segments;
+  Participant *participant = nullptr; // Local or Remote, owned by room
+  std::shared_ptr<TrackPublication> publication;
 };
 
 struct ConnectionStateChangedEvent {
@@ -370,13 +387,12 @@ struct RoomMovedEvent {
 };
 
 struct ParticipantsUpdatedEvent {
-  // You can expand this into a richer participant struct later
-  std::vector<std::string> participant_identities;
+  std::vector<Participant *> participants;
 };
 
 struct E2eeStateChangedEvent {
-  std::string participant_identity;
-  EncryptionState state = EncryptionState::Unknown;
+  Participant *participant = nullptr; // local or remote, owned by room
+  EncryptionState state = EncryptionState::New;
 };
 
 struct ChatMessageReceivedEvent {
@@ -463,8 +479,10 @@ public:
   virtual void onRoomEos(Room &, const RoomEosEvent &) {}
 
   // Data / transcription / chat
-  virtual void onDataPacketReceived(Room &, const DataPacketReceivedEvent &) {}
-  virtual void onTranscriptionReceived(Room &, const Transcription &) {}
+  virtual void onUserPacketReceived(Room &, const UserDataPacketEvent &) {}
+  virtual void onSipDtmfReceived(Room &, const SipDtmfReceivedEvent &) {}
+  virtual void onTranscriptionReceived(Room &,
+                                       const TranscriptionReceivedEvent &) {}
   virtual void onChatMessageReceived(Room &, const ChatMessageReceivedEvent &) {
   }
 

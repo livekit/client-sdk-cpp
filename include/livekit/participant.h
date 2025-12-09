@@ -39,6 +39,7 @@ public:
         name_(std::move(name)), identity_(std::move(identity)),
         metadata_(std::move(metadata)), attributes_(std::move(attributes)),
         kind_(kind), reason_(reason) {}
+  virtual ~Participant() = default;
 
   // Plain getters (caller ensures threading)
   const std::string &sid() const noexcept { return sid_; }
@@ -71,6 +72,11 @@ public:
   void set_disconnect_reason(DisconnectReason reason) noexcept {
     reason_ = reason;
   }
+
+protected:
+  virtual std::shared_ptr<TrackPublication>
+  findTrackPublication(const std::string &sid) const = 0;
+  friend class Room;
 
 private:
   FfiHandle handle_;

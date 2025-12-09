@@ -350,4 +350,13 @@ void LocalParticipant::handleRpcMethodInvocation(
   FfiClient::instance().sendRequest(req);
 }
 
+std::shared_ptr<TrackPublication>
+LocalParticipant::findTrackPublication(const std::string &sid) const {
+  auto it = track_publications_.find(sid);
+  if (it == track_publications_.end()) {
+    return nullptr;
+  }
+  return std::static_pointer_cast<TrackPublication>(it->second);
+}
+
 } // namespace livekit

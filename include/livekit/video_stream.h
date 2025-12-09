@@ -81,7 +81,7 @@ public:
                                                       TrackSource track_source,
                                                       const Options &options);
 
-  ~VideoStream();
+  virtual ~VideoStream();
 
   VideoStream(const VideoStream &) = delete;
   VideoStream &operator=(const VideoStream &) = delete;

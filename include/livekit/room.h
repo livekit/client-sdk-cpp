@@ -185,6 +185,7 @@ private:
   std::unique_ptr<LocalParticipant> local_participant_;
   std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>>
       remote_participants_;
+  ConnectionState connection_state_ = ConnectionState::Disconnected;
 
   void OnEvent(const proto::FfiEvent &event);
 };

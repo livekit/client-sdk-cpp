@@ -24,20 +24,19 @@
 namespace livekit {
 
 enum class RpcErrorCode;
+class RemoteParticipant;
 
 // --------- basic helper conversions ---------
 
 ConnectionQuality toConnectionQuality(proto::ConnectionQuality in);
 ConnectionState toConnectionState(proto::ConnectionState in);
 DataPacketKind toDataPacketKind(proto::DataPacketKind in);
-EncryptionState toEncryptionState(proto::EncryptionState in);
 DisconnectReason toDisconnectReason(proto::DisconnectReason in);
 
 ChatMessageData fromProto(const proto::ChatMessage &in);
 UserPacketData fromProto(const proto::UserPacket &in);
 SipDtmfData fromProto(const proto::SipDTMF &in);
 RoomInfoData fromProto(const proto::RoomInfo &in);
-AttributeEntry fromProto(const proto::AttributesEntry &in);
 
 DataStreamHeaderData fromProto(const proto::DataStream_Header &in);
 DataStreamChunkData fromProto(const proto::DataStream_Chunk &in);
@@ -63,21 +62,10 @@ TrackUnmutedEvent fromProto(const proto::TrackUnmuted &in);
 
 ActiveSpeakersChangedEvent fromProto(const proto::ActiveSpeakersChanged &in);
 
-RoomMetadataChangedEvent fromProto(const proto::RoomMetadataChanged &in);
 RoomSidChangedEvent fromProto(const proto::RoomSidChanged &in);
-
-ParticipantMetadataChangedEvent
-fromProto(const proto::ParticipantMetadataChanged &in);
-ParticipantNameChangedEvent fromProto(const proto::ParticipantNameChanged &in);
-ParticipantAttributesChangedEvent
-fromProto(const proto::ParticipantAttributesChanged &in);
-ParticipantEncryptionStatusChangedEvent
-fromProto(const proto::ParticipantEncryptionStatusChanged &in);
 
 ConnectionQualityChangedEvent
 fromProto(const proto::ConnectionQualityChanged &in);
-
-DataPacketReceivedEvent fromProto(const proto::DataPacketReceived &in);
 
 ConnectionStateChangedEvent fromProto(const proto::ConnectionStateChanged &in);
 DisconnectedEvent fromProto(const proto::Disconnected &in);
@@ -122,7 +110,15 @@ TrackPublishOptions fromProto(const proto::TrackPublishOptions &in);
 proto::TranscriptionSegment toProto(const TranscriptionSegment &in);
 TranscriptionSegment fromProto(const proto::TranscriptionSegment &in);
 
-proto::TranscriptionReceived toProto(const Transcription &in);
+proto::TranscriptionReceived toProto(const TranscriptionReceivedEvent &in);
 Transcription fromProto(const proto::TranscriptionReceived &in);
+
+// --------- room Data Packet conversions ---------
+
+UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived &in,
+                                            RemoteParticipant *participant);
+
+SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived &in,
+                                      RemoteParticipant *participant);
 
 } // namespace livekit
