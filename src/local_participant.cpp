@@ -251,4 +251,103 @@ void LocalParticipant::unpublishTrack(const std::string &track_sid) {
   track_publications_.erase(track_sid);
 }
 
+std::string LocalParticipant::performRpc(
+    const std::string &destination_identity, const std::string &method,
+    const std::string &payload, std::optional<double> response_timeout) {
+  auto handle_id = ffiHandleId();
+  if (handle_id == 0) {
+    throw std::runtime_error(
+        "LocalParticipant::performRpc: invalid FFI handle");
+  }
+
+  std::uint32_t timeout_ms = 0;
+  bool has_timeout = false;
+  if (response_timeout.has_value()) {
+    timeout_ms = static_cast<std::uint32_t>(response_timeout.value() * 1000.0);
+    has_timeout = true;
+  }
+
+  auto fut = FfiClient::instance().performRpcAsync(
+      static_cast<std::uint64_t>(handle_id), destination_identity, method,
+      payload,
+      has_timeout ? std::optional<std::uint32_t>(timeout_ms) : std::nullopt);
+  return fut.get();
+}
+
+void LocalParticipant::registerRpcMethod(const std::string &method_name,
+                                         RpcHandler handler) {
+  auto handle_id = ffiHandleId();
+  if (handle_id == 0) {
+    throw std::runtime_error(
+        "LocalParticipant::registerRpcMethod: invalid FFI handle");
+  }
+  rpc_handlers_[method_name] = std::move(handler);
+  FfiRequest req;
+  auto *msg = req.mutable_register_rpc_method();
+  msg->set_local_participant_handle(static_cast<std::uint64_t>(handle_id));
+  msg->set_method(method_name);
+
+  (void)FfiClient::instance().sendRequest(req);
+}
+
+void LocalParticipant::unregisterRpcMethod(const std::string &method_name) {
+  auto handle_id = ffiHandleId();
+  if (handle_id == 0) {
+    throw std::runtime_error(
+        "LocalParticipant::unregisterRpcMethod: invalid FFI handle");
+  }
+  rpc_handlers_.erase(method_name);
+  FfiRequest req;
+  auto *msg = req.mutable_unregister_rpc_method();
+  msg->set_local_participant_handle(static_cast<std::uint64_t>(handle_id));
+  msg->set_method(method_name);
+
+  (void)FfiClient::instance().sendRequest(req);
+}
+
+void LocalParticipant::handleRpcMethodInvocation(
+    uint64_t invocation_id, const std::string &method,
+    const std::string &request_id, const std::string &caller_identity,
+    const std::string &payload, double response_timeout_sec) {
+  std::optional<RpcError> response_error;
+  std::optional<std::string> response_payload;
+  std::cout << "handleRpcMethodInvocation \n";
+  RpcInvocationData params{request_id, caller_identity, payload,
+                           response_timeout_sec};
+  auto it = rpc_handlers_.find(method);
+  if (it == rpc_handlers_.end()) {
+    // No handler registered → built-in UNSUPPORTED_METHOD
+    response_error = RpcError::builtIn(RpcError::ErrorCode::UNSUPPORTED_METHOD);
+  } else {
+    try {
+      // Invoke user handler: may return payload or throw RpcError
+      response_payload = it->second(params);
+    } catch (const RpcError &err) {
+      // Handler explicitly signalled an RPC error: forward as-is
+      response_error = err;
+    } catch (const std::exception &ex) {
+      // Any other exception: wrap as built-in APPLICATION_ERROR
+      response_error =
+          RpcError::builtIn(RpcError::ErrorCode::APPLICATION_ERROR, ex.what());
+    } catch (...) {
+      response_error = RpcError::builtIn(RpcError::ErrorCode::APPLICATION_ERROR,
+                                         "unknown error");
+    }
+  }
+
+  FfiRequest req;
+  auto *msg = req.mutable_rpc_method_invocation_response();
+  msg->set_local_participant_handle(ffiHandleId());
+  msg->set_invocation_id(invocation_id);
+  if (response_error.has_value()) {
+    auto *err_proto = msg->mutable_error();
+    err_proto->CopyFrom(response_error->toProto());
+  }
+  if (response_payload.has_value()) {
+    msg->set_payload(*response_payload);
+  }
+  std::cout << "handleRpcMethodInvocation sendrequest \n";
+  FfiClient::instance().sendRequest(req);
+}
+
 } // namespace livekit

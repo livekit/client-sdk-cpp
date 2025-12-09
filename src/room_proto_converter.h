@@ -19,7 +19,11 @@
 #include "livekit/room_delegate.h"
 #include "room.pb.h"
 
+#include <string>
+
 namespace livekit {
+
+enum class RpcErrorCode;
 
 // --------- basic helper conversions ---------
 
