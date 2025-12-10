@@ -18,7 +18,7 @@
 
 #include "livekit/ffi_handle.h"
 #include "livekit/participant.h"
-#include "livekit/room_delegate.h"
+#include "livekit/room_event_types.h"
 #include "livekit/rpc_error.h"
 
 #include <cstdint>

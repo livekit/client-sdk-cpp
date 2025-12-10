@@ -19,7 +19,7 @@
 
 #include "livekit/ffi_client.h"
 #include "livekit/ffi_handle.h"
-#include "livekit/room_delegate.h"
+#include "livekit/room_event_types.h"
 #include <memory>
 #include <mutex>
 

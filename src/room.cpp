@@ -25,6 +25,7 @@
 #include "livekit/remote_track_publication.h"
 #include "livekit/remote_video_track.h"
 #include "livekit/room_delegate.h"
+#include "livekit/room_event_types.h"
 #include "livekit/video_stream.h"
 
 #include "ffi.pb.h"
@@ -204,10 +205,6 @@ void Room::OnEvent(const FfiEvent &event) {
   switch (event.message_case()) {
   case FfiEvent::kRoomEvent: {
     const proto::RoomEvent &re = event.room_event();
-
-    // Optional generic hook
-    delegate_snapshot->onRoomEvent(*this);
-
     switch (re.message_case()) {
     case proto::RoomEvent::kParticipantConnected: {
       std::shared_ptr<RemoteParticipant> new_participant;

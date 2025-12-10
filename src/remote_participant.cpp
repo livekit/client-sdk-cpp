@@ -20,6 +20,8 @@
 #include <sstream>
 #include <utility>
 
+#include "livekit/remote_track_publication.h"
+
 namespace livekit {
 
 RemoteParticipant::RemoteParticipant(

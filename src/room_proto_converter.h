@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "livekit/room_delegate.h"
+#include "livekit/room_event_types.h"
 #include "room.pb.h"
 
 #include <string>
