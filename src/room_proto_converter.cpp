@@ -69,23 +69,6 @@ DisconnectReason toDisconnectReason(proto::DisconnectReason /*in*/) {
 
 // --------- basic helper conversions ---------
 
-ChatMessageData fromProto(const proto::ChatMessage &in) {
-  ChatMessageData out;
-  out.id = in.id();
-  out.timestamp = in.timestamp();
-  out.message = in.message();
-  if (in.has_edit_timestamp()) {
-    out.edit_timestamp = in.edit_timestamp();
-  }
-  if (in.has_deleted()) {
-    out.deleted = in.deleted();
-  }
-  if (in.has_generated()) {
-    out.generated = in.generated();
-  }
-  return out;
-}
-
 UserPacketData fromProto(const proto::UserPacket &in) {
   UserPacketData out;
   // TODO, double check following code is safe
@@ -299,13 +282,6 @@ RoomMovedEvent roomMovedFromProto(const proto::RoomInfo &in) {
   return ev;
 }
 
-ChatMessageReceivedEvent fromProto(const proto::ChatMessageReceived &in) {
-  ChatMessageReceivedEvent ev;
-  ev.message = fromProto(in.message());
-  ev.participant_identity = in.participant_identity();
-  return ev;
-}
-
 // ---------------- Room Options ----------------
 
 proto::AudioEncoding toProto(const AudioEncodingOptions &in) {
@@ -417,21 +393,6 @@ TranscriptionSegment fromProto(const proto::TranscriptionSegment &in) {
   out.end_time = in.end_time();
   out.final = in.final();
   out.language = in.language();
-  return out;
-}
-
-Transcription fromProto(const proto::TranscriptionReceived &in) {
-  Transcription out;
-  if (in.has_participant_identity()) {
-    out.participant_identity = in.participant_identity();
-  }
-  if (in.has_track_sid()) {
-    out.track_sid = in.track_sid();
-  }
-  out.segments.reserve(in.segments_size());
-  for (const auto &pseg : in.segments()) {
-    out.segments.push_back(fromProto(pseg));
-  }
   return out;
 }
 

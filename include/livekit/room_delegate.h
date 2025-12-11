@@ -244,18 +244,6 @@ public:
    */
   virtual void onSipDtmfReceived(Room &, const SipDtmfReceivedEvent &) {}
 
-  /**
-   * Called when a transcription result is received.
-   */
-  virtual void onTranscriptionReceived(Room &,
-                                       const TranscriptionReceivedEvent &) {}
-
-  /**
-   * Called when a chat message is received.
-   */
-  virtual void onChatMessageReceived(Room &, const ChatMessageReceivedEvent &) {
-  }
-
   // ------------------------------------------------------------------
   // Data streams
   // ------------------------------------------------------------------

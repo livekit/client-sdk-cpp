@@ -773,39 +773,7 @@ void Room::OnEvent(const FfiEvent &event) {
       // ------------------------------------------------------------------------
 
     case proto::RoomEvent::kTranscriptionReceived: {
-      TranscriptionReceivedEvent ev;
-      {
-        std::lock_guard<std::mutex> guard(lock_);
-        const auto &tr = re.transcription_received();
-        for (const auto &s : tr.segments()) {
-          TranscriptionSegment seg;
-          seg.id = s.id();
-          seg.text = s.text();
-          seg.final = s.final();
-          seg.start_time = s.start_time();
-          seg.end_time = s.end_time();
-          seg.language = s.language();
-          ev.segments.push_back(std::move(seg));
-        }
-
-        Participant *participant = nullptr;
-        if (!tr.participant_identity().empty()) {
-          const std::string &identity = tr.participant_identity();
-          if (local_participant_ &&
-              local_participant_->identity() == identity) {
-            participant = local_participant_.get();
-          } else {
-            auto it = remote_participants_.find(identity);
-            if (it != remote_participants_.end()) {
-              participant = it->second.get();
-            }
-          }
-        }
-        ev.participant = participant;
-        ev.publication = participant->findTrackPublication(tr.track_sid());
-      }
-
-      delegate_snapshot->onTranscriptionReceived(*this, ev);
+      // Deprecated event, do nothing.
       break;
     }
 
@@ -901,8 +869,7 @@ void Room::OnEvent(const FfiEvent &event) {
       break;
     }
     case proto::RoomEvent::kChatMessage: {
-      auto ev = fromProto(re.chat_message());
-      delegate_snapshot->onChatMessageReceived(*this, ev);
+      // Deprecated event, do nothing.
       break;
     }
     case proto::RoomEvent::kStreamHeaderReceived: {

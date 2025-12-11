@@ -106,29 +106,6 @@ enum class DisconnectReason {
 };
 
 /**
- * A chat message associated with the room.
- */
-struct ChatMessageData {
-  /** Unique ID of the message. */
-  std::string id;
-
-  /** Timestamp (ms since Unix epoch). */
-  std::int64_t timestamp = 0;
-
-  /** Message body. */
-  std::string message;
-
-  /** Optional timestamp when the message was edited (ms since Unix epoch). */
-  std::optional<std::int64_t> edit_timestamp;
-
-  /** True if the message has been deleted. */
-  bool deleted = false;
-
-  /** True if the message was generated (e.g. by an AI or system). */
-  bool generated = false;
-};
-
-/**
  * Application-level user data carried in a data packet.
  */
 struct UserPacketData {
@@ -648,21 +625,6 @@ struct Transcription {
 };
 
 /**
- * Fired when a transcription result is received.
- */
-struct TranscriptionReceivedEvent {
-  /** Transcription segments for this update. */
-  std::vector<TranscriptionSegment> segments;
-
-  /** Local or remote participant associated with these segments (owned by
-   * Room). */
-  Participant *participant = nullptr;
-
-  /** Publication of the track used for transcription, if available. */
-  std::shared_ptr<TrackPublication> publication;
-};
-
-/**
  * Fired when the room's connection state changes.
  */
 struct ConnectionStateChangedEvent {
@@ -792,17 +754,6 @@ struct E2eeStateChangedEvent {
 
   /** New encryption state. */
   EncryptionState state = EncryptionState::New;
-};
-
-/**
- * Fired when a chat message is received.
- */
-struct ChatMessageReceivedEvent {
-  /** Chat message payload. */
-  ChatMessageData message;
-
-  /** Identity of the participant who sent the message. */
-  std::string participant_identity;
 };
 
 } // namespace livekit

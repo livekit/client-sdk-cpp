@@ -33,7 +33,6 @@ ConnectionState toConnectionState(proto::ConnectionState in);
 DataPacketKind toDataPacketKind(proto::DataPacketKind in);
 DisconnectReason toDisconnectReason(proto::DisconnectReason in);
 
-ChatMessageData fromProto(const proto::ChatMessage &in);
 UserPacketData fromProto(const proto::UserPacket &in);
 SipDtmfData fromProto(const proto::SipDTMF &in);
 RoomInfoData fromProto(const proto::RoomInfo &in);
@@ -69,8 +68,6 @@ RoomUpdatedEvent
 roomUpdatedFromProto(const proto::RoomInfo &in);              // room_updated
 RoomMovedEvent roomMovedFromProto(const proto::RoomInfo &in); // moved
 
-ChatMessageReceivedEvent fromProto(const proto::ChatMessageReceived &in);
-
 // --------- room options conversions ---------
 
 proto::AudioEncoding toProto(const AudioEncodingOptions &in);
@@ -86,9 +83,6 @@ TrackPublishOptions fromProto(const proto::TrackPublishOptions &in);
 
 proto::TranscriptionSegment toProto(const TranscriptionSegment &in);
 TranscriptionSegment fromProto(const proto::TranscriptionSegment &in);
-
-proto::TranscriptionReceived toProto(const TranscriptionReceivedEvent &in);
-Transcription fromProto(const proto::TranscriptionReceived &in);
 
 // --------- room Data Packet conversions ---------
 
