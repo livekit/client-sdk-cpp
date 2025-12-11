@@ -56,11 +56,6 @@ AudioSource::AudioSource(int sample_rate, int num_channels, int queue_size_ms)
   handle_ = FfiHandle(static_cast<uintptr_t>(source_info.handle().id()));
 }
 
-AudioSource::~AudioSource() {
-  // Let FfiHandle::~FfiHandle() drop the native handle.
-  // If you later add an explicit "dispose" request, you can send it here.
-}
-
 double AudioSource::queuedDuration() const noexcept {
   if (last_capture_ == 0.0) {
     return 0.0;

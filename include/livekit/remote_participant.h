@@ -28,7 +28,7 @@ class RemoteTrackPublication;
 
 class RemoteParticipant : public Participant {
 public:
-  using TrackPublicationMap =
+  using PublicationMap =
       std::unordered_map<std::string, std::shared_ptr<RemoteTrackPublication>>;
 
   RemoteParticipant(FfiHandle handle, std::string sid, std::string name,
@@ -37,20 +37,27 @@ public:
                     ParticipantKind kind, DisconnectReason reason);
 
   // A dictionary of track publications associated with the participant.
-  const TrackPublicationMap &track_publications() const noexcept {
+  const PublicationMap &trackPublications() const noexcept {
     return track_publications_;
   }
 
   // Optional: non-const access if you want to mutate in-place.
-  TrackPublicationMap &mutable_track_publications() noexcept {
+  PublicationMap &mutableTrackPublications() noexcept {
     return track_publications_;
   }
 
   // C++ equivalent of Python's __repr__
   std::string to_string() const;
 
+protected:
+  // Called by Room events like kTrackMuted. This is internal plumbing and not
+  // intended to be called directly by SDK users.
+  std::shared_ptr<TrackPublication>
+  findTrackPublication(const std::string &sid) const override;
+  friend class Room;
+
 private:
-  TrackPublicationMap track_publications_;
+  PublicationMap track_publications_;
 };
 
 // Convenience for logging / streaming

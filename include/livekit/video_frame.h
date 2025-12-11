@@ -61,6 +61,7 @@ public:
   LKVideoFrame();
   LKVideoFrame(int width, int height, VideoBufferType type,
                std::vector<std::uint8_t> data);
+  virtual ~LKVideoFrame() = default;
 
   LKVideoFrame(const LKVideoFrame &) = delete;
   LKVideoFrame &operator=(const LKVideoFrame &) = delete;

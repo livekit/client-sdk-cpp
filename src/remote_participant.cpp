@@ -20,6 +20,8 @@
 #include <sstream>
 #include <utility>
 
+#include "livekit/remote_track_publication.h"
+
 namespace livekit {
 
 RemoteParticipant::RemoteParticipant(
@@ -43,6 +45,15 @@ std::ostream &operator<<(std::ostream &os,
                          const RemoteParticipant &participant) {
   os << participant.to_string();
   return os;
+}
+
+std::shared_ptr<TrackPublication>
+RemoteParticipant::findTrackPublication(const std::string &sid) const {
+  auto it = track_publications_.find(sid);
+  if (it == track_publications_.end()) {
+    return nullptr;
+  }
+  return std::static_pointer_cast<TrackPublication>(it->second);
 }
 
 } // namespace livekit

@@ -43,6 +43,7 @@ public:
   AudioFrame(std::vector<std::int16_t> data, int sample_rate, int num_channels,
              int samples_per_channel);
   AudioFrame(); // Default constructor
+  virtual ~AudioFrame() = default;
 
   /**
    * Create a new zero-initialized AudioFrame instance.

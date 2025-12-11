@@ -62,6 +62,7 @@ public:
   std::uint32_t height() const noexcept { return height_; }
   const std::string &mimeType() const noexcept { return mime_type_; }
   bool muted() const noexcept { return muted_; }
+  void setMuted(bool muted) noexcept { muted_ = muted; }
 
   EncryptionType encryptionType() const noexcept { return encryption_type_; }
   const std::vector<AudioTrackFeature> &audioFeatures() const noexcept {
@@ -74,7 +75,6 @@ public:
   /// Associated Track (if attached).
   std::shared_ptr<Track> track() const noexcept { return track_; }
   void setTrack(const std::shared_ptr<Track> &track) noexcept {
-    std::cout << "track_ is null " << (track_.get() == nullptr) << std::endl;
     track_ = track;
   }
 

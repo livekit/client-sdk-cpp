@@ -19,7 +19,7 @@
 
 #include "livekit/ffi_client.h"
 #include "livekit/ffi_handle.h"
-#include "livekit/room_delegate.h"
+#include "livekit/room_event_types.h"
 #include <memory>
 #include <mutex>
 
@@ -185,6 +185,7 @@ private:
   std::unique_ptr<LocalParticipant> local_participant_;
   std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>>
       remote_participants_;
+  ConnectionState connection_state_ = ConnectionState::Disconnected;
 
   void OnEvent(const proto::FfiEvent &event);
 };

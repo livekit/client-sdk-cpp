@@ -62,34 +62,12 @@ DataPacketKind toDataPacketKind(proto::DataPacketKind in) {
   }
 }
 
-EncryptionState toEncryptionState(proto::EncryptionState /*in*/) {
-  // TODO: fill out once you have the proto::EncryptionState enum
-  return EncryptionState::Unknown;
-}
-
 DisconnectReason toDisconnectReason(proto::DisconnectReason /*in*/) {
   // TODO: map each proto::DisconnectReason to your DisconnectReason enum
   return DisconnectReason::Unknown;
 }
 
 // --------- basic helper conversions ---------
-
-ChatMessageData fromProto(const proto::ChatMessage &in) {
-  ChatMessageData out;
-  out.id = in.id();
-  out.timestamp = in.timestamp();
-  out.message = in.message();
-  if (in.has_edit_timestamp()) {
-    out.edit_timestamp = in.edit_timestamp();
-  }
-  if (in.has_deleted()) {
-    out.deleted = in.deleted();
-  }
-  if (in.has_generated()) {
-    out.generated = in.generated();
-  }
-  return out;
-}
 
 UserPacketData fromProto(const proto::UserPacket &in) {
   UserPacketData out;
@@ -216,171 +194,9 @@ DataStreamTrailerData fromProto(const proto::DataStream_Trailer &in) {
 
 // --------- event conversions ---------
 
-ParticipantConnectedEvent fromProto(const proto::ParticipantConnected &in) {
-  ParticipantConnectedEvent ev;
-  const auto &pinfo = in.info().info();
-  ev.identity = pinfo.identity();
-  ev.name = pinfo.name();
-  ev.metadata = pinfo.metadata();
-  return ev;
-}
-
-ParticipantDisconnectedEvent
-fromProto(const proto::ParticipantDisconnected &in) {
-  ParticipantDisconnectedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.reason = toDisconnectReason(in.disconnect_reason());
-  return ev;
-}
-
-LocalTrackPublishedEvent fromProto(const proto::LocalTrackPublished &in) {
-  LocalTrackPublishedEvent ev;
-  ev.track_sid = in.track_sid();
-  return ev;
-}
-
-LocalTrackUnpublishedEvent fromProto(const proto::LocalTrackUnpublished &in) {
-  LocalTrackUnpublishedEvent ev;
-  ev.publication_sid = in.publication_sid();
-  return ev;
-}
-
-LocalTrackSubscribedEvent fromProto(const proto::LocalTrackSubscribed &in) {
-  LocalTrackSubscribedEvent ev;
-  ev.track_sid = in.track_sid();
-  return ev;
-}
-
-TrackPublishedEvent fromProto(const proto::TrackPublished &in) {
-  TrackPublishedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  // OwnedTrackPublication publication = 2;
-  // TODO: map publication info once you inspect OwnedTrackPublication
-  // ev.publication_sid = in.publication().info().sid();
-  // ev.track_name      = in.publication().info().name();
-  // ev.track_kind      = ...;
-  // ev.track_source    = ...;
-  return ev;
-}
-
-TrackUnpublishedEvent fromProto(const proto::TrackUnpublished &in) {
-  TrackUnpublishedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.publication_sid = in.publication_sid();
-  return ev;
-}
-
-TrackUnsubscribedEvent fromProto(const proto::TrackUnsubscribed &in) {
-  TrackUnsubscribedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.track_sid = in.track_sid();
-  return ev;
-}
-
-TrackSubscriptionFailedEvent
-fromProto(const proto::TrackSubscriptionFailed &in) {
-  TrackSubscriptionFailedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.track_sid = in.track_sid();
-  ev.error = in.error();
-  return ev;
-}
-
-TrackMutedEvent fromProto(const proto::TrackMuted &in) {
-  TrackMutedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.track_sid = in.track_sid();
-  return ev;
-}
-
-TrackUnmutedEvent fromProto(const proto::TrackUnmuted &in) {
-  TrackUnmutedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.track_sid = in.track_sid();
-  return ev;
-}
-
-ActiveSpeakersChangedEvent fromProto(const proto::ActiveSpeakersChanged &in) {
-  ActiveSpeakersChangedEvent ev;
-  for (const auto &id : in.participant_identities()) {
-    ev.participant_identities.push_back(id);
-  }
-  return ev;
-}
-
-RoomMetadataChangedEvent fromProto(const proto::RoomMetadataChanged &in) {
-  RoomMetadataChangedEvent ev;
-  ev.metadata = in.metadata();
-  return ev;
-}
-
 RoomSidChangedEvent fromProto(const proto::RoomSidChanged &in) {
   RoomSidChangedEvent ev;
   ev.sid = in.sid();
-  return ev;
-}
-
-ParticipantMetadataChangedEvent
-fromProto(const proto::ParticipantMetadataChanged &in) {
-  ParticipantMetadataChangedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.metadata = in.metadata();
-  return ev;
-}
-
-ParticipantNameChangedEvent fromProto(const proto::ParticipantNameChanged &in) {
-  ParticipantNameChangedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.name = in.name();
-  return ev;
-}
-
-ParticipantAttributesChangedEvent
-fromProto(const proto::ParticipantAttributesChanged &in) {
-  ParticipantAttributesChangedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  for (const auto &a : in.attributes()) {
-    ev.attributes.push_back(fromProto(a));
-  }
-  for (const auto &a : in.changed_attributes()) {
-    ev.changed_attributes.push_back(fromProto(a));
-  }
-  return ev;
-}
-
-ParticipantEncryptionStatusChangedEvent
-fromProto(const proto::ParticipantEncryptionStatusChanged &in) {
-  ParticipantEncryptionStatusChangedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.is_encrypted = in.is_encrypted();
-  return ev;
-}
-
-ConnectionQualityChangedEvent
-fromProto(const proto::ConnectionQualityChanged &in) {
-  ConnectionQualityChangedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.quality = toConnectionQuality(in.quality());
-  return ev;
-}
-
-DataPacketReceivedEvent fromProto(const proto::DataPacketReceived &in) {
-  DataPacketReceivedEvent ev;
-  ev.kind = toDataPacketKind(in.kind());
-  ev.participant_identity = in.participant_identity();
-
-  switch (in.value_case()) {
-  case proto::DataPacketReceived::kUser:
-    ev.user = fromProto(in.user());
-    break;
-  case proto::DataPacketReceived::kSipDtmf:
-    ev.sip_dtmf = fromProto(in.sip_dtmf());
-    break;
-  case proto::DataPacketReceived::VALUE_NOT_SET:
-  default:
-    break;
-  }
-
   return ev;
 }
 
@@ -463,30 +279,6 @@ RoomUpdatedEvent roomUpdatedFromProto(const proto::RoomInfo &in) {
 RoomMovedEvent roomMovedFromProto(const proto::RoomInfo &in) {
   RoomMovedEvent ev;
   ev.info = fromProto(in);
-  return ev;
-}
-
-ParticipantsUpdatedEvent fromProto(const proto::ParticipantsUpdated &in) {
-  ParticipantsUpdatedEvent ev;
-  // We only know that it has ParticipantInfo participants = 1;
-  // TODO: fill real identities once you inspect proto::ParticipantInfo
-  for (const auto &p : in.participants()) {
-    ev.participant_identities.push_back(p.identity());
-  }
-  return ev;
-}
-
-E2eeStateChangedEvent fromProto(const proto::E2eeStateChanged &in) {
-  E2eeStateChangedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.state = toEncryptionState(in.state());
-  return ev;
-}
-
-ChatMessageReceivedEvent fromProto(const proto::ChatMessageReceived &in) {
-  ChatMessageReceivedEvent ev;
-  ev.message = fromProto(in.message());
-  ev.participant_identity = in.participant_identity();
   return ev;
 }
 
@@ -604,34 +396,34 @@ TranscriptionSegment fromProto(const proto::TranscriptionSegment &in) {
   return out;
 }
 
-proto::TranscriptionReceived toProto(const Transcription &in) {
-  proto::TranscriptionReceived msg;
-  if (in.participant_identity) {
-    msg.set_participant_identity(*in.participant_identity);
+UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived &in,
+                                            RemoteParticipant *participant) {
+  UserDataPacketEvent ev;
+  ev.kind = static_cast<DataPacketKind>(in.kind());
+  ev.participant = participant;
+  ev.topic = in.user().topic();
+
+  // Copy bytes
+  const auto &owned = in.user().data();
+  const auto &info = owned.data();
+  if (info.data_ptr() != 0 && info.data_len() > 0) {
+    auto ptr = reinterpret_cast<const std::uint8_t *>(info.data_ptr());
+    auto len = static_cast<std::size_t>(info.data_len());
+    ev.data.assign(ptr, ptr + len);
+  } else {
+    ev.data.clear();
   }
-  if (in.track_sid) {
-    msg.set_track_sid(*in.track_sid);
-  }
-  for (const auto &seg : in.segments) {
-    auto *pseg = msg.add_segments();
-    pseg->CopyFrom(toProto(seg));
-  }
-  return msg;
+
+  return ev;
 }
 
-Transcription fromProto(const proto::TranscriptionReceived &in) {
-  Transcription out;
-  if (in.has_participant_identity()) {
-    out.participant_identity = in.participant_identity();
-  }
-  if (in.has_track_sid()) {
-    out.track_sid = in.track_sid();
-  }
-  out.segments.reserve(in.segments_size());
-  for (const auto &pseg : in.segments()) {
-    out.segments.push_back(fromProto(pseg));
-  }
-  return out;
+SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived &in,
+                                      RemoteParticipant *participant) {
+  SipDtmfReceivedEvent ev;
+  ev.participant = participant;
+  ev.code = in.sip_dtmf().code();
+  ev.digit = in.sip_dtmf().digit();
+  return ev;
 }
 
 } // namespace livekit

@@ -85,7 +85,7 @@ public:
                                                       TrackSource track_source,
                                                       const Options &options);
 
-  ~AudioStream();
+  virtual ~AudioStream();
 
   /// No copy, assignment constructors.
   AudioStream(const AudioStream &) = delete;

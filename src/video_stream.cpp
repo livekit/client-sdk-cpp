@@ -86,7 +86,6 @@ bool VideoStream::read(VideoFrameEvent &out) {
 }
 
 void VideoStream::close() {
-  std::cout << "VideoSream::close() \n";
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (closed_) {
@@ -211,17 +210,14 @@ void VideoStream::pushFrame(VideoFrameEvent &&ev) {
 }
 
 void VideoStream::pushEos() {
-  std::cout << "pushEos 1" << std::endl;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (eof_) {
-      std::cout << "pushEos 2" << std::endl;
       return;
     }
     eof_ = true;
   }
   cv_.notify_all();
-  std::cout << "pushEos 3" << std::endl;
 }
 
 } // namespace livekit
