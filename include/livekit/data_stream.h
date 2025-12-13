@@ -31,8 +31,10 @@ namespace livekit {
 
 class LocalParticipant;
 
-// Same size as Python STREAM_CHUNK_SIZE
-constexpr std::size_t kStreamChunkSize = 15'000;
+// Chunk size for data streams (matches Python STREAM_CHUNK_SIZE).
+// Chosen to balance throughput and latency, and to work well with WebRTC data
+// channels.
+constexpr std::size_t kStreamChunkSize = 15'000; // 15 KB
 
 /// Base metadata for any stream (text or bytes).
 struct BaseStreamInfo {
@@ -67,11 +69,9 @@ struct ByteStreamInfo : BaseStreamInfo {
   std::string name;
 };
 
-// ---------------------------------------------------------------------
 // Readers
 //   - TextStreamReader: yields UTF-8 text chunks (std::string)
 //   - ByteStreamReader: yields raw bytes (std::vector<uint8_t>)
-// ---------------------------------------------------------------------
 
 /// Reader for incoming text streams.
 /// Created internally by the SDK when a text stream header is received.
@@ -148,10 +148,6 @@ private:
   std::mutex mutex_;
   std::condition_variable cv_;
 };
-
-// ---------------------------------------------------------------------
-// Writers (sync API mirroring Python BaseStreamWriter/TextStreamWriter)
-// ---------------------------------------------------------------------
 
 /// Base class for sending data streams.
 /// Concrete subclasses are TextStreamWriter and ByteStreamWriter.

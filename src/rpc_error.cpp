@@ -58,7 +58,6 @@ RpcError RpcError::builtIn(ErrorCode code, const std::string &data) {
 }
 
 const char *RpcError::defaultMessageFor(ErrorCode code) {
-  // Mirror Python RpcError.ErrorMessage mapping.
   switch (code) {
   case ErrorCode::APPLICATION_ERROR:
     return "Application error in method handler";

@@ -40,7 +40,7 @@ class RpcError;
 class RpcError : public std::runtime_error {
 public:
   /**
-   * Built-in error codes, mirroring the Python RpcError.ErrorCode enum.
+   * Built-in error codes
    */
   enum class ErrorCode : std::uint32_t {
     APPLICATION_ERROR = 1500,
@@ -97,7 +97,7 @@ public:
 
   /**
    * Create a built-in RpcError using a predefined ErrorCode and default
-   * message text that matches the Python RpcError.ErrorMessage table.
+   * message text.
    *
    * @param code  Built-in error code.
    * @param data  Optional extra data payload (JSON recommended).

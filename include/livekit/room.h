@@ -36,7 +36,6 @@ class LocalParticipant;
 class RemoteParticipant;
 
 /// Represents end-to-end encryption (E2EE) settings.
-/// Mirrors python sdk: `E2EEOptions`
 struct E2EEOptions {
   // Encryption algorithm type.
   int encryption_type = 0;
@@ -55,7 +54,6 @@ struct E2EEOptions {
 };
 
 // Represents a single ICE server configuration.
-// Mirrors python: RtcConfiguration.ice_servers[*]
 struct IceServer {
   // TURN/STUN server URL (e.g. "stun:stun.l.google.com:19302").
   std::string url;
@@ -68,7 +66,6 @@ struct IceServer {
 };
 
 // WebRTC configuration (ICE, transport, etc.).
-// Mirrors python: `RtcConfiguration`
 struct RtcConfig {
   // ICE transport type (e.g., ALL, RELAY). Maps to proto::IceTransportType.
   int ice_transport_type = 0;
@@ -82,7 +79,6 @@ struct RtcConfig {
 };
 
 // Top-level room connection options.
-// Mirrors python: `RoomOptions`
 struct RoomOptions {
   // If true (default), automatically subscribe to all remote tracks.
   // This is CRITICAL. Without auto_subscribe, you will never receive:
@@ -195,7 +191,7 @@ public:
    * Notes:
    *   - Only one handler may be registered per topic.
    *   - If no handler is registered for a topic, incoming streams with that
-   *     topic are ignored (mirrors Python SDK behavior).
+   *     topic are ignored.
    *   - The handler is invoked on the Room event thread. The handler must
    *     not block; spawn a background thread if synchronous reading is
    *     required.

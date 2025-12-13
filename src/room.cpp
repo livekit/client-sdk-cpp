@@ -122,7 +122,7 @@ bool Room::Connect(const std::string &url, const std::string &token,
       for (const auto &pt : participants) {
         const auto &owned = pt.participant();
         auto rp = createRemoteParticipant(owned);
-        // Add the initial remote participant tracks (like Python does)
+        // Add the initial remote participant tracks
         for (const auto &owned_publication_info : pt.publications()) {
           auto publication =
               std::make_shared<RemoteTrackPublication>(owned_publication_info);
@@ -969,7 +969,7 @@ void Room::OnEvent(const FfiEvent &event) {
         if (stream_type == proto::DataStream::Header::kTextHeader) {
           auto it = text_stream_handlers_.find(header.topic());
           if (it == text_stream_handlers_.end()) {
-            // Match Python: ignore if no callback attached
+            // Ignore if no callback attached
             break;
           }
           text_cb = it->second;
@@ -1020,7 +1020,7 @@ void Room::OnEvent(const FfiEvent &event) {
         }
       }
       if (text_reader) {
-        // chunk.content() is bytes; treat as UTF-8 string (Python: .decode())
+        // chunk.content() is bytes; treat as UTF-8 string.
         text_reader->onChunkUpdate(chunk.content());
       } else if (byte_reader) {
         // Convert string bytes -> vector<uint8_t>

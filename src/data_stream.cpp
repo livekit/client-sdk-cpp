@@ -29,7 +29,6 @@ std::string generateRandomId(std::size_t bytes = 16) {
 }
 
 // Split UTF-8 string into chunks of at most max_bytes, not breaking codepoints.
-// Mimics Python split_utf8 helper.
 std::vector<std::string> splitUtf8(const std::string &s,
                                    std::size_t max_bytes) {
   std::vector<std::string> result;
@@ -67,14 +66,6 @@ std::vector<std::string> splitUtf8(const std::string &s,
   }
 
   return result;
-}
-
-std::map<std::string, std::string>
-toMap(const google::protobuf::Map<std::string, std::string> &m) {
-  std::map<std::string, std::string> out;
-  for (const auto &kv : m)
-    out.emplace(kv.first, kv.second);
-  return out;
 }
 
 void fillBaseInfo(BaseStreamInfo &dst, const std::string &stream_id,

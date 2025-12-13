@@ -187,7 +187,7 @@ void handleWelcomeImage(std::shared_ptr<livekit::ByteStreamReader> reader,
 } // namespace
 
 int main(int argc, char *argv[]) {
-  // Get URL and token from env, like the Python example
+  // Get URL and token from env.
   std::string url = getenvOrEmpty("LIVEKIT_URL");
   std::string token = getenvOrEmpty("LIVEKIT_TOKEN");
 
