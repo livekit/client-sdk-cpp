@@ -25,6 +25,8 @@ namespace livekit {
 
 enum class RpcErrorCode;
 class RemoteParticipant;
+struct ByteStreamInfo;
+struct TextStreamInfo;
 
 // --------- basic helper conversions ---------
 
@@ -79,11 +81,6 @@ VideoEncodingOptions fromProto(const proto::VideoEncoding &in);
 proto::TrackPublishOptions toProto(const TrackPublishOptions &in);
 TrackPublishOptions fromProto(const proto::TrackPublishOptions &in);
 
-// --------- room transcription conversions ---------
-
-proto::TranscriptionSegment toProto(const TranscriptionSegment &in);
-TranscriptionSegment fromProto(const proto::TranscriptionSegment &in);
-
 // --------- room Data Packet conversions ---------
 
 UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived &in,
@@ -91,5 +88,11 @@ UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived &in,
 
 SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived &in,
                                       RemoteParticipant *participant);
+
+// --------- room Data Stream conversions ---------
+std::map<std::string, std::string>
+toAttrMap(const proto::DataStream::Trailer &trailer);
+ByteStreamInfo makeByteInfo(const proto::DataStream::Header &header);
+TextStreamInfo makeTextInfo(const proto::DataStream::Header &header);
 
 } // namespace livekit

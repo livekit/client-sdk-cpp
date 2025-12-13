@@ -85,7 +85,7 @@ public:
   /// Duration in seconds (samples_per_channel / sample_rate).
   double duration() const noexcept;
 
-  /// A human-readable description (like Python __repr__).
+  /// A human-readable description.
   std::string to_string() const;
 
 private:

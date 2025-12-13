@@ -46,7 +46,6 @@ public:
     return track_publications_;
   }
 
-  // C++ equivalent of Python's __repr__
   std::string to_string() const;
 
 protected:

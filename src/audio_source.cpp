@@ -128,16 +128,4 @@ void AudioSource::captureFrame(const AudioFrame &frame, int timeout_ms) {
   }
 }
 
-void AudioSource::waitForPlayout() const {
-  // Python uses a future + event loop timer that fires after q_size.
-  // Here we approximate that by simply sleeping for the current queued
-  // duration.
-  double dur = queuedDuration();
-  if (dur <= 0.0) {
-    return;
-  }
-
-  std::this_thread::sleep_for(std::chrono::duration<double>(dur));
-}
-
 } // namespace livekit

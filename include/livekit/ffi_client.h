@@ -25,6 +25,7 @@
 #include <unordered_map>
 
 #include "livekit/stats.h"
+#include "room.pb.h"
 
 namespace livekit {
 
@@ -35,7 +36,8 @@ class FfiEvent;
 class FfiResponse;
 class FfiRequest;
 class OwnedTrackPublication;
-class TranscriptionSegment;
+class DataStream;
+
 } // namespace proto
 
 struct RoomOptions;
@@ -97,10 +99,6 @@ public:
                    bool reliable,
                    const std::vector<std::string> &destination_identities,
                    const std::string &topic);
-  std::future<void> publishTranscriptionAsync(
-      std::uint64_t local_participant_handle,
-      const std::string &participant_identity, const std::string &track_id,
-      const std::vector<proto::TranscriptionSegment> &segments);
   std::future<void>
   publishSipDtmfAsync(std::uint64_t local_participant_handle,
                       std::uint32_t code, const std::string &digit,
@@ -116,6 +114,22 @@ public:
       const std::string &destination_identity, const std::string &method,
       const std::string &payload,
       std::optional<std::uint32_t> response_timeout_ms = std::nullopt);
+
+  // Data stream functionalities
+  std::future<void>
+  sendStreamHeaderAsync(std::uint64_t local_participant_handle,
+                        const proto::DataStream::Header &header,
+                        const std::vector<std::string> &destination_identities,
+                        const std::string &sender_identity);
+  std::future<void>
+  sendStreamChunkAsync(std::uint64_t local_participant_handle,
+                       const proto::DataStream::Chunk &chunk,
+                       const std::vector<std::string> &destination_identities,
+                       const std::string &sender_identity);
+  std::future<void>
+  sendStreamTrailerAsync(std::uint64_t local_participant_handle,
+                         const proto::DataStream::Trailer &trailer,
+                         const std::string &sender_identity);
 
   // Generic function for sending a request to the Rust FFI.
   // Note: For asynchronous requests, use the dedicated async functions instead

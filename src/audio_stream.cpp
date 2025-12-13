@@ -212,10 +212,6 @@ void AudioStream::onFfiEvent(const FfiEvent &event) {
   }
   if (ase.has_frame_received()) {
     const auto &fr = ase.frame_received();
-
-    // Convert owned buffer -> AudioFrame via helper.
-    // Implement AudioFrame::fromOwnedInfo(...) to mirror Python's
-    // AudioFrame._from_owned_info.
     AudioFrame frame = AudioFrame::fromOwnedInfo(fr.frame());
     AudioFrameEvent ev{std::move(frame)};
     pushFrame(std::move(ev));

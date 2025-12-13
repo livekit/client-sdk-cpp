@@ -89,6 +89,40 @@ The caller will automatically:
 - Print round-trip times
 - Annotate expected successes or expected failures
 
+### SimpleDataStream
+- The SimpleDataStream example demonstrates how to:
+- Connect multiple participants to the same LiveKit room
+- Register text stream and byte stream handlers by topic (e.g. "chat", "files")
+- Send a text stream (chat message) from one participant to another
+- Send a byte stream (file/image) from one participant to another
+- Attach custom stream metadata (e.g. sent_ms) via stream attributes
+- Measure and print one-way latency on the receiver using sender timestamps
+- Receive streamed chunks and reconstruct the full payload on the receiver
+
+#### 🔑 Generate Tokens
+Before running any participant, create JWT tokens with caller and greeter identities and your room name.
+```bash
+lk token create -r test -i caller  --join --valid-for 99999h --dev --room=your_own_room
+lk token create -r test -i greeter --join --valid-for 99999h --dev --room=your_own_room
+```
+
+#### ▶ Start Participants
+Start the receiver first (so it registers stream handlers before messages arrive):
+```bash
+./build/examples/SimpleDataStream --url $URL --token <jwt-token> 
+```
+On another terminal or computer, start the sender
+```bash
+./build/examples/SimpleDataStream --url $URL --token <jwt-token> 
+```
+
+**Sender** (e.g. greeter)
+- Waits for the peer, then sends a text stream ("chat") and a file stream ("files") with timestamps and metadata, logging stream IDs and send times.
+
+**Receiver** (e.g. caller)
+- Registers handlers for text and file streams, logs stream events, computes one-way latency, and saves the received file locally.
+
+
 ##  🧰 Recommended Setup
 ### macOS
 ```bash

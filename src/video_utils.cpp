@@ -92,7 +92,7 @@ proto::VideoBufferInfo toProto(const LKVideoFrame &frame) {
     cmpt->set_size(plane.size);
   }
 
-  // Stride for main packed formats (matches Python logic)
+  // Stride for main packed formats.
   std::uint32_t stride = 0;
   switch (frame.type()) {
   case VideoBufferType::ARGB:
