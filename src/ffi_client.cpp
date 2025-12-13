@@ -378,40 +378,6 @@ std::future<void> FfiClient::publishDataAsync(
       });
 }
 
-std::future<void> FfiClient::publishTranscriptionAsync(
-    std::uint64_t local_participant_handle,
-    const std::string &participant_identity, const std::string &track_id,
-    const std::vector<proto::TranscriptionSegment> &segments) {
-  proto::FfiRequest req;
-  auto *msg = req.mutable_publish_transcription();
-  msg->set_local_participant_handle(local_participant_handle);
-  msg->set_participant_identity(participant_identity);
-  msg->set_track_id(track_id);
-  for (const auto &seg : segments) {
-    auto *dst = msg->add_segments();
-    dst->CopyFrom(seg);
-  }
-  proto::FfiResponse resp = sendRequest(req);
-  if (!resp.has_publish_transcription()) {
-    throw std::runtime_error("FfiResponse missing publish_transcription");
-  }
-  const AsyncId async_id = resp.publish_transcription().async_id();
-  return registerAsync<void>(
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_publish_transcription() &&
-               event.publish_transcription().async_id() == async_id;
-      },
-      [](const proto::FfiEvent &event, std::promise<void> &pr) {
-        const auto &cb = event.publish_transcription();
-        if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
-          return;
-        }
-        pr.set_value();
-      });
-}
-
 std::future<void> FfiClient::publishSipDtmfAsync(
     std::uint64_t local_participant_handle, std::uint32_t code,
     const std::string &digit,
@@ -542,6 +508,109 @@ FfiClient::performRpcAsync(std::uint64_t local_participant_handle,
           return;
         }
         pr.set_value(cb.payload());
+      });
+}
+
+std::future<void> FfiClient::sendStreamHeaderAsync(
+    std::uint64_t local_participant_handle,
+    const proto::DataStream::Header &header,
+    const std::vector<std::string> &destination_identities,
+    const std::string &sender_identity) {
+  proto::FfiRequest req;
+  auto *msg = req.mutable_send_stream_header();
+  msg->set_local_participant_handle(local_participant_handle);
+  *msg->mutable_header() = header;
+  msg->set_sender_identity(sender_identity);
+  for (const auto &id : destination_identities) {
+    msg->add_destination_identities(id);
+  }
+
+  proto::FfiResponse resp = sendRequest(req);
+  if (!resp.has_send_stream_header()) {
+    throw std::runtime_error("FfiResponse missing send_stream_header");
+  }
+  const AsyncId async_id = resp.send_stream_header().async_id();
+
+  return registerAsync<void>(
+      [async_id](const proto::FfiEvent &e) {
+        return e.has_send_stream_header() &&
+               e.send_stream_header().async_id() == async_id;
+      },
+      [](const proto::FfiEvent &e, std::promise<void> &pr) {
+        const auto &cb = e.send_stream_header();
+        if (!cb.error().empty()) {
+          pr.set_exception(
+              std::make_exception_ptr(std::runtime_error(cb.error())));
+          return;
+        }
+        pr.set_value();
+      });
+}
+
+std::future<void> FfiClient::sendStreamChunkAsync(
+    std::uint64_t local_participant_handle,
+    const proto::DataStream::Chunk &chunk,
+    const std::vector<std::string> &destination_identities,
+    const std::string &sender_identity) {
+  proto::FfiRequest req;
+  auto *msg = req.mutable_send_stream_chunk();
+  msg->set_local_participant_handle(local_participant_handle);
+  *msg->mutable_chunk() = chunk;
+  msg->set_sender_identity(sender_identity);
+  for (const auto &id : destination_identities) {
+    msg->add_destination_identities(id);
+  }
+
+  proto::FfiResponse resp = sendRequest(req);
+  if (!resp.has_send_stream_chunk()) {
+    throw std::runtime_error("FfiResponse missing send_stream_chunk");
+  }
+  const AsyncId async_id = resp.send_stream_chunk().async_id();
+  return registerAsync<void>(
+      [async_id](const proto::FfiEvent &e) {
+        return e.has_send_stream_chunk() &&
+               e.send_stream_chunk().async_id() == async_id;
+      },
+      [](const proto::FfiEvent &e, std::promise<void> &pr) {
+        const auto &cb = e.send_stream_chunk();
+        if (!cb.error().empty()) {
+          pr.set_exception(
+              std::make_exception_ptr(std::runtime_error(cb.error())));
+          return;
+        }
+        pr.set_value();
+      });
+}
+
+std::future<void>
+FfiClient::sendStreamTrailerAsync(std::uint64_t local_participant_handle,
+                                  const proto::DataStream::Trailer &trailer,
+                                  const std::string &sender_identity) {
+  proto::FfiRequest req;
+  auto *msg = req.mutable_send_stream_trailer();
+  msg->set_local_participant_handle(local_participant_handle);
+  *msg->mutable_trailer() = trailer;
+  msg->set_sender_identity(sender_identity);
+
+  proto::FfiResponse resp = sendRequest(req);
+  if (!resp.has_send_stream_trailer()) {
+    throw std::runtime_error("FfiResponse missing send_stream_trailer");
+  }
+  const AsyncId async_id = resp.send_stream_trailer().async_id();
+
+  return registerAsync<void>(
+      [async_id](const proto::FfiEvent &e) {
+        return e.has_send_stream_trailer() &&
+               e.send_stream_trailer().async_id() == async_id;
+      },
+      [](const proto::FfiEvent &e, std::promise<void> &pr) {
+        const auto &cb = e.send_stream_trailer();
+        if (!cb.error().empty()) {
+          pr.set_exception(
+              std::make_exception_ptr(std::runtime_error(cb.error())));
+          return;
+        }
+        pr.set_value();
       });
 }
 

@@ -84,35 +84,6 @@ void LocalParticipant::publishDtmf(int code, const std::string &digit) {
   fut.get();
 }
 
-void LocalParticipant::publishTranscription(
-    const Transcription &transcription) {
-  auto handle_id = ffiHandleId();
-  if (handle_id == 0) {
-    throw std::runtime_error(
-        "LocalParticipant::publishTranscription: invalid FFI handle");
-  }
-
-  std::vector<proto::TranscriptionSegment> segs;
-  segs.reserve(transcription.segments.size());
-  for (const auto &seg : transcription.segments) {
-    segs.push_back(toProto(seg));
-  }
-
-  // Handle optional participant_identity / track_sid
-  const std::string participant_identity =
-      transcription.participant_identity.has_value()
-          ? *transcription.participant_identity
-          : std::string{};
-  const std::string track_sid = transcription.track_sid.has_value()
-                                    ? *transcription.track_sid
-                                    : std::string{};
-  // Call async API and block until completion
-  auto fut = FfiClient::instance().publishTranscriptionAsync(
-      static_cast<std::uint64_t>(handle_id), participant_identity, track_sid,
-      segs);
-  fut.get();
-}
-
 void LocalParticipant::setMetadata(const std::string &metadata) {
   auto handle_id = ffiHandleId();
   if (handle_id == 0) {

@@ -72,7 +72,7 @@ bool waitForParticipant(Room &room, const std::string &identity,
   auto start = std::chrono::steady_clock::now();
 
   while (std::chrono::steady_clock::now() - start < timeout) {
-    if (room.remote_participant(identity) != nullptr) {
+    if (room.remoteParticipant(identity) != nullptr) {
       return true;
     }
     std::this_thread::sleep_for(100ms);
@@ -233,8 +233,8 @@ std::string parseStringFromJson(const std::string &json) {
 
 // RPC handler registration
 void registerReceiverMethods(Room &greeters_room, Room &math_genius_room) {
-  LocalParticipant *greeter_lp = greeters_room.local_participant();
-  LocalParticipant *math_genius_lp = math_genius_room.local_participant();
+  LocalParticipant *greeter_lp = greeters_room.localParticipant();
+  LocalParticipant *math_genius_lp = math_genius_room.localParticipant();
 
   // arrival
   greeter_lp->registerRpcMethod(
@@ -312,7 +312,7 @@ void performGreeting(Room &room) {
   std::cout << "[Caller] Letting the greeter know that I've arrived\n";
   double t0 = nowMs();
   try {
-    std::string response = room.local_participant()->performRpc(
+    std::string response = room.localParticipant()->performRpc(
         "greeter", "arrival", "Hello", std::nullopt);
     double t1 = nowMs();
     std::cout << "[Caller] RTT: " << (t1 - t0) << " ms\n";
@@ -331,7 +331,7 @@ void performSquareRoot(Room &room) {
   double t0 = nowMs();
   try {
     std::string payload = makeNumberJson("number", 16.0);
-    std::string response = room.local_participant()->performRpc(
+    std::string response = room.localParticipant()->performRpc(
         "math-genius", "square-root", payload, std::nullopt);
     double t1 = nowMs();
     std::cout << "[Caller] RTT: " << (t1 - t0) << " ms\n";
@@ -353,7 +353,7 @@ void performQuantumHyperGeometricSeries(Room &room) {
   double t0 = nowMs();
   try {
     std::string payload = makeNumberJson("number", 42.0);
-    std::string response = room.local_participant()->performRpc(
+    std::string response = room.localParticipant()->performRpc(
         "math-genius", "quantum-hypergeometric-series", payload, std::nullopt);
     double t1 = nowMs();
     std::cout << "[Caller] (Unexpected success) RTT=" << (t1 - t0) << " ms\n";
@@ -380,7 +380,7 @@ void performDivide(Room &room) {
   double t0 = nowMs();
   try {
     std::string payload = "{\"dividend\":10,\"divisor\":0}";
-    std::string response = room.local_participant()->performRpc(
+    std::string response = room.localParticipant()->performRpc(
         "math-genius", "divide", payload, std::nullopt);
     double t1 = nowMs();
     std::cout << "[Caller] (Unexpected success) RTT=" << (t1 - t0) << " ms\n";
@@ -409,7 +409,7 @@ void performLongCalculation(Room &room) {
       << "[Caller] Giving only 10s to respond. EXPECTED RESULT: TIMEOUT.\n";
   double t0 = nowMs();
   try {
-    std::string response = room.local_participant()->performRpc(
+    std::string response = room.localParticipant()->performRpc(
         "math-genius", "long-calculation", "{}", 10.0);
     double t1 = nowMs();
     std::cout << "[Caller] (Unexpected success) RTT=" << (t1 - t0) << " ms\n";
