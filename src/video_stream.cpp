@@ -3,7 +3,7 @@
 #include <utility>
 
 #include "ffi.pb.h"
-#include "livekit/ffi_client.h"
+#include "ffi_client.h"
 #include "livekit/track.h"
 #include "video_frame.pb.h"
 #include "video_utils.h"

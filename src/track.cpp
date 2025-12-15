@@ -16,7 +16,7 @@
 
 #include "livekit/track.h"
 
-#include "livekit/ffi_client.h"
+#include "ffi_client.h"
 #include <future>
 #include <optional>
 

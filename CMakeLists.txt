@@ -164,7 +164,6 @@ add_library(livekit
   include/livekit/room_event_types.h
   include/livekit/room_delegate.h
   include/livekit/ffi_handle.h
-  include/livekit/ffi_client.h
   include/livekit/local_audio_track.h
   include/livekit/remote_audio_track.h
   include/livekit/participant.h
@@ -188,6 +187,7 @@ add_library(livekit
   src/data_stream.cpp
   src/ffi_handle.cpp
   src/ffi_client.cpp
+  src/ffi_client.h
   src/local_audio_track.cpp
   src/remote_audio_track.cpp
   src/room.cpp

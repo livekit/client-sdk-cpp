@@ -19,7 +19,7 @@
 #include "build.h"
 #include "e2ee.pb.h"
 #include "ffi.pb.h"
-#include "livekit/ffi_client.h"
+#include "ffi_client.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h" // TODO, maybe avoid circular deps by moving RoomOptions to a room_types.h ?
 #include "livekit/rpc_error.h"

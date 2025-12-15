@@ -17,7 +17,7 @@
 #include "livekit/remote_track_publication.h"
 
 #include "ffi.pb.h"
-#include "livekit/ffi_client.h"
+#include "ffi_client.h"
 #include "livekit/track.h"
 #include "track_proto_converter.h"
 
