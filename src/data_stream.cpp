@@ -5,7 +5,7 @@
 #include <random>
 #include <stdexcept>
 
-#include "livekit/ffi_client.h"
+#include "ffi_client.h"
 #include "livekit/local_participant.h"
 #include "room.pb.h"
 

@@ -17,7 +17,6 @@
 #include "livekit/room.h"
 
 #include "livekit/audio_stream.h"
-#include "livekit/ffi_client.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
 #include "livekit/remote_audio_track.h"
@@ -29,6 +28,7 @@
 #include "livekit/video_stream.h"
 
 #include "ffi.pb.h"
+#include "ffi_client.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
 #include "track.pb.h"

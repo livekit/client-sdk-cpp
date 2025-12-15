@@ -17,8 +17,8 @@
 #ifndef LIVEKIT_ROOM_H
 #define LIVEKIT_ROOM_H
 
+#include "ffi_client.h"
 #include "livekit/data_stream.h"
-#include "livekit/ffi_client.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
 #include <memory>

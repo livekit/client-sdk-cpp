@@ -17,7 +17,7 @@
 #include "livekit/remote_video_track.h"
 
 #include "ffi.pb.h"
-#include "livekit/ffi_client.h"
+#include "ffi_client.h"
 #include "livekit/video_source.h"
 #include "track.pb.h"
 #include "track_proto_converter.h"

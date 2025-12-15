@@ -20,7 +20,7 @@
 
 #include "audio_frame.pb.h"
 #include "ffi.pb.h"
-#include "livekit/ffi_client.h"
+#include "ffi_client.h"
 #include "livekit/track.h"
 
 namespace livekit {

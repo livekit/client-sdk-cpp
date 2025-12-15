@@ -16,13 +16,13 @@
 
 #include "livekit/local_participant.h"
 
-#include "livekit/ffi_client.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/local_track_publication.h"
 #include "livekit/room_delegate.h"
 #include "livekit/track.h"
 
 #include "ffi.pb.h"
+#include "ffi_client.h"
 #include "participant.pb.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
