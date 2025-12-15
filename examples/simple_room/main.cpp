@@ -286,7 +286,7 @@ int main(int argc, char *argv[]) {
   try {
     // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
     // Track
-    audioPub = room.local_participant()->publishTrack(audioTrack, audioOpts);
+    audioPub = room.localParticipant()->publishTrack(audioTrack, audioOpts);
 
     std::cout << "Published track:\n"
               << "  SID: " << audioPub->sid() << "\n"
@@ -314,7 +314,7 @@ int main(int argc, char *argv[]) {
   try {
     // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
     // Track
-    videoPub = room.local_participant()->publishTrack(videoTrack, videoOpts);
+    videoPub = room.localParticipant()->publishTrack(videoTrack, videoOpts);
 
     std::cout << "Published track:\n"
               << "  SID: " << videoPub->sid() << "\n"
@@ -341,12 +341,12 @@ int main(int argc, char *argv[]) {
   media.stopMic();
 
   // Clean up the audio track publishment
-  room.local_participant()->unpublishTrack(audioPub->sid());
+  room.localParticipant()->unpublishTrack(audioPub->sid());
 
   media.stopCamera();
 
   // Clean up the video track publishment
-  room.local_participant()->unpublishTrack(videoPub->sid());
+  room.localParticipant()->unpublishTrack(videoPub->sid());
 
   FfiClient::instance().shutdown();
   std::cout << "Exiting.\n";

@@ -16,6 +16,7 @@
 
 #include "room_proto_converter.h"
 
+#include "livekit/data_stream.h"
 #include "livekit/local_participant.h"
 #include "room.pb.h"
 
@@ -374,28 +375,6 @@ TrackPublishOptions fromProto(const proto::TrackPublishOptions &in) {
   return out;
 }
 
-proto::TranscriptionSegment toProto(const TranscriptionSegment &in) {
-  proto::TranscriptionSegment msg;
-  msg.set_id(in.id);
-  msg.set_text(in.text);
-  msg.set_start_time(in.start_time);
-  msg.set_end_time(in.end_time);
-  msg.set_final(in.final);
-  msg.set_language(in.language);
-  return msg;
-}
-
-TranscriptionSegment fromProto(const proto::TranscriptionSegment &in) {
-  TranscriptionSegment out;
-  out.id = in.id();
-  out.text = in.text();
-  out.start_time = in.start_time();
-  out.end_time = in.end_time();
-  out.final = in.final();
-  out.language = in.language();
-  return out;
-}
-
 UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived &in,
                                             RemoteParticipant *participant) {
   UserDataPacketEvent ev;
@@ -424,6 +403,56 @@ SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived &in,
   ev.code = in.sip_dtmf().code();
   ev.digit = in.sip_dtmf().digit();
   return ev;
+}
+
+std::map<std::string, std::string>
+toAttrMap(const proto::DataStream::Trailer &trailer) {
+  std::map<std::string, std::string> out;
+  for (const auto &kv : trailer.attributes()) {
+    out.emplace(kv.first, kv.second);
+  }
+  return out;
+}
+
+TextStreamInfo makeTextInfo(const proto::DataStream::Header &header) {
+  TextStreamInfo info;
+  info.stream_id = header.stream_id();
+  info.mime_type = header.mime_type();
+  info.topic = header.topic();
+  info.timestamp = header.timestamp();
+
+  if (header.has_total_length()) {
+    info.size = static_cast<std::size_t>(header.total_length());
+  }
+
+  for (const auto &kv : header.attributes()) {
+    info.attributes.emplace(kv.first, kv.second);
+  }
+
+  for (const auto &id : header.text_header().attached_stream_ids()) {
+    info.attachments.push_back(id);
+  }
+
+  return info;
+}
+
+ByteStreamInfo makeByteInfo(const proto::DataStream::Header &header) {
+  ByteStreamInfo info;
+  info.stream_id = header.stream_id();
+  info.mime_type = header.mime_type();
+  info.topic = header.topic();
+  info.timestamp = header.timestamp();
+
+  if (header.has_total_length()) {
+    info.size = static_cast<std::size_t>(header.total_length());
+  }
+
+  for (const auto &kv : header.attributes()) {
+    info.attributes.emplace(kv.first, kv.second);
+  }
+
+  info.name = header.byte_header().name();
+  return info;
 }
 
 } // namespace livekit

@@ -122,7 +122,7 @@ bool Room::Connect(const std::string &url, const std::string &token,
       for (const auto &pt : participants) {
         const auto &owned = pt.participant();
         auto rp = createRemoteParticipant(owned);
-        // Add the initial remote participant tracks (like Python does)
+        // Add the initial remote participant tracks
         for (const auto &owned_publication_info : pt.publications()) {
           auto publication =
               std::make_shared<RemoteTrackPublication>(owned_publication_info);
@@ -148,15 +148,58 @@ RoomInfoData Room::room_info() const {
   return room_info_;
 }
 
-LocalParticipant *Room::local_participant() const {
+LocalParticipant *Room::localParticipant() const {
   std::lock_guard<std::mutex> g(lock_);
   return local_participant_.get();
 }
 
-RemoteParticipant *Room::remote_participant(const std::string &identity) const {
+RemoteParticipant *Room::remoteParticipant(const std::string &identity) const {
   std::lock_guard<std::mutex> g(lock_);
   auto it = remote_participants_.find(identity);
   return it == remote_participants_.end() ? nullptr : it->second.get();
+}
+
+std::vector<std::shared_ptr<RemoteParticipant>>
+Room::remoteParticipants() const {
+  std::lock_guard<std::mutex> guard(lock_);
+  std::vector<std::shared_ptr<RemoteParticipant>> out;
+  out.reserve(remote_participants_.size());
+  for (const auto &kv : remote_participants_) {
+    out.push_back(kv.second);
+  }
+  return out;
+}
+
+void Room::registerTextStreamHandler(const std::string &topic,
+                                     TextStreamHandler handler) {
+  std::lock_guard<std::mutex> g(lock_);
+  auto [it, inserted] =
+      text_stream_handlers_.emplace(topic, std::move(handler));
+  if (!inserted) {
+    throw std::runtime_error("text stream handler for topic '" + topic +
+                             "' already set");
+  }
+}
+
+void Room::unregisterTextStreamHandler(const std::string &topic) {
+  std::lock_guard<std::mutex> g(lock_);
+  text_stream_handlers_.erase(topic);
+}
+
+void Room::registerByteStreamHandler(const std::string &topic,
+                                     ByteStreamHandler handler) {
+  std::lock_guard<std::mutex> g(lock_);
+  auto [it, inserted] =
+      byte_stream_handlers_.emplace(topic, std::move(handler));
+  if (!inserted) {
+    throw std::runtime_error("byte stream handler for topic '" + topic +
+                             "' already set");
+  }
+}
+
+void Room::unregisterByteStreamHandler(const std::string &topic) {
+  std::lock_guard<std::mutex> g(lock_);
+  byte_stream_handlers_.erase(topic);
 }
 
 void Room::OnEvent(const FfiEvent &event) {
@@ -198,10 +241,6 @@ void Room::OnEvent(const FfiEvent &event) {
     return;
   }
 
-  if (!delegate_snapshot) {
-    return;
-  }
-
   switch (event.message_case()) {
   case FfiEvent::kRoomEvent: {
     const proto::RoomEvent &re = event.room_event();
@@ -218,14 +257,14 @@ void Room::OnEvent(const FfiEvent &event) {
       }
       ParticipantConnectedEvent ev;
       ev.participant = new_participant.get();
-      delegate_snapshot->onParticipantConnected(*this, ev);
-
+      if (delegate_snapshot) {
+        delegate_snapshot->onParticipantConnected(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kParticipantDisconnected: {
       std::shared_ptr<RemoteParticipant> removed;
       DisconnectReason reason = DisconnectReason::Unknown;
-
       {
         std::lock_guard<std::mutex> guard(lock_);
         const auto &pd = re.participant_disconnected();
@@ -248,7 +287,9 @@ void Room::OnEvent(const FfiEvent &event) {
         ParticipantDisconnectedEvent ev;
         ev.participant = removed.get();
         ev.reason = reason;
-        delegate_snapshot->onParticipantDisconnected(*this, ev);
+        if (delegate_snapshot) {
+          delegate_snapshot->onParticipantDisconnected(*this, ev);
+        }
       }
       break;
     }
@@ -273,7 +314,9 @@ void Room::OnEvent(const FfiEvent &event) {
         ev.publication = it->second;
         ev.track = ev.publication ? ev.publication->track() : nullptr;
       }
-      delegate_snapshot->onLocalTrackPublished(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onLocalTrackPublished(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kLocalTrackUnpublished: {
@@ -296,7 +339,9 @@ void Room::OnEvent(const FfiEvent &event) {
         }
         ev.publication = it->second;
       }
-      delegate_snapshot->onLocalTrackUnpublished(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onLocalTrackUnpublished(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kLocalTrackSubscribed: {
@@ -319,7 +364,9 @@ void Room::OnEvent(const FfiEvent &event) {
         ev.track = publication ? publication->track() : nullptr;
       }
 
-      delegate_snapshot->onLocalTrackSubscribed(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onLocalTrackSubscribed(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kTrackPublished: {
@@ -347,7 +394,9 @@ void Room::OnEvent(const FfiEvent &event) {
           break;
         }
       }
-      delegate_snapshot->onTrackPublished(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onTrackPublished(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kTrackUnpublished: {
@@ -376,7 +425,9 @@ void Room::OnEvent(const FfiEvent &event) {
         pubs.erase(it);
       }
 
-      delegate_snapshot->onTrackUnpublished(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onTrackUnpublished(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kTrackSubscribed: {
@@ -428,7 +479,9 @@ void Room::OnEvent(const FfiEvent &event) {
       ev.track = remote_track;
       ev.publication = rpublication;
       ev.participant = rparticipant;
-      delegate_snapshot->onTrackSubscribed(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onTrackSubscribed(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kTrackUnsubscribed: {
@@ -461,7 +514,9 @@ void Room::OnEvent(const FfiEvent &event) {
         ev.track = track;
       }
 
-      delegate_snapshot->onTrackUnsubscribed(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onTrackUnsubscribed(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kTrackSubscriptionFailed: {
@@ -480,7 +535,9 @@ void Room::OnEvent(const FfiEvent &event) {
         ev.track_sid = tsf.track_sid();
         ev.error = tsf.error();
       }
-      delegate_snapshot->onTrackSubscriptionFailed(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onTrackSubscriptionFailed(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kTrackMuted: {
@@ -519,7 +576,7 @@ void Room::OnEvent(const FfiEvent &event) {
           success = true;
         }
       }
-      if (success) {
+      if (success && delegate_snapshot) {
         delegate_snapshot->onTrackMuted(*this, ev);
       }
       break;
@@ -565,7 +622,7 @@ void Room::OnEvent(const FfiEvent &event) {
         ev.publication = pub;
       }
 
-      if (success) {
+      if (success && delegate_snapshot) {
         delegate_snapshot->onTrackUnmuted(*this, ev);
       }
       break;
@@ -591,7 +648,9 @@ void Room::OnEvent(const FfiEvent &event) {
           }
         }
       }
-      delegate_snapshot->onActiveSpeakersChanged(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onActiveSpeakersChanged(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kRoomMetadataChanged: {
@@ -603,7 +662,9 @@ void Room::OnEvent(const FfiEvent &event) {
         ev.old_metadata = old_metadata;
         ev.new_metadata = room_info_.metadata;
       }
-      delegate_snapshot->onRoomMetadataChanged(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onRoomMetadataChanged(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kRoomSidChanged: {
@@ -613,7 +674,9 @@ void Room::OnEvent(const FfiEvent &event) {
         room_info_.sid = re.room_sid_changed().sid();
         ev.sid = room_info_.sid.value_or(std::string{});
       }
-      delegate_snapshot->onRoomSidChanged(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onRoomSidChanged(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kParticipantMetadataChanged: {
@@ -643,7 +706,9 @@ void Room::OnEvent(const FfiEvent &event) {
         ev.new_metadata = participant->metadata();
       }
 
-      delegate_snapshot->onParticipantMetadataChanged(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onParticipantMetadataChanged(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kParticipantNameChanged: {
@@ -672,7 +737,9 @@ void Room::OnEvent(const FfiEvent &event) {
         ev.old_name = old_name;
         ev.new_name = participant->name();
       }
-      delegate_snapshot->onParticipantNameChanged(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onParticipantNameChanged(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kParticipantAttributesChanged: {
@@ -709,7 +776,9 @@ void Room::OnEvent(const FfiEvent &event) {
         }
         ev.participant = participant;
       }
-      delegate_snapshot->onParticipantAttributesChanged(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onParticipantAttributesChanged(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kParticipantEncryptionStatusChanged: {
@@ -737,7 +806,9 @@ void Room::OnEvent(const FfiEvent &event) {
         ev.is_encrypted = pe.is_encrypted();
       }
 
-      delegate_snapshot->onParticipantEncryptionStatusChanged(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onParticipantEncryptionStatusChanged(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kConnectionQualityChanged: {
@@ -764,16 +835,9 @@ void Room::OnEvent(const FfiEvent &event) {
         ev.quality = static_cast<ConnectionQuality>(cq.quality());
       }
 
-      delegate_snapshot->onConnectionQualityChanged(*this, ev);
-      break;
-    }
-
-      // ------------------------------------------------------------------------
-      // Transcription
-      // ------------------------------------------------------------------------
-
-    case proto::RoomEvent::kTranscriptionReceived: {
-      // Deprecated event, do nothing.
+      if (delegate_snapshot) {
+        delegate_snapshot->onConnectionQualityChanged(*this, ev);
+      }
       break;
     }
 
@@ -791,10 +855,11 @@ void Room::OnEvent(const FfiEvent &event) {
         }
       }
       const auto which_val = dp.value_case();
-      if (which_val == proto::DataPacketReceived::kUser) {
+      if (which_val == proto::DataPacketReceived::kUser && delegate_snapshot) {
         UserDataPacketEvent ev = userDataPacketFromProto(dp, rp);
         delegate_snapshot->onUserPacketReceived(*this, ev);
-      } else if (which_val == proto::DataPacketReceived::kSipDtmf) {
+      } else if (which_val == proto::DataPacketReceived::kSipDtmf &&
+                 delegate_snapshot) {
         SipDtmfReceivedEvent ev = sipDtmfFromProto(dp, rp);
         delegate_snapshot->onSipDtmfReceived(*this, ev);
       }
@@ -828,7 +893,9 @@ void Room::OnEvent(const FfiEvent &event) {
         ev.participant = participant;
         ev.state = static_cast<EncryptionState>(es.state());
       }
-      delegate_snapshot->onE2eeStateChanged(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onE2eeStateChanged(*this, ev);
+      }
       break;
     }
 
@@ -844,28 +911,38 @@ void Room::OnEvent(const FfiEvent &event) {
         connection_state_ = static_cast<ConnectionState>(cs.state());
         ev.state = connection_state_;
       }
-      delegate_snapshot->onConnectionStateChanged(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onConnectionStateChanged(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kDisconnected: {
       DisconnectedEvent ev;
       ev.reason = toDisconnectReason(re.disconnected().reason());
-      delegate_snapshot->onDisconnected(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onDisconnected(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kReconnecting: {
       ReconnectingEvent ev;
-      delegate_snapshot->onReconnecting(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onReconnecting(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kReconnected: {
       ReconnectedEvent ev;
-      delegate_snapshot->onReconnected(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onReconnected(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kEos: {
       RoomEosEvent ev;
-      delegate_snapshot->onRoomEos(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onRoomEos(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kChatMessage: {
@@ -873,44 +950,150 @@ void Room::OnEvent(const FfiEvent &event) {
       break;
     }
     case proto::RoomEvent::kStreamHeaderReceived: {
-      auto ev = fromProto(re.stream_header_received());
-      delegate_snapshot->onDataStreamHeaderReceived(*this, ev);
+      const auto &sh = re.stream_header_received();
+      const auto &header = sh.header();
+      const std::string &participant_identity = sh.participant_identity();
+
+      // Snapshot handler + create reader without holding lock during user
+      // callback
+      TextStreamHandler text_cb;
+      ByteStreamHandler byte_cb;
+      std::shared_ptr<TextStreamReader> text_reader;
+      std::shared_ptr<ByteStreamReader> byte_reader;
+      {
+        std::lock_guard<std::mutex> guard(lock_);
+
+        // Determine stream type from oneof in protobuf
+        // Adjust these names if your generated C++ uses different ones
+        const auto stream_type = header.content_header_case();
+        if (stream_type == proto::DataStream::Header::kTextHeader) {
+          auto it = text_stream_handlers_.find(header.topic());
+          if (it == text_stream_handlers_.end()) {
+            // Ignore if no callback attached
+            break;
+          }
+          text_cb = it->second;
+
+          TextStreamInfo info = makeTextInfo(header);
+          text_reader = std::make_shared<TextStreamReader>(info);
+          text_stream_readers_[header.stream_id()] = text_reader;
+
+        } else if (stream_type == proto::DataStream::Header::kByteHeader) {
+          auto it = byte_stream_handlers_.find(header.topic());
+          if (it == byte_stream_handlers_.end()) {
+            break;
+          }
+          byte_cb = it->second;
+          ByteStreamInfo info = makeByteInfo(header);
+          byte_reader = std::make_shared<ByteStreamReader>(info);
+          byte_stream_readers_[header.stream_id()] = byte_reader;
+
+        } else {
+          // unknown header type: ignore
+          break;
+        }
+      }
+
+      // Invoke user callback outside lock (very important)
+      if (text_reader) {
+        text_cb(text_reader, participant_identity);
+      } else if (byte_reader) {
+        byte_cb(byte_reader, participant_identity);
+      }
       break;
     }
     case proto::RoomEvent::kStreamChunkReceived: {
-      auto ev = fromProto(re.stream_chunk_received());
-      delegate_snapshot->onDataStreamChunkReceived(*this, ev);
+      const auto &sc = re.stream_chunk_received();
+      const auto &chunk = sc.chunk();
+      std::shared_ptr<TextStreamReader> text_reader;
+      std::shared_ptr<ByteStreamReader> byte_reader;
+      {
+        std::lock_guard<std::mutex> guard(lock_);
+        auto itT = text_stream_readers_.find(chunk.stream_id());
+        if (itT != text_stream_readers_.end()) {
+          text_reader = itT->second;
+        } else {
+          auto itB = byte_stream_readers_.find(chunk.stream_id());
+          if (itB != byte_stream_readers_.end()) {
+            byte_reader = itB->second;
+          }
+        }
+      }
+      if (text_reader) {
+        // chunk.content() is bytes; treat as UTF-8 string.
+        text_reader->onChunkUpdate(chunk.content());
+      } else if (byte_reader) {
+        // Convert string bytes -> vector<uint8_t>
+        const std::string &s = chunk.content();
+        std::vector<std::uint8_t> bytes(s.begin(), s.end());
+        byte_reader->onChunkUpdate(bytes);
+      }
       break;
     }
     case proto::RoomEvent::kStreamTrailerReceived: {
-      auto ev = fromProto(re.stream_trailer_received());
-      delegate_snapshot->onDataStreamTrailerReceived(*this, ev);
+      const auto &st = re.stream_trailer_received();
+      const auto &trailer = st.trailer();
+      std::shared_ptr<TextStreamReader> text_reader;
+      std::shared_ptr<ByteStreamReader> byte_reader;
+      std::map<std::string, std::string> trailer_attrs;
+      for (const auto &kv : trailer.attributes()) {
+        trailer_attrs.emplace(kv.first, kv.second);
+      }
+      {
+        std::lock_guard<std::mutex> guard(lock_);
+        auto itT = text_stream_readers_.find(trailer.stream_id());
+        if (itT != text_stream_readers_.end()) {
+          text_reader = itT->second;
+          text_stream_readers_.erase(itT);
+        } else {
+          auto itB = byte_stream_readers_.find(trailer.stream_id());
+          if (itB != byte_stream_readers_.end()) {
+            byte_reader = itB->second;
+            byte_stream_readers_.erase(itB);
+          }
+        }
+      }
+      if (text_reader) {
+        text_reader->onStreamClose(trailer_attrs);
+      } else if (byte_reader) {
+        byte_reader->onStreamClose(trailer_attrs);
+      }
       break;
     }
     case proto::RoomEvent::kDataChannelLowThresholdChanged: {
       auto ev = fromProto(re.data_channel_low_threshold_changed());
-      delegate_snapshot->onDataChannelBufferedAmountLowThresholdChanged(*this,
-                                                                        ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onDataChannelBufferedAmountLowThresholdChanged(*this,
+                                                                          ev);
+      }
       break;
     }
     case proto::RoomEvent::kByteStreamOpened: {
       auto ev = fromProto(re.byte_stream_opened());
-      delegate_snapshot->onByteStreamOpened(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onByteStreamOpened(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kTextStreamOpened: {
       auto ev = fromProto(re.text_stream_opened());
-      delegate_snapshot->onTextStreamOpened(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onTextStreamOpened(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kRoomUpdated: {
       auto ev = roomUpdatedFromProto(re.room_updated());
-      delegate_snapshot->onRoomUpdated(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onRoomUpdated(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kMoved: {
       auto ev = roomMovedFromProto(re.moved());
-      delegate_snapshot->onRoomMoved(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onRoomMoved(*this, ev);
+      }
       break;
     }
     case proto::RoomEvent::kParticipantsUpdated: {
@@ -954,7 +1137,9 @@ void Room::OnEvent(const FfiEvent &event) {
           ev.participants.push_back(participant);
         }
       }
-      delegate_snapshot->onParticipantsUpdated(*this, ev);
+      if (delegate_snapshot) {
+        delegate_snapshot->onParticipantsUpdated(*this, ev);
+      }
       break;
     }
 

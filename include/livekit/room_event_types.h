@@ -331,29 +331,6 @@ struct TrackPublishOptions {
   std::optional<bool> preconnect_buffer;
 };
 
-/**
- * One transcription segment produced by speech recognition.
- */
-struct TranscriptionSegment {
-  /** Segment identifier. */
-  std::string id;
-
-  /** Transcribed text. */
-  std::string text;
-
-  /** Start time (ms) relative to the beginning of the audio source. */
-  std::uint64_t start_time = 0;
-
-  /** End time (ms) relative to the beginning of the audio source. */
-  std::uint64_t end_time = 0;
-
-  /** True if this segment is final and will not be updated further. */
-  bool final = false;
-
-  /** Language code (e.g. "en-US"). */
-  std::string language;
-};
-
 // ---------------------------------------------------------
 // Event structs – public representations of RoomEvent.*
 // ---------------------------------------------------------
@@ -608,20 +585,6 @@ struct SipDtmfReceivedEvent {
 
   /** Remote participant that sent the DTMF (owned by Room). */
   RemoteParticipant *participant = nullptr;
-};
-
-/**
- * One transcription unit with optional participant/track linkage.
- */
-struct Transcription {
-  /** Optional identity of the participant who spoke. */
-  std::optional<std::string> participant_identity;
-
-  /** Optional SID of the track associated with this transcription. */
-  std::optional<std::string> track_sid;
-
-  /** Ordered segments that make up the transcription. */
-  std::vector<TranscriptionSegment> segments;
 };
 
 /**

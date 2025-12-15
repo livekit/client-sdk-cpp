@@ -35,8 +35,6 @@ struct ParticipantTrackPermission;
 class FfiClient;
 class Track;
 class LocalTrackPublication;
-// TODO, should consider moving Transcription to local_participant.h?
-struct Transcription;
 
 struct RpcInvocationData {
   std::string request_id;
@@ -97,13 +95,6 @@ public:
    * Publish SIP DTMF message.
    */
   void publishDtmf(int code, const std::string &digit);
-
-  /**
-   * Publish transcription data to the room.
-   *
-   * @param transcription
-   */
-  void publishTranscription(const Transcription &transcription);
 
   // -------------------------------------------------------------------------
   // Metadata APIs (set metadata / name / attributes)

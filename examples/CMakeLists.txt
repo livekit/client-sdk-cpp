@@ -53,3 +53,22 @@ target_link_libraries(SimpleRpc
     nlohmann_json::nlohmann_json
     livekit
 )
+
+#################### SimpleDataStream example ##########################
+
+add_executable(SimpleDataStream
+  simple_data_stream/main.cpp
+)
+
+target_link_libraries(SimpleDataStream
+  PRIVATE
+    livekit
+)
+
+add_custom_command(
+  TARGET SimpleDataStream
+  POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+          ${CMAKE_SOURCE_DIR}/data
+          $<TARGET_FILE_DIR:SimpleDataStream>/data
+)
