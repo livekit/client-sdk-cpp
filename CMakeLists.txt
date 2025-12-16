@@ -160,6 +160,7 @@ add_library(livekit
   include/livekit/audio_source.h
   include/livekit/audio_stream.h
   include/livekit/data_stream.h
+  include/livekit/e2ee.h
   include/livekit/room.h
   include/livekit/room_event_types.h
   include/livekit/room_delegate.h
@@ -185,6 +186,7 @@ add_library(livekit
   src/audio_source.cpp
   src/audio_stream.cpp
   src/data_stream.cpp
+  src/e2ee.cpp
   src/ffi_handle.cpp
   src/ffi_client.cpp
   src/ffi_client.h

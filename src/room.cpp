@@ -17,6 +17,7 @@
 #include "livekit/room.h"
 
 #include "livekit/audio_stream.h"
+#include "livekit/e2ee.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
 #include "livekit/remote_audio_track.h"
@@ -132,6 +133,15 @@ bool Room::Connect(const std::string &url, const std::string &token,
 
         remote_participants_.emplace(rp->identity(), std::move(rp));
       }
+    }
+
+    // Setup e2eeManager
+    if (options.e2ee) {
+      std::cout << "creating E2eeManager " << std::endl;
+      e2ee_manager_ = std::unique_ptr<E2EEManager>(
+          new E2EEManager(room_handle_->get(), options.e2ee.value()));
+    } else {
+      e2ee_manager_.reset();
     }
 
     return true;
@@ -872,6 +882,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kE2EeStateChanged: {
       E2eeStateChangedEvent ev;
       {
+        std::cerr << "e2ee_state_changed for participant: " << std::endl;
         std::lock_guard<std::mutex> guard(lock_);
         const auto &es = re.e2ee_state_changed();
         const std::string &identity = es.participant_identity();

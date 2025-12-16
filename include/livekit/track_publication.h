@@ -21,17 +21,11 @@
 #include <string>
 #include <vector>
 
+#include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/track.h"
 
 namespace livekit {
-
-// TODO, move this EncryptionType to e2ee_types.h
-enum class EncryptionType {
-  NONE = 0,
-  GCM = 1,
-  CUSTOM = 2,
-};
 
 class Track;
 class LocalTrack;

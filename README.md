@@ -60,6 +60,19 @@ export LIVEKIT_TOKEN=<jwt-token>
 ./build/examples/SimpleRoom
 ```
 
+**End-to-End Encryption (E2EE)**
+You can enable E2E encryption for the streams via --enable_e2ee and --e2ee_key flags,
+by running the following cmds in two terminals or computers. **Note, jwt_token needs to be different identity**
+```bash
+./build/examples/SimpleRoom --url $URL --token <jwt-token> --enable_e2ee --e2ee_key="your_key"
+```
+**Note**, **all participants must use the exact same E2EE configuration and shared key.**
+If the E2EE keys do not match between participants:
+- Media cannot be decrypted
+- Video tracks will appear as a black screen
+- Audio will be silent
+- No explicit error may be shown at the UI level
+
 Press Ctrl-C to exit the example.
 
 ### SimpleRpc
