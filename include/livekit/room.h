@@ -73,11 +73,11 @@ struct RoomOptions {
   // Enable dynacast (server sends optimal layers depending on subscribers).
   bool dynacast = false;
 
-  // Optional end-to-end encryption settings.
-  std::optional<E2EEOptions> e2ee;
-
   // Optional WebRTC configuration (ICE policy, servers, etc.)
   std::optional<RtcConfig> rtc_config;
+
+  // Optional end-to-end encryption settings.
+  std::optional<E2EEOptions> encryption;
 };
 
 /// Represents a LiveKit room session.

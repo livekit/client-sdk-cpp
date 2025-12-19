@@ -136,10 +136,10 @@ bool Room::Connect(const std::string &url, const std::string &token,
     }
 
     // Setup e2eeManager
-    if (options.e2ee) {
+    if (options.encryption) {
       std::cout << "creating E2eeManager " << std::endl;
       e2ee_manager_ = std::unique_ptr<E2EEManager>(
-          new E2EEManager(room_handle_->get(), options.e2ee.value()));
+          new E2EEManager(room_handle_->get(), options.encryption.value()));
     } else {
       e2ee_manager_.reset();
     }

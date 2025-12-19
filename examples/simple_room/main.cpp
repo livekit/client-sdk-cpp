@@ -278,15 +278,15 @@ int main(int argc, char *argv[]) {
   options.dynacast = false;
 
   if (enable_e2ee) {
-    livekit::E2EEOptions e2ee;
-    e2ee.encryption_type = livekit::EncryptionType::GCM;
+    livekit::E2EEOptions encryption;
+    encryption.encryption_type = livekit::EncryptionType::GCM;
     // Optional shared key: if empty, we enable E2EE without setting a shared
     // key. (Advanced use: keys can be set/ratcheted later via
     // E2EEManager/KeyProvider.)
     if (!e2ee_key.empty()) {
-      e2ee.shared_key = toBytes(e2ee_key);
+      encryption.key_provider_options.shared_key = toBytes(e2ee_key);
     }
-    options.e2ee = e2ee;
+    options.encryption = encryption;
     if (!e2ee_key.empty()) {
       std::cout << "[E2EE] enabled : (shared key length=" << e2ee_key.size()
                 << ")\n";
@@ -385,19 +385,23 @@ int main(int argc, char *argv[]) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  // Shutdown the audio thread.
+  // Shutdown the audio / video capture threads.
   media.stopMic();
+  media.stopCamera();
+
+  // Drain any queued tasks that might still try to update the renderer /
+  // speaker
+  MainThreadDispatcher::update();
+
+  // Must be cleaned up before FfiClient::instance().shutdown();
+  room->setDelegate(nullptr);
 
   // Clean up the audio track publishment
   room->localParticipant()->unpublishTrack(audioPub->sid());
 
-  media.stopCamera();
-
   // Clean up the video track publishment
   room->localParticipant()->unpublishTrack(videoPub->sid());
 
-  // Must be cleaned up before FfiClient::instance().shutdown();
-  room->setDelegate(nullptr);
   room.reset();
 
   FfiClient::instance().shutdown();

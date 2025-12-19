@@ -158,28 +158,44 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
   opts->set_dynacast(options.dynacast);
   std::cout << "connectAsync " << std::endl;
   // --- E2EE / encryption (optional) ---
-  if (options.e2ee.has_value()) {
+  if (options.encryption.has_value()) {
     std::cout << "connectAsync e2ee " << std::endl;
-    const E2EEOptions &eo = *options.e2ee;
+    const E2EEOptions &e2ee = *options.encryption;
+    const auto &kpo = e2ee.key_provider_options;
 
-    // Use the non-deprecated encryption field
     auto *enc = opts->mutable_encryption();
-
     enc->set_encryption_type(
-        static_cast<proto::EncryptionType>(eo.encryption_type));
-
+        static_cast<proto::EncryptionType>(e2ee.encryption_type));
     auto *kp = enc->mutable_key_provider_options();
-    if (!eo.shared_key.empty()) {
-      kp->set_shared_key(bytesToString(eo.shared_key));
+    // shared_key is optional. If not set, leave the field unset/cleared.
+    if (kpo.shared_key && !kpo.shared_key->empty()) {
+      kp->set_shared_key(bytesToString(*kpo.shared_key));
+    } else {
+      kp->clear_shared_key();
     }
-    if (!eo.ratchet_salt.empty()) {
-      kp->set_ratchet_salt(bytesToString(eo.ratchet_salt));
+    // Only set ratchet_salt if caller overrides. Otherwise clear so Rust side
+    // uses default.
+    if (!kpo.ratchet_salt.empty() &&
+        kpo.ratchet_salt !=
+            std::vector<std::uint8_t>(
+                kDefaultRatchetSalt,
+                kDefaultRatchetSalt +
+                    std::char_traits<char>::length(kDefaultRatchetSalt))) {
+      kp->set_ratchet_salt(bytesToString(kpo.ratchet_salt));
+    } else {
+      kp->clear_ratchet_salt();
     }
-    if (eo.ratchet_window_size > 0) {
-      kp->set_ratchet_window_size(eo.ratchet_window_size);
+    // Same idea for window size / tolerance: set only on override; otherwise
+    // clear.
+    if (kpo.ratchet_window_size != kDefaultRatchetWindowSize) {
+      kp->set_ratchet_window_size(kpo.ratchet_window_size);
+    } else {
+      kp->clear_ratchet_window_size();
     }
-    if (eo.failure_tolerance != 0) {
-      kp->set_failure_tolerance(eo.failure_tolerance);
+    if (kpo.failure_tolerance != kDefaultFailureTolerance) {
+      kp->set_failure_tolerance(kpo.failure_tolerance);
+    } else {
+      kp->clear_failure_tolerance();
     }
   }
 
@@ -229,7 +245,7 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
       [](const proto::FfiEvent &event,
          std::promise<proto::ConnectCallback> &pr) {
         const auto &connectCb = event.connect();
-
+        std::cout << "connectAsync e2ee done " << std::endl;
         if (!connectCb.error().empty()) {
           pr.set_exception(
               std::make_exception_ptr(std::runtime_error(connectCb.error())));
