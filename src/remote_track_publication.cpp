@@ -30,7 +30,8 @@ RemoteTrackPublication::RemoteTrackPublication(
           owned.info().name(), fromProto(owned.info().kind()),
           fromProto(owned.info().source()), owned.info().simulcasted(),
           owned.info().width(), owned.info().height(), owned.info().mime_type(),
-          owned.info().muted(), fromProto(owned.info().encryption_type()),
+          owned.info().muted(),
+          static_cast<EncryptionType>(owned.info().encryption_type()),
           convertAudioFeatures(owned.info().audio_features())) {}
 
 std::shared_ptr<Track> RemoteTrackPublication::track() const noexcept {

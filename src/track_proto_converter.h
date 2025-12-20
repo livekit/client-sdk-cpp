@@ -35,7 +35,4 @@ proto::ParticipantTrackPermission toProto(const ParticipantTrackPermission &in);
 ParticipantTrackPermission
 fromProto(const proto::ParticipantTrackPermission &in);
 
-// Track Publication Utils.
-EncryptionType fromProto(proto::EncryptionType in);
-
 } // namespace livekit

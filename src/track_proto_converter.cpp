@@ -141,18 +141,4 @@ ParticipantKind fromProto(proto::ParticipantKind in) {
   }
 }
 
-EncryptionType fromProto(proto::EncryptionType in) {
-  switch (in) {
-  case proto::NONE:
-    return EncryptionType::NONE;
-  case proto::GCM:
-    return EncryptionType::GCM;
-  case proto::CUSTOM:
-    return EncryptionType::CUSTOM;
-  default:
-    // Defensive fallback
-    return EncryptionType::NONE;
-  }
-}
-
 } // namespace livekit

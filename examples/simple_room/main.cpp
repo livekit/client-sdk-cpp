@@ -29,9 +29,8 @@
 #include "livekit/livekit.h"
 #include "sdl_media_manager.h"
 #include "wav_audio_source.h"
-
-// TODO(shijing), remove this livekit_ffi.h as it should be internal only.
-#include "livekit_ffi.h"
+// TODO, remove the ffi_client from the public usage.
+#include "ffi_client.h"
 
 // Consider expose this video_utils.h to public ?
 #include "video_utils.h"
@@ -43,19 +42,32 @@ namespace {
 std::atomic<bool> g_running{true};
 
 void printUsage(const char *prog) {
-  std::cerr << "Usage:\n"
-            << "  " << prog << " <ws-url> <token>\n"
-            << "or:\n"
-            << "  " << prog << " --url=<ws-url> --token=<token>\n"
-            << "  " << prog << " --url <ws-url> --token <token>\n\n"
-            << "Env fallbacks:\n"
-            << "  LIVEKIT_URL, LIVEKIT_TOKEN\n";
+  std::cerr
+      << "Usage:\n"
+      << "  " << prog
+      << " <ws-url> <token> [--enable_e2ee] [--e2ee_key <key>]\n"
+      << "or:\n"
+      << "  " << prog
+      << " --url=<ws-url> --token=<token> [--enable_e2ee] [--e2ee_key=<key>]\n"
+      << "  " << prog
+      << " --url <ws-url> --token <token> [--enable_e2ee] [--e2ee_key "
+         "<key>]\n\n"
+      << "E2EE:\n"
+      << "  --enable_e2ee          Enable end-to-end encryption (E2EE)\n"
+      << "  --e2ee_key <key>       Optional shared key (UTF-8). If omitted, "
+         "E2EE is enabled\n"
+      << "                         but no shared key is set (advanced "
+         "usage).\n\n"
+      << "Env fallbacks:\n"
+      << "  LIVEKIT_URL, LIVEKIT_TOKEN, LIVEKIT_E2EE_KEY\n";
 }
 
 void handleSignal(int) { g_running.store(false); }
 
-bool parseArgs(int argc, char *argv[], std::string &url, std::string &token) {
-  // 1) --help
+bool parseArgs(int argc, char *argv[], std::string &url, std::string &token,
+               bool &enable_e2ee, std::string &e2ee_key) {
+  enable_e2ee = false;
+  // --help
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
     if (a == "-h" || a == "--help") {
@@ -63,7 +75,7 @@ bool parseArgs(int argc, char *argv[], std::string &url, std::string &token) {
     }
   }
 
-  // 2) flags: --url= / --token= or split form
+  // flags: --url= / --token= or split form
   auto get_flag_value = [&](const std::string &name, int &i) -> std::string {
     std::string arg = argv[i];
     const std::string eq = name + "=";
@@ -79,7 +91,9 @@ bool parseArgs(int argc, char *argv[], std::string &url, std::string &token) {
 
   for (int i = 1; i < argc; ++i) {
     const std::string a = argv[i];
-    if (a.rfind("--url", 0) == 0) {
+    if (a == "--enable_e2ee") {
+      enable_e2ee = true;
+    } else if (a.rfind("--url", 0) == 0) {
       auto v = get_flag_value("--url", i);
       if (!v.empty())
         url = v;
@@ -87,10 +101,14 @@ bool parseArgs(int argc, char *argv[], std::string &url, std::string &token) {
       auto v = get_flag_value("--token", i);
       if (!v.empty())
         token = v;
+    } else if (a.rfind("--e2ee_key", 0) == 0) {
+      auto v = get_flag_value("--e2ee_key", i);
+      if (!v.empty())
+        e2ee_key = v;
     }
   }
 
-  // 3) positional if still empty
+  // positional if still empty
   if (url.empty() || token.empty()) {
     std::vector<std::string> pos;
     for (int i = 1; i < argc; ++i) {
@@ -117,6 +135,11 @@ bool parseArgs(int argc, char *argv[], std::string &url, std::string &token) {
     const char *e = std::getenv("LIVEKIT_TOKEN");
     if (e)
       token = e;
+  }
+  if (e2ee_key.empty()) {
+    const char *e = std::getenv("LIVEKIT_E2EE_KEY");
+    if (e)
+      e2ee_key = e;
   }
 
   return !(url.empty() || token.empty());
@@ -211,11 +234,17 @@ private:
   SDLMediaManager &media_;
 };
 
+static std::vector<std::uint8_t> toBytes(const std::string &s) {
+  return std::vector<std::uint8_t>(s.begin(), s.end());
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
   std::string url, token;
-  if (!parseArgs(argc, argv, url, token)) {
+  bool enable_e2ee = false;
+  std::string e2ee_key;
+  if (!parseArgs(argc, argv, url, token, enable_e2ee, e2ee_key)) {
     printUsage(argv[0]);
     return 1;
   }
@@ -240,14 +269,33 @@ int main(int argc, char *argv[]) {
   // Handle Ctrl-C to exit the idle loop
   std::signal(SIGINT, handleSignal);
 
-  livekit::Room room{};
+  auto room = std::make_unique<livekit::Room>();
   SimpleRoomDelegate delegate(media);
-  room.setDelegate(&delegate);
+  room->setDelegate(&delegate);
 
   RoomOptions options;
   options.auto_subscribe = true;
   options.dynacast = false;
-  bool res = room.Connect(url, token, options);
+
+  if (enable_e2ee) {
+    livekit::E2EEOptions encryption;
+    encryption.encryption_type = livekit::EncryptionType::GCM;
+    // Optional shared key: if empty, we enable E2EE without setting a shared
+    // key. (Advanced use: keys can be set/ratcheted later via
+    // E2EEManager/KeyProvider.)
+    if (!e2ee_key.empty()) {
+      encryption.key_provider_options.shared_key = toBytes(e2ee_key);
+    }
+    options.encryption = encryption;
+    if (!e2ee_key.empty()) {
+      std::cout << "[E2EE] enabled : (shared key length=" << e2ee_key.size()
+                << ")\n";
+    } else {
+      std::cout << "[E2EE] enabled: (no shared key set)\n";
+    }
+  }
+
+  bool res = room->Connect(url, token, options);
   std::cout << "Connect result is " << std::boolalpha << res << std::endl;
   if (!res) {
     std::cerr << "Failed to connect to room\n";
@@ -255,7 +303,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  auto info = room.room_info();
+  auto info = room->room_info();
   std::cout << "Connected to room:\n"
             << "  SID: " << (info.sid ? *info.sid : "(none)") << "\n"
             << "  Name: " << info.name << "\n"
@@ -286,7 +334,7 @@ int main(int argc, char *argv[]) {
   try {
     // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
     // Track
-    audioPub = room.localParticipant()->publishTrack(audioTrack, audioOpts);
+    audioPub = room->localParticipant()->publishTrack(audioTrack, audioOpts);
 
     std::cout << "Published track:\n"
               << "  SID: " << audioPub->sid() << "\n"
@@ -314,7 +362,7 @@ int main(int argc, char *argv[]) {
   try {
     // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
     // Track
-    videoPub = room.localParticipant()->publishTrack(videoTrack, videoOpts);
+    videoPub = room->localParticipant()->publishTrack(videoTrack, videoOpts);
 
     std::cout << "Published track:\n"
               << "  SID: " << videoPub->sid() << "\n"
@@ -337,16 +385,24 @@ int main(int argc, char *argv[]) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 
-  // Shutdown the audio thread.
+  // Shutdown the audio / video capture threads.
   media.stopMic();
-
-  // Clean up the audio track publishment
-  room.localParticipant()->unpublishTrack(audioPub->sid());
-
   media.stopCamera();
 
+  // Drain any queued tasks that might still try to update the renderer /
+  // speaker
+  MainThreadDispatcher::update();
+
+  // Must be cleaned up before FfiClient::instance().shutdown();
+  room->setDelegate(nullptr);
+
+  // Clean up the audio track publishment
+  room->localParticipant()->unpublishTrack(audioPub->sid());
+
   // Clean up the video track publishment
-  room.localParticipant()->unpublishTrack(videoPub->sid());
+  room->localParticipant()->unpublishTrack(videoPub->sid());
+
+  room.reset();
 
   FfiClient::instance().shutdown();
   std::cout << "Exiting.\n";

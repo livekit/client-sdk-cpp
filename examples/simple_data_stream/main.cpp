@@ -12,7 +12,8 @@
 #include <vector>
 
 #include "livekit/livekit.h"
-#include "livekit_ffi.h"
+// TODO, remove the ffi_client from the public usage.
+#include "ffi_client.h"
 
 using namespace livekit;
 
@@ -46,10 +47,10 @@ std::string randomHexId(std::size_t nbytes = 16) {
 }
 
 // Greeting: send text + image
-void greetParticipant(Room &room, const std::string &identity) {
+void greetParticipant(Room *room, const std::string &identity) {
   std::cout << "[DataStream] Greeting participant: " << identity << "\n";
 
-  LocalParticipant *lp = room.localParticipant();
+  LocalParticipant *lp = room->localParticipant();
   if (!lp) {
     std::cerr << "[DataStream] No local participant, cannot greet.\n";
     return;
@@ -209,12 +210,12 @@ int main(int argc, char *argv[]) {
   std::signal(SIGTERM, handleSignal);
 #endif
 
-  Room room{};
+  auto room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
   options.dynacast = false;
 
-  bool ok = room.Connect(url, token, options);
+  bool ok = room->Connect(url, token, options);
   std::cout << "[DataStream] Connect result: " << std::boolalpha << ok << "\n";
   if (!ok) {
     std::cerr << "[DataStream] Failed to connect to room\n";
@@ -222,12 +223,12 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  auto info = room.room_info();
+  auto info = room->room_info();
   std::cout << "[DataStream] Connected to room '" << info.name
             << "', participants: " << info.num_participants << "\n";
 
   // Register stream handlers
-  room.registerTextStreamHandler(
+  room->registerTextStreamHandler(
       "chat", [](std::shared_ptr<TextStreamReader> reader,
                  const std::string &participant_identity) {
         std::thread t(handleChatMessage, std::move(reader),
@@ -235,7 +236,7 @@ int main(int argc, char *argv[]) {
         t.detach();
       });
 
-  room.registerByteStreamHandler(
+  room->registerByteStreamHandler(
       "files", [](std::shared_ptr<ByteStreamReader> reader,
                   const std::string &participant_identity) {
         std::thread t(handleWelcomeImage, std::move(reader),
@@ -245,12 +246,12 @@ int main(int argc, char *argv[]) {
 
   // Greet existing participants
   {
-    auto remotes = room.remoteParticipants();
+    auto remotes = room->remoteParticipants();
     for (const auto &rp : remotes) {
       if (!rp)
         continue;
       std::cout << "Remote: " << rp->identity() << "\n";
-      greetParticipant(room, rp->identity());
+      greetParticipant(room.get(), rp->identity());
     }
   }
 
@@ -258,12 +259,12 @@ int main(int argc, char *argv[]) {
   //
   // If Room API exposes a participant-connected callback, you could do:
   //
-  // room.onParticipantConnected(
+  // room->onParticipantConnected(
   //     [&](RemoteParticipant& participant) {
   //       std::cout << "[DataStream] participant connected: "
   //                 << participant.sid() << " " << participant.identity()
   //                 << "\n";
-  //       greetParticipant(room, participant.identity());
+  //       greetParticipant(room.get(), participant.identity());
   //     });
   //
   // Adjust to your actual event API.
@@ -274,6 +275,9 @@ int main(int argc, char *argv[]) {
   }
 
   std::cout << "[DataStream] Shutting down...\n";
+  // It is important to clean up the delegate and room in order.
+  room->setDelegate(nullptr);
+  room.reset();
   FfiClient::instance().shutdown();
   return 0;
 }

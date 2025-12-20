@@ -17,6 +17,7 @@
 #include "audio_frame.h"
 #include "audio_source.h"
 #include "audio_stream.h"
+#include "e2ee.h"
 #include "local_audio_track.h"
 #include "local_participant.h"
 #include "local_track_publication.h"
