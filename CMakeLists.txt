@@ -6,9 +6,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# MSVC runtime library setting (must match Rust static CRT)
 if(MSVC)
-  # Release: the prebuilt webrtc is using /MT, so we need to match that
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  add_compile_options(/utf-8)
 endif()
 
 ############## Protobuf ################
@@ -32,7 +33,7 @@ set(FFI_PROTO_FILES
 set(PROTO_BINARY_DIR ${CMAKE_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 
-find_package(Protobuf REQUIRED)
+find_package(Protobuf CONFIG REQUIRED)
 find_package(absl CONFIG REQUIRED)
 
 # Object library that owns generated .pb.cc/.pb.h
@@ -113,7 +114,11 @@ if(NOT CFG STREQUAL \"Debug\")
   list(APPEND ARGS --release)
 endif()
 
-message(STATUS \"[run_cargo.cmake] CFG=\${CFG}  CARGO=\${CARGO}\")
+message(STATUS \"[run_cargo.cmake] CFG=\${CFG}  CARGO=\${CARGO}  PROTOC=\${PROTOC_PATH}\")
+
+# Set PROTOC environment variable for cargo build
+set(ENV{PROTOC} \"\${PROTOC_PATH}\")
+
 execute_process(
   COMMAND \"\${CARGO}\" \${ARGS}
   WORKING_DIRECTORY \"\${RUST_ROOT}\"
@@ -126,20 +131,23 @@ endif()
 
 # Imported Rust lib with per-config locations
 add_library(livekit_ffi STATIC IMPORTED GLOBAL)
-if (WIN32)
-  set(RUST_LIB_DEBUG   "${RUST_ROOT}/target/debug/livekit_ffi.lib")
-  set(RUST_LIB_RELEASE "${RUST_ROOT}/target/release/livekit_ffi.lib")
+if(WIN32)
+  set_target_properties(livekit_ffi PROPERTIES
+    IMPORTED_LOCATION_DEBUG           "${RUST_ROOT}/target/debug/livekit_ffi.lib"
+    IMPORTED_LOCATION_RELWITHDEBINFO  "${RUST_ROOT}/target/release/livekit_ffi.lib"
+    IMPORTED_LOCATION_MINSIZEREL      "${RUST_ROOT}/target/release/livekit_ffi.lib"
+    IMPORTED_LOCATION_RELEASE         "${RUST_ROOT}/target/release/livekit_ffi.lib"
+    INTERFACE_INCLUDE_DIRECTORIES     "${RUST_ROOT}/livekit-ffi/include"
+  )
 else()
-  set(RUST_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.a")
-  set(RUST_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.a")
+  set_target_properties(livekit_ffi PROPERTIES
+    IMPORTED_LOCATION_DEBUG           "${RUST_ROOT}/target/debug/liblivekit_ffi.a"
+    IMPORTED_LOCATION_RELWITHDEBINFO  "${RUST_ROOT}/target/release/liblivekit_ffi.a"
+    IMPORTED_LOCATION_MINSIZEREL      "${RUST_ROOT}/target/release/liblivekit_ffi.a"
+    IMPORTED_LOCATION_RELEASE         "${RUST_ROOT}/target/release/liblivekit_ffi.a"
+    INTERFACE_INCLUDE_DIRECTORIES     "${RUST_ROOT}/livekit-ffi/include"
+  )
 endif()
-set_target_properties(livekit_ffi PROPERTIES
-  IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
-  IMPORTED_LOCATION_DEBUG   "${RUST_LIB_DEBUG}"
-  IMPORTED_LOCATION_RELEASE "${RUST_LIB_RELEASE}"
-  IMPORTED_LOCATION_RELWITHDEBINFO "${RUST_LIB_RELEASE}"
-  IMPORTED_LOCATION_MINSIZEREL     "${RUST_LIB_RELEASE}"
-)
 
 # Custom target that runs the script; no empty args get passed to cargo
 set(RUST_LIB "$<IF:$<CONFIG:Debug>,${RUST_LIB_DEBUG},${RUST_LIB_RELEASE}>")
@@ -149,26 +157,26 @@ add_custom_command(
           -DCFG=$<CONFIG>
           -DRUST_ROOT=${RUST_ROOT}
           -DCARGO=${CARGO_EXECUTABLE}
+          -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
           -P "${RUN_CARGO_SCRIPT}"
   WORKING_DIRECTORY "${RUST_ROOT}"
   COMMENT "Building Rust FFI via cargo"
   VERBATIM
 )
-add_custom_target(build_rust_ffi ALL
-  DEPENDS "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
-)
 
-if (UNIX AND NOT APPLE)
-  # A workaround to strip out the protozero_plugin.o symbols which cause our examples fail to link on Linux.
-  # Make sure CMAKE_AR is defined; if not, you can hardcode "ar"
-  find_program(CMAKE_AR ar REQUIRED)
+# A workaround to strip out the protozero_plugin.o symbols which cause our examples fail to link on Linux.
+# This is only needed on Unix systems (Linux, macOS)
+if(UNIX)
+  if(NOT CMAKE_AR)
+    find_program(CMAKE_AR ar REQUIRED)
+  endif()
+
   add_custom_command(
     TARGET build_rust_ffi
     POST_BUILD
-    COMMAND ${CMAKE_AR} -dv
-            "$<IF:$<CONFIG:Debug>,${RUST_LIB_DEBUG},${RUST_LIB_RELEASE}>"
-            protozero_plugin.o
-    COMMENT "Removing protozero_plugin.o from Rust FFI archive")
+    COMMAND ${CMAKE_AR} -dv $<TARGET_FILE:livekit_ffi> protozero_plugin.o
+    COMMENT "Removing protozero_plugin.o (stray main) from liblivekit_ffi.a"
+  )
 endif()
 
 # ---- C++ wrapper library ----
@@ -341,6 +349,23 @@ if (Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
   endif()
 else()
   message(STATUS "Protobuf < 6 detected; skipping Abseil linking.")
+endif()
+
+# On Windows, link required system libraries
+if(WIN32)
+  target_link_libraries(livekit PUBLIC
+    ntdll
+    userenv
+    winmm
+    iphlpapi
+    msdmo
+    dmoguids
+    wmcodecdspuuid
+    ws2_32
+    secur32
+    bcrypt
+    crypt32
+  )
 endif()
 
 # On Linux, it needs to link OpenSSL
