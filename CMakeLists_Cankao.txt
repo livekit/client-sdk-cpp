@@ -1,0 +1,104 @@
+cmake_minimum_required(VERSION 3.16)
+project(links LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+# MSVC runtime library setting (must match Rust)
+if(MSVC)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  add_compile_options(/utf-8)
+endif()
+
+# Set Qt path
+set(CMAKE_PREFIX_PATH "D:/Qt/6.10.0/msvc2022_64")
+
+# Add SDK subdirectory (builds livekit library)
+add_subdirectory(client-sdk-cpp)
+
+# Find Qt6
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network Multimedia Quick QuickControls2 Qml Concurrent)
+
+# Source files
+set(SOURCES
+    main.cpp
+    # Core modules
+    core/conference_manager.cpp
+    core/media_manager.cpp
+    core/network_client.cpp
+    core/camera_capturer.cpp
+    core/microphone_capturer.cpp
+    core/screen_capturer.cpp
+    # Utils
+    utils/logger.cpp
+    utils/settings.cpp
+    # QML backends
+    ui/backend/LoginBackend.cpp
+    ui/backend/SettingsBackend.cpp
+    ui/backend/ConferenceBackend.cpp
+    ui/backend/VideoRenderer.cpp
+    ui/backend/ScreenPickerBackend.cpp
+    # Resources
+    res/resources.qrc
+    res/qml.qrc
+)
+
+set(HEADERS
+    # Core modules
+    core/conference_manager.h
+    core/media_manager.h
+    core/network_client.h
+    core/camera_capturer.h
+    core/microphone_capturer.h
+    core/screen_capturer.h
+    # Utils
+    utils/logger.h
+    utils/settings.h
+    # QML backends
+    ui/backend/LoginBackend.h
+    ui/backend/SettingsBackend.h
+    ui/backend/ConferenceBackend.h
+    ui/backend/VideoRenderer.h
+    ui/backend/ScreenPickerBackend.h
+)
+
+# Create executable
+add_executable(links ${SOURCES} ${HEADERS})
+
+# Link libraries
+target_link_libraries(links PRIVATE
+    livekit
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Network
+    Qt6::Multimedia
+    Qt6::Quick
+    Qt6::QuickControls2
+    Qt6::Qml
+    Qt6::Concurrent
+)
+
+# Include directories
+target_include_directories(links PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/ui
+    ${CMAKE_CURRENT_SOURCE_DIR}/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/utils
+)
+
+# Set output directory
+set_target_properties(links PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
+
+# Windows specific settings
+if(WIN32)
+    target_link_libraries(links PRIVATE d3d11 dxgi windowsapp)
+    target_link_libraries(links PRIVATE dwmapi Shcore)
+    set_target_properties(links PROPERTIES
+        WIN32_EXECUTABLE FALSE
+    )
+endif()

@@ -16,6 +16,7 @@
 
 #include "fallback_capture.h"
 
+#include <array>
 #include <chrono>
 #include <thread>
 
