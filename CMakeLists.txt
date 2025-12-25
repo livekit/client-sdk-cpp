@@ -15,7 +15,7 @@ endif()
 ############## Protobuf ################
 
 # ---- Protobuf (FFI protos) ----
-set(FFI_PROTO_DIR ${CMAKE_SOURCE_DIR}/client-sdk-rust/livekit-ffi/protocol)
+set(FFI_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/client-sdk-rust/livekit-ffi/protocol)
 set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/handle.proto
     ${FFI_PROTO_DIR}/ffi.proto
@@ -93,7 +93,7 @@ include_directories("${GENERATED_INCLUDE_DIR}")
 # Find cargo
 find_program(CARGO_EXECUTABLE NAMES cargo REQUIRED)
 
-set(RUST_ROOT ${CMAKE_SOURCE_DIR}/client-sdk-rust)
+set(RUST_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/client-sdk-rust)
 
 # Write a helper script that never passes empty args
 set(RUN_CARGO_SCRIPT ${CMAKE_BINARY_DIR}/run_cargo.cmake)
@@ -241,8 +241,8 @@ add_library(livekit
 target_sources(livekit PRIVATE $<TARGET_OBJECTS:livekit_proto>)
 
 target_include_directories(livekit PUBLIC
-  ${CMAKE_SOURCE_DIR}/include
-  ${CMAKE_SOURCE_DIR}/src
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${RUST_ROOT}/livekit-ffi/include
   ${PROTO_BINARY_DIR}
   ${GENERATED_INCLUDE_DIR}
@@ -376,7 +376,7 @@ else()
 endif()
 
 # ---- Examples ----
-add_subdirectory(examples)
+# add_subdirectory(examples)
 
 
 # ---------- Clean helpers ----------
