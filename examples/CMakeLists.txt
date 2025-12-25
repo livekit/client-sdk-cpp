@@ -1,10 +1,8 @@
-cmake_minimum_required(VERSION 3.31.0)
-project (livekit-examples)
+cmake_minimum_required(VERSION 3.20)
+project(livekit-examples)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-#################### SimpleRoom example ##########################
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(sdl3)
@@ -31,11 +29,9 @@ target_link_libraries(SimpleRoom
 
 add_custom_command(TARGET SimpleRoom POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_SOURCE_DIR}/data
+            ${LIVEKIT_ROOT_DIR}/data
             ${CMAKE_CURRENT_BINARY_DIR}/data
 )
-
-#################### SimpleRpc example ##########################
 
 include(FetchContent)
 FetchContent_Declare(
@@ -54,8 +50,6 @@ target_link_libraries(SimpleRpc
     livekit
 )
 
-#################### SimpleDataStream example ##########################
-
 add_executable(SimpleDataStream
   simple_data_stream/main.cpp
 )
@@ -69,6 +63,6 @@ add_custom_command(
   TARGET SimpleDataStream
   POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
-          ${CMAKE_SOURCE_DIR}/data
+          ${LIVEKIT_ROOT_DIR}/data
           $<TARGET_FILE_DIR:SimpleDataStream>/data
 )
