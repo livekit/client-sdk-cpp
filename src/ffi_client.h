@@ -60,6 +60,7 @@ public:
   using Listener = std::function<void(const proto::FfiEvent &)>;
   using AsyncId = std::uint64_t;
 
+  ~FfiClient();
   FfiClient(const FfiClient &) = delete;
   FfiClient &operator=(const FfiClient &) = delete;
   FfiClient(FfiClient &&) = delete;
@@ -70,9 +71,14 @@ public:
     return instance;
   }
 
+  // Must be called before any other FFI usage
+  bool initialize(bool capture_logs);
+
   // Called only once. After calling shutdown(), no further calls into FfiClient
   // are valid.
   void shutdown() noexcept;
+
+  bool isInitialized() const noexcept;
 
   ListenerId AddListener(const Listener &listener);
   void RemoveListener(ListenerId id);
@@ -137,6 +143,8 @@ public:
   proto::FfiResponse sendRequest(const proto::FfiRequest &request) const;
 
 private:
+  FfiClient() = default;
+
   // Base class for type-erased pending ops
   struct PendingBase {
     virtual ~PendingBase() = default;
@@ -167,11 +175,9 @@ private:
   mutable std::mutex lock_;
   mutable std::vector<std::unique_ptr<PendingBase>> pending_;
 
-  FfiClient();
-  ~FfiClient() = default;
-
   void PushEvent(const proto::FfiEvent &event) const;
   friend void LivekitFfiCallback(const uint8_t *buf, size_t len);
+  std::atomic<bool> initialized_{false};
 };
 } // namespace livekit
 

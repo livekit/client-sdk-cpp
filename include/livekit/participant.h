@@ -23,7 +23,6 @@
 
 #include "livekit/ffi_handle.h"
 #include "livekit/room_delegate.h"
-#include "livekit_ffi.h"
 
 namespace livekit {
 
