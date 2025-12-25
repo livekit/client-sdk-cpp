@@ -56,15 +56,6 @@ public:
    */
   static AudioFrame fromOwnedInfo(const proto::OwnedAudioFrameBuffer &owned);
 
-  /**
-   * Build a proto AudioFrameBufferInfo pointing at this frame’s data.
-   *
-   * The underlying buffer must stay alive as long as the native side
-   * uses the pointer.
-   *
-   */
-  proto::AudioFrameBufferInfo toProto() const;
-
   // ---- Accessors ----
 
   const std::vector<std::int16_t> &data() const noexcept { return data_; }
@@ -87,6 +78,12 @@ public:
 
   /// A human-readable description.
   std::string to_string() const;
+
+protected:
+  // Build a proto AudioFrameBufferInfo pointing at this frame’s data.
+  // Used internally by AudioSource.
+  proto::AudioFrameBufferInfo toProto() const;
+  friend class AudioSource;
 
 private:
   std::vector<std::int16_t> data_;

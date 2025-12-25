@@ -7,3 +7,6 @@ cmake_install.cmake
 out
 build/
 received_green.avif
+docs/*.bak
+docs/html/
+docs/latex/
