@@ -39,12 +39,33 @@ std::string bytesToString(const std::vector<std::uint8_t> &b) {
 
 } // namespace
 
-FfiClient::FfiClient() {
-  livekit_ffi_initialize(&LivekitFfiCallback, false, LIVEKIT_BUILD_FLAVOR,
-                         LIVEKIT_BUILD_VERSION_FULL);
+FfiClient::~FfiClient() {
+  assert(!initialized_.load() &&
+         "LiveKit SDK was not shut down before process exit. "
+         "Call livekit::shutdown().");
 }
 
-void FfiClient::shutdown() noexcept { livekit_ffi_dispose(); }
+void FfiClient::shutdown() noexcept {
+  if (!isInitialized()) {
+    return;
+  }
+  initialized_.store(false, std::memory_order_release);
+  livekit_ffi_dispose();
+}
+
+bool FfiClient::initialize(bool capture_logs) {
+  if (isInitialized()) {
+    return false;
+  }
+  initialized_.store(true, std::memory_order_release);
+  livekit_ffi_initialize(&LivekitFfiCallback, capture_logs,
+                         LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION_FULL);
+  return true;
+}
+
+bool FfiClient::isInitialized() const noexcept {
+  return initialized_.load(std::memory_order_acquire);
+}
 
 FfiClient::ListenerId
 FfiClient::AddListener(const FfiClient::Listener &listener) {
