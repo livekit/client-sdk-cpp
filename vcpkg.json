@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "livekit-client-sdk-cpp",
+  "version": "0.1.0",
+  "description": "LiveKit C++ Client SDK",
+  "homepage": "https://github.com/livekit/client-sdk-cpp",
+  "license": "Apache-2.0",
+  "supports": "windows | linux | osx",
+  "dependencies": [
+    {
+      "name": "protobuf",
+      "version>=": "5.29.3"
+    },
+    "abseil"
+  ],
+  "features": {
+    "examples": {
+      "description": "Build example applications",
+      "dependencies": [
+        "sdl3",
+        "nlohmann-json"
+      ]
+    }
+  }
+}

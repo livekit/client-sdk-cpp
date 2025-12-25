@@ -4,8 +4,11 @@ project(livekit-examples)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(sdl3)
+find_package(SDL3 CONFIG QUIET)
+if(NOT SDL3_FOUND)
+  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+  include(sdl3)
+endif()
 
 add_executable(SimpleRoom
   simple_room/main.cpp
@@ -30,12 +33,15 @@ add_custom_command(TARGET SimpleRoom POST_BUILD
             ${CMAKE_CURRENT_BINARY_DIR}/data
 )
 
-include(FetchContent)
-FetchContent_Declare(
-  nlohmann_json
-  URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
-)
-FetchContent_MakeAvailable(nlohmann_json)
+find_package(nlohmann_json CONFIG QUIET)
+if(NOT nlohmann_json_FOUND)
+  include(FetchContent)
+  FetchContent_Declare(
+    nlohmann_json
+    URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+  )
+  FetchContent_MakeAvailable(nlohmann_json)
+endif()
 
 add_executable(SimpleRpc
   simple_rpc/main.cpp

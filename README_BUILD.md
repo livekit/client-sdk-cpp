@@ -1,0 +1,275 @@
+# LiveKit C++ Client SDK - Build Guide
+
+## Prerequisites
+
+### Required Tools
+1. **CMake** (>= 3.20)
+2. **Rust and Cargo** - For building the Rust FFI layer
+3. **C++ Compiler**
+   - Windows: Visual Studio 2019 or later
+   - Linux: GCC 9+ or Clang 10+
+   - macOS: Xcode 12+
+
+### Dependency Management (Recommended: vcpkg)
+
+This project uses vcpkg manifest mode for managing C++ dependencies, which means you don't need to manually install dependency libraries.
+
+#### Install vcpkg
+
+If you haven't installed vcpkg yet:
+
+**Windows:**
+```powershell
+git clone https://github.com/microsoft/vcpkg.git
+cd vcpkg
+.\bootstrap-vcpkg.bat
+```
+
+**Linux/macOS:**
+```bash
+git clone https://github.com/microsoft/vcpkg.git
+cd vcpkg
+./bootstrap-vcpkg.sh
+```
+
+## Quick Start
+
+### Method 1: Using CMake Presets (Recommended)
+
+The project provides a `CMakePresets.json` configuration file for simplified building.
+
+**Prerequisites:**
+- Set the `VCPKG_ROOT` environment variable pointing to your vcpkg installation directory
+
+```powershell
+# Windows example
+$env:VCPKG_ROOT = "C:\path\to\vcpkg"
+
+# Linux/macOS example
+export VCPKG_ROOT=/path/to/vcpkg
+```
+
+**Windows:**
+```powershell
+# Configure and build
+cmake --preset windows-release
+cmake --build --preset windows-release
+
+# To build with examples
+cmake --preset windows-release-examples
+cmake --build --preset windows-release-examples
+```
+
+**Linux:**
+```bash
+# Configure and build
+cmake --preset linux-release
+cmake --build --preset linux-release
+
+# To build with examples
+cmake --preset linux-release-examples
+cmake --build --preset linux-release-examples
+```
+
+**macOS:**
+```bash
+# Configure and build
+cmake --preset macos-release
+cmake --build --preset macos-release
+
+# To build with examples
+cmake --preset macos-release-examples
+cmake --build --preset macos-release-examples
+```
+
+### Method 2: Using vcpkg Manifest Mode
+
+vcpkg will automatically install all required dependencies based on `vcpkg.json`.
+
+**Windows:**
+```powershell
+# Configure project
+cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=<vcpkg-root>/scripts/buildsystems/vcpkg.cmake
+
+# Build
+cmake --build build --config Release
+
+# Optional: Build with examples
+cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=<vcpkg-root>/scripts/buildsystems/vcpkg.cmake -DLIVEKIT_BUILD_EXAMPLES=ON -DVCPKG_MANIFEST_FEATURES=examples
+cmake --build build --config Release
+```
+
+**Linux/macOS:**
+```bash
+# Configure project
+cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=<vcpkg-root>/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release
+
+# Build
+cmake --build build
+
+# Optional: Build with examples
+cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=<vcpkg-root>/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release -DLIVEKIT_BUILD_EXAMPLES=ON -DVCPKG_MANIFEST_FEATURES=examples
+cmake --build build
+```
+
+### Method 3: Manual Dependency Installation
+
+If you prefer not to use vcpkg, you can install dependencies manually:
+
+#### Required Dependencies
+- **Protobuf** (>= 5.29)
+  - Windows: `vcpkg install protobuf:x64-windows`
+  - Linux: `sudo apt install libprotobuf-dev protobuf-compiler`
+  - macOS: `brew install protobuf`
+
+- **Abseil** (Required for Protobuf >= 6)
+  - Windows: `vcpkg install abseil:x64-windows`
+  - Linux: `sudo apt install libabsl-dev`
+  - macOS: `brew install abseil`
+
+- **OpenSSL** (Linux only)
+  - Linux: `sudo apt install libssl-dev`
+
+#### Build Command
+```bash
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+## Build Output
+
+After a successful build, you will find the following in the `build/` directory:
+
+```
+build/
+├── lib/                     # Static library files
+│   ├── windows-x64/         # Windows libraries
+│   │   ├── debug/
+│   │   └── release/
+│   ├── linux-x64/           # Linux libraries
+│   └── macos-universal/     # macOS libraries
+├── include/                 # Public headers (auto-synced)
+│   └── livekit/
+│       ├── audio_frame.h
+│       ├── room.h
+│       ├── build.h          # Auto-generated build info header
+│       └── ...
+└── bin/                     # Executable files
+    ├── debug/               # Debug executables
+    └── release/             # Release executables
+```
+
+## Integrating into Your Project
+
+### Using CMake
+
+```cmake
+# Method 1: As a subdirectory
+add_subdirectory(path/to/client-sdk-cpp)
+target_link_libraries(your_target PRIVATE livekit)
+
+# Method 2: Using find_package (requires prior installation)
+find_package(livekit REQUIRED)
+target_link_libraries(your_target PRIVATE livekit)
+```
+
+### Manual Linking
+
+1. Add include path: `build/include`
+2. Link static library: 
+   - Windows: `build/lib/windows-x64/release/livekit.lib`
+   - Linux: `build/lib/linux-x64/liblivekit.a`
+   - macOS: `build/lib/macos-universal/liblivekit.a`
+3. Link Rust FFI library:
+   - Windows: `client-sdk-rust/target/release/livekit_ffi.lib`
+   - Linux/macOS: `client-sdk-rust/target/release/liblivekit_ffi.a`
+4. Link platform-specific system libraries
+
+**Windows system libraries:**
+```
+ntdll userenv winmm iphlpapi msdmo dmoguids wmcodecdspuuid
+ws2_32 secur32 bcrypt crypt32
+```
+
+**macOS frameworks:**
+```
+CoreAudio AudioToolbox CoreFoundation Security CoreGraphics
+CoreMedia VideoToolbox AVFoundation CoreVideo Foundation
+AppKit QuartzCore OpenGL IOSurface Metal MetalKit ScreenCaptureKit
+```
+
+**Linux libraries:**
+```
+OpenSSL::SSL OpenSSL::Crypto
+```
+
+## CMake Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `LIVEKIT_BUILD_EXAMPLES` | OFF | Build example applications |
+| `LIVEKIT_VERSION` | "0.1.0" | SDK version number |
+| `LIVEKIT_USE_VCPKG` | ON | Use vcpkg for dependency management |
+
+## Troubleshooting
+
+### Q: Rust code recompiles after modifying C++ code?
+A: This has been fixed. Rust code only recompiles when Rust source files change or the Rust library doesn't exist.
+
+### Q: Cannot find Protobuf or other dependencies?
+A: Make sure you're using the correct CMake toolchain file:
+```bash
+-DCMAKE_TOOLCHAIN_FILE=<vcpkg-root>/scripts/buildsystems/vcpkg.cmake
+```
+
+### Q: Linking fails on Linux?
+A: Ensure you have OpenSSL development packages installed:
+```bash
+sudo apt install libssl-dev
+```
+
+### Q: How to clean the build?
+A: Use the CMake-provided clean targets:
+```bash
+# Clean CMake build artifacts
+cmake --build build --target clean
+
+# Clean Rust build artifacts
+cmake --build build --target cargo_clean
+
+# Clean generated protobuf files
+cmake --build build --target clean_generated
+
+# Complete clean (including deletion of build directory)
+cmake --build build --target clean_all
+```
+
+## Example Applications
+
+Example applications are located in the `examples/` directory:
+
+- **SimpleRoom** - Basic room connection and audio/video handling
+- **SimpleRpc** - RPC call examples
+- **SimpleDataStream** - Data stream transmission examples
+
+Please refer to the README in each example directory for more details.
+
+## Platform-Specific Notes
+
+### Windows
+- Recommended: Visual Studio 2019 or later
+- Architecture: x64
+
+### macOS
+- Requires macOS 12.3+ (ScreenCaptureKit support)
+- Requires Xcode Command Line Tools
+
+### Linux
+- Tested on: Ubuntu 20.04+
+- Requires complete development toolchain
+
+## Support
+
+- GitHub Issues: https://github.com/livekit/client-sdk-cpp/issues
+- LiveKit Documentation: https://docs.livekit.io/
+

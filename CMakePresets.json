@@ -1,0 +1,146 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "vcpkg",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "FILEPATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        },
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed"
+      }
+    },
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "inherits": "vcpkg",
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "cacheVariables": {
+        "CMAKE_CONFIGURATION_TYPES": "Debug;Release"
+      }
+    },
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "inherits": "vcpkg",
+      "generator": "Ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "macos-base",
+      "hidden": true,
+      "inherits": "vcpkg",
+      "generator": "Ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "windows-release",
+      "displayName": "Windows x64 Release",
+      "description": "Build for Windows x64 Release",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build"
+    },
+    {
+      "name": "windows-release-examples",
+      "displayName": "Windows x64 Release with Examples",
+      "description": "Build for Windows x64 Release with example applications",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "examples"
+      }
+    },
+    {
+      "name": "linux-release",
+      "displayName": "Linux Release",
+      "description": "Build for Linux Release",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-release-examples",
+      "displayName": "Linux Release with Examples",
+      "description": "Build for Linux Release with example applications",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "examples"
+      }
+    },
+    {
+      "name": "macos-release",
+      "displayName": "macOS Release",
+      "description": "Build for macOS Release",
+      "inherits": "macos-base",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "macos-release-examples",
+      "displayName": "macOS Release with Examples",
+      "description": "Build for macOS Release with example applications",
+      "inherits": "macos-base",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "examples"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-release-examples",
+      "configurePreset": "windows-release-examples",
+      "configuration": "Release"
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release"
+    },
+    {
+      "name": "linux-release-examples",
+      "configurePreset": "linux-release-examples"
+    },
+    {
+      "name": "macos-release",
+      "configurePreset": "macos-release"
+    },
+    {
+      "name": "macos-release-examples",
+      "configurePreset": "macos-release-examples"
+    }
+  ]
+}
