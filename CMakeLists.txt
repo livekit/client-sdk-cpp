@@ -15,7 +15,7 @@ endif()
 ############## Protobuf ################
 
 # ---- Protobuf (FFI protos) ----
-set(FFI_PROTO_DIR ${CMAKE_SOURCE_DIR}/client-sdk-rust/livekit-ffi/protocol)
+set(FFI_PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/client-sdk-rust/livekit-ffi/protocol)
 set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/handle.proto
     ${FFI_PROTO_DIR}/ffi.proto
@@ -93,7 +93,7 @@ configure_file(
 # Find cargo
 find_program(CARGO_EXECUTABLE NAMES cargo REQUIRED)
 
-set(RUST_ROOT ${CMAKE_SOURCE_DIR}/client-sdk-rust)
+set(RUST_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/client-sdk-rust)
 
 # Write a helper script that never passes empty args
 set(RUN_CARGO_SCRIPT ${CMAKE_BINARY_DIR}/run_cargo.cmake)
@@ -442,7 +442,7 @@ install(FILES
 # ------------------------------------------------------------------------
 
 # ---- Examples ----
-add_subdirectory(examples)
+# add_subdirectory(examples)
 
 
 # ---------- Clean helpers ----------
