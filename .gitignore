@@ -6,7 +6,19 @@ Makefile
 cmake_install.cmake
 out
 build/
+vcpkg_installed/
 received_green.avif
 docs/*.bak
 docs/html/
 docs/latex/
+.vs/
+
+# Compiled output
+bin/
+lib/
+*.lib
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
