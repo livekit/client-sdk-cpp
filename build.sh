@@ -5,8 +5,18 @@ PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build"
 BUILD_TYPE="Release"
 VERBOSE=""
-TARGET=""
+PRESET=""
 
+# Detect OS for preset selection
+detect_os() {
+  case "$(uname -s)" in
+    Linux*)     echo "linux";;
+    Darwin*)    echo "macos";;
+    *)          echo "linux";;  # Default to linux
+  esac
+}
+
+OS_TYPE="$(detect_os)"
 
 usage() {
   cat <<EOF
@@ -30,13 +40,22 @@ EOF
 }
 
 configure() {
-  echo "==> Configuring CMake (${BUILD_TYPE})..."
-  cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
+  echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
+  if ! cmake --preset "${PRESET}"; then
+    echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
+    cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
+  fi
 }
 
 build() {
   echo "==> Building (${BUILD_TYPE})..."
-  cmake --build "${BUILD_DIR}" -j ${VERBOSE:+--verbose}
+  if [[ -n "${PRESET}" ]] && [[ -f "${PROJECT_ROOT}/CMakePresets.json" ]]; then
+    # Use preset build if available
+    cmake --build --preset "${PRESET}" ${VERBOSE:+--verbose}
+  else
+    # Fallback to traditional build
+    cmake --build "${BUILD_DIR}" -j ${VERBOSE:+--verbose}
+  fi
 }
 
 clean() {
@@ -71,11 +90,13 @@ fi
 case "$1" in
   debug)
     BUILD_TYPE="Debug"
+    PRESET="${OS_TYPE}-debug"
     configure
     build
     ;;
   release)
     BUILD_TYPE="Release"
+    PRESET="${OS_TYPE}-release"
     configure
     build
     ;;
@@ -88,9 +109,6 @@ case "$1" in
     ;;
   clean-all)
     clean_all
-    ;;
-  distclean)
-    distclean
     ;;
   help|-h|--help)
     usage

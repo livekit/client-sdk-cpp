@@ -5,14 +5,17 @@ This SDK enables native C++ applications to connect to LiveKit servers for real-
 ---
 
 ## 📦 Requirements
-- **CMake** ≥ 4.0  
+- **CMake** ≥ 3.20  
 - **Rust / Cargo** (latest stable toolchain)  
-- **Protobuf** compiler (`protoc`)  
-- **macOS** users: System frameworks (CoreAudio, AudioToolbox, etc.) are automatically linked via CMake.
+- **vcpkg** (for dependency management)
 - **Git LFS** (required for examples)
   Some example data files (e.g., audio assets) are stored using Git LFS.
   You must install Git LFS before cloning or pulling the repo if you want to run the examples.
 
+**Platform-Specific Requirements:**
+- **Windows:** Visual Studio 2019 or later
+- **macOS:** System frameworks (CoreAudio, AudioToolbox, etc.) are automatically linked
+- **Linux:** See [README_BUILD.md](README_BUILD.md) for system dependencies
 
 ## 🧩 Clone the Repository
 
@@ -30,7 +33,9 @@ git submodule update --init --recursive
 
 ## ⚙️ BUILD
 
-All build actions are managed by the provided build.sh script.
+### Quick Build (Using Build Scripts)
+
+**Linux/macOS:**
 ```bash
 ./build.sh clean        # Clean CMake build artifacts
 ./build.sh clean-all    # Deep clean (C++ + Rust + generated files)
@@ -38,6 +43,47 @@ All build actions are managed by the provided build.sh script.
 ./build.sh release      # Build Release version
 ./build.sh verbose      # Verbose build output
 ```
+
+**Windows:**
+```powershell
+.\build.bat clean       # Clean CMake build artifacts
+.\build.bat clean-all   # Deep clean (C++ + Rust + generated files)
+.\build.bat debug       # Build Debug version
+.\build.bat release     # Build Release version
+.\build.bat verbose     # Verbose build output
+```
+
+### Advanced Build (Using CMake Presets)
+
+For more control and platform-specific builds, see the detailed instructions in [README_BUILD.md](README_BUILD.md).
+
+**Prerequisites:**
+- Set `VCPKG_ROOT` environment variable pointing to your vcpkg installation
+
+```bash
+# Linux/macOS
+export VCPKG_ROOT=/path/to/vcpkg
+
+# Windows PowerShell
+$env:VCPKG_ROOT = "C:\path\to\vcpkg"
+```
+
+**Quick start:**
+```bash
+# Windows
+cmake --preset windows-release
+cmake --build --preset windows-release
+
+# Linux
+cmake --preset linux-release
+cmake --build --preset linux-release
+
+# macOS
+cmake --preset macos-release
+cmake --build --preset macos-release
+```
+
+📖 **For complete build instructions, troubleshooting, and platform-specific notes, see [README_BUILD.md](README_BUILD.md)**
 
 ## 🧪 Run Example
 

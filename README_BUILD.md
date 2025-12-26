@@ -71,6 +71,46 @@ cmake --preset linux-release-examples
 cmake --build --preset linux-release-examples
 ```
 
+#### Important Notes for Linux
+
+Before building on Linux (especially Ubuntu/WSL), you need to install system dependencies and set environment variables to avoid common build errors.
+
+**Install System Dependencies:**
+```bash
+sudo apt update && sudo apt install -y \
+    build-essential cmake ninja-build pkg-config \
+    llvm-dev libclang-dev clang \
+    libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+    libasound2-dev libpulse-dev \
+    libssl-dev
+```
+
+**Set Build Environment Variables:**
+```bash
+# Suppress deprecated warnings from WebRTC (required for newer GCC versions)
+export CXXFLAGS="-Wno-deprecated-declarations"
+export CFLAGS="-Wno-deprecated-declarations"
+
+# Required for Rust bindgen to find libclang
+export LIBCLANG_PATH=/usr/lib/llvm-14/lib  # Adjust version as needed
+```
+
+**Common Issues:**
+
+1. **Missing proto files or client-sdk-rust directory**
+   - Solution: Initialize git submodules:
+     ```bash
+     git submodule update --init --recursive
+     ```
+
+2. **Deprecated declaration errors during compilation**
+   - Cause: Newer GCC versions (12/13/14) are stricter with WebRTC legacy code
+   - Solution: Set `CXXFLAGS` and `CFLAGS` as shown above
+
+3. **Rust bindgen fails with "unable to find libclang"**
+   - Cause: Rust bindgen cannot locate libclang library
+   - Solution: Set `LIBCLANG_PATH` environment variable pointing to your LLVM installation
+
 **macOS:**
 ```bash
 # Configure and build
