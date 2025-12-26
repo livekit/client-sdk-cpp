@@ -252,6 +252,7 @@ message(STATUS "Protobuf: version=${Protobuf_VERSION}; protoc=${Protobuf_PROTOC_
 add_dependencies(livekit build_rust_ffi)
 
 if(LIVEKIT_IS_TOPLEVEL)
+  # Copy public headers to build/include
   add_custom_command(
     TARGET livekit POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -262,6 +263,54 @@ if(LIVEKIT_IS_TOPLEVEL)
             ${CMAKE_BINARY_DIR}/include/livekit/build.h
     COMMENT "Copying public headers to build/include"
   )
+
+  # Copy livekit_ffi library to output directory alongside livekit library
+  if(WIN32)
+    set(FFI_LIB_DEBUG   "${RUST_ROOT}/target/debug/livekit_ffi.lib")
+    set(FFI_LIB_RELEASE "${RUST_ROOT}/target/release/livekit_ffi.lib")
+    set(FFI_OUTPUT_NAME "livekit_ffi.lib")
+  else()
+    set(FFI_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.a")
+    set(FFI_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.a")
+    set(FFI_OUTPUT_NAME "liblivekit_ffi.a")
+  endif()
+
+  add_custom_command(
+    TARGET livekit POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+            "$<IF:$<CONFIG:Debug>,${FFI_LIB_DEBUG},${FFI_LIB_RELEASE}>"
+            "$<TARGET_FILE_DIR:livekit>/${FFI_OUTPUT_NAME}"
+    COMMENT "Copying livekit_ffi library to output directory"
+  )
+
+  # Copy third-party DLL dependencies to lib directory (Windows only)
+  if(WIN32 AND LIVEKIT_USE_VCPKG)
+    # Determine vcpkg bin directory based on configuration
+    set(VCPKG_BIN_DIR_DEBUG "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/debug/bin")
+    set(VCPKG_BIN_DIR_RELEASE "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/bin")
+    
+    # List of required DLL files
+    set(REQUIRED_DLLS
+      "libprotobuf.dll"
+      # "libprotobuf-lite.dll"
+      # "libprotoc.dll"
+      "abseil_dll.dll"
+    )
+    
+    # Copy DLLs to the lib output directory
+    foreach(DLL_FILE ${REQUIRED_DLLS})
+      add_custom_command(
+        TARGET livekit POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<IF:$<CONFIG:Debug>,${VCPKG_BIN_DIR_DEBUG}/${DLL_FILE},${VCPKG_BIN_DIR_RELEASE}/${DLL_FILE}>"
+                "$<TARGET_FILE_DIR:livekit>/${DLL_FILE}"
+        COMMENT "Copying ${DLL_FILE} to lib directory"
+        VERBATIM
+      )
+    endforeach()
+    
+    message(STATUS "Third-party DLLs will be copied to lib directory: ${REQUIRED_DLLS}")
+  endif()
 endif()
 
 if(APPLE)
@@ -357,7 +406,7 @@ endif()
 
 if(UNIX AND NOT APPLE)
   find_package(OpenSSL REQUIRED)
-  target_link_libraries(livekit PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+  target_link_libraries(livekit PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 endif()
 
 if(MSVC)
