@@ -5,13 +5,18 @@ PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/build"
 BUILD_TYPE="Release"
 VERBOSE=""
-GENERATOR=""          # optional, e.g. Ninja
-PREFIX=""             # install prefix for bundling
-DO_BUNDLE="0"         # whether to run cmake --install
-DO_ARCHIVE="0"        # whether to create .tar.gz/.zip
-ARCHIVE_NAME=""       # optional override
-MACOS_ARCH=""         # optional: arm64 or x86_64 (for macOS only)
+PRESET=""
 
+# Detect OS for preset selection
+detect_os() {
+  case "$(uname -s)" in
+    Linux*)     echo "linux";;
+    Darwin*)    echo "macos";;
+    *)          echo "linux";;  # Default to linux
+  esac
+}
+
+OS_TYPE="$(detect_os)"
 
 usage() {
   cat <<EOF
@@ -123,38 +128,22 @@ parse_opts() {
 }
 
 configure() {
-  echo "==> Configuring CMake (${BUILD_TYPE})..."
-
-  local cmake_args=(
-    -S "${PROJECT_ROOT}"
-    -B "${BUILD_DIR}"
-  )
-
-  # Generator
-  if [[ -n "${GENERATOR}" ]]; then
-    cmake_args+=(-G "${GENERATOR}")
+  echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
+  if ! cmake --preset "${PRESET}"; then
+    echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
+    cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
   fi
-
-  # Version
-  if [[ -n "${LIVEKIT_VERSION:-}" ]]; then
-    cmake_args+=(-DLIVEKIT_VERSION="${LIVEKIT_VERSION}")
-  fi
-
-  # Build type (single-config generators like Ninja/Unix Makefiles)
-  # For Visual Studio/Xcode multi-config, this is mostly ignored but harmless.
-  cmake_args+=(-DCMAKE_BUILD_TYPE="${BUILD_TYPE}")
-
-  # macOS arch override (only if on macOS and provided)
-  if [[ "$(uname -s)" == "Darwin" && -n "${MACOS_ARCH}" ]]; then
-    cmake_args+=(-DCMAKE_OSX_ARCHITECTURES="${MACOS_ARCH}")
-  fi
-
-  cmake "${cmake_args[@]}"
 }
 
 build() {
   echo "==> Building (${BUILD_TYPE})..."
-  cmake --build "${BUILD_DIR}" -j ${VERBOSE:+--verbose}
+  if [[ -n "${PRESET}" ]] && [[ -f "${PROJECT_ROOT}/CMakePresets.json" ]]; then
+    # Use preset build if available
+    cmake --build --preset "${PRESET}" ${VERBOSE:+--verbose}
+  else
+    # Fallback to traditional build
+    cmake --build "${BUILD_DIR}" -j ${VERBOSE:+--verbose}
+  fi
 }
 
 install_bundle() {
@@ -253,7 +242,7 @@ cmd="$1"
 case "${cmd}" in
   debug)
     BUILD_TYPE="Debug"
-    parse_opts "$@"
+    PRESET="${OS_TYPE}-debug"
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then
@@ -265,7 +254,7 @@ case "${cmd}" in
     ;;
   release)
     BUILD_TYPE="Release"
-    parse_opts "$@"
+    PRESET="${OS_TYPE}-release"
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then
