@@ -7,6 +7,7 @@
 #include <map>
 #include <optional>
 #include <random>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>

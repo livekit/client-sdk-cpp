@@ -6,6 +6,11 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+if(MSVC)
+  # Release: the prebuilt webrtc is using /MT, so we need to match that
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
+endif()
+
 ############## Protobuf ################
 
 # ---- Protobuf (FFI protos) ----
@@ -27,7 +32,13 @@ set(FFI_PROTO_FILES
 set(PROTO_BINARY_DIR ${CMAKE_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 
-find_package(Protobuf REQUIRED)
+find_package(Protobuf CONFIG REQUIRED)
+#if(MSVC)
+#set(Protobuf_PROTOC_EXECUTABLE
+#  "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/tools/protobuf/protoc.exe"
+#  CACHE FILEPATH "" FORCE)
+#endif()
+find_package(absl CONFIG REQUIRED)
 
 # Object library that owns generated .pb.cc/.pb.h
 add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
@@ -307,7 +318,7 @@ endif()
 endif()
 
 # Only Protobuf >= 6 needs Abseil
-if (Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
+#if (Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
   # Some distros export as "Abseil::"
   find_package(absl CONFIG QUIET)
   if (NOT absl_FOUND)
@@ -334,9 +345,9 @@ if (Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
       "Install Abseil (macOS: 'brew install abseil', Ubuntu: 'sudo apt-get install libabsl-dev'), "
       "or use Protobuf < 6.")
   endif()
-else()
-  message(STATUS "Protobuf < 6 detected; skipping Abseil linking.")
-endif()
+#else()
+#  message(STATUS "Protobuf < 6 detected; skipping Abseil linking.")
+#endif()
 
 # On Linux, it needs to link OpenSSL
 if(UNIX AND NOT APPLE)
