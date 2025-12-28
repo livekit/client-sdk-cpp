@@ -33,7 +33,7 @@ set(PROTO_BINARY_DIR ${CMAKE_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 
 find_package(Protobuf REQUIRED)
-find_package(absl REQUIRED)
+find_package(absl CONFIG REQUIRED)
 
 # Object library that owns generated .pb.cc/.pb.h
 add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
