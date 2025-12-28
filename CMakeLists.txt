@@ -32,13 +32,8 @@ set(FFI_PROTO_FILES
 set(PROTO_BINARY_DIR ${CMAKE_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 
-find_package(Protobuf CONFIG REQUIRED)
-#if(MSVC)
-#set(Protobuf_PROTOC_EXECUTABLE
-#  "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/tools/protobuf/protoc.exe"
-#  CACHE FILEPATH "" FORCE)
-#endif()
-find_package(absl CONFIG REQUIRED)
+find_package(Protobuf REQUIRED)
+find_package(absl REQUIRED)
 
 # Object library that owns generated .pb.cc/.pb.h
 add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
