@@ -45,7 +45,10 @@ if(LIVEKIT_IS_TOPLEVEL)
 endif()
 
 if(MSVC)
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+  # Use dynamic CRT (/MD) for compatibility with Qt and other /MD libraries.
+  # The livekit_ffi.dll isolates the /MT libwebrtc dependency, so livekit.lib
+  # can safely use /MD.
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
   add_compile_options(/utf-8)
 endif()
 
@@ -142,23 +145,48 @@ if(rv)
 endif()
 ")
 
-add_library(livekit_ffi STATIC IMPORTED GLOBAL)
+# Use SHARED library (DLL) on Windows to isolate /MT CRT from consuming /MD apps
 if(WIN32)
-  set(RUST_LIB_DEBUG   "${RUST_ROOT}/target/debug/livekit_ffi.lib")
-  set(RUST_LIB_RELEASE "${RUST_ROOT}/target/release/livekit_ffi.lib")
+  add_library(livekit_ffi SHARED IMPORTED GLOBAL)
+  # DLL import libraries (.dll.lib)
+  set(RUST_IMPLIB_DEBUG   "${RUST_ROOT}/target/debug/livekit_ffi.dll.lib")
+  set(RUST_IMPLIB_RELEASE "${RUST_ROOT}/target/release/livekit_ffi.dll.lib")
+  # Actual DLL files
+  set(RUST_DLL_DEBUG      "${RUST_ROOT}/target/debug/livekit_ffi.dll")
+  set(RUST_DLL_RELEASE    "${RUST_ROOT}/target/release/livekit_ffi.dll")
+  # For OUTPUT dependency checking
+  set(RUST_LIB_DEBUG   "${RUST_IMPLIB_DEBUG}")
+  set(RUST_LIB_RELEASE "${RUST_IMPLIB_RELEASE}")
+  
+  set_target_properties(livekit_ffi PROPERTIES
+    IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
+    # IMPORTED_LOCATION = DLL file
+    IMPORTED_LOCATION_DEBUG          "${RUST_DLL_DEBUG}"
+    IMPORTED_LOCATION_RELEASE        "${RUST_DLL_RELEASE}"
+    IMPORTED_LOCATION_RELWITHDEBINFO "${RUST_DLL_RELEASE}"
+    IMPORTED_LOCATION_MINSIZEREL     "${RUST_DLL_RELEASE}"
+    # IMPORTED_IMPLIB = Import library for linking
+    IMPORTED_IMPLIB_DEBUG            "${RUST_IMPLIB_DEBUG}"
+    IMPORTED_IMPLIB_RELEASE          "${RUST_IMPLIB_RELEASE}"
+    IMPORTED_IMPLIB_RELWITHDEBINFO   "${RUST_IMPLIB_RELEASE}"
+    IMPORTED_IMPLIB_MINSIZEREL       "${RUST_IMPLIB_RELEASE}"
+    INTERFACE_INCLUDE_DIRECTORIES    "${RUST_ROOT}/livekit-ffi/include"
+  )
 else()
+  # Non-Windows: use static library as before
+  add_library(livekit_ffi STATIC IMPORTED GLOBAL)
   set(RUST_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.a")
   set(RUST_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.a")
+  
+  set_target_properties(livekit_ffi PROPERTIES
+    IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
+    IMPORTED_LOCATION_DEBUG          "${RUST_LIB_DEBUG}"
+    IMPORTED_LOCATION_RELEASE        "${RUST_LIB_RELEASE}"
+    IMPORTED_LOCATION_RELWITHDEBINFO "${RUST_LIB_RELEASE}"
+    IMPORTED_LOCATION_MINSIZEREL     "${RUST_LIB_RELEASE}"
+    INTERFACE_INCLUDE_DIRECTORIES    "${RUST_ROOT}/livekit-ffi/include"
+  )
 endif()
-
-set_target_properties(livekit_ffi PROPERTIES
-  IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
-  IMPORTED_LOCATION_DEBUG          "${RUST_LIB_DEBUG}"
-  IMPORTED_LOCATION_RELEASE        "${RUST_LIB_RELEASE}"
-  IMPORTED_LOCATION_RELWITHDEBINFO "${RUST_LIB_RELEASE}"
-  IMPORTED_LOCATION_MINSIZEREL     "${RUST_LIB_RELEASE}"
-  INTERFACE_INCLUDE_DIRECTORIES    "${RUST_ROOT}/livekit-ffi/include"
-)
 
 file(GLOB_RECURSE RUST_SOURCES 
   "${RUST_ROOT}/livekit-ffi/src/*.rs"
@@ -266,22 +294,39 @@ if(LIVEKIT_IS_TOPLEVEL)
 
   # Copy livekit_ffi library to output directory alongside livekit library
   if(WIN32)
-    set(FFI_LIB_DEBUG   "${RUST_ROOT}/target/debug/livekit_ffi.lib")
-    set(FFI_LIB_RELEASE "${RUST_ROOT}/target/release/livekit_ffi.lib")
-    set(FFI_OUTPUT_NAME "livekit_ffi.lib")
+    # Copy both DLL and import library
+    set(FFI_DLL_DEBUG     "${RUST_ROOT}/target/debug/livekit_ffi.dll")
+    set(FFI_DLL_RELEASE   "${RUST_ROOT}/target/release/livekit_ffi.dll")
+    set(FFI_IMPLIB_DEBUG  "${RUST_ROOT}/target/debug/livekit_ffi.dll.lib")
+    set(FFI_IMPLIB_RELEASE "${RUST_ROOT}/target/release/livekit_ffi.dll.lib")
+    
+    # Copy DLL file
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy
+              "$<IF:$<CONFIG:Debug>,${FFI_DLL_DEBUG},${FFI_DLL_RELEASE}>"
+              "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
+      COMMENT "Copying livekit_ffi.dll to output directory"
+    )
+    # Copy import library
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy
+              "$<IF:$<CONFIG:Debug>,${FFI_IMPLIB_DEBUG},${FFI_IMPLIB_RELEASE}>"
+              "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll.lib"
+      COMMENT "Copying livekit_ffi.dll.lib to output directory"
+    )
   else()
     set(FFI_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.a")
     set(FFI_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.a")
-    set(FFI_OUTPUT_NAME "liblivekit_ffi.a")
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy
+              "$<IF:$<CONFIG:Debug>,${FFI_LIB_DEBUG},${FFI_LIB_RELEASE}>"
+              "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.a"
+      COMMENT "Copying liblivekit_ffi.a to output directory"
+    )
   endif()
-
-  add_custom_command(
-    TARGET livekit POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-            "$<IF:$<CONFIG:Debug>,${FFI_LIB_DEBUG},${FFI_LIB_RELEASE}>"
-            "$<TARGET_FILE_DIR:livekit>/${FFI_OUTPUT_NAME}"
-    COMMENT "Copying livekit_ffi library to output directory"
-  )
 
   # Copy third-party DLL dependencies to lib directory (Windows only)
   if(WIN32 AND LIVEKIT_USE_VCPKG)
