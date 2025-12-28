@@ -136,7 +136,7 @@ configure() {
   fi
 
   # Version
-  if [[ -n "${LIVEKIT_VERSION}" ]]; then
+  if [[ -n "${LIVEKIT_VERSION:-}" ]]; then
     cmake_args+=(-DLIVEKIT_VERSION="${LIVEKIT_VERSION}")
   fi
 
