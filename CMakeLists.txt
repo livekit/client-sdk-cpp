@@ -82,6 +82,12 @@ if(NOT Protobuf_FOUND)
   find_package(Protobuf REQUIRED)
 endif()
 
+# Ensure protoc executable is found (some systems may not set Protobuf_PROTOC_EXECUTABLE)
+if(NOT Protobuf_PROTOC_EXECUTABLE)
+  find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc REQUIRED)
+endif()
+message(STATUS "Using protoc: ${Protobuf_PROTOC_EXECUTABLE}")
+
 add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
 target_include_directories(livekit_proto PRIVATE
   "$<BUILD_INTERFACE:${PROTO_BINARY_DIR}>"
