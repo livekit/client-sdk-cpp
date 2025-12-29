@@ -8,9 +8,37 @@ The LiveKit SDK consists of two static libraries:
 - `livekit.lib` (or `liblivekit.a` on Unix)
 - `livekit_ffi.lib` (or `liblivekit_ffi.a` on Unix)
 
-**IMPORTANT**: 
-- **Windows**: All dependencies (protobuf, abseil) are included as DLLs in the distribution. You just need to copy them alongside your executable.
-- **Linux/macOS**: You must install protobuf and abseil via your system package manager (apt/brew). The SDK links dynamically against these libraries.
+## Distribution Model
+
+The SDK uses different distribution strategies per platform:
+
+### Windows (Complete Package)
+✅ **Ready to use** - All dependencies included:
+- `livekit.lib` - Main SDK static library
+- `livekit_ffi.dll` + `livekit_ffi.dll.lib` - Rust FFI layer
+- `libprotobuf.dll` + `libprotobuf.lib` - Protocol Buffers runtime
+- `abseil_dll.dll` + `abseil_dll.lib` - Abseil C++ library
+
+**User action**: Copy all DLLs alongside your executable. No additional installation required.
+
+### Linux (Minimal Package)
+⚠️ **Requires system dependencies**:
+- `liblivekit.a` - Main SDK static library (included)
+- `liblivekit_ffi.a` - Rust FFI layer (included)
+- `libprotobuf` - Must install via `apt install libprotobuf-dev`
+- `libssl` - Must install via `apt install libssl-dev`
+- `libabsl` - Only if built with Protobuf 6.0+: `apt install libabsl-dev`
+
+**User action**: Install required packages on target system before linking.
+
+### macOS (Minimal Package)
+⚠️ **Requires system dependencies**:
+- `liblivekit.a` - Main SDK static library (included)
+- `liblivekit_ffi.a` - Rust FFI layer (included)
+- `protobuf` - Must install via `brew install protobuf`
+- `abseil` - Only if built with Protobuf 6.0+: `brew install abseil`
+
+**User action**: Install required packages on target system before linking.
 
 ---
 

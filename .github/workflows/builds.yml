@@ -41,11 +41,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            preset: linux-release
+            preset: linux-release-examples
           - os: macos-latest
-            preset: macos-release
+            preset: macos-release-examples
           - os: windows-latest
-            preset: windows-release
+            preset: windows-release-examples
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
@@ -84,7 +84,8 @@ jobs:
             libasound2-dev libpulse-dev \
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
-            libabsl-dev
+            libabsl-dev \
+            libwayland-dev libdecor-0-dev  # For SDL3
 
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
@@ -128,23 +129,29 @@ jobs:
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }}
 
-      - name: Smoke test example (Unix)
+      - name: Smoke test examples (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          if [[ -x build/bin/SimpleRoom ]]; then
-            build/bin/SimpleRoom --help || true
-          elif [[ -x build/examples/SimpleRoom ]]; then
-            build/examples/SimpleRoom --help || true
-          fi
+          set -x
+          # Find and test examples
+          for exe in SimpleRoom SimpleRpc SimpleDataStream; do
+            if [[ -x "build/bin/${exe}" ]]; then
+              build/bin/${exe} --help || true
+            fi
+          done
 
-      - name: Smoke test example (Windows)
+      - name: Smoke test examples (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $exePath = "build/bin/release/SimpleRoom.exe"
-          if (Test-Path $exePath) {
-            & $exePath --help
+          $examples = @('SimpleRoom', 'SimpleRpc', 'SimpleDataStream')
+          foreach ($exe in $examples) {
+            $exePath = "build/bin/Release/${exe}.exe"
+            if (Test-Path $exePath) {
+              Write-Host "Testing ${exe}..."
+              & $exePath --help
+            }
           }
 
       - name: Upload build artifacts
@@ -154,6 +161,7 @@ jobs:
           path: |
             build/lib/
             build/include/
+            build/bin/
           retention-days: 7
 
       - name: Clean after build (best-effort)

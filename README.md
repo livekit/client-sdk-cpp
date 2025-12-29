@@ -12,9 +12,18 @@ This SDK enables native C++ applications to connect to LiveKit servers for real-
   You must install Git LFS before cloning or pulling the repo if you want to run the examples.
 
 **Platform-Specific Requirements:**
-- **Windows:** Visual Studio 2019+, vcpkg (dependencies bundled in distribution)
-- **Linux:** `sudo apt install libprotobuf-dev libabsl-dev libssl-dev`
-- **macOS:** `brew install protobuf abseil`
+
+### For Building the SDK:
+- **Windows:** Visual Studio 2019+, vcpkg
+- **Linux:** `sudo apt install libprotobuf-dev libssl-dev` (protobuf 3.x)
+- **macOS:** `brew install protobuf` (protobuf 3.x)
+
+### For Using the Pre-built SDK:
+- **Windows:** ✅ All dependencies included (DLLs bundled) - ready to use
+- **Linux:** ⚠️ Requires `libprotobuf` and `libssl-dev` installed on target system
+- **macOS:** ⚠️ Requires `protobuf` installed via Homebrew on target system
+
+> **Note**: If the SDK was built with Protobuf 6.0+, you also need `libabsl-dev` (Linux) or `abseil` (macOS).
 
 ## 🧩 Clone the Repository
 
