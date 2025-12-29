@@ -313,7 +313,7 @@ endif()
 endif()
 
 # Only Protobuf >= 6 needs Abseil
-#if (Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
+if (Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
   # Some distros export as "Abseil::"
   find_package(absl CONFIG QUIET)
   if (NOT absl_FOUND)
@@ -340,9 +340,9 @@ endif()
       "Install Abseil (macOS: 'brew install abseil', Ubuntu: 'sudo apt-get install libabsl-dev'), "
       "or use Protobuf < 6.")
   endif()
-#else()
-#  message(STATUS "Protobuf < 6 detected; skipping Abseil linking.")
-#endif()
+else()
+  message(STATUS "Protobuf < 6 detected; skipping Abseil linking.")
+endif()
 
 # On Linux, it needs to link OpenSSL
 if(UNIX AND NOT APPLE)
