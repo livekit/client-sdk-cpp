@@ -159,6 +159,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Continue'
           $examples = @('SimpleRoom', 'SimpleRpc', 'SimpleDataStream')
           $failed = $false
           foreach ($exe in $examples) {
@@ -166,8 +167,20 @@ jobs:
             if (Test-Path $exePath) {
               Write-Host "Testing ${exe}..."
               # Capture output to verify program actually runs
-              $output = & $exePath --help 2>&1
-              # If there's no output, the program likely failed to start (e.g., missing DLL)
+              # Use Start-Process to avoid PowerShell error handling issues
+              $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+              $pinfo.FileName = $exePath
+              $pinfo.Arguments = "--help"
+              $pinfo.RedirectStandardOutput = $true
+              $pinfo.RedirectStandardError = $true
+              $pinfo.UseShellExecute = $false
+              $p = New-Object System.Diagnostics.Process
+              $p.StartInfo = $pinfo
+              $p.Start() | Out-Null
+              $stdout = $p.StandardOutput.ReadToEnd()
+              $stderr = $p.StandardError.ReadToEnd()
+              $p.WaitForExit()
+              $output = $stdout + $stderr
               if ([string]::IsNullOrWhiteSpace($output)) {
                 Write-Host "ERROR: ${exe} produced no output - may have failed to start"
                 $failed = $true
@@ -180,7 +193,7 @@ jobs:
               $failed = $true
             }
           }
-          if ($failed) { exit 1 }
+          if ($failed) { exit 1 } else { exit 0 }
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
