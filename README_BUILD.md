@@ -10,47 +10,51 @@
    - Linux: GCC 9+ or Clang 10+
    - macOS: Xcode 12+
 
-### Dependency Management (Recommended: vcpkg)
+### Dependency Management
 
-This project uses vcpkg manifest mode for managing C++ dependencies, which means you don't need to manually install dependency libraries.
+This project uses different dependency management strategies per platform:
 
-#### Install vcpkg
+| Platform | Package Manager | Dependencies |
+|----------|-----------------|-------------|
+| Windows  | vcpkg (bundled) | protobuf, abseil (DLLs included in distribution) |
+| Linux    | apt/dnf | `libprotobuf-dev libabsl-dev libssl-dev` |
+| macOS    | Homebrew | `protobuf abseil` |
 
-If you haven't installed vcpkg yet:
+#### Windows: Install vcpkg
 
-**Windows:**
 ```powershell
 git clone https://github.com/microsoft/vcpkg.git
 cd vcpkg
 .\bootstrap-vcpkg.bat
+$env:VCPKG_ROOT = "$(Get-Location)"
 ```
 
-**Linux/macOS:**
+#### Linux: Install Dependencies
+
 ```bash
-git clone https://github.com/microsoft/vcpkg.git
-cd vcpkg
-./bootstrap-vcpkg.sh
+# Ubuntu/Debian
+sudo apt update && sudo apt install -y \
+    build-essential cmake ninja-build pkg-config \
+    llvm-dev libclang-dev clang \
+    libprotobuf-dev protobuf-compiler libabsl-dev \
+    libssl-dev libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev
 ```
 
-## Quick Start
+#### macOS: Install Dependencies
+
+```bash
+brew install cmake ninja protobuf abseil
+```
 
 ### Method 1: Using CMake Presets (Recommended)
 
 The project provides a `CMakePresets.json` configuration file for simplified building.
 
-**Prerequisites:**
-- Set the `VCPKG_ROOT` environment variable pointing to your vcpkg installation directory
-
+**Windows (requires VCPKG_ROOT):**
 ```powershell
-# Windows example
+# Set vcpkg root
 $env:VCPKG_ROOT = "C:\path\to\vcpkg"
 
-# Linux/macOS example
-export VCPKG_ROOT=/path/to/vcpkg
-```
-
-**Windows:**
-```powershell
 # Configure and build
 cmake --preset windows-release
 cmake --build --preset windows-release
@@ -60,7 +64,7 @@ cmake --preset windows-release-examples
 cmake --build --preset windows-release-examples
 ```
 
-**Linux:**
+**Linux (uses system packages):**
 ```bash
 # Configure and build
 cmake --preset linux-release
@@ -71,19 +75,20 @@ cmake --preset linux-release-examples
 cmake --build --preset linux-release-examples
 ```
 
+**macOS (uses Homebrew packages):**
+```bash
+# Configure and build
+cmake --preset macos-release
+cmake --build --preset macos-release
+
+# To build with examples
+cmake --preset macos-release-examples
+cmake --build --preset macos-release-examples
+```
+
 #### Important Notes for Linux
 
-Before building on Linux (especially Ubuntu/WSL), you need to install system dependencies and set environment variables to avoid common build errors.
-
-**Install System Dependencies:**
-```bash
-sudo apt update && sudo apt install -y \
-    build-essential cmake ninja-build pkg-config \
-    llvm-dev libclang-dev clang \
-    libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
-    libasound2-dev libpulse-dev \
-    libssl-dev
-```
+Before building on Linux (especially Ubuntu/WSL), you may need to set environment variables to avoid common build errors.
 
 **Set Build Environment Variables:**
 ```bash

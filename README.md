@@ -7,15 +7,14 @@ This SDK enables native C++ applications to connect to LiveKit servers for real-
 ## 📦 Requirements
 - **CMake** ≥ 3.20  
 - **Rust / Cargo** (latest stable toolchain)  
-- **vcpkg** (for dependency management)
 - **Git LFS** (required for examples)
   Some example data files (e.g., audio assets) are stored using Git LFS.
   You must install Git LFS before cloning or pulling the repo if you want to run the examples.
 
 **Platform-Specific Requirements:**
-- **Windows:** Visual Studio 2019 or later
-- **macOS:** System frameworks (CoreAudio, AudioToolbox, etc.) are automatically linked
-- **Linux:** See [README_BUILD.md](README_BUILD.md) for system dependencies
+- **Windows:** Visual Studio 2019+, vcpkg (dependencies bundled in distribution)
+- **Linux:** `sudo apt install libprotobuf-dev libabsl-dev libssl-dev`
+- **macOS:** `brew install protobuf abseil`
 
 ## 🧩 Clone the Repository
 
@@ -61,27 +60,27 @@ You must install protobuf via vcpkg (so CMake can find ProtobufConfig.cmake and 
 
 **Windows:**
 ```powershell
-.\build.bat clean       # Clean CMake build artifacts
-.\build.bat clean-all   # Deep clean (C++ + Rust + generated files)
-.\build.bat debug       # Build Debug version
-.\build.bat release     # Build Release version
-.\build.bat verbose     # Verbose build output
+.\build.cmd clean       # Clean CMake build artifacts
+.\build.cmd clean-all   # Deep clean (C++ + Rust + generated files)
+.\build.cmd debug       # Build Debug version
+.\build.cmd release     # Build Release version
+.\build.cmd verbose     # Verbose build output
 ```
 
 ### Advanced Build (Using CMake Presets)
 
 For more control and platform-specific builds, see the detailed instructions in [README_BUILD.md](README_BUILD.md).
 
-**Prerequisites:**
+**Prerequisites (Windows only):**
 - Set `VCPKG_ROOT` environment variable pointing to your vcpkg installation
 
-```bash
-# Linux/macOS
-export VCPKG_ROOT=/path/to/vcpkg
-
+```powershell
 # Windows PowerShell
 $env:VCPKG_ROOT = "C:\path\to\vcpkg"
 ```
+
+**Prerequisites (Linux/macOS):**
+- Install system dependencies (see above)
 
 **Quick start:**
 ```bash

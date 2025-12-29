@@ -8,7 +8,9 @@ The LiveKit SDK consists of two static libraries:
 - `livekit.lib` (or `liblivekit.a` on Unix)
 - `livekit_ffi.lib` (or `liblivekit_ffi.a` on Unix)
 
-**IMPORTANT**: Static libraries do NOT include system dependencies. You must link these system libraries in your final executable.
+**IMPORTANT**: 
+- **Windows**: All dependencies (protobuf, abseil) are included as DLLs in the distribution. You just need to copy them alongside your executable.
+- **Linux/macOS**: You must install protobuf and abseil via your system package manager (apt/brew). The SDK links dynamically against these libraries.
 
 ---
 
@@ -122,15 +124,36 @@ Also add `-ObjC` to **Other Linker Flags**.
 
 ## Linux Dependencies
 
-When linking on Linux, you must add OpenSSL:
+### Required System Packages
+
+First, install the required development packages:
+
+```bash
+# Ubuntu/Debian
+sudo apt install libprotobuf-dev protobuf-compiler libabsl-dev libssl-dev
+
+# Fedora/RHEL
+sudo dnf install protobuf-devel abseil-cpp-devel openssl-devel
+```
+
+### CMake Configuration
 
 ```cmake
+find_package(Protobuf REQUIRED)
+find_package(absl REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 target_link_libraries(your_app PRIVATE
     # LiveKit static libraries
     livekit
     livekit_ffi
+    
+    # Protobuf and Abseil (REQUIRED)
+    protobuf::libprotobuf
+    absl::log
+    absl::check
+    absl::strings
+    absl::base
     
     # Linux system libraries (REQUIRED)
     OpenSSL::SSL
@@ -146,6 +169,7 @@ g++ your_app.cpp \
     -I/path/to/livekit/include \
     -L/path/to/livekit/lib \
     -llivekit -llivekit_ffi \
+    -lprotobuf -labsl_log -labsl_strings -labsl_base \
     -lssl -lcrypto -lpthread -ldl
 ```
 

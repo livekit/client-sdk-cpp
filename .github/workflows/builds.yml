@@ -10,7 +10,7 @@ on:
       - client-sdk-rust/**
       - CMakeLists.txt
       - build.sh
-      - build.bat
+      - build.cmd
       - vcpkg.json
       - CMakePresets.json
       - .github/workflows/**
@@ -23,7 +23,7 @@ on:
       - client-sdk-rust/**
       - CMakeLists.txt
       - build.sh
-      - build.bat
+      - build.cmd
       - vcpkg.json
       - CMakePresets.json
       - .github/workflows/**
@@ -31,6 +31,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # vcpkg binary caching only needed for Windows
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
 jobs:
@@ -56,13 +57,15 @@ jobs:
           fetch-depth: 0
 
       - name: Export GitHub Actions cache environment variables
+        if: runner.os == 'Windows'
         uses: actions/github-script@v7
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Setup vcpkg
+      - name: Setup vcpkg (Windows only)
+        if: runner.os == 'Windows'
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgGitCommitId: 'c82f74667287d3dc386bce81e44964370c91a289'
@@ -79,14 +82,16 @@ jobs:
             libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
             libxrandr-dev libxi-dev libxkbcommon-dev \
             libasound2-dev libpulse-dev \
-            libssl-dev
+            libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libabsl-dev
 
       - name: Install system deps (macOS)
         if: runner.os == 'macOS'
         run: |
           set -eux
           brew update
-          brew install cmake ninja
+          brew install cmake ninja protobuf abseil
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable

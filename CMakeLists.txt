@@ -10,7 +10,13 @@ set(LIVEKIT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIVEKIT_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
-option(LIVEKIT_USE_VCPKG "Use vcpkg for dependency management" ON)
+
+# vcpkg is only used on Windows; Linux/macOS use system package managers
+if(WIN32)
+  option(LIVEKIT_USE_VCPKG "Use vcpkg for dependency management (Windows only)" ON)
+else()
+  option(LIVEKIT_USE_VCPKG "Use vcpkg for dependency management" OFF)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
