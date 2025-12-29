@@ -140,7 +140,6 @@ sudo dnf install protobuf-devel abseil-cpp-devel openssl-devel
 
 ```cmake
 find_package(Protobuf REQUIRED)
-find_package(absl REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 target_link_libraries(your_app PRIVATE
@@ -148,12 +147,8 @@ target_link_libraries(your_app PRIVATE
     livekit
     livekit_ffi
     
-    # Protobuf and Abseil (REQUIRED)
+    # Protobuf (REQUIRED)
     protobuf::libprotobuf
-    absl::log
-    absl::check
-    absl::strings
-    absl::base
     
     # Linux system libraries (REQUIRED)
     OpenSSL::SSL
@@ -161,6 +156,10 @@ target_link_libraries(your_app PRIVATE
     pthread
     dl
 )
+
+# NOTE: If using Protobuf 6.0+, you also need to link Abseil:
+# find_package(absl REQUIRED)
+# target_link_libraries(your_app PRIVATE absl::log absl::strings absl::base)
 ```
 
 ### Manual Linking (Makefile/gcc)
@@ -169,8 +168,7 @@ g++ your_app.cpp \
     -I/path/to/livekit/include \
     -L/path/to/livekit/lib \
     -llivekit -llivekit_ffi \
-    -lprotobuf -labsl_log -labsl_strings -labsl_base \
-    -lssl -lcrypto -lpthread -ldl
+    -lprotobuf -lssl -lcrypto -lpthread -ldl
 ```
 
 ---

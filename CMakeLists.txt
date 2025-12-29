@@ -76,7 +76,11 @@ set(FFI_PROTO_FILES
 set(PROTO_BINARY_DIR ${LIVEKIT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 
-find_package(Protobuf CONFIG REQUIRED)
+# Try to find Protobuf via CONFIG mode first (vcpkg), then fall back to MODULE mode (apt/brew)
+find_package(Protobuf CONFIG QUIET)
+if(NOT Protobuf_FOUND)
+  find_package(Protobuf REQUIRED)
+endif()
 
 add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
 target_include_directories(livekit_proto PRIVATE
@@ -85,12 +89,27 @@ target_include_directories(livekit_proto PRIVATE
 )
 target_link_libraries(livekit_proto PRIVATE protobuf::libprotobuf)
 
-protobuf_generate(
-  LANGUAGE cpp
-  TARGET livekit_proto
-  PROTOC_OUT_DIR ${PROTO_BINARY_DIR}
-  IMPORT_DIRS ${FFI_PROTO_DIR}
+# Manually generate protobuf files to avoid path prefix issues
+set(PROTO_SRCS)
+set(PROTO_HDRS)
+foreach(PROTO_FILE ${FFI_PROTO_FILES})
+  get_filename_component(PROTO_NAME ${PROTO_FILE} NAME_WE)
+  list(APPEND PROTO_SRCS "${PROTO_BINARY_DIR}/${PROTO_NAME}.pb.cc")
+  list(APPEND PROTO_HDRS "${PROTO_BINARY_DIR}/${PROTO_NAME}.pb.h")
+endforeach()
+
+add_custom_command(
+  OUTPUT ${PROTO_SRCS} ${PROTO_HDRS}
+  COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+    --proto_path=${FFI_PROTO_DIR}
+    --cpp_out=${PROTO_BINARY_DIR}
+    ${FFI_PROTO_FILES}
+  DEPENDS ${FFI_PROTO_FILES}
+  COMMENT "Generating C++ protobuf files"
+  VERBATIM
 )
+
+target_sources(livekit_proto PRIVATE ${PROTO_SRCS} ${PROTO_HDRS})
 
 set(GENERATED_INCLUDE_DIR "${LIVEKIT_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${GENERATED_INCLUDE_DIR}")
