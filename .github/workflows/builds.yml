@@ -134,25 +134,53 @@ jobs:
         shell: bash
         run: |
           set -x
-          # Find and test examples
+          failed=false
           for exe in SimpleRoom SimpleRpc SimpleDataStream; do
-            if [[ -x "build/bin/${exe}" ]]; then
-              build/bin/${exe} --help || true
+            exe_path="build/bin/${exe}"
+            if [[ -x "${exe_path}" ]]; then
+              echo "Testing ${exe}..."
+              # Capture output to verify program actually runs
+              output=$("${exe_path}" --help 2>&1) || true
+              if [[ -z "${output}" ]]; then
+                echo "ERROR: ${exe} produced no output - may have failed to start"
+                failed=true
+              else
+                echo "${output}"
+                echo "${exe} ran successfully"
+              fi
+            else
+              echo "ERROR: ${exe_path} not found or not executable"
+              failed=true
             fi
           done
+          if [[ "$failed" == "true" ]]; then exit 1; fi
 
       - name: Smoke test examples (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $examples = @('SimpleRoom', 'SimpleRpc', 'SimpleDataStream')
+          $failed = $false
           foreach ($exe in $examples) {
             $exePath = "build/bin/Release/${exe}.exe"
             if (Test-Path $exePath) {
               Write-Host "Testing ${exe}..."
-              & $exePath --help
+              # Capture output to verify program actually runs
+              $output = & $exePath --help 2>&1
+              # If there's no output, the program likely failed to start (e.g., missing DLL)
+              if ([string]::IsNullOrWhiteSpace($output)) {
+                Write-Host "ERROR: ${exe} produced no output - may have failed to start"
+                $failed = $true
+              } else {
+                Write-Host $output
+                Write-Host "${exe} ran successfully"
+              }
+            } else {
+              Write-Host "ERROR: ${exePath} not found"
+              $failed = $true
             }
           }
+          if ($failed) { exit 1 }
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
