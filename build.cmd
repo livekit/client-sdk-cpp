@@ -67,9 +67,21 @@ if "%1"=="debug" (
     goto configure_build
 )
 
+if "%1"=="debug-examples" (
+    set "BUILD_TYPE=Debug"
+    set "PRESET=windows-debug-examples"
+    goto configure_build
+)
+
 if "%1"=="release" (
     set "BUILD_TYPE=Release"
     set "PRESET=windows-release"
+    goto configure_build
+)
+
+if "%1"=="release-examples" (
+    set "BUILD_TYPE=Release"
+    set "PRESET=windows-release-examples"
     goto configure_build
 )
 
@@ -89,7 +101,9 @@ echo Usage: build.cmd [command]
 echo.
 echo Commands:
 echo   debug             Configure + build Debug version
+echo   debug-examples    Configure + build Debug version with examples
 echo   release           Configure + build Release version
+echo   release-examples  Configure + build Release version with examples
 echo   clean             Run CMake's built-in clean target
 echo   clean-all         Run clean_all (clears C++ + Rust targets)
 echo   verbose           Build with verbose output (implies last configured type)
@@ -98,6 +112,7 @@ echo.
 echo Examples:
 echo   build.cmd debug
 echo   build.cmd release
+echo   build.cmd release-examples
 echo   build.cmd clean
 echo   build.cmd clean-all
 echo   build.cmd verbose

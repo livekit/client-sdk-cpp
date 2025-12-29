@@ -25,8 +25,9 @@ Usage:
 
 Commands:
   debug             Configure + build Debug version
+  debug-examples    Configure + build Debug version with examples
   release           Configure + build Release version
-  verbose           Build with verbose output (uses last configured build)
+  release-examples  Configure + build Release version with examples
   clean             Run CMake's built-in clean target
   clean-all         Run full clean (C++ build + Rust targets + generated files)
   help              Show this help message
@@ -46,21 +47,10 @@ Options (for debug / release / verbose):
 
 Examples:
   ./build.sh release
-  ./build.sh release --bundle
-  ./build.sh release --bundle --archive
-  ./build.sh release --bundle --prefix ./sdk-out/livekit-sdk-macos-arm64
-  ./build.sh debug --bundle --prefix /tmp/livekit-sdk-debug
-  ./build.sh release --version 0.1.0 --bundle --archive
-  ./build.sh release -G Ninja --macos-arch arm64 --bundle \\
-      --archive-name livekit-sdk-0.1.0-macos-arm64
-
-Notes:
-  - '--bundle' installs a consumable SDK layout containing:
-      * headers under include/
-      * libraries under lib/ (and bin/ if shared)
-      * CMake package files under lib/cmake/LiveKit/
-  - '--archive' requires '--bundle'
-  - CI builds should use '--version' to ensure build.h matches the release tag
+  ./build.sh release-examples
+  ./build.sh clean
+  ./build.sh clean-all
+  ./build.sh verbose
 EOF
 }
 
@@ -252,6 +242,12 @@ case "${cmd}" in
       fi
     fi
     ;;
+  debug-examples)
+    BUILD_TYPE="Debug"
+    PRESET="${OS_TYPE}-debug-examples"
+    configure
+    build
+    ;;
   release)
     BUILD_TYPE="Release"
     PRESET="${OS_TYPE}-release"
@@ -263,6 +259,12 @@ case "${cmd}" in
         archive_bundle
       fi
     fi
+    ;;
+  release-examples)
+    BUILD_TYPE="Release"
+    PRESET="${OS_TYPE}-release-examples"
+    configure
+    build
     ;;
   verbose)
     VERBOSE="1"

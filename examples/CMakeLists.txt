@@ -13,7 +13,6 @@ include(sdl3)
 set(EXAMPLES_PRIVATE_INCLUDE_DIRS
     ${LIVEKIT_ROOT_DIR}/src
     ${LIVEKIT_BINARY_DIR}/generated
-    ${Protobuf_INCLUDE_DIRS}
 )
 
 add_executable(SimpleRoom
@@ -32,9 +31,12 @@ add_executable(SimpleRoom
 
 target_include_directories(SimpleRoom PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
 
+# Link protobuf::libprotobuf directly to get proper include directories
+# (livekit links it PRIVATELY so its headers aren't propagated)
 target_link_libraries(SimpleRoom
     PRIVATE
         livekit
+        protobuf::libprotobuf
         SDL3::SDL3
 )
 
@@ -64,6 +66,7 @@ target_link_libraries(SimpleRpc
   PRIVATE
     nlohmann_json::nlohmann_json
     livekit
+    protobuf::libprotobuf
 )
 
 add_executable(SimpleDataStream
@@ -75,6 +78,7 @@ target_include_directories(SimpleDataStream PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_D
 target_link_libraries(SimpleDataStream
   PRIVATE
     livekit
+    protobuf::libprotobuf
 )
 
 add_custom_command(
