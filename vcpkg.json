@@ -17,7 +17,6 @@
     "examples": {
       "description": "Build example applications",
       "dependencies": [
-        "sdl3",
         "nlohmann-json"
       ]
     }

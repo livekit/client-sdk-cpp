@@ -4,11 +4,17 @@ project(livekit-examples)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(SDL3 CONFIG QUIET)
-if(NOT SDL3_FOUND)
-  list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-  include(sdl3)
-endif()
+# Always use FetchContent for SDL3 (vcpkg doesn't have it in stable baseline)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(sdl3)
+
+# Common include directories for examples that need private headers
+# TODO: These should be refactored to use only public headers
+set(EXAMPLES_PRIVATE_INCLUDE_DIRS
+    ${LIVEKIT_ROOT_DIR}/src
+    ${LIVEKIT_BINARY_DIR}/generated
+    ${Protobuf_INCLUDE_DIRS}
+)
 
 add_executable(SimpleRoom
   simple_room/main.cpp
@@ -24,8 +30,13 @@ add_executable(SimpleRoom
   simple_room/wav_audio_source.h
 )
 
-target_link_libraries(SimpleRoom PRIVATE livekit SDL3::SDL3)
-livekit_windows_link_deps(SimpleRoom)
+target_include_directories(SimpleRoom PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(SimpleRoom
+    PRIVATE
+        livekit
+        SDL3::SDL3
+)
 
 add_custom_command(TARGET SimpleRoom POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -47,6 +58,8 @@ add_executable(SimpleRpc
   simple_rpc/main.cpp
 )
 
+target_include_directories(SimpleRpc PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
 target_link_libraries(SimpleRpc
   PRIVATE
     nlohmann_json::nlohmann_json
@@ -56,6 +69,8 @@ target_link_libraries(SimpleRpc
 add_executable(SimpleDataStream
   simple_data_stream/main.cpp
 )
+
+target_include_directories(SimpleDataStream PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
 
 target_link_libraries(SimpleDataStream
   PRIVATE
@@ -70,12 +85,28 @@ add_custom_command(
           $<TARGET_FILE_DIR:SimpleDataStream>/data
 )
 
-if (WIN32 AND TARGET SDL3::SDL3)
-  foreach(tgt SimpleRoom SimpleRpc SimpleDataStream)
-    add_custom_command(TARGET ${tgt} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              $<TARGET_FILE:SDL3::SDL3>
-              $<TARGET_FILE_DIR:${tgt}>
-    )
+# Windows: Copy required DLLs to examples output directory
+if(WIN32)
+  # Get the livekit library output directory (where DLLs are copied during main build)
+  set(LIVEKIT_LIB_DIR $<TARGET_FILE_DIR:livekit>)
+  
+  # List of DLLs to copy
+  set(REQUIRED_DLLS
+    "livekit_ffi.dll"
+    "libprotobuf.dll"
+    "abseil_dll.dll"
+  )
+  
+  # Copy DLLs to each example's output directory
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream)
+    foreach(DLL ${REQUIRED_DLLS})
+      add_custom_command(TARGET ${EXAMPLE} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${LIVEKIT_LIB_DIR}/${DLL}"
+                "$<TARGET_FILE_DIR:${EXAMPLE}>/${DLL}"
+        COMMENT "Copying ${DLL} to ${EXAMPLE} output directory"
+        VERBATIM
+      )
+    endforeach()
   endforeach()
 endif()
