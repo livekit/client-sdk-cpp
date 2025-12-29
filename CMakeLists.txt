@@ -328,18 +328,28 @@ if(LIVEKIT_IS_TOPLEVEL)
     )
   endif()
 
-  # Copy third-party DLL dependencies to lib directory (Windows only)
+  # Copy third-party DLL and LIB dependencies to lib directory (Windows only)
   if(WIN32 AND LIVEKIT_USE_VCPKG)
-    # Determine vcpkg bin directory based on configuration
+    # Determine vcpkg directories based on configuration
     set(VCPKG_BIN_DIR_DEBUG "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/debug/bin")
     set(VCPKG_BIN_DIR_RELEASE "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/bin")
+    set(VCPKG_LIB_DIR_DEBUG "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/debug/lib")
+    set(VCPKG_LIB_DIR_RELEASE "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/lib")
     
-    # List of required DLL files
+    # List of required DLL files (runtime)
     set(REQUIRED_DLLS
       "libprotobuf.dll"
       # "libprotobuf-lite.dll"
       # "libprotoc.dll"
       "abseil_dll.dll"
+    )
+    
+    # List of required LIB files (for linking)
+    set(REQUIRED_LIBS
+      "libprotobuf.lib"
+      # "libprotobuf-lite.lib"
+      # "libprotoc.lib"
+      "abseil_dll.lib"
     )
     
     # Copy DLLs to the lib output directory
@@ -354,7 +364,20 @@ if(LIVEKIT_IS_TOPLEVEL)
       )
     endforeach()
     
+    # Copy LIBs (import libraries) to the lib output directory
+    foreach(LIB_FILE ${REQUIRED_LIBS})
+      add_custom_command(
+        TARGET livekit POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<IF:$<CONFIG:Debug>,${VCPKG_LIB_DIR_DEBUG}/${LIB_FILE},${VCPKG_LIB_DIR_RELEASE}/${LIB_FILE}>"
+                "$<TARGET_FILE_DIR:livekit>/${LIB_FILE}"
+        COMMENT "Copying ${LIB_FILE} to lib directory"
+        VERBATIM
+      )
+    endforeach()
+    
     message(STATUS "Third-party DLLs will be copied to lib directory: ${REQUIRED_DLLS}")
+    message(STATUS "Third-party LIBs will be copied to lib directory: ${REQUIRED_LIBS}")
   endif()
 endif()
 
