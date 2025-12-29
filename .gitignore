@@ -12,7 +12,7 @@ docs/*.bak
 docs/html/
 docs/latex/
 .vs/
-
+.vscode/
 # Compiled output
 bin/
 lib/
