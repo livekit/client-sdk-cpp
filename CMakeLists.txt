@@ -161,15 +161,14 @@ add_custom_target(build_rust_ffi ALL
 if (UNIX AND NOT APPLE)
   # A workaround to strip out the protozero_plugin.o symbols which cause our examples fail to link on Linux.
   # Make sure CMAKE_AR is defined; if not, you can hardcode "ar"
-  if(NOT CMAKE_AR)
-    find_program(CMAKE_AR ar REQUIRED)
-  endif()
+  find_program(CMAKE_AR ar REQUIRED)
   add_custom_command(
     TARGET build_rust_ffi
     POST_BUILD
-    COMMAND ${CMAKE_AR} -dv "${RUST_LIB_RELEASE}" protozero_plugin.o
-    COMMENT "Removing protozero_plugin.o (stray main) from liblivekit_ffi.a"
-  )
+    COMMAND ${CMAKE_AR} -dv
+            "$<IF:$<CONFIG:Debug>,${RUST_LIB_DEBUG},${RUST_LIB_RELEASE}>"
+            protozero_plugin.o
+    COMMENT "Removing protozero_plugin.o from Rust FFI archive")
 endif()
 
 # ---- C++ wrapper library ----
