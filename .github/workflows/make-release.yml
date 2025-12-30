@@ -1,19 +1,19 @@
-name: C++ SDK
+name: Release SDK
+
 on:
   push:
-    branches: ["main"]
     tags:
-      - "cpp-sdks/livekit-cpp@*"
+      - "v*"  # Triggers on version tags like v0.1.0, v1.0.0
   workflow_dispatch:
-  workflow_call:
     inputs:
-      tag:
-        required: false
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: true
         type: string
 
 env:
-  BUILD_TYPE: Release
-  TAG_NAME: ${{ inputs.tag || github.ref_name }}
+  CARGO_TERM_COLOR: always
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
 jobs:
   build:
@@ -22,113 +22,202 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            name: linux-x86_64
+            name: linux-x64
             generator: Ninja
-          - os: windows-latest
-            name: windows-x86_64
-            generator: "Visual Studio 17 2022"
           - os: macos-latest
             name: macos-arm64
             generator: Ninja
-            macos_arch: "arm64"
-          # optionally add x86_64 mac build if you need it:
-          # - os: macos-latest
-          #   name: macos-x86_64
-          #   generator: Ninja
-          #   macos_arch: "x86_64"
+            macos_arch: arm64
+          - os: macos-latest
+            name: macos-x64
+            generator: Ninja
+            macos_arch: x86_64
+          - os: windows-latest
+            name: windows-x64
+            generator: "Visual Studio 17 2022"
 
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
         with:
-          submodules: true
+          submodules: recursive
+          fetch-depth: 0
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "25.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install deps (Ubuntu)
-        if: startsWith(matrix.os, 'ubuntu')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ninja-build cmake pkg-config libprotobuf-dev libssl-dev
-
-      - name: Install deps (macOS)
-        if: startsWith(matrix.os, 'macos')
-        run: |
-          brew update
-          brew install ninja cmake protobuf openssl abseil
-
-      - name: Install deps (Windows)
-        if: startsWith(matrix.os, 'windows')
-        shell: pwsh
-        run: |
-          choco install ninja cmake -y
-
-      - name: Build + bundle
+      # ---------- Extract version ----------
+      - name: Extract version
+        id: version
         shell: bash
         run: |
-          chmod +x ./build.sh
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "SDK Version: ${VERSION}"
+
+      # ---------- vcpkg for Windows ----------
+      - name: Export GitHub Actions cache environment variables
+        if: runner.os == 'Windows'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Setup vcpkg (Windows only)
+        if: runner.os == 'Windows'
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 'c82f74667287d3dc386bce81e44964370c91a289'
+
+      # ---------- OS-specific deps ----------
+      - name: Install deps (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            llvm-dev libclang-dev clang \
+            libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libabsl-dev
+
+      - name: Install deps (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -eux
+          brew update
+          brew install cmake ninja protobuf abseil
+
+      # ---------- Rust toolchain ----------
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      # ---------- Cache Cargo ----------
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-reg-
+
+      # ---------- Build environment setup ----------
+      - name: Set Linux build environment
+        if: runner.os == 'Linux'
+        run: |
+          echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          echo "CFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+
+      # ---------- Build + Bundle (Unix) ----------
+      - name: Build and Bundle (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          chmod +x build.sh
           args=(release -G "${{ matrix.generator }}" \
-            --version "${{ steps.ver.outputs.version }}" \
+            --version "${{ steps.version.outputs.version }}" \
             --bundle --prefix "sdk-out/livekit-sdk-${{ matrix.name }}")
           if [[ "${{ runner.os }}" == "macOS" && -n "${{ matrix.macos_arch }}" ]]; then
             args+=(--macos-arch "${{ matrix.macos_arch }}")
           fi
           ./build.sh "${args[@]}"
 
-      - name: Archive (Unix)
-        if: ${{ !startsWith(matrix.os, 'windows') }}
-        shell: bash
-        run: |
-          tar -czf "livekit-sdk-${{ matrix.name }}.tar.gz" -C sdk-out "livekit-sdk-${{ matrix.name }}"
-
-      - name: Archive (Windows)
-        if: startsWith(matrix.os, 'windows')
+      # ---------- Build + Bundle (Windows) ----------
+      - name: Build and Bundle (Windows)
+        if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Compress-Archive -Path "sdk-out/livekit-sdk-${{ matrix.name }}/*" -DestinationPath "livekit-sdk-${{ matrix.name }}.zip"
+          # Build release
+          .\build.cmd release
+          
+          # Create bundle directory
+          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}"
+          New-Item -ItemType Directory -Force -Path $bundleDir
+          New-Item -ItemType Directory -Force -Path "$bundleDir/lib"
+          New-Item -ItemType Directory -Force -Path "$bundleDir/include"
+          
+          # Copy files
+          Copy-Item -Recurse -Force "build-release/lib/*" "$bundleDir/lib/"
+          Copy-Item -Recurse -Force "build-release/include/*" "$bundleDir/include/"
 
+      # ---------- Create archive ----------
+      - name: Archive (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          cd sdk-out
+          tar -czf "../livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}.tar.gz" "livekit-sdk-${{ matrix.name }}"
+
+      - name: Archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "sdk-out/livekit-sdk-${{ matrix.name }}/*" `
+            -DestinationPath "livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}.zip"
+
+      # ---------- Upload artifact ----------
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sdk-builds-${{ matrix.name }}
+          name: sdk-${{ matrix.name }}
           path: |
-            livekit-sdk-${{ matrix.name }}.tar.gz
-            livekit-sdk-${{ matrix.name }}.zip
+            livekit-sdk-${{ matrix.name }}-*.tar.gz
+            livekit-sdk-${{ matrix.name }}-*.zip
 
+  # ---------- Release Job ----------
   release:
-    name: Release to GH (Draft)
+    name: Create GitHub Release
     runs-on: ubuntu-latest
     needs: build
     permissions:
       contents: write
-    if: startsWith(inputs.tag || github.ref_name, 'cpp-sdks/livekit-cpp@')
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@v4
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
 
-      - name: Download artifacts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        shell: bash
+        run: |
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: sdk-builds-*
+          pattern: sdk-*
           merge-multiple: true
-          path: ${{ github.workspace }}/sdk-builds
+          path: ${{ github.workspace }}/release-assets
 
-      - name: Create draft release (idempotent)
-        run: |
-          gh release view "${{ env.TAG_NAME }}" >/dev/null 2>&1 || \
-            gh release create "${{ env.TAG_NAME }}" --draft --title "${{ env.TAG_NAME }}" --generate-notes
+      - name: List release assets
+        run: ls -la ${{ github.workspace }}/release-assets/
 
-      - name: Upload assets
-        run: |
-          gh release upload "${{ env.TAG_NAME }}" ${{ github.workspace }}/sdk-builds/*.zip ${{ github.workspace }}/sdk-builds/*.tar.gz
-
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: LiveKit C++ SDK v${{ steps.version.outputs.version }}
+          draft: true
+          files: ${{ github.workspace }}/release-assets/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

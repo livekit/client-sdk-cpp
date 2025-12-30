@@ -202,25 +202,27 @@ cmake --build build
 
 ## Build Output
 
-After a successful build, you will find the following in the `build/` directory:
+After a successful build, you will find the following in the build directories:
 
 ```
-build/
-├── lib/                     # Static library files
+build-release/                # Release build output
+├── lib/
 │   ├── windows-x64/         # Windows libraries
-│   │   ├── debug/
 │   │   └── release/
 │   ├── linux-x64/           # Linux libraries
 │   └── macos-universal/     # macOS libraries
 ├── include/                 # Public headers (auto-synced)
 │   └── livekit/
-│       ├── audio_frame.h
-│       ├── room.h
-│       ├── build.h          # Auto-generated build info header
-│       └── ...
 └── bin/                     # Executable files
-    ├── debug/               # Debug executables
-    └── release/             # Release executables
+
+build-debug/                  # Debug build output
+├── lib/
+│   ├── windows-x64/
+│   │   └── debug/
+│   ├── linux-x64/
+│   └── macos-universal/
+├── include/
+└── bin/
 ```
 
 ## Integrating into Your Project

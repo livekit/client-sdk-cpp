@@ -2,9 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="${PROJECT_ROOT}/build"
 BUILD_TYPE="Release"
-VERBOSE=""
 PRESET=""
 
 # Initialize optional variables (required for set -u)
@@ -33,15 +31,15 @@ Usage:
   ./build.sh <command> [options]
 
 Commands:
-  debug             Configure + build Debug version
+  debug             Configure + build Debug version (build-debug/)
   debug-examples    Configure + build Debug version with examples
-  release           Configure + build Release version
+  release           Configure + build Release version (build-release/)
   release-examples  Configure + build Release version with examples
-  clean             Run CMake's built-in clean target
-  clean-all         Run full clean (C++ build + Rust targets + generated files)
+  clean             Clean both Debug and Release build directories
+  clean-all         Full clean (build dirs + Rust targets)
   help              Show this help message
 
-Options (for debug / release / verbose):
+Options (for debug / release):
   --bundle                 Install the SDK bundle using 'cmake --install'
   --prefix <dir>           Install prefix for --bundle
                            (default: ./sdk-out/livekit-sdk)
@@ -57,9 +55,9 @@ Options (for debug / release / verbose):
 Examples:
   ./build.sh release
   ./build.sh release-examples
+  ./build.sh debug
   ./build.sh clean
   ./build.sh clean-all
-  ./build.sh verbose
 EOF
 }
 
@@ -138,10 +136,10 @@ build() {
   echo "==> Building (${BUILD_TYPE})..."
   if [[ -n "${PRESET}" ]] && [[ -f "${PROJECT_ROOT}/CMakePresets.json" ]]; then
     # Use preset build if available
-    cmake --build --preset "${PRESET}" ${VERBOSE:+--verbose}
+    cmake --build --preset "${PRESET}"
   else
     # Fallback to traditional build
-    cmake --build "${BUILD_DIR}" -j ${VERBOSE:+--verbose}
+    cmake --build "${BUILD_DIR}"
   fi
 }
 
@@ -210,25 +208,59 @@ archive_bundle() {
 }
 
 clean() {
-  echo "==> Cleaning CMake targets..."
-  if [[ -d "${BUILD_DIR}" ]]; then
-    cmake --build "${BUILD_DIR}" --target clean || true
+  echo "==> Cleaning build artifacts..."
+  local debug_dir="${PROJECT_ROOT}/build-debug"
+  local release_dir="${PROJECT_ROOT}/build-release"
+  
+  # For Ninja builds, use ninja -t clean directly to avoid CMake reconfiguration
+  # For other generators (e.g., Make), cmake --build --target clean works fine
+  
+  if [[ -d "${debug_dir}" ]]; then
+    echo "   Cleaning build-debug..."
+    if [[ -f "${debug_dir}/build.ninja" ]]; then
+      # Ninja: use -t clean to avoid reconfiguration
+      ninja -C "${debug_dir}" -t clean 2>/dev/null || rm -rf "${debug_dir}/lib" "${debug_dir}/bin" || true
+    elif [[ -f "${debug_dir}/Makefile" ]]; then
+      make -C "${debug_dir}" clean 2>/dev/null || true
+    else
+      echo "      (skipping) Unknown build system or not configured"
+    fi
   else
-    echo "   (skipping) ${BUILD_DIR} does not exist."
+    echo "   (skipping) build-debug does not exist."
   fi
+  
+  if [[ -d "${release_dir}" ]]; then
+    echo "   Cleaning build-release..."
+    if [[ -f "${release_dir}/build.ninja" ]]; then
+      # Ninja: use -t clean to avoid reconfiguration
+      ninja -C "${release_dir}" -t clean 2>/dev/null || rm -rf "${release_dir}/lib" "${release_dir}/bin" || true
+    elif [[ -f "${release_dir}/Makefile" ]]; then
+      make -C "${release_dir}" clean 2>/dev/null || true
+    else
+      echo "      (skipping) Unknown build system or not configured"
+    fi
+  else
+    echo "   (skipping) build-release does not exist."
+  fi
+  
+  echo "==> Clean complete."
 }
 
 clean_all() {
   echo "==> Running full clean-all (C++ + Rust)..."
-  if [[ -d "${BUILD_DIR}" ]]; then
-    cmake --build "${BUILD_DIR}" --target clean_all || true
-  else
-    echo "   (info) ${BUILD_DIR} does not exist; doing manual deep clean..."
-  fi
-
+  
+  echo "Removing build-debug directory..."
+  rm -rf "${PROJECT_ROOT}/build-debug" || true
+  
+  echo "Removing build-release directory..."
+  rm -rf "${PROJECT_ROOT}/build-release" || true
+  
+  echo "Removing Rust debug artifacts..."
   rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/debug" || true
+  
+  echo "Removing Rust release artifacts..."
   rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/release" || true
-  rm -rf "${BUILD_DIR}" || true
+  
   echo "==> Clean-all complete."
 }
 
@@ -241,6 +273,7 @@ cmd="$1"
 case "${cmd}" in
   debug)
     BUILD_TYPE="Debug"
+    BUILD_DIR="${PROJECT_ROOT}/build-debug"
     PRESET="${OS_TYPE}-debug"
     configure
     build
@@ -253,12 +286,14 @@ case "${cmd}" in
     ;;
   debug-examples)
     BUILD_TYPE="Debug"
+    BUILD_DIR="${PROJECT_ROOT}/build-debug"
     PRESET="${OS_TYPE}-debug-examples"
     configure
     build
     ;;
   release)
     BUILD_TYPE="Release"
+    BUILD_DIR="${PROJECT_ROOT}/build-release"
     PRESET="${OS_TYPE}-release"
     configure
     build
@@ -271,21 +306,10 @@ case "${cmd}" in
     ;;
   release-examples)
     BUILD_TYPE="Release"
+    BUILD_DIR="${PROJECT_ROOT}/build-release"
     PRESET="${OS_TYPE}-release-examples"
     configure
     build
-    ;;
-  verbose)
-    VERBOSE="1"
-    # Optional: allow --bundle with verbose builds as well, but requires configure already ran.
-    parse_opts "$@"
-    build
-    if [[ "${DO_BUNDLE}" == "1" ]]; then
-      install_bundle
-      if [[ "${DO_ARCHIVE}" == "1" ]]; then
-        archive_bundle
-      fi
-    fi
     ;;
   clean)
     clean
@@ -302,4 +326,3 @@ case "${cmd}" in
     exit 1
     ;;
 esac
-
