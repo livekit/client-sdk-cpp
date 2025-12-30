@@ -16,7 +16,11 @@
 
 #include "fallback_capture.h"
 
+#include <array>
+#include <atomic>
 #include <chrono>
+#include <cstdint>
+#include <iostream>
 #include <thread>
 
 #include "livekit/livekit.h"

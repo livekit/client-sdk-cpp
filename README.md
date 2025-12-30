@@ -9,6 +9,8 @@ This SDK enables native C++ applications to connect to LiveKit servers for real-
 - **Rust / Cargo** (latest stable toolchain)  
 - **Protobuf** compiler (`protoc`)  
 - **macOS** users: System frameworks (CoreAudio, AudioToolbox, etc.) are automatically linked via CMake.
+- **windows** users: Ninja, Visual Studio 2022 Build Tools (MSVC toolset + Windows SDK), Rust stable (MSVC toolchain) + Cargo,
+  vcpkg (recommended dependency manager on Windows) and install protobuf package via vcpkg
 - **Git LFS** (required for examples)
   Some example data files (e.g., audio assets) are stored using Git LFS.
   You must install Git LFS before cloning or pulling the repo if you want to run the examples.
@@ -31,12 +33,28 @@ git submodule update --init --recursive
 ## ⚙️ BUILD
 
 All build actions are managed by the provided build.sh script.
+**UNIX**
 ```bash
 ./build.sh clean        # Clean CMake build artifacts
 ./build.sh clean-all    # Deep clean (C++ + Rust + generated files)
 ./build.sh debug        # Build Debug version
 ./build.sh release      # Build Release version
 ./build.sh verbose      # Verbose build output
+```
+**Windows**
+```bash
+cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake"  # Generate Makefiles in build folder
+# Build (Release or Debug)
+cmake --build build --config Release
+# or:
+cmake --build build --config Debug
+# Clean CMake build artifacts
+Remove-Item -Recurse -Force build
+```
+Note (Windows), This assumes vcpkg is checked out in the repo root at .\vcpkg\.
+You must install protobuf via vcpkg (so CMake can find ProtobufConfig.cmake and protoc), for example:
+```bash
+.\vcpkg\vcpkg install protobuf:x64-windows
 ```
 
 ## 🧪 Run Example

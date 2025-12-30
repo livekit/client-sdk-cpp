@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#pragma once
+
 #include "audio_frame.h"
 #include "audio_source.h"
 #include "audio_stream.h"
@@ -32,3 +34,32 @@
 #include "video_frame.h"
 #include "video_source.h"
 #include "video_stream.h"
+
+namespace livekit {
+
+/// Where LiveKit logs should go.
+enum class LogSink {
+  /// Logs are printed to the default console output (FFI prints directly).
+  kConsole = 0,
+
+  /// Logs are delivered to the application's FFI callback for capturing.
+  kCallback = 1,
+};
+
+/// Initialize the LiveKit SDK.
+///
+/// This **must be the first LiveKit API called** in the process.
+/// It configures global SDK state, including log routing.
+///
+/// If LiveKit APIs are used before calling this function, the log
+/// configuration may not take effect as expected.
+/// Returns true if initialization happened on this call, false if it was
+/// already initialized.
+bool initialize(LogSink log_sink = LogSink::kConsole);
+
+/// Shut down the LiveKit SDK.
+///
+/// After shutdown, you may call initialize() again.
+void shutdown();
+
+} // namespace livekit

@@ -4,7 +4,8 @@
 
 #pragma once
 
-#define LIVEKIT_BUILD_VERSION "0.1.0"  // Manually maintained
+// Version injected by CMake (CI should set it). Defaults to 0.0.0 for dev builds.
+#define LIVEKIT_BUILD_VERSION "@LIVEKIT_VERSION@"
 #define LIVEKIT_BUILD_FLAVOR "cpp"   
 
 #ifdef DEBUG

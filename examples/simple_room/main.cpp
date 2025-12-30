@@ -29,11 +29,6 @@
 #include "livekit/livekit.h"
 #include "sdl_media_manager.h"
 #include "wav_audio_source.h"
-// TODO, remove the ffi_client from the public usage.
-#include "ffi_client.h"
-
-// Consider expose this video_utils.h to public ?
-#include "video_utils.h"
 
 using namespace livekit;
 
@@ -269,6 +264,8 @@ int main(int argc, char *argv[]) {
   // Handle Ctrl-C to exit the idle loop
   std::signal(SIGINT, handleSignal);
 
+  // Initialize the livekit with logging to console.
+  livekit::initialize(livekit::LogSink::kConsole);
   auto room = std::make_unique<livekit::Room>();
   SimpleRoomDelegate delegate(media);
   room->setDelegate(&delegate);
@@ -299,7 +296,7 @@ int main(int argc, char *argv[]) {
   std::cout << "Connect result is " << std::boolalpha << res << std::endl;
   if (!res) {
     std::cerr << "Failed to connect to room\n";
-    FfiClient::instance().shutdown();
+    livekit::shutdown();
     return 1;
   }
 
@@ -404,7 +401,7 @@ int main(int argc, char *argv[]) {
 
   room.reset();
 
-  FfiClient::instance().shutdown();
+  livekit::shutdown();
   std::cout << "Exiting.\n";
   return 0;
 }

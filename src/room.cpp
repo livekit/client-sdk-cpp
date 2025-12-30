@@ -30,6 +30,7 @@
 
 #include "ffi.pb.h"
 #include "ffi_client.h"
+#include "livekit_ffi.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
 #include "track.pb.h"

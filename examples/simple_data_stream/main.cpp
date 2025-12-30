@@ -7,13 +7,12 @@
 #include <map>
 #include <optional>
 #include <random>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "livekit/livekit.h"
-// TODO, remove the ffi_client from the public usage.
-#include "ffi_client.h"
 
 using namespace livekit;
 
@@ -210,6 +209,8 @@ int main(int argc, char *argv[]) {
   std::signal(SIGTERM, handleSignal);
 #endif
 
+  // Initialize the livekit with logging to console.
+  livekit::initialize(livekit::LogSink::kConsole);
   auto room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
@@ -219,7 +220,7 @@ int main(int argc, char *argv[]) {
   std::cout << "[DataStream] Connect result: " << std::boolalpha << ok << "\n";
   if (!ok) {
     std::cerr << "[DataStream] Failed to connect to room\n";
-    FfiClient::instance().shutdown();
+    livekit::shutdown();
     return 1;
   }
 
@@ -278,6 +279,6 @@ int main(int argc, char *argv[]) {
   // It is important to clean up the delegate and room in order.
   room->setDelegate(nullptr);
   room.reset();
-  FfiClient::instance().shutdown();
+  livekit::shutdown();
   return 0;
 }
