@@ -7,6 +7,15 @@ BUILD_TYPE="Release"
 VERBOSE=""
 PRESET=""
 
+# Initialize optional variables (required for set -u)
+DO_BUNDLE=""
+DO_ARCHIVE=""
+PREFIX=""
+ARCHIVE_NAME=""
+GENERATOR=""
+MACOS_ARCH=""
+LIVEKIT_VERSION=""
+
 # Detect OS for preset selection
 detect_os() {
   case "$(uname -s)" in

@@ -143,32 +143,34 @@ echo ==^> Build complete!
 goto :eof
 
 :clean
-echo ==^> Cleaning CMake targets...
-if exist "%BUILD_DIR%" (
-    cmake --build "%BUILD_DIR%" --target clean
-) else (
-    echo    (skipping) %BUILD_DIR% does not exist.
+echo ==^> Cleaning CMake targets ^(Debug + Release^)...
+if not exist "%BUILD_DIR%\CMakeCache.txt" (
+    echo    ^(skipping^) Build directory does not exist or is not configured.
+    goto :eof
 )
+echo    Cleaning Debug...
+cmake --build "%BUILD_DIR%" --target clean --config Debug 2>nul
+echo    Cleaning Release...
+cmake --build "%BUILD_DIR%" --target clean --config Release 2>nul
+echo ==^> Clean complete.
 goto :eof
 
 :clean_all
-echo ==^> Running full clean-all (C++ + Rust)...
-if exist "%BUILD_DIR%" (
-    cmake --build "%BUILD_DIR%" --target clean_all
-) else (
-    echo    (info) %BUILD_DIR% does not exist; doing manual deep clean...
+echo ==^> Running full clean-all ^(C++ + Rust^)...
+if exist "%BUILD_DIR%\CMakeCache.txt" (
+    cmake --build "%BUILD_DIR%" --target clean_all 2>nul
 )
 
+echo Removing Rust debug artifacts...
 if exist "%PROJECT_ROOT%\client-sdk-rust\target\debug" (
-    echo Removing Rust debug artifacts...
     rmdir /s /q "%PROJECT_ROOT%\client-sdk-rust\target\debug" 2>nul
 )
+echo Removing Rust release artifacts...
 if exist "%PROJECT_ROOT%\client-sdk-rust\target\release" (
-    echo Removing Rust release artifacts...
     rmdir /s /q "%PROJECT_ROOT%\client-sdk-rust\target\release" 2>nul
 )
+echo Removing build directory...
 if exist "%BUILD_DIR%" (
-    echo Removing build directory...
     rmdir /s /q "%BUILD_DIR%" 2>nul
 )
 echo ==^> Clean-all complete.

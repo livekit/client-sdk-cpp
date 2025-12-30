@@ -46,44 +46,74 @@ sudo apt update && sudo apt install -y \
 brew install cmake ninja protobuf abseil
 ```
 
-### Method 1: Using CMake Presets (Recommended)
+## Quick Start
 
-The project provides a `CMakePresets.json` configuration file for simplified building.
+### Method 1: Using Build Scripts (Recommended)
 
-**Windows (requires VCPKG_ROOT):**
+The project provides `build.cmd` (Windows) and `build.sh` (Linux/macOS) scripts for simplified building.
+
+**Windows:**
 ```powershell
-# Set vcpkg root
+# Set vcpkg root (required for Windows)
 $env:VCPKG_ROOT = "C:\path\to\vcpkg"
 
-# Configure and build
-cmake --preset windows-release
-cmake --build --preset windows-release
+# Build Release version
+.\build.cmd release
 
-# To build with examples
-cmake --preset windows-release-examples
-cmake --build --preset windows-release-examples
+# Build Release with examples
+.\build.cmd release-examples
+
+# Build Debug version
+.\build.cmd debug
+
+# Build Debug with examples
+.\build.cmd debug-examples
+
+# Clean build artifacts
+.\build.cmd clean
+
+# Full clean (C++ + Rust + generated files)
+.\build.cmd clean-all
 ```
 
-**Linux (uses system packages):**
+**Linux:**
 ```bash
-# Configure and build
-cmake --preset linux-release
-cmake --build --preset linux-release
+# Install system dependencies first (see Prerequisites above)
 
-# To build with examples
-cmake --preset linux-release-examples
-cmake --build --preset linux-release-examples
+# Build Release version
+./build.sh release
+
+# Build Release with examples
+./build.sh release-examples
+
+# Build Debug version
+./build.sh debug
+
+# Build Debug with examples
+./build.sh debug-examples
+
+# Clean build artifacts
+./build.sh clean
+
+# Full clean
+./build.sh clean-all
 ```
 
-**macOS (uses Homebrew packages):**
+**macOS:**
 ```bash
-# Configure and build
-cmake --preset macos-release
-cmake --build --preset macos-release
+# Install Homebrew dependencies first (see Prerequisites above)
 
-# To build with examples
-cmake --preset macos-release-examples
-cmake --build --preset macos-release-examples
+# Build Release version
+./build.sh release
+
+# Build Release with examples
+./build.sh release-examples
+
+# Build Debug version
+./build.sh debug
+
+# Build Debug with examples
+./build.sh debug-examples
 ```
 
 #### Important Notes for Linux
@@ -115,17 +145,6 @@ export LIBCLANG_PATH=/usr/lib/llvm-14/lib  # Adjust version as needed
 3. **Rust bindgen fails with "unable to find libclang"**
    - Cause: Rust bindgen cannot locate libclang library
    - Solution: Set `LIBCLANG_PATH` environment variable pointing to your LLVM installation
-
-**macOS:**
-```bash
-# Configure and build
-cmake --preset macos-release
-cmake --build --preset macos-release
-
-# To build with examples
-cmake --preset macos-release-examples
-cmake --build --preset macos-release-examples
-```
 
 ### Method 2: Using vcpkg Manifest Mode
 

@@ -83,6 +83,17 @@
       }
     },
     {
+      "name": "windows-debug-examples",
+      "displayName": "Windows x64 Debug with Examples",
+      "description": "Build for Windows x64 Debug with example applications",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "examples"
+      }
+    },
+    {
       "name": "linux-release",
       "displayName": "Linux Release",
       "description": "Build for Linux Release (system packages)",
@@ -110,6 +121,17 @@
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "linux-debug-examples",
+      "displayName": "Linux Debug with Examples",
+      "description": "Build for Linux Debug with example applications",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
         "LIVEKIT_BUILD_EXAMPLES": "ON"
       }
     },
@@ -143,6 +165,17 @@
         "CMAKE_BUILD_TYPE": "Release",
         "LIVEKIT_BUILD_EXAMPLES": "ON"
       }
+    },
+    {
+      "name": "macos-debug-examples",
+      "displayName": "macOS Debug with Examples",
+      "description": "Build for macOS Debug with example applications",
+      "inherits": "macos-base",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -162,6 +195,11 @@
       "configuration": "Release"
     },
     {
+      "name": "windows-debug-examples",
+      "configurePreset": "windows-debug-examples",
+      "configuration": "Debug"
+    },
+    {
       "name": "linux-release",
       "configurePreset": "linux-release"
     },
@@ -174,6 +212,10 @@
       "configurePreset": "linux-release-examples"
     },
     {
+      "name": "linux-debug-examples",
+      "configurePreset": "linux-debug-examples"
+    },
+    {
       "name": "macos-release",
       "configurePreset": "macos-release"
     },
@@ -184,6 +226,10 @@
     {
       "name": "macos-release-examples",
       "configurePreset": "macos-release-examples"
+    },
+    {
+      "name": "macos-debug-examples",
+      "configurePreset": "macos-debug-examples"
     }
   ]
 }

@@ -245,11 +245,14 @@ if(UNIX AND NOT APPLE)
   if(NOT CMAKE_AR)
     find_program(CMAKE_AR ar REQUIRED)
   endif()
+  # Remove protozero_plugin.o from static library to avoid duplicate symbols
+  # The file may not exist in all builds, so we use '|| true' to ignore errors
   add_custom_command(
     TARGET build_rust_ffi
     POST_BUILD
-    COMMAND ${CMAKE_AR} -dv "${RUST_LIB_RELEASE}" protozero_plugin.o
-    COMMENT "Removing protozero_plugin.o from liblivekit_ffi.a"
+    COMMAND ${CMAKE_AR} -dv "${RUST_LIB_RELEASE}" protozero_plugin.o || true
+    COMMAND ${CMAKE_AR} -dv "${RUST_LIB_DEBUG}" protozero_plugin.o || true
+    COMMENT "Removing protozero_plugin.o from liblivekit_ffi.a (if present)"
   )
 endif()
 
@@ -367,48 +370,50 @@ if(LIVEKIT_IS_TOPLEVEL)
     set(VCPKG_LIB_DIR_DEBUG "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/debug/lib")
     set(VCPKG_LIB_DIR_RELEASE "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/lib")
     
-    # List of required DLL files (runtime)
-    set(REQUIRED_DLLS
-      "libprotobuf.dll"
-      # "libprotobuf-lite.dll"
-      # "libprotoc.dll"
-      "abseil_dll.dll"
+    # vcpkg uses 'd' suffix for debug builds (e.g., libprotobufd.dll)
+    # We need to copy with the correct source name but keep the output name consistent
+    
+    # abseil_dll.dll (same name for both debug and release)
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<IF:$<CONFIG:Debug>,${VCPKG_BIN_DIR_DEBUG}/abseil_dll.dll,${VCPKG_BIN_DIR_RELEASE}/abseil_dll.dll>"
+              "$<TARGET_FILE_DIR:livekit>/abseil_dll.dll"
+      COMMENT "Copying abseil_dll.dll to lib directory"
+      VERBATIM
     )
     
-    # List of required LIB files (for linking)
-    set(REQUIRED_LIBS
-      "libprotobuf.lib"
-      # "libprotobuf-lite.lib"
-      # "libprotoc.lib"
-      "abseil_dll.lib"
+    # libprotobuf.dll - debug version has 'd' suffix
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<IF:$<CONFIG:Debug>,${VCPKG_BIN_DIR_DEBUG}/libprotobufd.dll,${VCPKG_BIN_DIR_RELEASE}/libprotobuf.dll>"
+              "$<TARGET_FILE_DIR:livekit>/$<IF:$<CONFIG:Debug>,libprotobufd.dll,libprotobuf.dll>"
+      COMMENT "Copying libprotobuf DLL to lib directory"
+      VERBATIM
     )
     
-    # Copy DLLs to the lib output directory
-    foreach(DLL_FILE ${REQUIRED_DLLS})
-      add_custom_command(
-        TARGET livekit POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<IF:$<CONFIG:Debug>,${VCPKG_BIN_DIR_DEBUG}/${DLL_FILE},${VCPKG_BIN_DIR_RELEASE}/${DLL_FILE}>"
-                "$<TARGET_FILE_DIR:livekit>/${DLL_FILE}"
-        COMMENT "Copying ${DLL_FILE} to lib directory"
-        VERBATIM
-      )
-    endforeach()
+    # abseil_dll.lib (same name for both debug and release)
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<IF:$<CONFIG:Debug>,${VCPKG_LIB_DIR_DEBUG}/abseil_dll.lib,${VCPKG_LIB_DIR_RELEASE}/abseil_dll.lib>"
+              "$<TARGET_FILE_DIR:livekit>/abseil_dll.lib"
+      COMMENT "Copying abseil_dll.lib to lib directory"
+      VERBATIM
+    )
     
-    # Copy LIBs (import libraries) to the lib output directory
-    foreach(LIB_FILE ${REQUIRED_LIBS})
-      add_custom_command(
-        TARGET livekit POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<IF:$<CONFIG:Debug>,${VCPKG_LIB_DIR_DEBUG}/${LIB_FILE},${VCPKG_LIB_DIR_RELEASE}/${LIB_FILE}>"
-                "$<TARGET_FILE_DIR:livekit>/${LIB_FILE}"
-        COMMENT "Copying ${LIB_FILE} to lib directory"
-        VERBATIM
-      )
-    endforeach()
+    # libprotobuf.lib - debug version has 'd' suffix
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<IF:$<CONFIG:Debug>,${VCPKG_LIB_DIR_DEBUG}/libprotobufd.lib,${VCPKG_LIB_DIR_RELEASE}/libprotobuf.lib>"
+              "$<TARGET_FILE_DIR:livekit>/$<IF:$<CONFIG:Debug>,libprotobufd.lib,libprotobuf.lib>"
+      COMMENT "Copying libprotobuf LIB to lib directory"
+      VERBATIM
+    )
     
-    message(STATUS "Third-party DLLs will be copied to lib directory: ${REQUIRED_DLLS}")
-    message(STATUS "Third-party LIBs will be copied to lib directory: ${REQUIRED_LIBS}")
+    message(STATUS "Third-party dependencies will be copied to lib directory")
   endif()
 endif()
 
