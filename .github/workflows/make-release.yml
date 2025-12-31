@@ -126,8 +126,22 @@ jobs:
         run: |
           chmod +x build.sh
           ./build.sh release -G "${{ matrix.generator }}" \
-            --version "${{ steps.version.outputs.version }}" \
-            --bundle --prefix "sdk-out/livekit-sdk-${{ matrix.name }}"
+            --version "${{ steps.version.outputs.version }}"
+          
+          # Create bundle directory manually (cmake --install requires install() rules)
+          bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}"
+          mkdir -p "$bundleDir/lib"
+          mkdir -p "$bundleDir/include"
+          
+          # Copy files
+          cp -r build-release/lib/* "$bundleDir/lib/" 2>/dev/null || true
+          cp -r build-release/include/* "$bundleDir/include/" 2>/dev/null || true
+          
+          # List bundle contents
+          echo "Bundle contents:"
+          ls -la "$bundleDir/"
+          ls -la "$bundleDir/lib/" || true
+          ls -la "$bundleDir/include/" || true
 
       # ---------- Build + Bundle (Windows) ----------
       - name: Build and Bundle (Windows)
