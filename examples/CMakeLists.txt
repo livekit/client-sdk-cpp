@@ -128,3 +128,25 @@ if(WIN32)
     endforeach()
   endforeach()
 endif()
+
+# Linux/macOS: Copy shared library to examples output directory
+if(UNIX)
+  set(LIVEKIT_LIB_DIR $<TARGET_FILE_DIR:livekit>)
+  
+  if(APPLE)
+    set(FFI_SHARED_LIB "liblivekit_ffi.dylib")
+  else()
+    set(FFI_SHARED_LIB "liblivekit_ffi.so")
+  endif()
+  
+  # Copy shared library to each example's output directory
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream)
+    add_custom_command(TARGET ${EXAMPLE} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "${LIVEKIT_LIB_DIR}/${FFI_SHARED_LIB}"
+              "$<TARGET_FILE_DIR:${EXAMPLE}>/${FFI_SHARED_LIB}"
+      COMMENT "Copying ${FFI_SHARED_LIB} to ${EXAMPLE} output directory"
+      VERBATIM
+    )
+  endforeach()
+endif()

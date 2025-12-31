@@ -125,41 +125,42 @@ jobs:
         shell: bash
         run: |
           chmod +x build.sh
-          ./build.sh release -G "${{ matrix.generator }}" \
-            --version "${{ steps.version.outputs.version }}"
+          ./build.sh release-examples
           
-          # Create bundle directory manually (cmake --install requires install() rules)
-          bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}"
+          # Create bundle directory
+          bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
           mkdir -p "$bundleDir/lib"
           mkdir -p "$bundleDir/include"
+          mkdir -p "$bundleDir/bin"
           
           # Copy files
           cp -r build-release/lib/* "$bundleDir/lib/" 2>/dev/null || true
           cp -r build-release/include/* "$bundleDir/include/" 2>/dev/null || true
+          cp -r build-release/bin/* "$bundleDir/bin/" 2>/dev/null || true
           
           # List bundle contents
           echo "Bundle contents:"
-          ls -la "$bundleDir/"
-          ls -la "$bundleDir/lib/" || true
-          ls -la "$bundleDir/include/" || true
+          find "$bundleDir" -type f | head -50
 
       # ---------- Build + Bundle (Windows) ----------
       - name: Build and Bundle (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Build release
-          .\build.cmd release
+          # Build release with examples
+          .\build.cmd release-examples
           
           # Create bundle directory
-          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}"
+          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
           New-Item -ItemType Directory -Force -Path $bundleDir
           New-Item -ItemType Directory -Force -Path "$bundleDir/lib"
           New-Item -ItemType Directory -Force -Path "$bundleDir/include"
+          New-Item -ItemType Directory -Force -Path "$bundleDir/bin"
           
           # Copy files
           Copy-Item -Recurse -Force "build-release/lib/*" "$bundleDir/lib/"
           Copy-Item -Recurse -Force "build-release/include/*" "$bundleDir/include/"
+          Copy-Item -Recurse -Force "build-release/bin/*" "$bundleDir/bin/"
 
       # ---------- Create archive ----------
       - name: Archive (Unix)
@@ -167,14 +168,24 @@ jobs:
         shell: bash
         run: |
           cd sdk-out
-          tar -czf "../livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}.tar.gz" "livekit-sdk-${{ matrix.name }}"
+          # Archive the directory contents directly (not the directory itself to avoid double nesting)
+          tarName="livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}.tar.gz"
+          tar -czf "../${tarName}" "livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
+          echo "Created: ${tarName}"
+          ls -la "../${tarName}"
 
       - name: Archive (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Compress-Archive -Path "sdk-out/livekit-sdk-${{ matrix.name }}/*" `
-            -DestinationPath "livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}.zip"
+          $version = "${{ steps.version.outputs.version }}"
+          $archiveName = "livekit-sdk-${{ matrix.name }}-${version}.zip"
+          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-${version}"
+          
+          # Create zip from the bundle directory (include the folder itself for proper structure)
+          Compress-Archive -Path $bundleDir -DestinationPath $archiveName -Force
+          Write-Host "Created: $archiveName"
+          Get-ChildItem $archiveName
 
       # ---------- Upload artifact ----------
       - name: Upload build artifact
