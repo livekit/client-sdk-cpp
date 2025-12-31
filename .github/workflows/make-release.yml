@@ -27,11 +27,6 @@ jobs:
           - os: macos-latest
             name: macos-arm64
             generator: Ninja
-            macos_arch: arm64
-          - os: macos-latest
-            name: macos-x64
-            generator: Ninja
-            macos_arch: x86_64
           - os: windows-latest
             name: windows-x64
             generator: "Visual Studio 17 2022"
@@ -85,9 +80,14 @@ jobs:
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
             llvm-dev libclang-dev clang \
+            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+            libxrandr-dev libxi-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev \
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
-            libabsl-dev
+            libabsl-dev \
+            libwayland-dev libdecor-0-dev
 
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
@@ -125,13 +125,9 @@ jobs:
         shell: bash
         run: |
           chmod +x build.sh
-          args=(release -G "${{ matrix.generator }}" \
+          ./build.sh release -G "${{ matrix.generator }}" \
             --version "${{ steps.version.outputs.version }}" \
-            --bundle --prefix "sdk-out/livekit-sdk-${{ matrix.name }}")
-          if [[ "${{ runner.os }}" == "macOS" && -n "${{ matrix.macos_arch }}" ]]; then
-            args+=(--macos-arch "${{ matrix.macos_arch }}")
-          fi
-          ./build.sh "${args[@]}"
+            --bundle --prefix "sdk-out/livekit-sdk-${{ matrix.name }}"
 
       # ---------- Build + Bundle (Windows) ----------
       - name: Build and Bundle (Windows)

@@ -46,6 +46,17 @@ add_custom_command(TARGET SimpleRoom POST_BUILD
             ${CMAKE_CURRENT_BINARY_DIR}/data
 )
 
+# Copy SDL3 DLL to SimpleRoom output directory
+if(WIN32)
+  add_custom_command(TARGET SimpleRoom POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:SDL3::SDL3>"
+            "$<TARGET_FILE_DIR:SimpleRoom>"
+    COMMENT "Copying SDL3.dll to SimpleRoom output directory"
+    VERBATIM
+  )
+endif()
+
 find_package(nlohmann_json CONFIG QUIET)
 if(NOT nlohmann_json_FOUND)
   include(FetchContent)
@@ -94,10 +105,13 @@ if(WIN32)
   # Get the livekit library output directory (where DLLs are copied during main build)
   set(LIVEKIT_LIB_DIR $<TARGET_FILE_DIR:livekit>)
   
-  # List of DLLs to copy
+  # Protobuf DLL name depends on configuration (libprotobufd.dll for Debug, libprotobuf.dll for Release)
+  set(PROTOBUF_DLL_NAME $<IF:$<CONFIG:Debug>,libprotobufd.dll,libprotobuf.dll>)
+  
+  # List of DLLs to copy (using generator expressions for config-dependent names)
   set(REQUIRED_DLLS
     "livekit_ffi.dll"
-    "libprotobuf.dll"
+    "${PROTOBUF_DLL_NAME}"
     "abseil_dll.dll"
   )
   

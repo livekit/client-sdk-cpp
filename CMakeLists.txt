@@ -29,26 +29,22 @@ else()
 endif()
 
 if(LIVEKIT_IS_TOPLEVEL)
-  if(WIN32)
-    set(PLATFORM_DIR "windows-x64")
-  elseif(APPLE)
-    set(PLATFORM_DIR "macos-universal")
-  elseif(UNIX)
-    set(PLATFORM_DIR "linux-x64")
-  else()
-    set(PLATFORM_DIR "unknown")
-  endif()
-
-  if(WIN32)
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR}/$<LOWER_CASE:$<CONFIG>>)
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR}/$<LOWER_CASE:$<CONFIG>>)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<LOWER_CASE:$<CONFIG>>)
-  else()
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR})
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR})
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-  endif()
+  # Since we use separate build directories (build-debug/build-release),
+  # we don't need additional platform/config subdirectories
+  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+  
+  # For multi-config generators (Visual Studio), override per-config directories
+  # to prevent adding Debug/Release subdirectories
+  foreach(CONFIG_TYPE Debug Release RelWithDebInfo MinSizeRel)
+    string(TOUPPER ${CONFIG_TYPE} CONFIG_TYPE_UPPER)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONFIG_TYPE_UPPER} ${CMAKE_BINARY_DIR}/lib)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG_TYPE_UPPER} ${CMAKE_BINARY_DIR}/lib)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG_TYPE_UPPER} ${CMAKE_BINARY_DIR}/bin)
+  endforeach()
 endif()
+
 
 if(MSVC)
   # Use dynamic CRT (/MD) for compatibility with Qt and other /MD libraries.
