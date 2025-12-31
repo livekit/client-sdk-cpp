@@ -10,6 +10,9 @@ on:
       - client-sdk-rust/**
       - CMakeLists.txt
       - build.sh
+      - build.cmd
+      - vcpkg.json
+      - CMakePresets.json
       - .github/workflows/**
   pull_request:
     branches: ["main"]
@@ -20,11 +23,16 @@ on:
       - client-sdk-rust/**
       - CMakeLists.txt
       - build.sh
+      - build.cmd
+      - vcpkg.json
+      - CMakePresets.json
       - .github/workflows/**
   workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
+  # vcpkg binary caching for Windows
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
 jobs:
   build:
@@ -33,11 +41,19 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
+            name: linux-x64
+            build_cmd: ./build.sh release-examples
+            build_dir: build-release
           - os: macos-latest
-          # Windows needs protobuf *libraries* too (not just protoc).
-          # Enable after wiring vcpkg (see notes below).
-          # - os: windows-latest
-    name: ${{ matrix.os }}
+            name: macos-arm64
+            build_cmd: ./build.sh release-examples
+            build_dir: build-release
+          - os: windows-latest
+            name: windows-x64
+            build_cmd: .\build.cmd release-examples
+            build_dir: build-release
+
+    name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -47,36 +63,45 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      # ---------- OS-specific deps: install protoc + libprotobuf that MATCH ----------
+      # ---------- vcpkg caching for Windows ----------
+      - name: Export GitHub Actions cache environment variables
+        if: runner.os == 'Windows'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Setup vcpkg (Windows only)
+        if: runner.os == 'Windows'
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 'c82f74667287d3dc386bce81e44964370c91a289'
+
+      # ---------- OS-specific deps ----------
       - name: Install deps (Ubuntu)
         if: runner.os == 'Linux'
         run: |
           set -eux
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build build-essential \
-                                  protobuf-compiler libprotobuf-dev libabsl-dev \
-                                  libx11-dev libxext-dev libgl1-mesa-dev libssl-dev \
-                                  libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
-                                  libxrandr-dev libxi-dev libxkbcommon-dev \
-                                  libdrm-dev libgbm-dev libva-dev \
-                                  libasound2-dev libpulse-dev
-          protoc --version
-          pkg-config --modversion protobuf
-          # Fail if versions don't match (best-effort)
-          test "$(protoc --version | awk '{print $2}')" = "$(pkg-config --modversion protobuf)" || {
-            echo "protoc and libprotobuf versions differ"; exit 1; }
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            llvm-dev libclang-dev clang \
+            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+            libxrandr-dev libxi-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev \
+            libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libabsl-dev \
+            libwayland-dev libdecor-0-dev
 
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
         run: |
           set -eux
           brew update
-          # EITHER: latest protobuf
-          brew install cmake protobuf ninja
-          # OR pin a specific version (e.g., protobuf@6) if you need it:
-          # brew install protobuf@6 && brew link --overwrite --force protobuf@6
-          protoc --version
-          pkg-config --modversion protobuf
+          brew install cmake ninja protobuf abseil
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
@@ -100,30 +125,110 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-target-
 
-      # ---------- Build (Debug / Release) ----------
-      - name: Build Debug
-        shell: bash
+      # ---------- Build environment setup ----------
+      - name: Set Linux build environment
+        if: runner.os == 'Linux'
         run: |
-          chmod +x build.sh
-          ./build.sh debug
+          echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          echo "CFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
 
-      - name: Build Release
-        shell: bash
-        run: |
-          ./build.sh release
-
-      # ---------- Smoke test example (no server needed) ----------
-      - name: Smoke test example (Debug)
+      # ---------- Build ----------
+      - name: Build (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          if [[ -x build/examples/SimpleRoom ]]; then
-            build/examples/SimpleRoom --help || true
-          fi
+          chmod +x build.sh
+          ${{ matrix.build_cmd }}
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ${{ matrix.build_cmd }}
+
+      # ---------- Smoke test examples ----------
+      - name: Smoke test examples (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -x
+          failed=false
+          for exe in SimpleRoom SimpleRpc SimpleDataStream; do
+            exe_path="${{ matrix.build_dir }}/bin/${exe}"
+            if [[ -x "${exe_path}" ]]; then
+              echo "Testing ${exe}..."
+              output=$("${exe_path}" --help 2>&1) || true
+              if [[ -z "${output}" ]]; then
+                echo "ERROR: ${exe} produced no output"
+                failed=true
+              else
+                echo "${output}"
+                echo "${exe} ran successfully"
+              fi
+            else
+              echo "ERROR: ${exe_path} not found or not executable"
+              failed=true
+            fi
+          done
+          if [[ "$failed" == "true" ]]; then exit 1; fi
+
+      - name: Smoke test examples (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $examples = @('SimpleRoom', 'SimpleRpc', 'SimpleDataStream')
+          $failed = $false
+          foreach ($exe in $examples) {
+            $exePath = "${{ matrix.build_dir }}/bin/Release/${exe}.exe"
+            if (Test-Path $exePath) {
+              Write-Host "Testing ${exe}..."
+              $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+              $pinfo.FileName = $exePath
+              $pinfo.Arguments = "--help"
+              $pinfo.RedirectStandardOutput = $true
+              $pinfo.RedirectStandardError = $true
+              $pinfo.UseShellExecute = $false
+              $p = New-Object System.Diagnostics.Process
+              $p.StartInfo = $pinfo
+              $p.Start() | Out-Null
+              $stdout = $p.StandardOutput.ReadToEnd()
+              $stderr = $p.StandardError.ReadToEnd()
+              $p.WaitForExit()
+              $output = $stdout + $stderr
+              if ([string]::IsNullOrWhiteSpace($output)) {
+                Write-Host "ERROR: ${exe} produced no output"
+                $failed = $true
+              } else {
+                Write-Host $output
+                Write-Host "${exe} ran successfully"
+              }
+            } else {
+              Write-Host "ERROR: ${exePath} not found"
+              $failed = $true
+            }
+          }
+          if ($failed) { exit 1 } else { exit 0 }
+
+      # ---------- Upload artifacts ----------
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: livekit-sdk-${{ matrix.name }}
+          path: |
+            ${{ matrix.build_dir }}/lib/
+            ${{ matrix.build_dir }}/include/
+            ${{ matrix.build_dir }}/bin/
+          retention-days: 7
 
       # ---------- Cleanup ----------
       - name: Clean after build (best-effort)
         if: always()
         shell: bash
         run: |
-          [[ -x build.sh ]] && ./build.sh clean-all || true
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            rm -rf build-release build-debug || true
+          else
+            ./build.sh clean-all || true
+          fi

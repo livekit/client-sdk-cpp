@@ -5,16 +5,25 @@ This SDK enables native C++ applications to connect to LiveKit servers for real-
 ---
 
 ## 📦 Requirements
-- **CMake** ≥ 4.0  
+- **CMake** ≥ 3.20  
 - **Rust / Cargo** (latest stable toolchain)  
-- **Protobuf** compiler (`protoc`)  
-- **macOS** users: System frameworks (CoreAudio, AudioToolbox, etc.) are automatically linked via CMake.
-- **windows** users: Ninja, Visual Studio 2022 Build Tools (MSVC toolset + Windows SDK), Rust stable (MSVC toolchain) + Cargo,
-  vcpkg (recommended dependency manager on Windows) and install protobuf package via vcpkg
 - **Git LFS** (required for examples)
   Some example data files (e.g., audio assets) are stored using Git LFS.
   You must install Git LFS before cloning or pulling the repo if you want to run the examples.
 
+**Platform-Specific Requirements:**
+
+### For Building the SDK:
+- **Windows:** Visual Studio 2019+, vcpkg
+- **Linux:** `sudo apt install libprotobuf-dev libssl-dev` (protobuf 3.x)
+- **macOS:** `brew install protobuf` (protobuf 3.x)
+
+### For Using the Pre-built SDK:
+- **Windows:** ✅ All dependencies included (DLLs bundled) - ready to use
+- **Linux:** ⚠️ Requires `libprotobuf` and `libssl-dev` installed on target system
+- **macOS:** ⚠️ Requires `protobuf` installed via Homebrew on target system
+
+> **Note**: If the SDK was built with Protobuf 6.0+, you also need `libabsl-dev` (Linux) or `abseil` (macOS).
 
 ## 🧩 Clone the Repository
 
@@ -32,8 +41,9 @@ git submodule update --init --recursive
 
 ## ⚙️ BUILD
 
-All build actions are managed by the provided build.sh script.
-**UNIX**
+### Quick Build (Using Build Scripts)
+
+**Linux/macOS:**
 ```bash
 ./build.sh clean        # Clean CMake build artifacts
 ./build.sh clean-all    # Deep clean (C++ + Rust + generated files)
@@ -56,6 +66,47 @@ You must install protobuf via vcpkg (so CMake can find ProtobufConfig.cmake and 
 ```bash
 .\vcpkg\vcpkg install protobuf:x64-windows
 ```
+
+**Windows:**
+```powershell
+.\build.cmd clean       # Clean CMake build artifacts
+.\build.cmd clean-all   # Deep clean (C++ + Rust + generated files)
+.\build.cmd debug       # Build Debug version
+.\build.cmd release     # Build Release version
+.\build.cmd verbose     # Verbose build output
+```
+
+### Advanced Build (Using CMake Presets)
+
+For more control and platform-specific builds, see the detailed instructions in [README_BUILD.md](README_BUILD.md).
+
+**Prerequisites (Windows only):**
+- Set `VCPKG_ROOT` environment variable pointing to your vcpkg installation
+
+```powershell
+# Windows PowerShell
+$env:VCPKG_ROOT = "C:\path\to\vcpkg"
+```
+
+**Prerequisites (Linux/macOS):**
+- Install system dependencies (see above)
+
+**Quick start:**
+```bash
+# Windows
+cmake --preset windows-release
+cmake --build --preset windows-release
+
+# Linux
+cmake --preset linux-release
+cmake --build --preset linux-release
+
+# macOS
+cmake --preset macos-release
+cmake --build --preset macos-release
+```
+
+📖 **For complete build instructions, troubleshooting, and platform-specific notes, see [README_BUILD.md](README_BUILD.md)**
 
 ## 🧪 Run Example
 

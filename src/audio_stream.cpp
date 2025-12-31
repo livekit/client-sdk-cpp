@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2025 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -8,7 +8,7 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an “AS IS” BASIS,
+ * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
@@ -157,8 +157,8 @@ void AudioStream::initFromTrack(const std::shared_ptr<Track> &track,
   if (!options_.noise_cancellation_module.empty()) {
     new_audio_stream->set_audio_filter_module_id(
         options_.noise_cancellation_module);
-    // Always set options JSON even if empty — backend will treat empty string
-    // as “no options”
+    // Always set options JSON even if empty - backend will treat empty string
+    // as "no options"
     new_audio_stream->set_audio_filter_options(
         options_.noise_cancellation_options_json);
   }
@@ -192,7 +192,7 @@ void AudioStream::initFromParticipant(Participant &participant,
   if (!options_.noise_cancellation_module.empty()) {
     as->set_audio_filter_module_id(options_.noise_cancellation_module);
     // Always set options JSON even if empty — backend will treat empty string
-    // as “no options”
+    // as "no options"
     as->set_audio_filter_options(options_.noise_cancellation_options_json);
   }
 

@@ -6,7 +6,21 @@ Makefile
 cmake_install.cmake
 out
 build/
+build-debug/
+build-release/
+vcpkg_installed/
 received_green.avif
 docs/*.bak
 docs/html/
 docs/latex/
+.vs/
+.vscode/
+# Compiled output
+bin/
+lib/
+*.lib
+*.a
+*.so
+*.dylib
+*.dll
+*.exe

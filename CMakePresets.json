@@ -1,0 +1,240 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "vcpkg",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "FILEPATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        },
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
+        "LIVEKIT_USE_VCPKG": "ON"
+      }
+    },
+    {
+      "name": "windows-base",
+      "hidden": true,
+      "inherits": "vcpkg",
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      }
+    },
+    {
+      "name": "linux-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "LIVEKIT_USE_VCPKG": "OFF"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "macos-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "LIVEKIT_USE_VCPKG": "OFF"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+    {
+      "name": "windows-release",
+      "displayName": "Windows x64 Release",
+      "description": "Build for Windows x64 Release (vcpkg)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "windows-debug",
+      "displayName": "Windows x64 Debug",
+      "description": "Build for Windows x64 Debug (vcpkg)",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "windows-release-examples",
+      "displayName": "Windows x64 Release with Examples",
+      "description": "Build for Windows x64 Release with example applications",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "examples"
+      }
+    },
+    {
+      "name": "windows-debug-examples",
+      "displayName": "Windows x64 Debug with Examples",
+      "description": "Build for Windows x64 Debug with example applications",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "VCPKG_MANIFEST_FEATURES": "examples"
+      }
+    },
+    {
+      "name": "linux-release",
+      "displayName": "Linux Release",
+      "description": "Build for Linux Release (system packages)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "linux-debug",
+      "displayName": "Linux Debug",
+      "description": "Build for Linux Debug (system packages)",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "linux-release-examples",
+      "displayName": "Linux Release with Examples",
+      "description": "Build for Linux Release with example applications",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "linux-debug-examples",
+      "displayName": "Linux Debug with Examples",
+      "description": "Build for Linux Debug with example applications",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "macos-release",
+      "displayName": "macOS Release",
+      "description": "Build for macOS Release (Homebrew packages)",
+      "inherits": "macos-base",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "macos-debug",
+      "displayName": "macOS Debug",
+      "description": "Build for macOS Debug (Homebrew packages)",
+      "inherits": "macos-base",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "macos-release-examples",
+      "displayName": "macOS Release with Examples",
+      "description": "Build for macOS Release with example applications",
+      "inherits": "macos-base",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "macos-debug-examples",
+      "displayName": "macOS Debug with Examples",
+      "description": "Build for macOS Debug with example applications",
+      "inherits": "macos-base",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-release",
+      "configurePreset": "windows-release",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-debug",
+      "configurePreset": "windows-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-release-examples",
+      "configurePreset": "windows-release-examples",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-debug-examples",
+      "configurePreset": "windows-debug-examples",
+      "configuration": "Debug"
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release"
+    },
+    {
+      "name": "linux-debug",
+      "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-release-examples",
+      "configurePreset": "linux-release-examples"
+    },
+    {
+      "name": "linux-debug-examples",
+      "configurePreset": "linux-debug-examples"
+    },
+    {
+      "name": "macos-release",
+      "configurePreset": "macos-release"
+    },
+    {
+      "name": "macos-debug",
+      "configurePreset": "macos-debug"
+    },
+    {
+      "name": "macos-release-examples",
+      "configurePreset": "macos-release-examples"
+    },
+    {
+      "name": "macos-debug-examples",
+      "configurePreset": "macos-debug-examples"
+    }
+  ]
+}

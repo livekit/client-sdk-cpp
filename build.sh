@@ -2,16 +2,28 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
-BUILD_DIR="${PROJECT_ROOT}/build"
 BUILD_TYPE="Release"
-VERBOSE=""
-GENERATOR=""          # optional, e.g. Ninja
-PREFIX=""             # install prefix for bundling
-DO_BUNDLE="0"         # whether to run cmake --install
-DO_ARCHIVE="0"        # whether to create .tar.gz/.zip
-ARCHIVE_NAME=""       # optional override
-MACOS_ARCH=""         # optional: arm64 or x86_64 (for macOS only)
+PRESET=""
 
+# Initialize optional variables (required for set -u)
+DO_BUNDLE=""
+DO_ARCHIVE=""
+PREFIX=""
+ARCHIVE_NAME=""
+GENERATOR=""
+MACOS_ARCH=""
+LIVEKIT_VERSION=""
+
+# Detect OS for preset selection
+detect_os() {
+  case "$(uname -s)" in
+    Linux*)     echo "linux";;
+    Darwin*)    echo "macos";;
+    *)          echo "linux";;  # Default to linux
+  esac
+}
+
+OS_TYPE="$(detect_os)"
 
 usage() {
   cat <<EOF
@@ -19,14 +31,15 @@ Usage:
   ./build.sh <command> [options]
 
 Commands:
-  debug             Configure + build Debug version
-  release           Configure + build Release version
-  verbose           Build with verbose output (uses last configured build)
-  clean             Run CMake's built-in clean target
-  clean-all         Run full clean (C++ build + Rust targets + generated files)
+  debug             Configure + build Debug version (build-debug/)
+  debug-examples    Configure + build Debug version with examples
+  release           Configure + build Release version (build-release/)
+  release-examples  Configure + build Release version with examples
+  clean             Clean both Debug and Release build directories
+  clean-all         Full clean (build dirs + Rust targets)
   help              Show this help message
 
-Options (for debug / release / verbose):
+Options (for debug / release):
   --bundle                 Install the SDK bundle using 'cmake --install'
   --prefix <dir>           Install prefix for --bundle
                            (default: ./sdk-out/livekit-sdk)
@@ -41,21 +54,10 @@ Options (for debug / release / verbose):
 
 Examples:
   ./build.sh release
-  ./build.sh release --bundle
-  ./build.sh release --bundle --archive
-  ./build.sh release --bundle --prefix ./sdk-out/livekit-sdk-macos-arm64
-  ./build.sh debug --bundle --prefix /tmp/livekit-sdk-debug
-  ./build.sh release --version 0.1.0 --bundle --archive
-  ./build.sh release -G Ninja --macos-arch arm64 --bundle \\
-      --archive-name livekit-sdk-0.1.0-macos-arm64
-
-Notes:
-  - '--bundle' installs a consumable SDK layout containing:
-      * headers under include/
-      * libraries under lib/ (and bin/ if shared)
-      * CMake package files under lib/cmake/LiveKit/
-  - '--archive' requires '--bundle'
-  - CI builds should use '--version' to ensure build.h matches the release tag
+  ./build.sh release-examples
+  ./build.sh debug
+  ./build.sh clean
+  ./build.sh clean-all
 EOF
 }
 
@@ -123,38 +125,22 @@ parse_opts() {
 }
 
 configure() {
-  echo "==> Configuring CMake (${BUILD_TYPE})..."
-
-  local cmake_args=(
-    -S "${PROJECT_ROOT}"
-    -B "${BUILD_DIR}"
-  )
-
-  # Generator
-  if [[ -n "${GENERATOR}" ]]; then
-    cmake_args+=(-G "${GENERATOR}")
+  echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
+  if ! cmake --preset "${PRESET}"; then
+    echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
+    cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
   fi
-
-  # Version
-  if [[ -n "${LIVEKIT_VERSION:-}" ]]; then
-    cmake_args+=(-DLIVEKIT_VERSION="${LIVEKIT_VERSION}")
-  fi
-
-  # Build type (single-config generators like Ninja/Unix Makefiles)
-  # For Visual Studio/Xcode multi-config, this is mostly ignored but harmless.
-  cmake_args+=(-DCMAKE_BUILD_TYPE="${BUILD_TYPE}")
-
-  # macOS arch override (only if on macOS and provided)
-  if [[ "$(uname -s)" == "Darwin" && -n "${MACOS_ARCH}" ]]; then
-    cmake_args+=(-DCMAKE_OSX_ARCHITECTURES="${MACOS_ARCH}")
-  fi
-
-  cmake "${cmake_args[@]}"
 }
 
 build() {
   echo "==> Building (${BUILD_TYPE})..."
-  cmake --build "${BUILD_DIR}" -j ${VERBOSE:+--verbose}
+  if [[ -n "${PRESET}" ]] && [[ -f "${PROJECT_ROOT}/CMakePresets.json" ]]; then
+    # Use preset build if available
+    cmake --build --preset "${PRESET}"
+  else
+    # Fallback to traditional build
+    cmake --build "${BUILD_DIR}"
+  fi
 }
 
 install_bundle() {
@@ -222,25 +208,59 @@ archive_bundle() {
 }
 
 clean() {
-  echo "==> Cleaning CMake targets..."
-  if [[ -d "${BUILD_DIR}" ]]; then
-    cmake --build "${BUILD_DIR}" --target clean || true
+  echo "==> Cleaning build artifacts..."
+  local debug_dir="${PROJECT_ROOT}/build-debug"
+  local release_dir="${PROJECT_ROOT}/build-release"
+  
+  # For Ninja builds, use ninja -t clean directly to avoid CMake reconfiguration
+  # For other generators (e.g., Make), cmake --build --target clean works fine
+  
+  if [[ -d "${debug_dir}" ]]; then
+    echo "   Cleaning build-debug..."
+    if [[ -f "${debug_dir}/build.ninja" ]]; then
+      # Ninja: use -t clean to avoid reconfiguration
+      ninja -C "${debug_dir}" -t clean 2>/dev/null || rm -rf "${debug_dir}/lib" "${debug_dir}/bin" || true
+    elif [[ -f "${debug_dir}/Makefile" ]]; then
+      make -C "${debug_dir}" clean 2>/dev/null || true
+    else
+      echo "      (skipping) Unknown build system or not configured"
+    fi
   else
-    echo "   (skipping) ${BUILD_DIR} does not exist."
+    echo "   (skipping) build-debug does not exist."
   fi
+  
+  if [[ -d "${release_dir}" ]]; then
+    echo "   Cleaning build-release..."
+    if [[ -f "${release_dir}/build.ninja" ]]; then
+      # Ninja: use -t clean to avoid reconfiguration
+      ninja -C "${release_dir}" -t clean 2>/dev/null || rm -rf "${release_dir}/lib" "${release_dir}/bin" || true
+    elif [[ -f "${release_dir}/Makefile" ]]; then
+      make -C "${release_dir}" clean 2>/dev/null || true
+    else
+      echo "      (skipping) Unknown build system or not configured"
+    fi
+  else
+    echo "   (skipping) build-release does not exist."
+  fi
+  
+  echo "==> Clean complete."
 }
 
 clean_all() {
   echo "==> Running full clean-all (C++ + Rust)..."
-  if [[ -d "${BUILD_DIR}" ]]; then
-    cmake --build "${BUILD_DIR}" --target clean_all || true
-  else
-    echo "   (info) ${BUILD_DIR} does not exist; doing manual deep clean..."
-  fi
-
+  
+  echo "Removing build-debug directory..."
+  rm -rf "${PROJECT_ROOT}/build-debug" || true
+  
+  echo "Removing build-release directory..."
+  rm -rf "${PROJECT_ROOT}/build-release" || true
+  
+  echo "Removing Rust debug artifacts..."
   rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/debug" || true
+  
+  echo "Removing Rust release artifacts..."
   rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/release" || true
-  rm -rf "${BUILD_DIR}" || true
+  
   echo "==> Clean-all complete."
 }
 
@@ -253,7 +273,8 @@ cmd="$1"
 case "${cmd}" in
   debug)
     BUILD_TYPE="Debug"
-    parse_opts "$@"
+    BUILD_DIR="${PROJECT_ROOT}/build-debug"
+    PRESET="${OS_TYPE}-debug"
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then
@@ -262,10 +283,18 @@ case "${cmd}" in
         archive_bundle
       fi
     fi
+    ;;
+  debug-examples)
+    BUILD_TYPE="Debug"
+    BUILD_DIR="${PROJECT_ROOT}/build-debug"
+    PRESET="${OS_TYPE}-debug-examples"
+    configure
+    build
     ;;
   release)
     BUILD_TYPE="Release"
-    parse_opts "$@"
+    BUILD_DIR="${PROJECT_ROOT}/build-release"
+    PRESET="${OS_TYPE}-release"
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then
@@ -275,17 +304,12 @@ case "${cmd}" in
       fi
     fi
     ;;
-  verbose)
-    VERBOSE="1"
-    # Optional: allow --bundle with verbose builds as well, but requires configure already ran.
-    parse_opts "$@"
+  release-examples)
+    BUILD_TYPE="Release"
+    BUILD_DIR="${PROJECT_ROOT}/build-release"
+    PRESET="${OS_TYPE}-release-examples"
+    configure
     build
-    if [[ "${DO_BUNDLE}" == "1" ]]; then
-      install_bundle
-      if [[ "${DO_ARCHIVE}" == "1" ]]; then
-        archive_bundle
-      fi
-    fi
     ;;
   clean)
     clean
@@ -302,4 +326,3 @@ case "${cmd}" in
     exit 1
     ;;
 esac
-

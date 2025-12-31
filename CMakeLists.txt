@@ -1,20 +1,64 @@
-cmake_minimum_required(VERSION 3.31.0)
-project(livekit VERSION 0.1.0 LANGUAGES C CXX)
+cmake_minimum_required(VERSION 3.20)
 
-# ---- C++ standard ----
+if(NOT DEFINED LIVEKIT_VERSION OR LIVEKIT_VERSION STREQUAL "")
+  set(LIVEKIT_VERSION "0.0.0")
+endif()
+
+project(livekit VERSION ${LIVEKIT_VERSION} LANGUAGES C CXX)
+
+set(LIVEKIT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(LIVEKIT_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
+
+# vcpkg is only used on Windows; Linux/macOS use system package managers
+if(WIN32)
+  option(LIVEKIT_USE_VCPKG "Use vcpkg for dependency management (Windows only)" ON)
+else()
+  option(LIVEKIT_USE_VCPKG "Use vcpkg for dependency management" OFF)
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-if(MSVC)
-  # Release: the prebuilt webrtc is using /MT, so we need to match that
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+  set(LIVEKIT_IS_TOPLEVEL TRUE)
+else()
+  set(LIVEKIT_IS_TOPLEVEL FALSE)
 endif()
 
-############## Protobuf ################
+if(LIVEKIT_IS_TOPLEVEL)
+  if(WIN32)
+    set(PLATFORM_DIR "windows-x64")
+  elseif(APPLE)
+    set(PLATFORM_DIR "macos-universal")
+  elseif(UNIX)
+    set(PLATFORM_DIR "linux-x64")
+  else()
+    set(PLATFORM_DIR "unknown")
+  endif()
 
-# ---- Protobuf (FFI protos) ----
-set(FFI_PROTO_DIR ${CMAKE_SOURCE_DIR}/client-sdk-rust/livekit-ffi/protocol)
+  if(WIN32)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR}/$<LOWER_CASE:$<CONFIG>>)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR}/$<LOWER_CASE:$<CONFIG>>)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<LOWER_CASE:$<CONFIG>>)
+  else()
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR})
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR})
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+  endif()
+endif()
+
+if(MSVC)
+  # Use dynamic CRT (/MD) for compatibility with Qt and other /MD libraries.
+  # The livekit_ffi.dll isolates the /MT libwebrtc dependency, so livekit.lib
+  # can safely use /MD.
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+  add_compile_options(/utf-8)
+endif()
+
+set(FFI_PROTO_DIR ${LIVEKIT_ROOT_DIR}/client-sdk-rust/livekit-ffi/protocol)
 set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/handle.proto
     ${FFI_PROTO_DIR}/ffi.proto
@@ -29,13 +73,21 @@ set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/rpc.proto
     ${FFI_PROTO_DIR}/track_publication.proto
 )
-set(PROTO_BINARY_DIR ${CMAKE_BINARY_DIR}/generated)
+set(PROTO_BINARY_DIR ${LIVEKIT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 
-find_package(Protobuf REQUIRED)
-find_package(absl CONFIG REQUIRED)
+# Try to find Protobuf via CONFIG mode first (vcpkg), then fall back to MODULE mode (apt/brew)
+find_package(Protobuf CONFIG QUIET)
+if(NOT Protobuf_FOUND)
+  find_package(Protobuf REQUIRED)
+endif()
 
-# Object library that owns generated .pb.cc/.pb.h
+# Ensure protoc executable is found (some systems may not set Protobuf_PROTOC_EXECUTABLE)
+if(NOT Protobuf_PROTOC_EXECUTABLE)
+  find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc REQUIRED)
+endif()
+message(STATUS "Using protoc: ${Protobuf_PROTOC_EXECUTABLE}")
+
 add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
 target_include_directories(livekit_proto PRIVATE
   "$<BUILD_INTERFACE:${PROTO_BINARY_DIR}>"
@@ -43,59 +95,57 @@ target_include_directories(livekit_proto PRIVATE
 )
 target_link_libraries(livekit_proto PRIVATE protobuf::libprotobuf)
 
-# Generate .pb sources into ${PROTO_BINARY_DIR} and attach to livekit_proto
-protobuf_generate(
-  LANGUAGE cpp
-  TARGET livekit_proto
-  PROTOC_OUT_DIR ${PROTO_BINARY_DIR}
-  IMPORT_DIRS ${FFI_PROTO_DIR}
+# Manually generate protobuf files to avoid path prefix issues
+set(PROTO_SRCS)
+set(PROTO_HDRS)
+foreach(PROTO_FILE ${FFI_PROTO_FILES})
+  get_filename_component(PROTO_NAME ${PROTO_FILE} NAME_WE)
+  list(APPEND PROTO_SRCS "${PROTO_BINARY_DIR}/${PROTO_NAME}.pb.cc")
+  list(APPEND PROTO_HDRS "${PROTO_BINARY_DIR}/${PROTO_NAME}.pb.h")
+endforeach()
+
+add_custom_command(
+  OUTPUT ${PROTO_SRCS} ${PROTO_HDRS}
+  COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+    --proto_path=${FFI_PROTO_DIR}
+    --cpp_out=${PROTO_BINARY_DIR}
+    ${FFI_PROTO_FILES}
+  DEPENDS ${FFI_PROTO_FILES}
+  COMMENT "Generating C++ protobuf files"
+  VERBATIM
 )
 
-########### auto-gen build.h #######################
+target_sources(livekit_proto PRIVATE ${PROTO_SRCS} ${PROTO_HDRS})
 
-# Where to place the generated header
-set(GENERATED_INCLUDE_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(GENERATED_INCLUDE_DIR "${LIVEKIT_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${GENERATED_INCLUDE_DIR}")
 
-# Try to capture git commit; fall back to "unknown" if git isn't available or repo isn't present.
 set(GIT_COMMIT "unknown")
 find_package(Git QUIET)
-if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
+if(GIT_FOUND AND EXISTS "${LIVEKIT_ROOT_DIR}/.git")
   execute_process(
     COMMAND "${GIT_EXECUTABLE}" rev-parse --short HEAD
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    WORKING_DIRECTORY "${LIVEKIT_ROOT_DIR}"
     OUTPUT_VARIABLE GIT_COMMIT
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_QUIET
   )
 endif()
 
-# Build timestamp
 string(TIMESTAMP BUILD_DATE "%Y-%m-%d %H:%M:%S")
+set(GENERATED_COMMENT "This file was auto-generated by CMake on ${BUILD_DATE}. Do NOT edit manually.")
 
-# Comment shown at the top of the generated header
-set(GENERATED_COMMENT "This file was auto-generated by CMake on ${BUILD_DATE}. Do NOT edit manually. Edit build.h.in instead.")
-
-# Generate the header from the template
-# Version baked into build.h (CI can override: -DLIVEKIT_VERSION=0.1.0)
-if(NOT DEFINED LIVEKIT_VERSION OR LIVEKIT_VERSION STREQUAL "")
-  set(LIVEKIT_VERSION "0.0.0")
-endif()
 configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/build.h.in"
+  "${LIVEKIT_ROOT_DIR}/build.h.in"
   "${GENERATED_INCLUDE_DIR}/build.h"
   @ONLY
 )
 
-########### Livekit Rust SDK #######################
-
-# Find cargo
 find_program(CARGO_EXECUTABLE NAMES cargo REQUIRED)
 
-set(RUST_ROOT ${CMAKE_SOURCE_DIR}/client-sdk-rust)
+set(RUST_ROOT ${LIVEKIT_ROOT_DIR}/client-sdk-rust)
 
-# Write a helper script that never passes empty args
-set(RUN_CARGO_SCRIPT ${CMAKE_BINARY_DIR}/run_cargo.cmake)
+set(RUN_CARGO_SCRIPT ${LIVEKIT_BINARY_DIR}/run_cargo.cmake)
 file(WRITE ${RUN_CARGO_SCRIPT}
 "if(NOT DEFINED CFG)
   set(CFG Debug)
@@ -107,13 +157,14 @@ if(NOT DEFINED CARGO)
   message(FATAL_ERROR \"CARGO not set\")
 endif()
 
-# Build arg list
 set(ARGS build)
 if(NOT CFG STREQUAL \"Debug\")
   list(APPEND ARGS --release)
 endif()
 
-message(STATUS \"[run_cargo.cmake] CFG=\${CFG}  CARGO=\${CARGO}\")
+message(STATUS \"[run_cargo.cmake] CFG=\${CFG}  CARGO=\${CARGO}  PROTOC=\${PROTOC_PATH}\")
+set(ENV{PROTOC} \"\${PROTOC_PATH}\")
+
 execute_process(
   COMMAND \"\${CARGO}\" \${ARGS}
   WORKING_DIRECTORY \"\${RUST_ROOT}\"
@@ -124,81 +175,88 @@ if(rv)
 endif()
 ")
 
-# Imported Rust lib with per-config locations
-add_library(livekit_ffi STATIC IMPORTED GLOBAL)
-if (WIN32)
-  set(RUST_LIB_DEBUG   "${RUST_ROOT}/target/debug/livekit_ffi.lib")
-  set(RUST_LIB_RELEASE "${RUST_ROOT}/target/release/livekit_ffi.lib")
+# Use SHARED library (DLL) on Windows to isolate /MT CRT from consuming /MD apps
+if(WIN32)
+  add_library(livekit_ffi SHARED IMPORTED GLOBAL)
+  # DLL import libraries (.dll.lib)
+  set(RUST_IMPLIB_DEBUG   "${RUST_ROOT}/target/debug/livekit_ffi.dll.lib")
+  set(RUST_IMPLIB_RELEASE "${RUST_ROOT}/target/release/livekit_ffi.dll.lib")
+  # Actual DLL files
+  set(RUST_DLL_DEBUG      "${RUST_ROOT}/target/debug/livekit_ffi.dll")
+  set(RUST_DLL_RELEASE    "${RUST_ROOT}/target/release/livekit_ffi.dll")
+  # For OUTPUT dependency checking
+  set(RUST_LIB_DEBUG   "${RUST_IMPLIB_DEBUG}")
+  set(RUST_LIB_RELEASE "${RUST_IMPLIB_RELEASE}")
+  
+  set_target_properties(livekit_ffi PROPERTIES
+    IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
+    # IMPORTED_LOCATION = DLL file
+    IMPORTED_LOCATION_DEBUG          "${RUST_DLL_DEBUG}"
+    IMPORTED_LOCATION_RELEASE        "${RUST_DLL_RELEASE}"
+    IMPORTED_LOCATION_RELWITHDEBINFO "${RUST_DLL_RELEASE}"
+    IMPORTED_LOCATION_MINSIZEREL     "${RUST_DLL_RELEASE}"
+    # IMPORTED_IMPLIB = Import library for linking
+    IMPORTED_IMPLIB_DEBUG            "${RUST_IMPLIB_DEBUG}"
+    IMPORTED_IMPLIB_RELEASE          "${RUST_IMPLIB_RELEASE}"
+    IMPORTED_IMPLIB_RELWITHDEBINFO   "${RUST_IMPLIB_RELEASE}"
+    IMPORTED_IMPLIB_MINSIZEREL       "${RUST_IMPLIB_RELEASE}"
+    INTERFACE_INCLUDE_DIRECTORIES    "${RUST_ROOT}/livekit-ffi/include"
+  )
 else()
+  # Non-Windows: use static library as before
+  add_library(livekit_ffi STATIC IMPORTED GLOBAL)
   set(RUST_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.a")
   set(RUST_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.a")
+  
+  set_target_properties(livekit_ffi PROPERTIES
+    IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
+    IMPORTED_LOCATION_DEBUG          "${RUST_LIB_DEBUG}"
+    IMPORTED_LOCATION_RELEASE        "${RUST_LIB_RELEASE}"
+    IMPORTED_LOCATION_RELWITHDEBINFO "${RUST_LIB_RELEASE}"
+    IMPORTED_LOCATION_MINSIZEREL     "${RUST_LIB_RELEASE}"
+    INTERFACE_INCLUDE_DIRECTORIES    "${RUST_ROOT}/livekit-ffi/include"
+  )
 endif()
-set_target_properties(livekit_ffi PROPERTIES
-  IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
-  IMPORTED_LOCATION_DEBUG   "${RUST_LIB_DEBUG}"
-  IMPORTED_LOCATION_RELEASE "${RUST_LIB_RELEASE}"
-  IMPORTED_LOCATION_RELWITHDEBINFO "${RUST_LIB_RELEASE}"
-  IMPORTED_LOCATION_MINSIZEREL     "${RUST_LIB_RELEASE}"
+
+file(GLOB_RECURSE RUST_SOURCES 
+  "${RUST_ROOT}/livekit-ffi/src/*.rs"
+  "${RUST_ROOT}/livekit-ffi/Cargo.toml"
 )
 
-# Custom target that runs the script; no empty args get passed to cargo
-set(RUST_LIB "$<IF:$<CONFIG:Debug>,${RUST_LIB_DEBUG},${RUST_LIB_RELEASE}>")
 add_custom_command(
   OUTPUT "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
   COMMAND "${CMAKE_COMMAND}"
           -DCFG=$<CONFIG>
           -DRUST_ROOT=${RUST_ROOT}
           -DCARGO=${CARGO_EXECUTABLE}
+          -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
           -P "${RUN_CARGO_SCRIPT}"
   WORKING_DIRECTORY "${RUST_ROOT}"
+  DEPENDS ${RUST_SOURCES}
   COMMENT "Building Rust FFI via cargo"
   VERBATIM
 )
-add_custom_target(build_rust_ffi ALL
+
+add_custom_target(build_rust_ffi
   DEPENDS "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
 )
 
-if (UNIX AND NOT APPLE)
-  # A workaround to strip out the protozero_plugin.o symbols which cause our examples fail to link on Linux.
-  # Make sure CMAKE_AR is defined; if not, you can hardcode "ar"
-  find_program(CMAKE_AR ar REQUIRED)
+if(UNIX AND NOT APPLE)
+  if(NOT CMAKE_AR)
+    find_program(CMAKE_AR ar REQUIRED)
+  endif()
+  # Remove protozero_plugin.o from static library to avoid duplicate symbols
+  # The file may not exist in all builds, so we use '|| true' to ignore errors
   add_custom_command(
     TARGET build_rust_ffi
     POST_BUILD
-    COMMAND ${CMAKE_AR} -dv
-            "$<IF:$<CONFIG:Debug>,${RUST_LIB_DEBUG},${RUST_LIB_RELEASE}>"
-            protozero_plugin.o
-    COMMENT "Removing protozero_plugin.o from Rust FFI archive")
+    COMMAND ${CMAKE_AR} -dv "${RUST_LIB_RELEASE}" protozero_plugin.o || true
+    COMMAND ${CMAKE_AR} -dv "${RUST_LIB_DEBUG}" protozero_plugin.o || true
+    COMMENT "Removing protozero_plugin.o from liblivekit_ffi.a (if present)"
+  )
 endif()
 
-# ---- C++ wrapper library ----
-add_library(livekit
-  include/livekit/audio_frame.h
-  include/livekit/audio_source.h
-  include/livekit/audio_stream.h
-  include/livekit/data_stream.h
-  include/livekit/e2ee.h
-  include/livekit/room.h
-  include/livekit/room_event_types.h
-  include/livekit/room_delegate.h
-  include/livekit/ffi_handle.h
-  include/livekit/local_audio_track.h
-  include/livekit/remote_audio_track.h
-  include/livekit/participant.h
-  include/livekit/local_participant.h
-  include/livekit/remote_participant.h
-  include/livekit/livekit.h
-  include/livekit/rpc_error.h
-  include/livekit/stats.h
-  include/livekit/track.h
-  include/livekit/track_publication.h
-  include/livekit/local_track_publication.h
-  include/livekit/remote_track_publication.h
-  include/livekit/video_frame.h
-  include/livekit/video_source.h
-  include/livekit/video_stream.h
-  include/livekit/local_video_track.h
-  include/livekit/remote_video_track.h
+add_library(livekit STATIC
   src/audio_frame.cpp
   src/audio_source.cpp
   src/audio_stream.cpp
@@ -232,19 +290,17 @@ add_library(livekit
   src/video_utils.h
 )
 
-# Add generated proto objects to the wrapper
 target_sources(livekit PRIVATE $<TARGET_OBJECTS:livekit_proto>)
 
-target_include_directories(livekit PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-
-target_include_directories(livekit PRIVATE
-  ${CMAKE_SOURCE_DIR}/src
-  ${RUST_ROOT}/livekit-ffi/include
-  ${PROTO_BINARY_DIR}
-  ${GENERATED_INCLUDE_DIR}
+target_include_directories(livekit
+  PUBLIC
+    $<BUILD_INTERFACE:${LIVEKIT_ROOT_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+  PRIVATE
+    ${LIVEKIT_ROOT_DIR}/src
+    ${RUST_ROOT}/livekit-ffi/include
+    ${PROTO_BINARY_DIR}
+    ${GENERATED_INCLUDE_DIR}
 )
 
 target_link_libraries(livekit
@@ -252,21 +308,119 @@ target_link_libraries(livekit
     livekit_ffi
     protobuf::libprotobuf
 )
-# Ensure protoc matches headers/libs
+
 message(STATUS "Protobuf: version=${Protobuf_VERSION}; protoc=${Protobuf_PROTOC_EXECUTABLE}")
 
-# Ensure cargo runs before we try to link livekit
 add_dependencies(livekit build_rust_ffi)
-add_custom_target(livekit_ffi_artifacts DEPENDS "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}")
-add_dependencies(livekit livekit_ffi_artifacts)
 
-########### Platform specific settings  ########### 
+if(LIVEKIT_IS_TOPLEVEL)
+  # Copy public headers to build/include
+  add_custom_command(
+    TARGET livekit POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${LIVEKIT_ROOT_DIR}/include
+            ${CMAKE_BINARY_DIR}/include
+    COMMAND ${CMAKE_COMMAND} -E copy
+            ${GENERATED_INCLUDE_DIR}/build.h
+            ${CMAKE_BINARY_DIR}/include/livekit/build.h
+    COMMENT "Copying public headers to build/include"
+  )
+
+  # Copy livekit_ffi library to output directory alongside livekit library
+  if(WIN32)
+    # Copy both DLL and import library
+    set(FFI_DLL_DEBUG     "${RUST_ROOT}/target/debug/livekit_ffi.dll")
+    set(FFI_DLL_RELEASE   "${RUST_ROOT}/target/release/livekit_ffi.dll")
+    set(FFI_IMPLIB_DEBUG  "${RUST_ROOT}/target/debug/livekit_ffi.dll.lib")
+    set(FFI_IMPLIB_RELEASE "${RUST_ROOT}/target/release/livekit_ffi.dll.lib")
+    
+    # Copy DLL file
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy
+              "$<IF:$<CONFIG:Debug>,${FFI_DLL_DEBUG},${FFI_DLL_RELEASE}>"
+              "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
+      COMMENT "Copying livekit_ffi.dll to output directory"
+    )
+    # Copy import library
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy
+              "$<IF:$<CONFIG:Debug>,${FFI_IMPLIB_DEBUG},${FFI_IMPLIB_RELEASE}>"
+              "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll.lib"
+      COMMENT "Copying livekit_ffi.dll.lib to output directory"
+    )
+  else()
+    set(FFI_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.a")
+    set(FFI_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.a")
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy
+              "$<IF:$<CONFIG:Debug>,${FFI_LIB_DEBUG},${FFI_LIB_RELEASE}>"
+              "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.a"
+      COMMENT "Copying liblivekit_ffi.a to output directory"
+    )
+  endif()
+
+  # Copy third-party DLL and LIB dependencies to lib directory (Windows only)
+  if(WIN32 AND LIVEKIT_USE_VCPKG)
+    # Determine vcpkg directories based on configuration
+    set(VCPKG_BIN_DIR_DEBUG "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/debug/bin")
+    set(VCPKG_BIN_DIR_RELEASE "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/bin")
+    set(VCPKG_LIB_DIR_DEBUG "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/debug/lib")
+    set(VCPKG_LIB_DIR_RELEASE "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/lib")
+    
+    # vcpkg uses 'd' suffix for debug builds (e.g., libprotobufd.dll)
+    # We need to copy with the correct source name but keep the output name consistent
+    
+    # abseil_dll.dll (same name for both debug and release)
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<IF:$<CONFIG:Debug>,${VCPKG_BIN_DIR_DEBUG}/abseil_dll.dll,${VCPKG_BIN_DIR_RELEASE}/abseil_dll.dll>"
+              "$<TARGET_FILE_DIR:livekit>/abseil_dll.dll"
+      COMMENT "Copying abseil_dll.dll to lib directory"
+      VERBATIM
+    )
+    
+    # libprotobuf.dll - debug version has 'd' suffix
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<IF:$<CONFIG:Debug>,${VCPKG_BIN_DIR_DEBUG}/libprotobufd.dll,${VCPKG_BIN_DIR_RELEASE}/libprotobuf.dll>"
+              "$<TARGET_FILE_DIR:livekit>/$<IF:$<CONFIG:Debug>,libprotobufd.dll,libprotobuf.dll>"
+      COMMENT "Copying libprotobuf DLL to lib directory"
+      VERBATIM
+    )
+    
+    # abseil_dll.lib (same name for both debug and release)
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<IF:$<CONFIG:Debug>,${VCPKG_LIB_DIR_DEBUG}/abseil_dll.lib,${VCPKG_LIB_DIR_RELEASE}/abseil_dll.lib>"
+              "$<TARGET_FILE_DIR:livekit>/abseil_dll.lib"
+      COMMENT "Copying abseil_dll.lib to lib directory"
+      VERBATIM
+    )
+    
+    # libprotobuf.lib - debug version has 'd' suffix
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<IF:$<CONFIG:Debug>,${VCPKG_LIB_DIR_DEBUG}/libprotobufd.lib,${VCPKG_LIB_DIR_RELEASE}/libprotobuf.lib>"
+              "$<TARGET_FILE_DIR:livekit>/$<IF:$<CONFIG:Debug>,libprotobufd.lib,libprotobuf.lib>"
+      COMMENT "Copying libprotobuf LIB to lib directory"
+      VERBATIM
+    )
+    
+    message(STATUS "Third-party dependencies will be copied to lib directory")
+  endif()
+endif()
 
 if(APPLE)
-# (12.3 is when ScreenCaptureKit was introduced)
-if(NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET OR CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS "12.3")
-  set(CMAKE_OSX_DEPLOYMENT_TARGET "12.3" CACHE STRING "Minimum macOS version" FORCE)
-endif()
+  if(NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET OR CMAKE_OSX_DEPLOYMENT_TARGET VERSION_LESS "12.3")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.3" CACHE STRING "Minimum macOS version" FORCE)
+  endif()
 
   find_library(FW_COREAUDIO      CoreAudio      REQUIRED)
   find_library(FW_AUDIOTOOLBOX   AudioToolbox   REQUIRED)
@@ -278,7 +432,7 @@ endif()
   find_library(FW_AVFOUNDATION   AVFoundation   REQUIRED)
   find_library(FW_COREVIDEO      CoreVideo      REQUIRED)
   find_library(FW_FOUNDATION     Foundation     REQUIRED)
-  find_library(FW_APPKIT         AppKit         REQUIRED) 
+  find_library(FW_APPKIT         AppKit         REQUIRED)
   find_library(FW_QUARTZCORE     QuartzCore     REQUIRED)
   find_library(FW_OPENGL         OpenGL         REQUIRED)
   find_library(FW_IOSURFACE      IOSurface      REQUIRED)
@@ -306,27 +460,23 @@ endif()
     ${FW_SCREENCAPTUREKIT}
   )
 
-  # Ensure Objective-C categories/classes in static archives are loaded (WebRTC needs this)
-  # Use LINKER: to guarantee it is passed to the linker (CMake >= 3.13)
   target_link_options(livekit INTERFACE "LINKER:-ObjC")
 endif()
 
-# Only Protobuf >= 6 needs Abseil
-if (Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
-  # Some distros export as "Abseil::"
+if(Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
   find_package(absl CONFIG QUIET)
-  if (NOT absl_FOUND)
+  if(NOT absl_FOUND)
     find_package(Abseil QUIET)
   endif()
 
-  if (absl_FOUND)
+  if(absl_FOUND)
     target_link_libraries(livekit PRIVATE
       absl::log
       absl::check
       absl::strings
       absl::base
     )
-  elseif (Abseil_FOUND)
+  elseif(Abseil_FOUND)
     target_link_libraries(livekit PRIVATE
       Abseil::log
       Abseil::check
@@ -336,22 +486,34 @@ if (Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
   else()
     message(FATAL_ERROR
       "Protobuf ${Protobuf_VERSION} requires Abseil but no CMake package was found.\n"
-      "Install Abseil (macOS: 'brew install abseil', Ubuntu: 'sudo apt-get install libabsl-dev'), "
-      "or use Protobuf < 6.")
+      "Install Abseil or use Protobuf < 6.")
   endif()
 else()
   message(STATUS "Protobuf < 6 detected; skipping Abseil linking.")
 endif()
 
-# On Linux, it needs to link OpenSSL
-if(UNIX AND NOT APPLE)
-  find_package(OpenSSL REQUIRED)
-  target_link_libraries(livekit PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+if(WIN32)
+  target_link_libraries(livekit PUBLIC
+    ntdll
+    userenv
+    winmm
+    iphlpapi
+    msdmo
+    dmoguids
+    wmcodecdspuuid
+    ws2_32
+    secur32
+    bcrypt
+    crypt32
+  )
 endif()
 
+if(UNIX AND NOT APPLE)
+  find_package(OpenSSL REQUIRED)
+  target_link_libraries(livekit PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+endif()
 
-# Warnings
-if (MSVC)
+if(MSVC)
   target_compile_options(livekit PRIVATE /permissive- /Zc:__cplusplus /W4)
 else()
   target_compile_options(livekit PRIVATE -Wall -Wextra -Wpedantic)
@@ -417,29 +579,26 @@ install(FILES
 # ------------------------------------------------------------------------
 
 # ---- Examples ----
-add_subdirectory(examples)
+# add_subdirectory(examples)
 
 
-# ---------- Clean helpers ----------
-# Removes generated protobuf sources
+if(LIVEKIT_BUILD_EXAMPLES)
+  add_subdirectory(examples)
+endif()
+
 add_custom_target(clean_generated
-  COMMAND ${CMAKE_COMMAND} -E echo "Removing generated protobufs: ${PROTO_BINARY_DIR}"
   COMMAND ${CMAKE_COMMAND} -E rm -rf "${PROTO_BINARY_DIR}"
   COMMENT "Clean generated protobuf files"
   VERBATIM
 )
 
-# Cargo clean (safer, lets Cargo decide what to delete)
 add_custom_target(cargo_clean
-  COMMAND ${CMAKE_COMMAND} -E echo "Running 'cargo clean' in: ${RUST_ROOT}"
   COMMAND "${CARGO_EXECUTABLE}" clean
   WORKING_DIRECTORY "${RUST_ROOT}"
   COMMENT "Clean Rust target directory via cargo"
   VERBATIM
 )
 
-# Combined "clean-all" (C++ clean + generated + cargo)
-# Note: 'clean' is CMake's built-in target that removes CMake-built artifacts.
 add_custom_target(clean_all
   # 1) CMake clean (object files, libs, exes)
   COMMAND ${CMAKE_COMMAND} -E echo "==> CMake clean in: ${CMAKE_BINARY_DIR}"
