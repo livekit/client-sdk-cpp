@@ -127,7 +127,7 @@ jobs:
           chmod +x build.sh
           ./build.sh release-examples
           
-          # Create bundle directory
+          # Create bundle directory with version in name
           bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
           mkdir -p "$bundleDir/lib"
           mkdir -p "$bundleDir/include"
@@ -150,7 +150,7 @@ jobs:
           # Build release with examples
           .\build.cmd release-examples
           
-          # Create bundle directory
+          # Create bundle directory with version in name
           $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
           New-Item -ItemType Directory -Force -Path $bundleDir
           New-Item -ItemType Directory -Force -Path "$bundleDir/lib"
@@ -162,39 +162,12 @@ jobs:
           Copy-Item -Recurse -Force "build-release/include/*" "$bundleDir/include/"
           Copy-Item -Recurse -Force "build-release/bin/*" "$bundleDir/bin/"
 
-      # ---------- Create archive ----------
-      - name: Archive (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          cd sdk-out
-          # Archive the directory contents directly (not the directory itself to avoid double nesting)
-          tarName="livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}.tar.gz"
-          tar -czf "../${tarName}" "livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
-          echo "Created: ${tarName}"
-          ls -la "../${tarName}"
-
-      - name: Archive (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.version }}"
-          $archiveName = "livekit-sdk-${{ matrix.name }}-${version}.zip"
-          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-${version}"
-          
-          # Create zip from the bundle directory (include the folder itself for proper structure)
-          Compress-Archive -Path $bundleDir -DestinationPath $archiveName -Force
-          Write-Host "Created: $archiveName"
-          Get-ChildItem $archiveName
-
-      # ---------- Upload artifact ----------
+      # ---------- Upload artifact (raw directory, no pre-compression) ----------
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: sdk-${{ matrix.name }}
-          path: |
-            livekit-sdk-${{ matrix.name }}-*.tar.gz
-            livekit-sdk-${{ matrix.name }}-*.zip
+          path: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
 
   # ---------- Release Job ----------
   release:
@@ -225,9 +198,46 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: sdk-*
-          merge-multiple: true
-          path: ${{ github.workspace }}/release-assets
+          path: ${{ github.workspace }}/artifacts
+
+      - name: List downloaded artifacts
+        run: |
+          echo "Downloaded artifacts structure:"
+          find ${{ github.workspace }}/artifacts -type f | head -100
+
+      # ---------- Create archives in release job ----------
+      - name: Create release archives
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cd ${{ github.workspace }}/artifacts
+          
+          # Create tar.gz for Linux and macOS
+          for platform in linux-x64 macos-arm64; do
+            if [[ -d "sdk-${platform}" ]]; then
+              echo "Creating archive for ${platform}..."
+              cd "sdk-${platform}"
+              # Find the versioned directory
+              dirName=$(ls -d livekit-sdk-* 2>/dev/null | head -1)
+              if [[ -n "$dirName" ]]; then
+                tar -czf "${{ github.workspace }}/release-assets/${dirName}.tar.gz" "$dirName"
+                echo "Created: ${dirName}.tar.gz"
+              fi
+              cd ..
+            fi
+          done
+          
+          # Create zip for Windows
+          if [[ -d "sdk-windows-x64" ]]; then
+            echo "Creating archive for windows-x64..."
+            cd "sdk-windows-x64"
+            dirName=$(ls -d livekit-sdk-* 2>/dev/null | head -1)
+            if [[ -n "$dirName" ]]; then
+              zip -r "${{ github.workspace }}/release-assets/${dirName}.zip" "$dirName"
+              echo "Created: ${dirName}.zip"
+            fi
+            cd ..
+          fi
 
       - name: List release assets
         run: ls -la ${{ github.workspace }}/release-assets/

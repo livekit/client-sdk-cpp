@@ -207,22 +207,16 @@ After a successful build, you will find the following in the build directories:
 ```
 build-release/                # Release build output
 ├── lib/
-│   ├── windows-x64/         # Windows libraries
-│   │   └── release/
-│   ├── linux-x64/           # Linux libraries
-│   └── macos-universal/     # macOS libraries
+│   ├── livekit.lib / liblivekit.a       # Main SDK static library
+│   ├── livekit_ffi.dll / .so / .dylib   # Rust FFI dynamic library
+│   └── (Windows only: protobuf, abseil DLLs)
 ├── include/                 # Public headers (auto-synced)
 │   └── livekit/
-└── bin/                     # Executable files
-
-build-debug/                  # Debug build output
-├── lib/
-│   ├── windows-x64/
-│   │   └── debug/
-│   ├── linux-x64/
-│   └── macos-universal/
-├── include/
-└── bin/
+└── bin/                     # Example executables (with examples enabled)
+    ├── SimpleRoom
+    ├── SimpleRpc
+    ├── SimpleDataStream
+    └── liblivekit_ffi.so / .dylib  # (Linux/macOS: copied for runtime)
 ```
 
 ## Integrating into Your Project
@@ -243,13 +237,16 @@ target_link_libraries(your_target PRIVATE livekit)
 
 1. Add include path: `build/include`
 2. Link static library: 
-   - Windows: `build/lib/windows-x64/release/livekit.lib`
-   - Linux: `build/lib/linux-x64/liblivekit.a`
-   - macOS: `build/lib/macos-universal/liblivekit.a`
-3. Link Rust FFI library:
-   - Windows: `client-sdk-rust/target/release/livekit_ffi.lib`
-   - Linux/macOS: `client-sdk-rust/target/release/liblivekit_ffi.a`
+   - Windows: `build/lib/livekit.lib`
+   - Linux: `build/lib/liblivekit.a`
+   - macOS: `build/lib/liblivekit.a`
+3. Link/Deploy Rust FFI dynamic library:
+   - Windows: Link `livekit_ffi.dll.lib`, deploy `livekit_ffi.dll` with your exe
+   - Linux: Deploy `liblivekit_ffi.so` in same directory as your executable
+   - macOS: Deploy `liblivekit_ffi.dylib` in same directory as your executable
 4. Link platform-specific system libraries
+
+> **Important**: On Linux/macOS, the `.so`/`.dylib` must be in the same directory as your executable (RPATH is set to `$ORIGIN` / `@executable_path`).
 
 **Windows system libraries:**
 ```
