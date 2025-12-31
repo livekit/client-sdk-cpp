@@ -4,6 +4,22 @@ project(livekit-examples)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Set RPATH for examples to find shared libraries in executable directory
+# This ensures SDL3 and other shared libs are loaded from bin/ not _deps/
+if(UNIX)
+  if(APPLE)
+    set(CMAKE_BUILD_RPATH "@executable_path")
+    set(CMAKE_INSTALL_RPATH "@executable_path")
+  else()
+    set(CMAKE_BUILD_RPATH "$ORIGIN")
+    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+  endif()
+  set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
+  # Disable using the default RPATH from linked libraries
+  set(CMAKE_SKIP_BUILD_RPATH FALSE)
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+endif()
+
 # Always use FetchContent for SDL3 (vcpkg doesn't have it in stable baseline)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(sdl3)
@@ -46,13 +62,25 @@ add_custom_command(TARGET SimpleRoom POST_BUILD
             ${CMAKE_CURRENT_BINARY_DIR}/data
 )
 
-# Copy SDL3 DLL to SimpleRoom output directory
-if(WIN32)
+# Copy SDL3 shared library to SimpleRoom output directory
+# On Unix, we also need to create the SONAME symlink (libSDL3.so.0 -> libSDL3.so.0.x.x)
+if(UNIX)
   add_custom_command(TARGET SimpleRoom POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:SDL3::SDL3>"
             "$<TARGET_FILE_DIR:SimpleRoom>"
-    COMMENT "Copying SDL3.dll to SimpleRoom output directory"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+            "$<TARGET_FILE_NAME:SDL3::SDL3>"
+            "$<TARGET_FILE_DIR:SimpleRoom>/$<TARGET_SONAME_FILE_NAME:SDL3::SDL3>"
+    COMMENT "Copying SDL3 shared library and SONAME symlink to SimpleRoom output directory"
+    VERBATIM
+  )
+else()
+  add_custom_command(TARGET SimpleRoom POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:SDL3::SDL3>"
+            "$<TARGET_FILE_DIR:SimpleRoom>"
+    COMMENT "Copying SDL3 shared library to SimpleRoom output directory"
     VERBATIM
   )
 endif()

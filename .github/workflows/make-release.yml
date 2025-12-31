@@ -166,7 +166,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sdk-${{ matrix.name }}
+          name: livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
           path: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
 
   # ---------- Release Job ----------
@@ -210,33 +210,29 @@ jobs:
         shell: bash
         run: |
           mkdir -p release-assets
+          VERSION="${{ steps.version.outputs.version }}"
           cd ${{ github.workspace }}/artifacts
+          
+          # List what we have
+          echo "Artifacts downloaded:"
+          ls -la
           
           # Create tar.gz for Linux and macOS
           for platform in linux-x64 macos-arm64; do
-            if [[ -d "sdk-${platform}" ]]; then
+            dirName="livekit-sdk-${platform}-${VERSION}"
+            if [[ -d "${dirName}" ]]; then
               echo "Creating archive for ${platform}..."
-              cd "sdk-${platform}"
-              # Find the versioned directory
-              dirName=$(ls -d livekit-sdk-* 2>/dev/null | head -1)
-              if [[ -n "$dirName" ]]; then
-                tar -czf "${{ github.workspace }}/release-assets/${dirName}.tar.gz" "$dirName"
-                echo "Created: ${dirName}.tar.gz"
-              fi
-              cd ..
+              tar -czf "${{ github.workspace }}/release-assets/${dirName}.tar.gz" "${dirName}"
+              echo "Created: ${dirName}.tar.gz"
             fi
           done
           
           # Create zip for Windows
-          if [[ -d "sdk-windows-x64" ]]; then
+          dirName="livekit-sdk-windows-x64-${VERSION}"
+          if [[ -d "${dirName}" ]]; then
             echo "Creating archive for windows-x64..."
-            cd "sdk-windows-x64"
-            dirName=$(ls -d livekit-sdk-* 2>/dev/null | head -1)
-            if [[ -n "$dirName" ]]; then
-              zip -r "${{ github.workspace }}/release-assets/${dirName}.zip" "$dirName"
-              echo "Created: ${dirName}.zip"
-            fi
-            cd ..
+            zip -r "${{ github.workspace }}/release-assets/${dirName}.zip" "${dirName}"
+            echo "Created: ${dirName}.zip"
           fi
 
       - name: List release assets
