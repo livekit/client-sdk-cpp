@@ -63,8 +63,9 @@ add_custom_command(TARGET SimpleRoom POST_BUILD
 )
 
 # Copy SDL3 shared library to SimpleRoom output directory
-# On Unix, we also need to create the SONAME symlink (libSDL3.so.0 -> libSDL3.so.0.x.x)
-if(UNIX)
+# On Linux, we also need to create the SONAME symlink (libSDL3.so.0 -> libSDL3.so.0.x.x)
+# macOS doesn't need SONAME symlink (dylib versioning works differently)
+if(UNIX AND NOT APPLE)
   add_custom_command(TARGET SimpleRoom POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:SDL3::SDL3>"
@@ -76,6 +77,7 @@ if(UNIX)
     VERBATIM
   )
 else()
+  # Windows and macOS: just copy the library file
   add_custom_command(TARGET SimpleRoom POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "$<TARGET_FILE:SDL3::SDL3>"
