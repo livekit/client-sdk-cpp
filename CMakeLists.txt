@@ -22,6 +22,19 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Set RPATH for Unix systems to find shared libraries in executable directory
+if(UNIX)
+  # Use $ORIGIN on Linux, @executable_path on macOS
+  if(APPLE)
+    set(CMAKE_BUILD_RPATH "@executable_path")
+    set(CMAKE_INSTALL_RPATH "@executable_path")
+  else()
+    set(CMAKE_BUILD_RPATH "$ORIGIN")
+    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+  endif()
+  set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
+endif()
+
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
   set(LIVEKIT_IS_TOPLEVEL TRUE)
 else()
@@ -29,26 +42,22 @@ else()
 endif()
 
 if(LIVEKIT_IS_TOPLEVEL)
-  if(WIN32)
-    set(PLATFORM_DIR "windows-x64")
-  elseif(APPLE)
-    set(PLATFORM_DIR "macos-universal")
-  elseif(UNIX)
-    set(PLATFORM_DIR "linux-x64")
-  else()
-    set(PLATFORM_DIR "unknown")
-  endif()
-
-  if(WIN32)
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR}/$<LOWER_CASE:$<CONFIG>>)
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR}/$<LOWER_CASE:$<CONFIG>>)
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/$<LOWER_CASE:$<CONFIG>>)
-  else()
-    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR})
-    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib/${PLATFORM_DIR})
-    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-  endif()
+  # Since we use separate build directories (build-debug/build-release),
+  # we don't need additional platform/config subdirectories
+  set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+  
+  # For multi-config generators (Visual Studio), override per-config directories
+  # to prevent adding Debug/Release subdirectories
+  foreach(CONFIG_TYPE Debug Release RelWithDebInfo MinSizeRel)
+    string(TOUPPER ${CONFIG_TYPE} CONFIG_TYPE_UPPER)
+    set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${CONFIG_TYPE_UPPER} ${CMAKE_BINARY_DIR}/lib)
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_${CONFIG_TYPE_UPPER} ${CMAKE_BINARY_DIR}/lib)
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_${CONFIG_TYPE_UPPER} ${CMAKE_BINARY_DIR}/bin)
+  endforeach()
 endif()
+
 
 if(MSVC)
   # Use dynamic CRT (/MD) for compatibility with Qt and other /MD libraries.
@@ -202,11 +211,11 @@ if(WIN32)
     IMPORTED_IMPLIB_MINSIZEREL       "${RUST_IMPLIB_RELEASE}"
     INTERFACE_INCLUDE_DIRECTORIES    "${RUST_ROOT}/livekit-ffi/include"
   )
-else()
-  # Non-Windows: use static library as before
-  add_library(livekit_ffi STATIC IMPORTED GLOBAL)
-  set(RUST_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.a")
-  set(RUST_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.a")
+elseif(APPLE)
+  # macOS: use dynamic library (.dylib) to isolate Debug/Release ABI differences
+  add_library(livekit_ffi SHARED IMPORTED GLOBAL)
+  set(RUST_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.dylib")
+  set(RUST_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.dylib")
   
   set_target_properties(livekit_ffi PROPERTIES
     IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
@@ -214,6 +223,22 @@ else()
     IMPORTED_LOCATION_RELEASE        "${RUST_LIB_RELEASE}"
     IMPORTED_LOCATION_RELWITHDEBINFO "${RUST_LIB_RELEASE}"
     IMPORTED_LOCATION_MINSIZEREL     "${RUST_LIB_RELEASE}"
+    IMPORTED_NO_SONAME               TRUE
+    INTERFACE_INCLUDE_DIRECTORIES    "${RUST_ROOT}/livekit-ffi/include"
+  )
+else()
+  # Linux: use dynamic library (.so) to isolate Debug/Release ABI differences
+  add_library(livekit_ffi SHARED IMPORTED GLOBAL)
+  set(RUST_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.so")
+  set(RUST_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.so")
+  
+  set_target_properties(livekit_ffi PROPERTIES
+    IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
+    IMPORTED_LOCATION_DEBUG          "${RUST_LIB_DEBUG}"
+    IMPORTED_LOCATION_RELEASE        "${RUST_LIB_RELEASE}"
+    IMPORTED_LOCATION_RELWITHDEBINFO "${RUST_LIB_RELEASE}"
+    IMPORTED_LOCATION_MINSIZEREL     "${RUST_LIB_RELEASE}"
+    IMPORTED_NO_SONAME               TRUE
     INTERFACE_INCLUDE_DIRECTORIES    "${RUST_ROOT}/livekit-ffi/include"
   )
 endif()
@@ -241,20 +266,7 @@ add_custom_target(build_rust_ffi
   DEPENDS "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
 )
 
-if(UNIX AND NOT APPLE)
-  if(NOT CMAKE_AR)
-    find_program(CMAKE_AR ar REQUIRED)
-  endif()
-  # Remove protozero_plugin.o from static library to avoid duplicate symbols
-  # The file may not exist in all builds, so we use '|| true' to ignore errors
-  add_custom_command(
-    TARGET build_rust_ffi
-    POST_BUILD
-    COMMAND ${CMAKE_AR} -dv "${RUST_LIB_RELEASE}" protozero_plugin.o || true
-    COMMAND ${CMAKE_AR} -dv "${RUST_LIB_DEBUG}" protozero_plugin.o || true
-    COMMENT "Removing protozero_plugin.o from liblivekit_ffi.a (if present)"
-  )
-endif()
+# Note: protozero_plugin.o removal is no longer needed since we use dynamic libraries on Unix
 
 add_library(livekit STATIC
   src/audio_frame.cpp
@@ -350,15 +362,27 @@ if(LIVEKIT_IS_TOPLEVEL)
               "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll.lib"
       COMMENT "Copying livekit_ffi.dll.lib to output directory"
     )
-  else()
-    set(FFI_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.a")
-    set(FFI_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.a")
+  elseif(APPLE)
+    # macOS: copy .dylib
+    set(FFI_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.dylib")
+    set(FFI_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.dylib")
     add_custom_command(
       TARGET livekit POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy
               "$<IF:$<CONFIG:Debug>,${FFI_LIB_DEBUG},${FFI_LIB_RELEASE}>"
-              "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.a"
-      COMMENT "Copying liblivekit_ffi.a to output directory"
+              "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+      COMMENT "Copying liblivekit_ffi.dylib to output directory"
+    )
+  else()
+    # Linux: copy .so
+    set(FFI_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.so")
+    set(FFI_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.so")
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy
+              "$<IF:$<CONFIG:Debug>,${FFI_LIB_DEBUG},${FFI_LIB_RELEASE}>"
+              "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+      COMMENT "Copying liblivekit_ffi.so to output directory"
     )
   endif()
 

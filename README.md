@@ -20,8 +20,8 @@ This SDK enables native C++ applications to connect to LiveKit servers for real-
 
 ### For Using the Pre-built SDK:
 - **Windows:** ✅ All dependencies included (DLLs bundled) - ready to use
-- **Linux:** ⚠️ Requires `libprotobuf` and `libssl-dev` installed on target system
-- **macOS:** ⚠️ Requires `protobuf` installed via Homebrew on target system
+- **Linux:** ⚠️ Requires `libprotobuf` and `libssl-dev`; deploy `liblivekit_ffi.so` with your executable
+- **macOS:** ⚠️ Requires `protobuf`; deploy `liblivekit_ffi.dylib` with your executable
 
 > **Note**: If the SDK was built with Protobuf 6.0+, you also need `libabsl-dev` (Linux) or `abseil` (macOS).
 

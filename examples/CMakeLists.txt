@@ -4,6 +4,22 @@ project(livekit-examples)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Set RPATH for examples to find shared libraries in executable directory
+# This ensures SDL3 and other shared libs are loaded from bin/ not _deps/
+if(UNIX)
+  if(APPLE)
+    set(CMAKE_BUILD_RPATH "@executable_path")
+    set(CMAKE_INSTALL_RPATH "@executable_path")
+  else()
+    set(CMAKE_BUILD_RPATH "$ORIGIN")
+    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+  endif()
+  set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
+  # Disable using the default RPATH from linked libraries
+  set(CMAKE_SKIP_BUILD_RPATH FALSE)
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
+endif()
+
 # Always use FetchContent for SDL3 (vcpkg doesn't have it in stable baseline)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(sdl3)
@@ -45,6 +61,31 @@ add_custom_command(TARGET SimpleRoom POST_BUILD
             ${LIVEKIT_ROOT_DIR}/data
             ${CMAKE_CURRENT_BINARY_DIR}/data
 )
+
+# Copy SDL3 shared library to SimpleRoom output directory
+# On Linux, we also need to create the SONAME symlink (libSDL3.so.0 -> libSDL3.so.0.x.x)
+# macOS doesn't need SONAME symlink (dylib versioning works differently)
+if(UNIX AND NOT APPLE)
+  add_custom_command(TARGET SimpleRoom POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:SDL3::SDL3>"
+            "$<TARGET_FILE_DIR:SimpleRoom>"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+            "$<TARGET_FILE_NAME:SDL3::SDL3>"
+            "$<TARGET_FILE_DIR:SimpleRoom>/$<TARGET_SONAME_FILE_NAME:SDL3::SDL3>"
+    COMMENT "Copying SDL3 shared library and SONAME symlink to SimpleRoom output directory"
+    VERBATIM
+  )
+else()
+  # Windows and macOS: just copy the library file
+  add_custom_command(TARGET SimpleRoom POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:SDL3::SDL3>"
+            "$<TARGET_FILE_DIR:SimpleRoom>"
+    COMMENT "Copying SDL3 shared library to SimpleRoom output directory"
+    VERBATIM
+  )
+endif()
 
 find_package(nlohmann_json CONFIG QUIET)
 if(NOT nlohmann_json_FOUND)
@@ -94,10 +135,13 @@ if(WIN32)
   # Get the livekit library output directory (where DLLs are copied during main build)
   set(LIVEKIT_LIB_DIR $<TARGET_FILE_DIR:livekit>)
   
-  # List of DLLs to copy
+  # Protobuf DLL name depends on configuration (libprotobufd.dll for Debug, libprotobuf.dll for Release)
+  set(PROTOBUF_DLL_NAME $<IF:$<CONFIG:Debug>,libprotobufd.dll,libprotobuf.dll>)
+  
+  # List of DLLs to copy (using generator expressions for config-dependent names)
   set(REQUIRED_DLLS
     "livekit_ffi.dll"
-    "libprotobuf.dll"
+    "${PROTOBUF_DLL_NAME}"
     "abseil_dll.dll"
   )
   
@@ -112,5 +156,27 @@ if(WIN32)
         VERBATIM
       )
     endforeach()
+  endforeach()
+endif()
+
+# Linux/macOS: Copy shared library to examples output directory
+if(UNIX)
+  set(LIVEKIT_LIB_DIR $<TARGET_FILE_DIR:livekit>)
+  
+  if(APPLE)
+    set(FFI_SHARED_LIB "liblivekit_ffi.dylib")
+  else()
+    set(FFI_SHARED_LIB "liblivekit_ffi.so")
+  endif()
+  
+  # Copy shared library to each example's output directory
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream)
+    add_custom_command(TARGET ${EXAMPLE} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "${LIVEKIT_LIB_DIR}/${FFI_SHARED_LIB}"
+              "$<TARGET_FILE_DIR:${EXAMPLE}>/${FFI_SHARED_LIB}"
+      COMMENT "Copying ${FFI_SHARED_LIB} to ${EXAMPLE} output directory"
+      VERBATIM
+    )
   endforeach()
 endif()

@@ -181,7 +181,7 @@ jobs:
           $examples = @('SimpleRoom', 'SimpleRpc', 'SimpleDataStream')
           $failed = $false
           foreach ($exe in $examples) {
-            $exePath = "${{ matrix.build_dir }}/bin/Release/${exe}.exe"
+            $exePath = "${{ matrix.build_dir }}/bin/${exe}.exe"
             if (Test-Path $exePath) {
               Write-Host "Testing ${exe}..."
               $pinfo = New-Object System.Diagnostics.ProcessStartInfo

@@ -1,12 +1,12 @@
 # LiveKit C++ SDK - System Dependencies
 
-This file lists all system-level dependencies required to link against the LiveKit C++ SDK static libraries.
+This file lists all system-level dependencies required to link against the LiveKit C++ SDK libraries.
 
 ## Overview
 
-The LiveKit SDK consists of two static libraries:
-- `livekit.lib` (or `liblivekit.a` on Unix)
-- `livekit_ffi.lib` (or `liblivekit_ffi.a` on Unix)
+The LiveKit SDK consists of two libraries:
+- `livekit.lib` / `liblivekit.a` - Main SDK static library
+- `livekit_ffi.dll` / `liblivekit_ffi.so` / `liblivekit_ffi.dylib` - Rust FFI dynamic library
 
 ## Distribution Model
 
@@ -15,7 +15,7 @@ The SDK uses different distribution strategies per platform:
 ### Windows (Complete Package)
 ✅ **Ready to use** - All dependencies included:
 - `livekit.lib` - Main SDK static library
-- `livekit_ffi.dll` + `livekit_ffi.dll.lib` - Rust FFI layer
+- `livekit_ffi.dll` + `livekit_ffi.dll.lib` - Rust FFI dynamic library
 - `libprotobuf.dll` + `libprotobuf.lib` - Protocol Buffers runtime
 - `abseil_dll.dll` + `abseil_dll.lib` - Abseil C++ library
 
@@ -24,21 +24,21 @@ The SDK uses different distribution strategies per platform:
 ### Linux (Minimal Package)
 ⚠️ **Requires system dependencies**:
 - `liblivekit.a` - Main SDK static library (included)
-- `liblivekit_ffi.a` - Rust FFI layer (included)
+- `liblivekit_ffi.so` - Rust FFI dynamic library (included, **must be placed alongside your executable**)
 - `libprotobuf` - Must install via `apt install libprotobuf-dev`
 - `libssl` - Must install via `apt install libssl-dev`
 - `libabsl` - Only if built with Protobuf 6.0+: `apt install libabsl-dev`
 
-**User action**: Install required packages on target system before linking.
+**User action**: Install required packages and copy `liblivekit_ffi.so` to your executable directory.
 
 ### macOS (Minimal Package)
 ⚠️ **Requires system dependencies**:
 - `liblivekit.a` - Main SDK static library (included)
-- `liblivekit_ffi.a` - Rust FFI layer (included)
+- `liblivekit_ffi.dylib` - Rust FFI dynamic library (included, **must be placed alongside your executable**)
 - `protobuf` - Must install via `brew install protobuf`
 - `abseil` - Only if built with Protobuf 6.0+: `brew install abseil`
 
-**User action**: Install required packages on target system before linking.
+**User action**: Install required packages and copy `liblivekit_ffi.dylib` to your executable directory.
 
 ---
 

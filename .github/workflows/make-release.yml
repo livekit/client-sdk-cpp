@@ -27,11 +27,6 @@ jobs:
           - os: macos-latest
             name: macos-arm64
             generator: Ninja
-            macos_arch: arm64
-          - os: macos-latest
-            name: macos-x64
-            generator: Ninja
-            macos_arch: x86_64
           - os: windows-latest
             name: windows-x64
             generator: "Visual Studio 17 2022"
@@ -85,9 +80,14 @@ jobs:
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
             llvm-dev libclang-dev clang \
+            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+            libxrandr-dev libxi-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev \
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
-            libabsl-dev
+            libabsl-dev \
+            libwayland-dev libdecor-0-dev
 
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
@@ -125,55 +125,49 @@ jobs:
         shell: bash
         run: |
           chmod +x build.sh
-          args=(release -G "${{ matrix.generator }}" \
-            --version "${{ steps.version.outputs.version }}" \
-            --bundle --prefix "sdk-out/livekit-sdk-${{ matrix.name }}")
-          if [[ "${{ runner.os }}" == "macOS" && -n "${{ matrix.macos_arch }}" ]]; then
-            args+=(--macos-arch "${{ matrix.macos_arch }}")
-          fi
-          ./build.sh "${args[@]}"
+          ./build.sh release-examples
+          
+          # Create bundle directory with version in name
+          bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
+          mkdir -p "$bundleDir/lib"
+          mkdir -p "$bundleDir/include"
+          mkdir -p "$bundleDir/bin"
+          
+          # Copy files
+          cp -r build-release/lib/* "$bundleDir/lib/" 2>/dev/null || true
+          cp -r build-release/include/* "$bundleDir/include/" 2>/dev/null || true
+          cp -r build-release/bin/* "$bundleDir/bin/" 2>/dev/null || true
+          
+          # List bundle contents
+          echo "Bundle contents:"
+          find "$bundleDir" -type f | head -50
 
       # ---------- Build + Bundle (Windows) ----------
       - name: Build and Bundle (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Build release
-          .\build.cmd release
+          # Build release with examples
+          .\build.cmd release-examples
           
-          # Create bundle directory
-          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}"
+          # Create bundle directory with version in name
+          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
           New-Item -ItemType Directory -Force -Path $bundleDir
           New-Item -ItemType Directory -Force -Path "$bundleDir/lib"
           New-Item -ItemType Directory -Force -Path "$bundleDir/include"
+          New-Item -ItemType Directory -Force -Path "$bundleDir/bin"
           
           # Copy files
           Copy-Item -Recurse -Force "build-release/lib/*" "$bundleDir/lib/"
           Copy-Item -Recurse -Force "build-release/include/*" "$bundleDir/include/"
+          Copy-Item -Recurse -Force "build-release/bin/*" "$bundleDir/bin/"
 
-      # ---------- Create archive ----------
-      - name: Archive (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          cd sdk-out
-          tar -czf "../livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}.tar.gz" "livekit-sdk-${{ matrix.name }}"
-
-      - name: Archive (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Compress-Archive -Path "sdk-out/livekit-sdk-${{ matrix.name }}/*" `
-            -DestinationPath "livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}.zip"
-
-      # ---------- Upload artifact ----------
+      # ---------- Upload artifact (raw directory, no pre-compression) ----------
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: sdk-${{ matrix.name }}
-          path: |
-            livekit-sdk-${{ matrix.name }}-*.tar.gz
-            livekit-sdk-${{ matrix.name }}-*.zip
+          name: livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
+          path: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
 
   # ---------- Release Job ----------
   release:
@@ -204,9 +198,42 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: sdk-*
-          merge-multiple: true
-          path: ${{ github.workspace }}/release-assets
+          path: ${{ github.workspace }}/artifacts
+
+      - name: List downloaded artifacts
+        run: |
+          echo "Downloaded artifacts structure:"
+          find ${{ github.workspace }}/artifacts -type f | head -100
+
+      # ---------- Create archives in release job ----------
+      - name: Create release archives
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          VERSION="${{ steps.version.outputs.version }}"
+          cd ${{ github.workspace }}/artifacts
+          
+          # List what we have
+          echo "Artifacts downloaded:"
+          ls -la
+          
+          # Create tar.gz for Linux and macOS
+          for platform in linux-x64 macos-arm64; do
+            dirName="livekit-sdk-${platform}-${VERSION}"
+            if [[ -d "${dirName}" ]]; then
+              echo "Creating archive for ${platform}..."
+              tar -czf "${{ github.workspace }}/release-assets/${dirName}.tar.gz" "${dirName}"
+              echo "Created: ${dirName}.tar.gz"
+            fi
+          done
+          
+          # Create zip for Windows
+          dirName="livekit-sdk-windows-x64-${VERSION}"
+          if [[ -d "${dirName}" ]]; then
+            echo "Creating archive for windows-x64..."
+            zip -r "${{ github.workspace }}/release-assets/${dirName}.zip" "${dirName}"
+            echo "Created: ${dirName}.zip"
+          fi
 
       - name: List release assets
         run: ls -la ${{ github.workspace }}/release-assets/
