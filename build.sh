@@ -158,20 +158,51 @@ install_bundle() {
   rm -rf "${PREFIX}"
   mkdir -p "${PREFIX}"
 
-  # Use --config for safety (works for multi-config too)
-  cmake --install "${BUILD_DIR}" --config "${BUILD_TYPE}" --prefix "${PREFIX}"
-
-  # Sanity checks (non-fatal, but helpful)
-  if [[ ! -d "${PREFIX}/include" ]]; then
-    echo "WARN: ${PREFIX}/include not found. Did you add install(DIRECTORY include/ ...) rules?"
+  # Detect whether generator is multi-config (VS/Xcode) or single-config (Ninja/Unix Makefiles)
+  local is_multi_config=0
+  if [[ -f "${BUILD_DIR}/CMakeCache.txt" ]]; then
+    if grep -q '^CMAKE_CONFIGURATION_TYPES:STRING=' "${BUILD_DIR}/CMakeCache.txt"; then
+      is_multi_config=1
+    fi
   fi
-  if [[ ! -d "${PREFIX}/lib" && ! -d "${PREFIX}/lib64" ]]; then
+
+  # Run install
+  if [[ "${is_multi_config}" -eq 1 ]]; then
+    echo "==> cmake --install (multi-config) config=${BUILD_TYPE}"
+    cmake --install "${BUILD_DIR}" --config "${BUILD_TYPE}" --prefix "${PREFIX}"
+  else
+    echo "==> cmake --install (single-config)"
+    cmake --install "${BUILD_DIR}" --prefix "${PREFIX}"
+  fi
+
+  local libdir=""
+  if [[ -d "${PREFIX}/lib" ]]; then
+    libdir="${PREFIX}/lib"
+  elif [[ -d "${PREFIX}/lib64" ]]; then
+    libdir="${PREFIX}/lib64"
+  else
     echo "WARN: ${PREFIX}/lib or lib64 not found. Did you add install(TARGETS ...) rules?"
   fi
-  if [[ ! -d "${PREFIX}/lib/cmake/LiveKit" && ! -d "${PREFIX}/lib64/cmake/LiveKit" ]]; then
-    echo "WARN: CMake package files not found under lib/cmake/LiveKit. Did you add install(EXPORT ...) + LiveKitConfig.cmake?"
+
+  if [[ -n "${libdir}" ]]; then
+    if [[ ! -d "${libdir}/cmake/LiveKit" ]]; then
+      echo "WARN: CMake package files not found under ${libdir}/cmake/LiveKit."
+      echo "      Did you add install(EXPORT ...) + install(FILES LiveKitConfig*.cmake ...)?"
+    else
+      # Optional: verify that key files exist
+      if [[ ! -f "${libdir}/cmake/LiveKit/LiveKitConfig.cmake" ]]; then
+        echo "WARN: Missing ${libdir}/cmake/LiveKit/LiveKitConfig.cmake"
+      fi
+      if [[ ! -f "${libdir}/cmake/LiveKit/LiveKitTargets.cmake" ]]; then
+        echo "WARN: Missing ${libdir}/cmake/LiveKit/LiveKitTargets.cmake (install(EXPORT ...) didn’t run?)"
+      fi
+      if [[ ! -f "${libdir}/cmake/LiveKit/LiveKitConfigVersion.cmake" ]]; then
+        echo "WARN: Missing ${libdir}/cmake/LiveKit/LiveKitConfigVersion.cmake"
+      fi
+    fi
   fi
 }
+
 
 archive_bundle() {
   if [[ "${DO_BUNDLE}" != "1" ]]; then
