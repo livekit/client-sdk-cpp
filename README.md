@@ -15,8 +15,8 @@ This SDK enables native C++ applications to connect to LiveKit servers for real-
 
 ### For Building the SDK:
 - **Windows:** Visual Studio 2019+, vcpkg
-- **Linux:** `sudo apt install ninja-build libprotobuf-dev libssl-dev` (protobuf 3.x)
-- **macOS:** `brew install ninja protobuf` (protobuf 3.x)
+- **Linux:** `sudo apt install libprotobuf-dev libssl-dev` (protobuf 3.x)
+- **macOS:** `brew install protobuf` (protobuf 3.x)
 
 ### For Using the Pre-built SDK:
 - **Windows:** ✅ All dependencies included (DLLs bundled) - ready to use
