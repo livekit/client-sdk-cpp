@@ -102,7 +102,6 @@ target_include_directories(livekit_proto PRIVATE
   "$<BUILD_INTERFACE:${PROTO_BINARY_DIR}>"
   ${Protobuf_INCLUDE_DIRS}
 )
-target_link_libraries(livekit_proto PRIVATE protobuf::libprotobuf)
 
 # Manually generate protobuf files to avoid path prefix issues
 set(PROTO_SRCS)
@@ -318,6 +317,7 @@ target_include_directories(livekit
 target_link_libraries(livekit
   PRIVATE
     livekit_ffi
+  PUBLIC
     protobuf::libprotobuf
 )
 
@@ -494,14 +494,14 @@ if(Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
   endif()
 
   if(absl_FOUND)
-    target_link_libraries(livekit PRIVATE
+    target_link_libraries(livekit PUBLIC
       absl::log
       absl::check
       absl::strings
       absl::base
     )
   elseif(Abseil_FOUND)
-    target_link_libraries(livekit PRIVATE
+    target_link_libraries(livekit PUBLIC
       Abseil::log
       Abseil::check
       Abseil::strings
