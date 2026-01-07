@@ -8,6 +8,7 @@ project(livekit VERSION ${LIVEKIT_VERSION} LANGUAGES C CXX)
 
 set(LIVEKIT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIVEKIT_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 
@@ -86,23 +87,39 @@ set(PROTO_BINARY_DIR ${LIVEKIT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 
 # Try to find Protobuf via CONFIG mode first (vcpkg), then fall back to MODULE mode (apt/brew)
-find_package(Protobuf CONFIG QUIET)
-if(NOT Protobuf_FOUND)
-  find_package(Protobuf REQUIRED)
+if(WIN32 AND LIVEKIT_USE_VCPKG)
+  # Keep existing find_package(Protobuf CONFIG) logic
+  find_package(Protobuf CONFIG REQUIRED)
+else()
+  include(protobuf)  # Livekit static protobuf-lite, for Linux and MacOS
 endif()
 
-# Ensure protoc executable is found (some systems may not set Protobuf_PROTOC_EXECUTABLE)
+# Ensure protoc executable is found (when using Livekit Protobuf, it should set Protobuf_PROTOC_EXECUTABLE already)
 if(NOT Protobuf_PROTOC_EXECUTABLE)
   find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc REQUIRED)
 endif()
 message(STATUS "Using protoc: ${Protobuf_PROTOC_EXECUTABLE}")
 
 add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
+if(TARGET protobuf::libprotobuf-lite)
+  set(LIVEKIT_PROTOBUF_TARGET protobuf::libprotobuf-lite)
+elseif(TARGET protobuf::libprotobuf)
+  set(LIVEKIT_PROTOBUF_TARGET protobuf::libprotobuf)
+else()
+  message(FATAL_ERROR "No protobuf library target found (expected protobuf::libprotobuf-lite or protobuf::libprotobuf)")
+endif()
 target_include_directories(livekit_proto PRIVATE
-  "$<BUILD_INTERFACE:${PROTO_BINARY_DIR}>"
+  "${PROTO_BINARY_DIR}"
   ${Protobuf_INCLUDE_DIRS}
 )
-target_link_libraries(livekit_proto PRIVATE protobuf::libprotobuf)
+# Add Abseil headers to compile generated .pb.cc (protobuf includes absl headers)
+if(TARGET absl::base)
+  get_target_property(_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
+  if(_absl_inc)
+    target_include_directories(livekit_proto PRIVATE ${_absl_inc})
+  endif()
+endif()
+
 
 # Manually generate protobuf files to avoid path prefix issues
 set(PROTO_SRCS)
@@ -318,7 +335,7 @@ target_include_directories(livekit
 target_link_libraries(livekit
   PRIVATE
     livekit_ffi
-    protobuf::libprotobuf
+    ${LIVEKIT_PROTOBUF_TARGET}
 )
 
 message(STATUS "Protobuf: version=${Protobuf_VERSION}; protoc=${Protobuf_PROTOC_EXECUTABLE}")
@@ -487,35 +504,6 @@ if(APPLE)
   target_link_options(livekit INTERFACE "LINKER:-ObjC")
 endif()
 
-if(Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
-  find_package(absl CONFIG QUIET)
-  if(NOT absl_FOUND)
-    find_package(Abseil QUIET)
-  endif()
-
-  if(absl_FOUND)
-    target_link_libraries(livekit PRIVATE
-      absl::log
-      absl::check
-      absl::strings
-      absl::base
-    )
-  elseif(Abseil_FOUND)
-    target_link_libraries(livekit PRIVATE
-      Abseil::log
-      Abseil::check
-      Abseil::strings
-      Abseil::base
-    )
-  else()
-    message(FATAL_ERROR
-      "Protobuf ${Protobuf_VERSION} requires Abseil but no CMake package was found.\n"
-      "Install Abseil or use Protobuf < 6.")
-  endif()
-else()
-  message(STATUS "Protobuf < 6 detected; skipping Abseil linking.")
-endif()
-
 if(WIN32)
   target_link_libraries(livekit PUBLIC
     ntdll
@@ -587,11 +575,11 @@ write_basic_package_version_file(
 )
 
 # Export targets
-install(EXPORT LiveKitTargets
-  FILE LiveKitTargets.cmake
-  NAMESPACE ${LIVEKIT_EXPORT_NAMESPACE}
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${LIVEKIT_PACKAGE_NAME}"
-)
+#install(EXPORT LiveKitTargets
+#  FILE LiveKitTargets.cmake
+#  NAMESPACE ${LIVEKIT_EXPORT_NAMESPACE}
+#  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${LIVEKIT_PACKAGE_NAME}"
+#)
 
 # Install config files
 install(FILES
