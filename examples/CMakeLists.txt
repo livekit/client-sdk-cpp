@@ -24,6 +24,13 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(sdl3)
 
+# Common include directories for examples that need private headers
+# TODO: These should be refactored to use only public headers
+set(EXAMPLES_PRIVATE_INCLUDE_DIRS
+    ${LIVEKIT_ROOT_DIR}/src
+    ${LIVEKIT_BINARY_DIR}/generated
+)
+
 add_executable(SimpleRoom
   simple_room/main.cpp
   simple_room/fallback_capture.cpp
@@ -38,10 +45,14 @@ add_executable(SimpleRoom
   simple_room/wav_audio_source.h
 )
 
+target_include_directories(SimpleRoom PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
 
+# Link protobuf::libprotobuf directly to get proper include directories
+# (livekit links it PRIVATELY so its headers aren't propagated)
 target_link_libraries(SimpleRoom
     PRIVATE
         livekit
+        protobuf::libprotobuf
         SDL3::SDL3
 )
 
@@ -96,6 +107,7 @@ target_link_libraries(SimpleRpc
   PRIVATE
     nlohmann_json::nlohmann_json
     livekit
+    protobuf::libprotobuf
 )
 
 add_executable(SimpleDataStream
@@ -107,6 +119,7 @@ target_include_directories(SimpleDataStream PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_D
 target_link_libraries(SimpleDataStream
   PRIVATE
     livekit
+    protobuf::libprotobuf
 )
 
 add_custom_command(
@@ -122,9 +135,13 @@ if(WIN32)
   # Get the livekit library output directory (where DLLs are copied during main build)
   set(LIVEKIT_LIB_DIR $<TARGET_FILE_DIR:livekit>)
   
+  # Protobuf DLL name depends on configuration (libprotobufd.dll for Debug, libprotobuf.dll for Release)
+  set(PROTOBUF_DLL_NAME $<IF:$<CONFIG:Debug>,libprotobufd.dll,libprotobuf.dll>)
+  
   # List of DLLs to copy (using generator expressions for config-dependent names)
   set(REQUIRED_DLLS
     "livekit_ffi.dll"
+    "${PROTOBUF_DLL_NAME}"
     "abseil_dll.dll"
   )
   
