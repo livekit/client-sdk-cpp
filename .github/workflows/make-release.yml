@@ -125,52 +125,31 @@ jobs:
         shell: bash
         run: |
           chmod +x build.sh
-          ./build.sh release-examples
-          
-          # Create bundle directory with version in name
-          bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
-          mkdir -p "$bundleDir/lib"
-          mkdir -p "$bundleDir/include"
-          mkdir -p "$bundleDir/lib/cmake/LiveKit"
-          
-          # Copy libs + headers (SDK)
-          cp -r build-release/lib/* "$bundleDir/lib/" 2>/dev/null || true
-          cp -r build-release/include/* "$bundleDir/include/" 2>/dev/null || true
+          version="${{ steps.version.outputs.version }}"
+          bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}-${version}"
 
-          # Copy generated CMake package files
-          cp -f build-release/LiveKitConfig.cmake "$bundleDir/lib/cmake/LiveKit/" || true
-          cp -f build-release/LiveKitConfigVersion.cmake "$bundleDir/lib/cmake/LiveKit/" || true
-          cp -f build-release/LiveKitTargets.cmake "$bundleDir/lib/cmake/LiveKit/" || true
-          cp -f build-release/LiveKitTargets-*.cmake "$bundleDir/lib/cmake/LiveKit/" 2>/dev/null || true
+          ./build.sh release-examples --bundle --prefix "$bundleDir"
 
           # List bundle contents
           echo "Bundle contents:"
-          find "$bundleDir" -type f | head -80
+          find "$bundleDir" -type f | head -120
 
       # ---------- Build + Bundle (Windows) ----------
       - name: Build and Bundle (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Build release with examples
           .\build.cmd release-examples
-          
-          # Create bundle directory with version in name
-          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
-          New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
-          New-Item -ItemType Directory -Force -Path "$bundleDir/lib" | Out-Null
-          New-Item -ItemType Directory -Force -Path "$bundleDir/include" | Out-Null
-          New-Item -ItemType Directory -Force -Path "$bundleDir/lib/cmake/LiveKit" | Out-Null
-          
-          # Copy libs + headers (SDK)
-          Copy-Item -Recurse -Force "build-release/lib/*" "$bundleDir/lib/"
-          Copy-Item -Recurse -Force "build-release/include/*" "$bundleDir/include/"
 
-          # Copy generated CMake package files (best-effort)
-          Copy-Item -Force "build-release/LiveKitConfig.cmake" "$bundleDir/lib/cmake/LiveKit/" -ErrorAction SilentlyContinue
-          Copy-Item -Force "build-release/LiveKitConfigVersion.cmake" "$bundleDir/lib/cmake/LiveKit/" -ErrorAction SilentlyContinue
-          Copy-Item -Force "build-release/LiveKitTargets.cmake" "$bundleDir/lib/cmake/LiveKit/" -ErrorAction SilentlyContinue
-          Copy-Item -Force "build-release/LiveKitTargets-*.cmake" "$bundleDir/lib/cmake/LiveKit/" -ErrorAction SilentlyContinue
+          $version   = "${{ steps.version.outputs.version }}"
+          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-$version"
+
+          # There is the missing step that generates LiveKitTargets.cmake in the install tree
+          # TODO(sxian): fix it after getting access to a windows machine
+          cmake --install "build-release" --config Release --prefix "$bundleDir"
+
+          Write-Host "Bundle contents:"
+          Get-ChildItem -Recurse -File $bundleDir | Select-Object -First 200 | ForEach-Object { $_.FullName }
 
       # ---------- Upload artifact (raw directory, no pre-compression) ----------
       - name: Upload build artifact
