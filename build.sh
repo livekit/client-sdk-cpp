@@ -6,8 +6,8 @@ BUILD_TYPE="Release"
 PRESET=""
 
 # Initialize optional variables (required for set -u)
-DO_BUNDLE=""
-DO_ARCHIVE=""
+DO_BUNDLE="0"
+DO_ARCHIVE="0"
 PREFIX=""
 ARCHIVE_NAME=""
 GENERATOR=""
@@ -301,6 +301,7 @@ if [[ $# -eq 0 ]]; then
 fi
 
 cmd="$1"
+parse_opts "$@"
 case "${cmd}" in
   debug)
     BUILD_TYPE="Debug"
