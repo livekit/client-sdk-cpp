@@ -102,6 +102,7 @@ target_include_directories(livekit_proto PRIVATE
   "$<BUILD_INTERFACE:${PROTO_BINARY_DIR}>"
   ${Protobuf_INCLUDE_DIRS}
 )
+target_link_libraries(livekit_proto PRIVATE protobuf::libprotobuf)
 
 # Manually generate protobuf files to avoid path prefix issues
 set(PROTO_SRCS)
