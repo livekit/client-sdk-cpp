@@ -322,6 +322,12 @@ case "${cmd}" in
     PRESET="${OS_TYPE}-debug-examples"
     configure
     build
+    if [[ "${DO_BUNDLE}" == "1" ]]; then
+      install_bundle
+      if [[ "${DO_ARCHIVE}" == "1" ]]; then
+        archive_bundle
+      fi
+    fi
     ;;
   release)
     BUILD_TYPE="Release"
@@ -342,6 +348,12 @@ case "${cmd}" in
     PRESET="${OS_TYPE}-release-examples"
     configure
     build
+    if [[ "${DO_BUNDLE}" == "1" ]]; then
+      install_bundle
+      if [[ "${DO_ARCHIVE}" == "1" ]]; then
+        archive_bundle
+      fi
+    fi
     ;;
   clean)
     clean
