@@ -569,46 +569,56 @@ install(IMPORTED_RUNTIME_ARTIFACTS livekit_ffi
 # Note: we build either Debug OR Release per build (./build.sh debug or ./build.sh release),
 # so we only install the corresponding configuration’s import libs.
 if(WIN32)
+  # livekit_ffi import lib
   if(TARGET livekit_ffi)
     install(FILES
-      $<IF:$<CONFIG:Debug>,
-        $<TARGET_PROPERTY:livekit_ffi,IMPORTED_IMPLIB_DEBUG>,
-        $<TARGET_PROPERTY:livekit_ffi,IMPORTED_IMPLIB_RELEASE>
-      >
+      $<TARGET_PROPERTY:livekit_ffi,IMPORTED_IMPLIB_RELEASE>
       DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      CONFIGURATIONS Release RelWithDebInfo MinSizeRel
+    )
+    install(FILES
+      $<TARGET_PROPERTY:livekit_ffi,IMPORTED_IMPLIB_DEBUG>
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      CONFIGURATIONS Debug
     )
   endif()
 
-  # We bundle libprotobuf and abseil as part of our SDK.
+  # Protobuf
   if(TARGET protobuf::libprotobuf)
     install(IMPORTED_RUNTIME_ARTIFACTS protobuf::libprotobuf
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
     install(FILES
-      $<IF:$<CONFIG:Debug>,
-        $<TARGET_PROPERTY:protobuf::libprotobuf,IMPORTED_IMPLIB_DEBUG>,
-        $<TARGET_PROPERTY:protobuf::libprotobuf,IMPORTED_IMPLIB_RELEASE>
-      >
+      $<TARGET_PROPERTY:protobuf::libprotobuf,IMPORTED_IMPLIB_RELEASE>
       DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      CONFIGURATIONS Release RelWithDebInfo MinSizeRel
+    )
+    install(FILES
+      $<TARGET_PROPERTY:protobuf::libprotobuf,IMPORTED_IMPLIB_DEBUG>
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      CONFIGURATIONS Debug
     )
   endif()
 
+  # Abseil
   if(TARGET absl::abseil_dll)
     install(IMPORTED_RUNTIME_ARTIFACTS absl::abseil_dll
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
     install(FILES
-      $<IF:$<CONFIG:Debug>,
-        $<TARGET_PROPERTY:absl::abseil_dll,IMPORTED_IMPLIB_DEBUG>,
-        $<TARGET_PROPERTY:absl::abseil_dll,IMPORTED_IMPLIB_RELEASE>
-      >
+      $<TARGET_PROPERTY:absl::abseil_dll,IMPORTED_IMPLIB_RELEASE>
       DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      CONFIGURATIONS Release RelWithDebInfo MinSizeRel
+    )
+    install(FILES
+      $<TARGET_PROPERTY:absl::abseil_dll,IMPORTED_IMPLIB_DEBUG>
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}
+      CONFIGURATIONS Debug
     )
   endif()
 endif()
-
 
 # Install public headers
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
