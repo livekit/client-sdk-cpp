@@ -559,6 +559,27 @@ install(TARGETS livekit
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}   # .a/.lib
   INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
+install(IMPORTED_RUNTIME_ARTIFACTS livekit_ffi
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+# We bundle the libprotobuf and abseil as part of our libs.
+if(WIN32)
+  if(TARGET protobuf::libprotobuf)
+    install(IMPORTED_RUNTIME_ARTIFACTS
+      protobuf::libprotobuf
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+  endif()
+  if(TARGET absl::abseil_dll)
+    install(IMPORTED_RUNTIME_ARTIFACTS
+      absl::abseil_dll
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+  endif()
+endif()
 
 # Install public headers
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
