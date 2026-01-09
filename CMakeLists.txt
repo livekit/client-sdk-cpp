@@ -559,27 +559,56 @@ install(TARGETS livekit
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}   # .a/.lib
   INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
+# Runtime artifacts (DLL / .so / .dylib) for imported shared libs.
+# On Unix, the shared library is also the link-time artifact, so this is enough.
 install(IMPORTED_RUNTIME_ARTIFACTS livekit_ffi
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
-# We bundle the libprotobuf and abseil as part of our libs.
+# Windows needs the import libraries (.dll.lib/.lib) for link-time.
+# Note: we build either Debug OR Release per build (./build.sh debug or ./build.sh release),
+# so we only install the corresponding configuration’s import libs.
 if(WIN32)
+  if(TARGET livekit_ffi)
+    install(FILES
+      $<IF:$<CONFIG:Debug>,
+        $<TARGET_PROPERTY:livekit_ffi,IMPORTED_IMPLIB_DEBUG>,
+        $<TARGET_PROPERTY:livekit_ffi,IMPORTED_IMPLIB_RELEASE>
+      >
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+  endif()
+
+  # We bundle libprotobuf and abseil as part of our SDK.
   if(TARGET protobuf::libprotobuf)
-    install(IMPORTED_RUNTIME_ARTIFACTS
-      protobuf::libprotobuf
+    install(IMPORTED_RUNTIME_ARTIFACTS protobuf::libprotobuf
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
+    install(FILES
+      $<IF:$<CONFIG:Debug>,
+        $<TARGET_PROPERTY:protobuf::libprotobuf,IMPORTED_IMPLIB_DEBUG>,
+        $<TARGET_PROPERTY:protobuf::libprotobuf,IMPORTED_IMPLIB_RELEASE>
+      >
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
   endif()
+
   if(TARGET absl::abseil_dll)
-    install(IMPORTED_RUNTIME_ARTIFACTS
-      absl::abseil_dll
+    install(IMPORTED_RUNTIME_ARTIFACTS absl::abseil_dll
       RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
       LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
+    install(FILES
+      $<IF:$<CONFIG:Debug>,
+        $<TARGET_PROPERTY:absl::abseil_dll,IMPORTED_IMPLIB_DEBUG>,
+        $<TARGET_PROPERTY:absl::abseil_dll,IMPORTED_IMPLIB_RELEASE>
+      >
+      DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
   endif()
 endif()
+
 
 # Install public headers
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
