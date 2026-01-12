@@ -8,14 +8,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # This ensures SDL3 and other shared libs are loaded from bin/ not _deps/
 if(UNIX)
   if(APPLE)
-    set(CMAKE_BUILD_RPATH "@executable_path")
-    set(CMAKE_INSTALL_RPATH "@executable_path")
+    set(CMAKE_BUILD_RPATH "@loader_path;@loader_path/../lib")
+    set(CMAKE_INSTALL_RPATH "@loader_path;@loader_path/../lib")
   else()
-    set(CMAKE_BUILD_RPATH "$ORIGIN")
-    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+    set(CMAKE_BUILD_RPATH "$ORIGIN:$ORIGIN/../lib")
+    set(CMAKE_INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib")
   endif()
   set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
-  # Disable using the default RPATH from linked libraries
   set(CMAKE_SKIP_BUILD_RPATH FALSE)
   set(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 endif()
@@ -47,12 +46,9 @@ add_executable(SimpleRoom
 
 target_include_directories(SimpleRoom PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
 
-# Link protobuf::libprotobuf directly to get proper include directories
-# (livekit links it PRIVATELY so its headers aren't propagated)
 target_link_libraries(SimpleRoom
     PRIVATE
         livekit
-        protobuf::libprotobuf
         SDL3::SDL3
 )
 
@@ -107,7 +103,6 @@ target_link_libraries(SimpleRpc
   PRIVATE
     nlohmann_json::nlohmann_json
     livekit
-    protobuf::libprotobuf
 )
 
 add_executable(SimpleDataStream
@@ -119,7 +114,6 @@ target_include_directories(SimpleDataStream PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_D
 target_link_libraries(SimpleDataStream
   PRIVATE
     livekit
-    protobuf::libprotobuf
 )
 
 add_custom_command(
@@ -135,14 +129,9 @@ if(WIN32)
   # Get the livekit library output directory (where DLLs are copied during main build)
   set(LIVEKIT_LIB_DIR $<TARGET_FILE_DIR:livekit>)
   
-  # Protobuf DLL name depends on configuration (libprotobufd.dll for Debug, libprotobuf.dll for Release)
-  set(PROTOBUF_DLL_NAME $<IF:$<CONFIG:Debug>,libprotobufd.dll,libprotobuf.dll>)
-  
   # List of DLLs to copy (using generator expressions for config-dependent names)
   set(REQUIRED_DLLS
     "livekit_ffi.dll"
-    "${PROTOBUF_DLL_NAME}"
-    "abseil_dll.dll"
   )
   
   # Copy DLLs to each example's output directory
