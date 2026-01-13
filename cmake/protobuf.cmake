@@ -61,6 +61,10 @@ set(protobuf_WITH_ZLIB OFF CACHE BOOL "" FORCE)
 
 set(protobuf_ABSL_PROVIDER "package" CACHE STRING "" FORCE)
 
+if(MSVC)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "" FORCE)
+endif()
+
 # Make abseil available first so protobuf can find absl:: targets.
 FetchContent_MakeAvailable(livekit_abseil)
 

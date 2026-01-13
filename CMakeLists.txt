@@ -61,10 +61,8 @@ endif()
 
 
 if(MSVC)
-  # Use dynamic CRT (/MD) for compatibility with Qt and other /MD libraries.
-  # The livekit_ffi.dll isolates the /MT libwebrtc dependency, so livekit.lib
-  # can safely use /MD.
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+  # Force /MD or /MDd for ALL targets (including FetchContent subprojects)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "" FORCE)
   add_compile_options(/utf-8)
 endif()
 
