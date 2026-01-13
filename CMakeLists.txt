@@ -307,6 +307,10 @@ add_library(livekit SHARED
   src/video_utils.cpp
   src/video_utils.h
 )
+if(WIN32)
+  set_target_properties(livekit PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 
 target_sources(livekit PRIVATE $<TARGET_OBJECTS:livekit_proto>)
 
