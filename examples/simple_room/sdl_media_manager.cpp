@@ -174,7 +174,7 @@ bool SDLMediaManager::startCamera(
       [src = cam_source_](const uint8_t *pixels, int pitch, int width,
                           int height, SDL_PixelFormat /*fmt*/,
                           Uint64 timestampNS) {
-        auto frame = LKVideoFrame::create(width, height, VideoBufferType::RGBA);
+        auto frame = VideoFrame::create(width, height, VideoBufferType::RGBA);
         uint8_t *dst = frame.data();
         const int dstPitch = width * 4;
 

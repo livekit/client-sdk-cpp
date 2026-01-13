@@ -56,23 +56,23 @@ class OwnedVideoBuffer;
  * - The SDK can expose the backing memory to Rust via data_ptr + layout for
  *   the duration of a blocking FFI call (similar to AudioFrame).
  */
-class LKVideoFrame {
+class VideoFrame {
 public:
-  LKVideoFrame();
-  LKVideoFrame(int width, int height, VideoBufferType type,
+  VideoFrame();
+  VideoFrame(int width, int height, VideoBufferType type,
                std::vector<std::uint8_t> data);
-  virtual ~LKVideoFrame() = default;
+  virtual ~VideoFrame() = default;
 
-  LKVideoFrame(const LKVideoFrame &) = delete;
-  LKVideoFrame &operator=(const LKVideoFrame &) = delete;
-  LKVideoFrame(LKVideoFrame &&) noexcept = default;
-  LKVideoFrame &operator=(LKVideoFrame &&) noexcept = default;
+  VideoFrame(const VideoFrame &) = delete;
+  VideoFrame &operator=(const VideoFrame &) = delete;
+  VideoFrame(VideoFrame &&) noexcept = default;
+  VideoFrame &operator=(VideoFrame &&) noexcept = default;
 
   /**
    * Allocate a new frame with the correct buffer size for the given format.
    * Data is zero-initialized.
    */
-  static LKVideoFrame create(int width, int height, VideoBufferType type);
+  static VideoFrame create(int width, int height, VideoBufferType type);
 
   // Basic properties
   int width() const noexcept { return width_; }
@@ -95,13 +95,13 @@ public:
    * Convert this frame into another pixel format.
    *
    * This uses the underlying FFI `video_convert` pipeline to transform the
-   * current frame into a new `LKVideoFrame` with the requested
+   * current frame into a new `VideoFrame` with the requested
    * `dst` buffer type (e.g. ARGB → I420, BGRA → RGB24, etc.).
    *
    * @param dst     Desired output format (see VideoBufferType).
    * @param flip_y  If true, the converted frame will be vertically flipped.
    *
-   * @return A new LKVideoFrame containing the converted image data.
+   * @return A new VideoFrame containing the converted image data.
    *
    * Notes:
    *  - This function allocates a new buffer and copies pixel data; it does
@@ -114,15 +114,15 @@ public:
    *    format combination is unsupported.
    *
    * Typical usage:
-   *        LKVideoFrame i420 = frame.convert(VideoBufferType::I420);
+   *        VideoFrame i420 = frame.convert(VideoBufferType::I420);
    */
-  LKVideoFrame convert(VideoBufferType dst, bool flip_y = false) const;
+  VideoFrame convert(VideoBufferType dst, bool flip_y = false) const;
 
 protected:
   friend class VideoStream;
   // Only internal classes (e.g., VideoStream)
   // should construct frames directly from FFI buffers.
-  static LKVideoFrame fromOwnedInfo(const proto::OwnedVideoBuffer &owned);
+  static VideoFrame fromOwnedInfo(const proto::OwnedVideoBuffer &owned);
 
 private:
   int width_;

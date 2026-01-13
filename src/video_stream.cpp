@@ -181,7 +181,7 @@ void VideoStream::onFfiEvent(const proto::FfiEvent &event) {
 
     // Convert owned buffer->VideoFrame via a helper.
     // You should implement this static function in your VideoFrame class.
-    LKVideoFrame frame = LKVideoFrame::fromOwnedInfo(fr.buffer());
+    VideoFrame frame = VideoFrame::fromOwnedInfo(fr.buffer());
 
     VideoFrameEvent ev{std::move(frame), fr.timestamp_us(),
                        static_cast<VideoRotation>(fr.rotation())};

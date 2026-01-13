@@ -86,7 +86,7 @@ VideoBufferType fromProto(proto::VideoBufferType t) {
   }
 }
 
-proto::VideoBufferInfo toProto(const LKVideoFrame &frame) {
+proto::VideoBufferInfo toProto(const VideoFrame &frame) {
   proto::VideoBufferInfo info;
 
   const int w = frame.width();
@@ -128,15 +128,15 @@ proto::VideoBufferInfo toProto(const LKVideoFrame &frame) {
   return info;
 }
 
-LKVideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned) {
+VideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned) {
   const auto &info = owned.info();
 
   const int width = static_cast<int>(info.width());
   const int height = static_cast<int>(info.height());
   const VideoBufferType type = fromProto(info.type());
 
-  // Allocate a new LKVideoFrame with the correct size/format
-  LKVideoFrame frame = LKVideoFrame::create(width, height, type);
+  // Allocate a new VideoFrame with the correct size/format
+  VideoFrame frame = VideoFrame::create(width, height, type);
 
   // Copy from the FFI-provided buffer into our own backing storage
   auto *dst = frame.data();
@@ -159,7 +159,7 @@ LKVideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned) {
   return frame;
 }
 
-LKVideoFrame convertViaFfi(const LKVideoFrame &frame, VideoBufferType dst,
+VideoFrame convertViaFfi(const VideoFrame &frame, VideoBufferType dst,
                            bool flip_y) {
   proto::FfiRequest req;
   auto *vc = req.mutable_video_convert();

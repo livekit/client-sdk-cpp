@@ -47,7 +47,7 @@ inline constexpr int kDefaultFailureTolerance = -1;
  * - `ratchet_window_size` and `failure_tolerance` use SDK defaults unless
  * overridden.
  */
-struct EncryptionKeyProviderOptions {
+struct KeyProviderOptions {
   /// Shared static key for "shared-key E2EE" (optional).
   ///
   /// If set, it must be identical (byte-for-byte) across all participants
@@ -85,7 +85,7 @@ struct EncryptionKeyProviderOptions {
  *   per-participant).
  */
 struct E2EEOptions {
-  EncryptionKeyProviderOptions key_provider_options{};
+  KeyProviderOptions key_provider_options{};
   EncryptionType encryption_type = EncryptionType::GCM; // default & recommended
 };
 
@@ -124,7 +124,7 @@ public:
     KeyProvider &operator=(KeyProvider &&) noexcept = default;
 
     /// Returns the options used to initialize this KeyProvider.
-    const EncryptionKeyProviderOptions &options() const;
+    const KeyProviderOptions &options() const;
 
     /// Sets the shared key for the given key slot.
     void setSharedKey(const std::vector<std::uint8_t> &key, int key_index = 0);
@@ -150,9 +150,9 @@ public:
   private:
     friend class E2EEManager;
     KeyProvider(std::uint64_t room_handle,
-                EncryptionKeyProviderOptions options);
+                KeyProviderOptions options);
     std::uint64_t room_handle_{0};
-    EncryptionKeyProviderOptions options_;
+    KeyProviderOptions options_;
   };
 
   class FrameCryptor {
