@@ -32,7 +32,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
   # vcpkg binary caching for Windows
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
+  VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
+  VCPKG_TARGET_TRIPLET: x64-windows-static-md
 
 jobs:
   build:

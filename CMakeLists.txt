@@ -8,14 +8,20 @@ project(livekit VERSION ${LIVEKIT_VERSION} LANGUAGES C CXX)
 
 set(LIVEKIT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIVEKIT_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 
 # vcpkg is only used on Windows; Linux/macOS use system package managers
 if(WIN32)
   option(LIVEKIT_USE_VCPKG "Use vcpkg for dependency management (Windows only)" ON)
+  set(LIVEKIT_USE_SYSTEM_PROTOBUF ON CACHE BOOL "Use system protobuf (vcpkg) on Windows" FORCE)
+  # Force /MD or /MDd for ALL targets (including FetchContent subprojects)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "" FORCE)
+  add_compile_options(/utf-8)
 else()
   option(LIVEKIT_USE_VCPKG "Use vcpkg for dependency management" OFF)
+  set(LIVEKIT_USE_SYSTEM_PROTOBUF OFF CACHE BOOL "Use vendored protobuf on non-Windows" FORCE)
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -58,15 +64,6 @@ if(LIVEKIT_IS_TOPLEVEL)
   endforeach()
 endif()
 
-
-if(MSVC)
-  # Use dynamic CRT (/MD) for compatibility with Qt and other /MD libraries.
-  # The livekit_ffi.dll isolates the /MT libwebrtc dependency, so livekit.lib
-  # can safely use /MD.
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
-  add_compile_options(/utf-8)
-endif()
-
 set(FFI_PROTO_DIR ${LIVEKIT_ROOT_DIR}/client-sdk-rust/livekit-ffi/protocol)
 set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/handle.proto
@@ -85,24 +82,33 @@ set(FFI_PROTO_FILES
 set(PROTO_BINARY_DIR ${LIVEKIT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 
-# Try to find Protobuf via CONFIG mode first (vcpkg), then fall back to MODULE mode (apt/brew)
-find_package(Protobuf CONFIG QUIET)
-if(NOT Protobuf_FOUND)
-  find_package(Protobuf REQUIRED)
-endif()
-
-# Ensure protoc executable is found (some systems may not set Protobuf_PROTOC_EXECUTABLE)
-if(NOT Protobuf_PROTOC_EXECUTABLE)
+# Livekit static protobuf.
+include(protobuf)
+# Ensure protoc executable is found.
+if(TARGET protobuf::protoc)
+  set(Protobuf_PROTOC_EXECUTABLE "$<TARGET_FILE:protobuf::protoc>")
+elseif(NOT Protobuf_PROTOC_EXECUTABLE)
   find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc REQUIRED)
 endif()
 message(STATUS "Using protoc: ${Protobuf_PROTOC_EXECUTABLE}")
 
 add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
+if(TARGET protobuf::libprotobuf)
+  set(LIVEKIT_PROTOBUF_TARGET protobuf::libprotobuf)
+else()
+  message(FATAL_ERROR "No protobuf library target found (expected protobuf::libprotobuf)")
+endif()
 target_include_directories(livekit_proto PRIVATE
-  "$<BUILD_INTERFACE:${PROTO_BINARY_DIR}>"
+  "${PROTO_BINARY_DIR}"
   ${Protobuf_INCLUDE_DIRS}
 )
-target_link_libraries(livekit_proto PRIVATE protobuf::libprotobuf)
+target_link_libraries(livekit_proto PRIVATE ${LIVEKIT_PROTOBUF_TARGET})
+if(TARGET absl::base)
+  get_target_property(_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
+  if(_absl_inc)
+    target_include_directories(livekit_proto PRIVATE ${_absl_inc})
+  endif()
+endif()
 
 # Manually generate protobuf files to avoid path prefix issues
 set(PROTO_SRCS)
@@ -268,7 +274,7 @@ add_custom_target(build_rust_ffi
 
 # Note: protozero_plugin.o removal is no longer needed since we use dynamic libraries on Unix
 
-add_library(livekit STATIC
+add_library(livekit SHARED
   src/audio_frame.cpp
   src/audio_source.cpp
   src/audio_stream.cpp
@@ -301,6 +307,10 @@ add_library(livekit STATIC
   src/video_utils.cpp
   src/video_utils.h
 )
+if(WIN32)
+  set_target_properties(livekit PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
 
 target_sources(livekit PRIVATE $<TARGET_OBJECTS:livekit_proto>)
 
@@ -318,8 +328,7 @@ target_include_directories(livekit
 target_link_libraries(livekit
   PRIVATE
     livekit_ffi
-  PUBLIC
-    protobuf::libprotobuf
+    ${LIVEKIT_PROTOBUF_TARGET}
 )
 
 message(STATUS "Protobuf: version=${Protobuf_VERSION}; protoc=${Protobuf_PROTOC_EXECUTABLE}")
@@ -386,60 +395,6 @@ if(LIVEKIT_IS_TOPLEVEL)
       COMMENT "Copying liblivekit_ffi.so to output directory"
     )
   endif()
-
-  # Copy third-party DLL and LIB dependencies to lib directory (Windows only)
-  if(WIN32 AND LIVEKIT_USE_VCPKG)
-    # Determine vcpkg directories based on configuration
-    set(VCPKG_BIN_DIR_DEBUG "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/debug/bin")
-    set(VCPKG_BIN_DIR_RELEASE "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/bin")
-    set(VCPKG_LIB_DIR_DEBUG "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/debug/lib")
-    set(VCPKG_LIB_DIR_RELEASE "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/lib")
-    
-    # vcpkg uses 'd' suffix for debug builds (e.g., libprotobufd.dll)
-    # We need to copy with the correct source name but keep the output name consistent
-    
-    # abseil_dll.dll (same name for both debug and release)
-    add_custom_command(
-      TARGET livekit POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "$<IF:$<CONFIG:Debug>,${VCPKG_BIN_DIR_DEBUG}/abseil_dll.dll,${VCPKG_BIN_DIR_RELEASE}/abseil_dll.dll>"
-              "$<TARGET_FILE_DIR:livekit>/abseil_dll.dll"
-      COMMENT "Copying abseil_dll.dll to lib directory"
-      VERBATIM
-    )
-    
-    # libprotobuf.dll - debug version has 'd' suffix
-    add_custom_command(
-      TARGET livekit POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "$<IF:$<CONFIG:Debug>,${VCPKG_BIN_DIR_DEBUG}/libprotobufd.dll,${VCPKG_BIN_DIR_RELEASE}/libprotobuf.dll>"
-              "$<TARGET_FILE_DIR:livekit>/$<IF:$<CONFIG:Debug>,libprotobufd.dll,libprotobuf.dll>"
-      COMMENT "Copying libprotobuf DLL to lib directory"
-      VERBATIM
-    )
-    
-    # abseil_dll.lib (same name for both debug and release)
-    add_custom_command(
-      TARGET livekit POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "$<IF:$<CONFIG:Debug>,${VCPKG_LIB_DIR_DEBUG}/abseil_dll.lib,${VCPKG_LIB_DIR_RELEASE}/abseil_dll.lib>"
-              "$<TARGET_FILE_DIR:livekit>/abseil_dll.lib"
-      COMMENT "Copying abseil_dll.lib to lib directory"
-      VERBATIM
-    )
-    
-    # libprotobuf.lib - debug version has 'd' suffix
-    add_custom_command(
-      TARGET livekit POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "$<IF:$<CONFIG:Debug>,${VCPKG_LIB_DIR_DEBUG}/libprotobufd.lib,${VCPKG_LIB_DIR_RELEASE}/libprotobuf.lib>"
-              "$<TARGET_FILE_DIR:livekit>/$<IF:$<CONFIG:Debug>,libprotobufd.lib,libprotobuf.lib>"
-      COMMENT "Copying libprotobuf LIB to lib directory"
-      VERBATIM
-    )
-    
-    message(STATUS "Third-party dependencies will be copied to lib directory")
-  endif()
 endif()
 
 if(APPLE)
@@ -465,7 +420,7 @@ if(APPLE)
   find_library(FW_METALKIT       MetalKit       REQUIRED)
   find_library(FW_SCREENCAPTUREKIT ScreenCaptureKit REQUIRED)
 
-  target_link_libraries(livekit PUBLIC
+  target_link_libraries(livekit PRIVATE
     ${FW_COREAUDIO}
     ${FW_AUDIOTOOLBOX}
     ${FW_COREFOUNDATION}
@@ -485,40 +440,11 @@ if(APPLE)
     ${FW_SCREENCAPTUREKIT}
   )
 
-  target_link_options(livekit INTERFACE "LINKER:-ObjC")
-endif()
-
-if(Protobuf_VERSION VERSION_GREATER_EQUAL 6.0)
-  find_package(absl CONFIG QUIET)
-  if(NOT absl_FOUND)
-    find_package(Abseil QUIET)
-  endif()
-
-  if(absl_FOUND)
-    target_link_libraries(livekit PUBLIC
-      absl::log
-      absl::check
-      absl::strings
-      absl::base
-    )
-  elseif(Abseil_FOUND)
-    target_link_libraries(livekit PUBLIC
-      Abseil::log
-      Abseil::check
-      Abseil::strings
-      Abseil::base
-    )
-  else()
-    message(FATAL_ERROR
-      "Protobuf ${Protobuf_VERSION} requires Abseil but no CMake package was found.\n"
-      "Install Abseil or use Protobuf < 6.")
-  endif()
-else()
-  message(STATUS "Protobuf < 6 detected; skipping Abseil linking.")
+  target_link_options(livekit PRIVATE "LINKER:-ObjC")
 endif()
 
 if(WIN32)
-  target_link_libraries(livekit PUBLIC
+  target_link_libraries(livekit PRIVATE
     ntdll
     userenv
     winmm
@@ -535,7 +461,7 @@ endif()
 
 if(UNIX AND NOT APPLE)
   find_package(OpenSSL REQUIRED)
-  target_link_libraries(livekit PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+  target_link_libraries(livekit PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 endif()
 
 if(MSVC)
@@ -578,42 +504,6 @@ if(WIN32)
     )
     install(FILES
       $<TARGET_PROPERTY:livekit_ffi,IMPORTED_IMPLIB_DEBUG>
-      DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      CONFIGURATIONS Debug
-    )
-  endif()
-
-  # Protobuf
-  if(TARGET protobuf::libprotobuf)
-    install(IMPORTED_RUNTIME_ARTIFACTS protobuf::libprotobuf
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    )
-    install(FILES
-      $<TARGET_PROPERTY:protobuf::libprotobuf,IMPORTED_IMPLIB_RELEASE>
-      DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      CONFIGURATIONS Release RelWithDebInfo MinSizeRel
-    )
-    install(FILES
-      $<TARGET_PROPERTY:protobuf::libprotobuf,IMPORTED_IMPLIB_DEBUG>
-      DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      CONFIGURATIONS Debug
-    )
-  endif()
-
-  # Abseil
-  if(TARGET absl::abseil_dll)
-    install(IMPORTED_RUNTIME_ARTIFACTS absl::abseil_dll
-      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    )
-    install(FILES
-      $<TARGET_PROPERTY:absl::abseil_dll,IMPORTED_IMPLIB_RELEASE>
-      DESTINATION ${CMAKE_INSTALL_LIBDIR}
-      CONFIGURATIONS Release RelWithDebInfo MinSizeRel
-    )
-    install(FILES
-      $<TARGET_PROPERTY:absl::abseil_dll,IMPORTED_IMPLIB_DEBUG>
       DESTINATION ${CMAKE_INSTALL_LIBDIR}
       CONFIGURATIONS Debug
     )

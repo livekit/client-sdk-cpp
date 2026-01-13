@@ -15,7 +15,9 @@
           "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
         },
         "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
-        "LIVEKIT_USE_VCPKG": "ON"
+        "LIVEKIT_USE_VCPKG": "ON",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+        "VCPKG_HOST_TRIPLET": "x64-windows-static-md"
       }
     },
     {
@@ -26,6 +28,9 @@
       "architecture": {
         "value": "x64",
         "strategy": "set"
+      },
+      "cacheVariables": {
+       "VCPKG_TARGET_TRIPLET": "x64-windows-static-md"
       }
     },
     {
