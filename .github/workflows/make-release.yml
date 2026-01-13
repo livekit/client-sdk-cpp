@@ -14,6 +14,8 @@ on:
 env:
   CARGO_TERM_COLOR: always
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
+  VCPKG_TARGET_TRIPLET: x64-windows-static-md
 
 jobs:
   build:

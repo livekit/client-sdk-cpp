@@ -15,8 +15,13 @@ option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 # vcpkg is only used on Windows; Linux/macOS use system package managers
 if(WIN32)
   option(LIVEKIT_USE_VCPKG "Use vcpkg for dependency management (Windows only)" ON)
+  set(LIVEKIT_USE_SYSTEM_PROTOBUF ON CACHE BOOL "Use system protobuf (vcpkg) on Windows" FORCE)
+  # Force /MD or /MDd for ALL targets (including FetchContent subprojects)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "" FORCE)
+  add_compile_options(/utf-8)
 else()
   option(LIVEKIT_USE_VCPKG "Use vcpkg for dependency management" OFF)
+  set(LIVEKIT_USE_SYSTEM_PROTOBUF OFF CACHE BOOL "Use vendored protobuf on non-Windows" FORCE)
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -59,13 +64,6 @@ if(LIVEKIT_IS_TOPLEVEL)
   endforeach()
 endif()
 
-
-if(MSVC)
-  # Force /MD or /MDd for ALL targets (including FetchContent subprojects)
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL" CACHE STRING "" FORCE)
-  add_compile_options(/utf-8)
-endif()
-
 set(FFI_PROTO_DIR ${LIVEKIT_ROOT_DIR}/client-sdk-rust/livekit-ffi/protocol)
 set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/handle.proto
@@ -86,9 +84,10 @@ file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 
 # Livekit static protobuf.
 include(protobuf)
-
-# Ensure protoc executable is found (when using Livekit Protobuf, it should set Protobuf_PROTOC_EXECUTABLE already)
-if(NOT Protobuf_PROTOC_EXECUTABLE)
+# Ensure protoc executable is found.
+if(TARGET protobuf::protoc)
+  set(Protobuf_PROTOC_EXECUTABLE "$<TARGET_FILE:protobuf::protoc>")
+elseif(NOT Protobuf_PROTOC_EXECUTABLE)
   find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc REQUIRED)
 endif()
 message(STATUS "Using protoc: ${Protobuf_PROTOC_EXECUTABLE}")
@@ -391,60 +390,6 @@ if(LIVEKIT_IS_TOPLEVEL)
               "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
       COMMENT "Copying liblivekit_ffi.so to output directory"
     )
-  endif()
-
-  # Copy third-party DLL and LIB dependencies to lib directory (Windows only)
-  if(WIN32 AND LIVEKIT_USE_VCPKG)
-    # Determine vcpkg directories based on configuration
-    set(VCPKG_BIN_DIR_DEBUG "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/debug/bin")
-    set(VCPKG_BIN_DIR_RELEASE "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/bin")
-    set(VCPKG_LIB_DIR_DEBUG "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/debug/lib")
-    set(VCPKG_LIB_DIR_RELEASE "${LIVEKIT_ROOT_DIR}/vcpkg_installed/x64-windows/lib")
-    
-    # vcpkg uses 'd' suffix for debug builds (e.g., libprotobufd.dll)
-    # We need to copy with the correct source name but keep the output name consistent
-    
-    # abseil_dll.dll (same name for both debug and release)
-    add_custom_command(
-      TARGET livekit POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "$<IF:$<CONFIG:Debug>,${VCPKG_BIN_DIR_DEBUG}/abseil_dll.dll,${VCPKG_BIN_DIR_RELEASE}/abseil_dll.dll>"
-              "$<TARGET_FILE_DIR:livekit>/abseil_dll.dll"
-      COMMENT "Copying abseil_dll.dll to lib directory"
-      VERBATIM
-    )
-    
-    # libprotobuf.dll - debug version has 'd' suffix
-    add_custom_command(
-      TARGET livekit POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "$<IF:$<CONFIG:Debug>,${VCPKG_BIN_DIR_DEBUG}/libprotobufd.dll,${VCPKG_BIN_DIR_RELEASE}/libprotobuf.dll>"
-              "$<TARGET_FILE_DIR:livekit>/$<IF:$<CONFIG:Debug>,libprotobufd.dll,libprotobuf.dll>"
-      COMMENT "Copying libprotobuf DLL to lib directory"
-      VERBATIM
-    )
-    
-    # abseil_dll.lib (same name for both debug and release)
-    add_custom_command(
-      TARGET livekit POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "$<IF:$<CONFIG:Debug>,${VCPKG_LIB_DIR_DEBUG}/abseil_dll.lib,${VCPKG_LIB_DIR_RELEASE}/abseil_dll.lib>"
-              "$<TARGET_FILE_DIR:livekit>/abseil_dll.lib"
-      COMMENT "Copying abseil_dll.lib to lib directory"
-      VERBATIM
-    )
-    
-    # libprotobuf.lib - debug version has 'd' suffix
-    add_custom_command(
-      TARGET livekit POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "$<IF:$<CONFIG:Debug>,${VCPKG_LIB_DIR_DEBUG}/libprotobufd.lib,${VCPKG_LIB_DIR_RELEASE}/libprotobuf.lib>"
-              "$<TARGET_FILE_DIR:livekit>/$<IF:$<CONFIG:Debug>,libprotobufd.lib,libprotobuf.lib>"
-      COMMENT "Copying libprotobuf LIB to lib directory"
-      VERBATIM
-    )
-    
-    message(STATUS "Third-party dependencies will be copied to lib directory")
   endif()
 endif()
 
