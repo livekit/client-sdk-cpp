@@ -16,7 +16,7 @@ namespace {
 std::size_t computeBufferSize(int width, int height, VideoBufferType type) {
   if (width <= 0 || height <= 0) {
     throw std::invalid_argument(
-        "LKVideoFrame: width and height must be positive");
+        "VideoFrame: width and height must be positive");
   }
 
   const auto w = static_cast<std::size_t>(width);
@@ -70,7 +70,7 @@ std::size_t computeBufferSize(int width, int height, VideoBufferType type) {
   }
 
   default:
-    throw std::runtime_error("LKVideoFrame: unsupported VideoBufferType");
+    throw std::runtime_error("VideoFrame: unsupported VideoBufferType");
   }
 }
 
@@ -79,7 +79,7 @@ std::vector<VideoPlaneInfo>
 computePlaneInfos(uintptr_t base, int width, int height, VideoBufferType type) {
   std::vector<VideoPlaneInfo> planes;
   if (!base || width <= 0 || height <= 0) {
-    std::cerr << "[LKVideoFrame] Warning: invalid planeInfos input (ptr="
+    std::cerr << "[VideoFrame] Warning: invalid planeInfos input (ptr="
               << base << ", w=" << width << ", h=" << height << ")\n";
     return planes;
   }
@@ -261,29 +261,29 @@ computePlaneInfos(uintptr_t base, int width, int height, VideoBufferType type) {
 } // namespace
 
 // ----------------------------------------------------------------------------
-// LKVideoFrame implementation
+// VideoFrame implementation
 // ----------------------------------------------------------------------------
 
-LKVideoFrame::LKVideoFrame()
+VideoFrame::VideoFrame()
     : width_{0}, height_{0}, type_{VideoBufferType::BGRA}, data_{} {}
 
-LKVideoFrame::LKVideoFrame(int width, int height, VideoBufferType type,
+VideoFrame::VideoFrame(int width, int height, VideoBufferType type,
                            std::vector<std::uint8_t> data)
     : width_(width), height_(height), type_(type), data_(std::move(data)) {
   const std::size_t expected = computeBufferSize(width_, height_, type_);
   if (data_.size() < expected) {
-    throw std::invalid_argument("LKVideoFrame: provided data is too small for "
+    throw std::invalid_argument("VideoFrame: provided data is too small for "
                                 "the specified format and size");
   }
 }
 
-LKVideoFrame LKVideoFrame::create(int width, int height, VideoBufferType type) {
+VideoFrame VideoFrame::create(int width, int height, VideoBufferType type) {
   const std::size_t size = computeBufferSize(width, height, type);
   std::vector<std::uint8_t> buffer(size, 0);
-  return LKVideoFrame(width, height, type, std::move(buffer));
+  return VideoFrame(width, height, type, std::move(buffer));
 }
 
-std::vector<VideoPlaneInfo> LKVideoFrame::planeInfos() const {
+std::vector<VideoPlaneInfo> VideoFrame::planeInfos() const {
   if (data_.empty()) {
     return {};
   }
@@ -292,24 +292,24 @@ std::vector<VideoPlaneInfo> LKVideoFrame::planeInfos() const {
   return computePlaneInfos(base, width_, height_, type_);
 }
 
-LKVideoFrame LKVideoFrame::convert(VideoBufferType dst, bool flip_y) const {
+VideoFrame VideoFrame::convert(VideoBufferType dst, bool flip_y) const {
   // Fast path: same format, no flip -> just clone the buffer.
-  // We still return a *new* LKVideoFrame, never `*this`, so copy-ctor
+  // We still return a *new* VideoFrame, never `*this`, so copy-ctor
   // being deleted is not a problem.
   if (dst == type_ && !flip_y) {
     std::cerr << "KVideoFrame::convert Warning: converting to the same format"
               << std::endl;
     // copy pixel data
     std::vector<std::uint8_t> buf = data_;
-    return LKVideoFrame(width_, height_, type_, std::move(buf));
+    return VideoFrame(width_, height_, type_, std::move(buf));
   }
 
   // General path: delegate to the FFI-based conversion helper.
-  // This returns a brand new LKVideoFrame (move-constructed / elided).
+  // This returns a brand new VideoFrame (move-constructed / elided).
   return convertViaFfi(*this, dst, flip_y);
 }
 
-LKVideoFrame LKVideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
+VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
   const auto &info = owned.info();
   const int width = static_cast<int>(info.width());
   const int height = static_cast<int>(info.height());
@@ -359,7 +359,7 @@ LKVideoFrame LKVideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
     // owned_handle destroyed at end of scope → native buffer disposed.
   }
 
-  return LKVideoFrame(width, height, type, std::move(buffer));
+  return VideoFrame(width, height, type, std::move(buffer));
 }
 
 } // namespace livekit

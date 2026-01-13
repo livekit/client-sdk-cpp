@@ -33,7 +33,7 @@ namespace livekit {
 
 // A single video frame event delivered by VideoStream::read().
 struct VideoFrameEvent {
-  LKVideoFrame frame;
+  VideoFrame frame;
   std::int64_t timestamp_us;
   VideoRotation rotation;
 };

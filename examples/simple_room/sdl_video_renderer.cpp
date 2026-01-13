@@ -103,7 +103,7 @@ void SDLVideoRenderer::render() {
     return;
   }
 
-  livekit::LKVideoFrame &frame = vfe.frame;
+  livekit::VideoFrame &frame = vfe.frame;
 
   // 4) Ensure the frame is RGBA.
   //    Ideally you requested RGBA from VideoStream::Options so this is a no-op.

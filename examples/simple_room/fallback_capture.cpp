@@ -68,7 +68,7 @@ void runNoiseCaptureLoop(const std::shared_ptr<AudioSource> &source,
 // Fake video source: solid color cycling
 void runFakeVideoCaptureLoop(const std::shared_ptr<VideoSource> &source,
                              std::atomic<bool> &running_flag) {
-  auto frame = LKVideoFrame::create(1280, 720, VideoBufferType::BGRA);
+  auto frame = VideoFrame::create(1280, 720, VideoBufferType::BGRA);
   const double framerate = 1.0 / 30.0;
 
   while (running_flag.load(std::memory_order_relaxed)) {

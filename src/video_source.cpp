@@ -44,7 +44,7 @@ VideoSource::VideoSource(int width, int height)
   handle_ = FfiHandle(resp.new_video_source().source().handle().id());
 }
 
-void VideoSource::captureFrame(const LKVideoFrame &frame,
+void VideoSource::captureFrame(const VideoFrame &frame,
                                std::int64_t timestamp_us,
                                VideoRotation rotation) {
   if (!handle_) {

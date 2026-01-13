@@ -22,7 +22,7 @@
 
 namespace livekit {
 
-class LKVideoFrame;
+class VideoFrame;
 
 /**
  * Rotation of a video frame.
@@ -67,7 +67,7 @@ public:
   std::uint64_t ffi_handle_id() const noexcept { return handle_.get(); }
 
   /**
-   * Push a LKVideoFrame into the FFI video source.
+   * Push a VideoFrame into the FFI video source.
    *
    * @param frame         Video frame to send.
    * @param timestamp_us  Optional timestamp in microseconds.
@@ -78,7 +78,7 @@ public:
    *   - Fire-and-forget to send a frame to FFI
    *     lifetime correctly (e.g., persistent frame pools, GPU buffers, etc.).
    */
-  void captureFrame(const LKVideoFrame &frame, std::int64_t timestamp_us = 0,
+  void captureFrame(const VideoFrame &frame, std::int64_t timestamp_us = 0,
                     VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0);
 
 private:

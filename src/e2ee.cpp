@@ -43,10 +43,10 @@ std::vector<std::uint8_t> stringToBytes(const std::string &s) {
 // ============================================================================
 
 E2EEManager::KeyProvider::KeyProvider(std::uint64_t room_handle,
-                                      EncryptionKeyProviderOptions options)
+                                      KeyProviderOptions options)
     : room_handle_(room_handle), options_(std::move(options)) {}
 
-const EncryptionKeyProviderOptions &E2EEManager::KeyProvider::options() const {
+const KeyProviderOptions &E2EEManager::KeyProvider::options() const {
   return options_;
 }
 

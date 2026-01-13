@@ -22,9 +22,9 @@
 namespace livekit {
 
 // Video FFI Utils
-proto::VideoBufferInfo toProto(const LKVideoFrame &frame);
-LKVideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned);
-LKVideoFrame convertViaFfi(const LKVideoFrame &frame, VideoBufferType dst,
+proto::VideoBufferInfo toProto(const VideoFrame &frame);
+VideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned);
+VideoFrame convertViaFfi(const VideoFrame &frame, VideoBufferType dst,
                            bool flip_y);
 proto::VideoBufferType toProto(VideoBufferType t);
 VideoBufferType fromProto(proto::VideoBufferType t);
