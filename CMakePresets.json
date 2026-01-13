@@ -16,7 +16,8 @@
         },
         "VCPKG_INSTALLED_DIR": "${sourceDir}/vcpkg_installed",
         "LIVEKIT_USE_VCPKG": "ON",
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md"
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+        "VCPKG_HOST_TRIPLET": "x64-windows-static-md"
       }
     },
     {
