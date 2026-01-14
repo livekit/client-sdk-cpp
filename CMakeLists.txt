@@ -382,6 +382,28 @@ if(LIVEKIT_IS_TOPLEVEL)
               "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
       COMMENT "Copying liblivekit_ffi.dylib to output directory"
     )
+    # Fix the dylib "id" of liblivekit_ffi.dylib
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND /usr/bin/install_name_tool
+              -id "@rpath/liblivekit_ffi.dylib"
+              "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+      COMMENT "Fix install_name id for liblivekit_ffi.dylib"
+      VERBATIM
+    )
+
+    # Fix liblivekit.dylib to depend on @rpath/liblivekit_ffi.dylib
+    add_custom_command(
+      TARGET livekit POST_BUILD
+      COMMAND /usr/bin/install_name_tool
+              -change "${RUST_ROOT}/target/release/deps/liblivekit_ffi.dylib"
+                      "@rpath/liblivekit_ffi.dylib"
+              -change "${RUST_ROOT}/target/debug/deps/liblivekit_ffi.dylib"
+                      "@rpath/liblivekit_ffi.dylib"
+              "$<TARGET_FILE:livekit>"
+      COMMENT "Fix dependency path in liblivekit.dylib -> liblivekit_ffi.dylib"
+      VERBATIM
+    )
   else()
     # Linux: copy .so
     set(FFI_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.so")
@@ -514,11 +536,10 @@ if(APPLE)
   install(CODE [[
     # Respect DESTDIR if used
     set(_prefix "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}")
-    # If CMAKE_INSTALL_LIBDIR is empty for any reason, default to "lib"
-    if(NOT DEFINED CMAKE_INSTALL_LIBDIR OR CMAKE_INSTALL_LIBDIR STREQUAL "")
-      set(CMAKE_INSTALL_LIBDIR "lib")
-    endif()
-    set(_libdir "${_prefix}/${CMAKE_INSTALL_LIBDIR}")
+
+    # CMAKE_INSTALL_LIBDIR is usually "lib"
+    set(_libdir "${_prefix}/lib")
+
     set(_livekit "${_libdir}/liblivekit.dylib")
     set(_ffi     "${_libdir}/liblivekit_ffi.dylib")
 
