@@ -30,15 +30,14 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Set RPATH for Unix systems to find shared libraries in executable directory
 if(UNIX)
-  # Use $ORIGIN on Linux, @executable_path on macOS
   if(APPLE)
-    set(CMAKE_BUILD_RPATH "@executable_path")
-    set(CMAKE_INSTALL_RPATH "@executable_path")
+    set(CMAKE_BUILD_RPATH "@loader_path")
+    set(CMAKE_INSTALL_RPATH "@loader_path")
   else()
     set(CMAKE_BUILD_RPATH "$ORIGIN")
     set(CMAKE_INSTALL_RPATH "$ORIGIN")
+    set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
   endif()
-  set(CMAKE_BUILD_RPATH_USE_ORIGIN TRUE)
 endif()
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -509,6 +508,67 @@ if(WIN32)
     )
   endif()
 endif()
+
+# -------------------- macOS install_name fixes (SDK bundle) --------------------
+if(APPLE)
+  install(CODE [[
+    # Respect DESTDIR if used
+    set(_prefix "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}")
+    # If CMAKE_INSTALL_LIBDIR is empty for any reason, default to "lib"
+    if(NOT DEFINED CMAKE_INSTALL_LIBDIR OR CMAKE_INSTALL_LIBDIR STREQUAL "")
+      set(CMAKE_INSTALL_LIBDIR "lib")
+    endif()
+    set(_libdir "${_prefix}/${CMAKE_INSTALL_LIBDIR}")
+    set(_livekit "${_libdir}/liblivekit.dylib")
+    set(_ffi     "${_libdir}/liblivekit_ffi.dylib")
+
+    message(STATUS "macOS fixup: prefix=${_prefix}")
+    message(STATUS "macOS fixup: libdir=${_libdir}")
+    message(STATUS "macOS fixup: patching ${_ffi}")
+    message(STATUS "macOS fixup: patching ${_livekit}")
+
+    if(NOT EXISTS "${_ffi}")
+      message(FATAL_ERROR "Expected ${_ffi} to exist at install time")
+    endif()
+    if(NOT EXISTS "${_livekit}")
+      message(FATAL_ERROR "Expected ${_livekit} to exist at install time")
+    endif()
+
+    # Make the dylib's "id" relocatable
+    execute_process(
+      COMMAND /usr/bin/install_name_tool -id "@rpath/liblivekit_ffi.dylib" "${_ffi}"
+      RESULT_VARIABLE _rv
+    )
+    if(NOT _rv EQUAL 0)
+      message(FATAL_ERROR "install_name_tool -id failed for ${_ffi}")
+    endif()
+
+    # Make liblivekit depend on @rpath/liblivekit_ffi.dylib (replace any absolute build path)
+    execute_process(
+      COMMAND /usr/bin/install_name_tool
+        -change "${RUST_ROOT}/target/release/deps/liblivekit_ffi.dylib" "@rpath/liblivekit_ffi.dylib"
+        -change "${RUST_ROOT}/target/debug/deps/liblivekit_ffi.dylib"   "@rpath/liblivekit_ffi.dylib"
+        "${_livekit}"
+      RESULT_VARIABLE _rv
+    )
+    # Note: if the old path isn't present, install_name_tool returns non-zero.
+    # That can happen depending on how the dylib was built. Don't hard-fail here.
+    if(NOT _rv EQUAL 0)
+      message(STATUS "macOS fixup: -change returned ${_rv} (old path may not exist); continuing")
+    endif()
+
+    # Ensure @rpath can resolve when loaded from SDK's lib/ directory
+    execute_process(
+      COMMAND /usr/bin/install_name_tool -add_rpath "@loader_path" "${_livekit}"
+      RESULT_VARIABLE _rv
+    )
+    # -add_rpath fails if already present; don't fail the install.
+    if(NOT _rv EQUAL 0)
+      message(STATUS "macOS fixup: -add_rpath returned ${_rv} (may already exist); continuing")
+    endif()
+  ]])
+endif()
+
 
 # Install public headers
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
