@@ -230,14 +230,13 @@ public:
 
 private:
   mutable std::mutex lock_;
-  bool connected_{false};
+  ConnectionState connection_state_ = ConnectionState::Disconnected;
   RoomDelegate *delegate_ = nullptr; // Not owned
   RoomInfoData room_info_;
   std::shared_ptr<FfiHandle> room_handle_;
   std::unique_ptr<LocalParticipant> local_participant_;
   std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>>
       remote_participants_;
-  ConnectionState connection_state_ = ConnectionState::Disconnected;
   // Data stream
   std::unordered_map<std::string, TextStreamHandler> text_stream_handlers_;
   std::unordered_map<std::string, ByteStreamHandler> byte_stream_handlers_;
@@ -247,6 +246,9 @@ private:
       byte_stream_readers_;
   // E2EE
   std::unique_ptr<E2EEManager> e2ee_manager_;
+
+  // FfiClient listener ID (0 means no listener registered)
+  int listener_id_{0};
 
   void OnEvent(const proto::FfiEvent &event);
 };
