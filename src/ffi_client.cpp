@@ -177,10 +177,8 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
   auto *opts = connect->mutable_options();
   opts->set_auto_subscribe(options.auto_subscribe);
   opts->set_dynacast(options.dynacast);
-  std::cout << "connectAsync " << std::endl;
   // --- E2EE / encryption (optional) ---
   if (options.encryption.has_value()) {
-    std::cout << "connectAsync e2ee " << std::endl;
     const E2EEOptions &e2ee = *options.encryption;
     const auto &kpo = e2ee.key_provider_options;
 
@@ -222,7 +220,6 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
 
   // --- RTC configuration (optional) ---
   if (options.rtc_config.has_value()) {
-    std::cout << "options.rtc_config.has_value() " << std::endl;
     const RtcConfig &rc = *options.rtc_config;
     auto *rtc = opts->mutable_rtc_config();
 
@@ -248,7 +245,6 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
       }
     }
   }
-  std::cout << "connectAsync sendRequest  " << std::endl;
   proto::FfiResponse resp = sendRequest(req);
   if (!resp.has_connect()) {
     throw std::runtime_error("FfiResponse missing connect");
@@ -266,7 +262,6 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
       [](const proto::FfiEvent &event,
          std::promise<proto::ConnectCallback> &pr) {
         const auto &connectCb = event.connect();
-        std::cout << "connectAsync e2ee done " << std::endl;
         if (!connectCb.error().empty()) {
           pr.set_exception(
               std::make_exception_ptr(std::runtime_error(connectCb.error())));
