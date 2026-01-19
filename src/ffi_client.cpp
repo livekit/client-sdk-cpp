@@ -38,12 +38,10 @@ std::string bytesToString(const std::vector<std::uint8_t> &b) {
   return std::string(reinterpret_cast<const char *>(b.data()), b.size());
 }
 
-// Helper to log errors and conditionally throw in debug mode
-inline void logAndThrowInDebug(const std::string &error_msg) {
+// Helper to log errors and throw
+inline void logAndThrow(const std::string &error_msg) {
   std::cerr << "LiveKit SDK Error: " << error_msg << std::endl;
-#ifndef NDEBUG
   throw std::runtime_error(error_msg);
-#endif
 }
 
 } // namespace
@@ -308,9 +306,7 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_connect()) {
-      logAndThrowInDebug("FfiResponse missing connect");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing connect");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -362,9 +358,7 @@ FfiClient::getTrackStatsAsync(uintptr_t track_handle) {
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_get_stats()) {
-      logAndThrowInDebug("FfiResponse missing get_stats");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing get_stats");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -424,9 +418,7 @@ FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_publish_track()) {
-      logAndThrowInDebug("FfiResponse missing publish_track");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing publish_track");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -471,9 +463,7 @@ FfiClient::unpublishTrackAsync(std::uint64_t local_participant_handle,
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_unpublish_track()) {
-      logAndThrowInDebug("FfiResponse missing unpublish_track");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing unpublish_track");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -524,9 +514,7 @@ std::future<void> FfiClient::publishDataAsync(
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_publish_data()) {
-      logAndThrowInDebug("FfiResponse missing publish_data");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing publish_data");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -574,9 +562,7 @@ std::future<void> FfiClient::publishSipDtmfAsync(
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_publish_sip_dtmf()) {
-      logAndThrowInDebug("FfiResponse missing publish_sip_dtmf");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing publish_sip_dtmf");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -619,9 +605,7 @@ FfiClient::setLocalMetadataAsync(std::uint64_t local_participant_handle,
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_set_local_metadata()) {
-      logAndThrowInDebug("FfiResponse missing set_local_metadata");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing set_local_metadata");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -666,9 +650,7 @@ FfiClient::captureAudioFrameAsync(std::uint64_t source_handle,
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_capture_audio_frame()) {
-      logAndThrowInDebug("FfiResponse missing capture_audio_frame");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing capture_audio_frame");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -722,9 +704,7 @@ FfiClient::performRpcAsync(std::uint64_t local_participant_handle,
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_perform_rpc()) {
-      logAndThrowInDebug("FfiResponse missing perform_rpc");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing perform_rpc");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -773,9 +753,7 @@ std::future<void> FfiClient::sendStreamHeaderAsync(
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_send_stream_header()) {
-      logAndThrowInDebug("FfiResponse missing send_stream_header");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing send_stream_header");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -824,9 +802,7 @@ std::future<void> FfiClient::sendStreamChunkAsync(
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_send_stream_chunk()) {
-      logAndThrowInDebug("FfiResponse missing send_stream_chunk");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing send_stream_chunk");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -871,9 +847,7 @@ FfiClient::sendStreamTrailerAsync(std::uint64_t local_participant_handle,
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_send_stream_trailer()) {
-      logAndThrowInDebug("FfiResponse missing send_stream_trailer");
-      cancelPendingByAsyncId(async_id);
-      return fut;
+      logAndThrow("FfiResponse missing send_stream_trailer");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
