@@ -233,9 +233,16 @@ static std::vector<std::uint8_t> toBytes(const std::string &s) {
   return std::vector<std::uint8_t>(s.begin(), s.end());
 }
 
+void print_livekit_version() {
+  std::cout << "LiveKit version: " << LIVEKIT_BUILD_VERSION_FULL << " ("
+            << LIVEKIT_BUILD_FLAVOR << ", commit " << LIVEKIT_BUILD_COMMIT
+            << ", built " << LIVEKIT_BUILD_DATE << ")" << std::endl;
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
+  print_livekit_version();
   std::string url, token;
   bool enable_e2ee = false;
   std::string e2ee_key;

@@ -126,9 +126,21 @@ parse_opts() {
 
 configure() {
   echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
-  if ! cmake --preset "${PRESET}"; then
-    echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
-    cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
+  local -a extra_args=()
+  if [[ -n "${LIVEKIT_VERSION}" ]]; then
+    echo "==> Injecting LIVEKIT_VERSION=${LIVEKIT_VERSION}"
+    extra_args+=("-DLIVEKIT_VERSION=${LIVEKIT_VERSION}")
+  fi
+  if ((${#extra_args[@]})); then
+    if ! cmake --preset "${PRESET}" "${extra_args[@]}"; then
+      echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
+      cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" "${extra_args[@]}"
+    fi
+  else
+    if ! cmake --preset "${PRESET}"; then
+      echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
+      cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
+    fi
   fi
 }
 
