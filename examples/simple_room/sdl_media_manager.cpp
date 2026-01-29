@@ -31,6 +31,7 @@ SDLMediaManager::~SDLMediaManager() {
   stopMic();
   stopCamera();
   stopSpeaker();
+  shutdownRenderer();
 }
 
 bool SDLMediaManager::ensureSDLInit(Uint32 flags) {

@@ -41,8 +41,34 @@ public:
    * @param sample_rate   Sample rate in Hz.
    * @param num_channels  Number of channels.
    * @param queue_size_ms Max buffer duration for the internal queue in ms.
+   *
+   * Buffering behavior:
+   * -------------------
+   * - queue_size_ms == 0 (recommended for real-time capture):
+   *     Disables internal buffering entirely. Audio frames are forwarded
+   *     directly to WebRTC sinks and consumed synchronously.
+   *
+   *     This mode is optimized for real-time audio capture driven by hardware
+   *     media callbacks (e.g. microphone capture). The caller is expected to
+   *     provide fixed-size real-time frames (typically 10 ms per call).
+   *
+   *     Because the native side consumes frames immediately, this mode
+   * minimizes latency and jitter and is the best choice for live capture
+   * scenarios.
+   *
+   * - queue_size_ms > 0 (buffered / blocking mode):
+   *     Enables an internal queue that buffers audio up to the specified
+   * duration. Frames are accumulated and flushed asynchronously once the buffer
+   * reaches its threshold.
+   *
+   *     This mode is intended for non-real-time producers (e.g. TTS engines,
+   *     file-based audio, or agents generating audio faster or slower than
+   *     real-time). The buffering layer smooths timing and allows the audio to
+   * be streamed out in real time even if the producer is bursty.
+   *
+   *     queue_size_ms must be a multiple of 10.
    */
-  AudioSource(int sample_rate, int num_channels, int queue_size_ms = 1000);
+  AudioSource(int sample_rate, int num_channels, int queue_size_ms = 0);
   virtual ~AudioSource() = default;
 
   AudioSource(const AudioSource &) = delete;
@@ -86,19 +112,32 @@ public:
    * callback arrives (recommended for production unless the caller needs
    * explicit timeout control).
    *
-   * Notes:
-   *   - This is a blocking call.
-   *   - timeout_ms == 0 (infinite wait) is the safest mode because it
-   * guarantees the callback completes before the function returns, which in
-   * turn guarantees that the audio buffer lifetime is fully protected. The
-   * caller does not need to manage or extend the frame lifetime manually.
+   * Blocking semantics:
+   * The blocking behavior of this call depends on the buffering mode selected
+   * at construction time:
    *
-   *   - May throw std::runtime_error if:
-   *       • the FFI reports an error
+   * - queue_size_ms == 0 (real-time capture mode):
+   *     Frames are consumed synchronously by the native layer. The FFI callback
+   *     is invoked immediately as part of the capture call, so this function
+   *     returns quickly.
    *
-   *   - The underlying FFI request *must* eventually produce a callback for
-   * each frame. If the FFI layer is misbehaving or the event loop is stalled,
-   *     a timeout may occur in bounded-wait mode.
+   *     This mode relies on the caller being paced by a real-time media
+   * callback (e.g. audio hardware interrupt / capture thread). It provides the
+   * lowest possible latency and is ideal for live microphone capture.
+   *
+   * - queue_size_ms > 0 (buffered / non-real-time mode):
+   *     Frames are queued internally and flushed asynchronously. This function
+   *     will block until the buffered audio corresponding to this frame has
+   * been consumed by the native side and the FFI callback fires.
+   *
+   *     This mode is best suited for non-real-time audio producers (such as TTS
+   *     engines or agents) that generate audio independently of real-time
+   * pacing, while still streaming audio out in real time.
+   *
+   * Safety notes:
+   * May throw std::runtime_error if:
+   *   - the FFI reports an error
+   *   - a timeout occurs in bounded-wait mode
    */
   void captureFrame(const AudioFrame &frame, int timeout_ms = 20);
 

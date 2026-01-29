@@ -319,7 +319,7 @@ int main(int argc, char *argv[]) {
             << "  Creation time (ms): " << info.creation_time << "\n";
 
   // Setup Audio Source / Track
-  auto audioSource = std::make_shared<AudioSource>(44100, 1, 10);
+  auto audioSource = std::make_shared<AudioSource>(44100, 1, 0);
   auto audioTrack =
       LocalAudioTrack::createLocalAudioTrack("micTrack", audioSource);
 
@@ -385,6 +385,8 @@ int main(int argc, char *argv[]) {
   // Shutdown the audio / video capture threads.
   media.stopMic();
   media.stopCamera();
+  media.stopSpeaker();
+  media.shutdownRenderer();
 
   // Drain any queued tasks that might still try to update the renderer /
   // speaker
