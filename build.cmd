@@ -5,6 +5,8 @@ set "PROJECT_ROOT=%~dp0"
 set "PROJECT_ROOT=%PROJECT_ROOT:~0,-1%"
 set "BUILD_TYPE=Release"
 set "PRESET=windows-release"
+set "LIVEKIT_VERSION="
+set "CMAKE_EXTRA_ARGS="
 
 REM ============================================================
 REM Auto-detect LIBCLANG_PATH if not already set
@@ -55,42 +57,71 @@ if not defined LIBCLANG_PATH (
 )
 
 if "%1"=="" goto usage
-if "%1"=="help" goto usage
+if /I "%1"=="help" goto usage
 if "%1"=="-h" goto usage
 if "%1"=="--help" goto usage
 
-if "%1"=="debug" (
+set "CMD=%1"
+shift
+goto parse_args
+
+:parse_args
+if "%1"=="" goto after_parse
+
+if "%1"=="--version" (
+    shift
+    if "%1"=="" (
+        echo ERROR: --version requires a value
+        exit /b 1
+    )
+    set "LIVEKIT_VERSION=%1"
+    shift
+    goto parse_args
+)
+
+echo ERROR: Unknown option: %1
+exit /b 1
+
+:after_parse
+if defined LIVEKIT_VERSION (
+    set "CMAKE_EXTRA_ARGS=-DLIVEKIT_VERSION=%LIVEKIT_VERSION%"
+    echo ==^> Injecting LIVEKIT_VERSION=%LIVEKIT_VERSION%
+)
+goto dispatch
+
+:dispatch
+if "%CMD%"=="debug" (
     set "BUILD_TYPE=Debug"
     set "PRESET=windows-debug"
     set "BUILD_DIR=%PROJECT_ROOT%\build-debug"
     goto configure_build
 )
 
-if "%1"=="debug-examples" (
+if "%CMD%"=="debug-examples" (
     set "BUILD_TYPE=Debug"
     set "PRESET=windows-debug-examples"
     set "BUILD_DIR=%PROJECT_ROOT%\build-debug"
     goto configure_build
 )
 
-if "%1"=="release" (
+if "%CMD%"=="release" (
     set "BUILD_TYPE=Release"
     set "PRESET=windows-release"
     set "BUILD_DIR=%PROJECT_ROOT%\build-release"
     goto configure_build
 )
 
-if "%1"=="release-examples" (
+if "%CMD%"=="release-examples" (
     set "BUILD_TYPE=Release"
     set "PRESET=windows-release-examples"
     set "BUILD_DIR=%PROJECT_ROOT%\build-release"
     goto configure_build
 )
 
-if "%1"=="clean" goto clean
-if "%1"=="clean-all" goto clean_all
+if "%CMD%"=="clean" goto clean
+if "%CMD%"=="clean-all" goto clean_all
 
-echo Unknown command: %1
+echo Unknown command: %CMD%
 goto usage
 
 :usage
@@ -117,9 +148,9 @@ goto :eof
 echo ==^> Configuring CMake (%BUILD_TYPE%)...
 if not defined VCPKG_ROOT (
     echo Warning: VCPKG_ROOT is not set. Attempting to configure without vcpkg...
-    cmake -S . -B "%BUILD_DIR%" -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=%BUILD_TYPE%
+    cmake -S . -B "%BUILD_DIR%" -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=%BUILD_TYPE% %CMAKE_EXTRA_ARGS%
 ) else (
-    cmake --preset %PRESET%
+    cmake --preset "%PRESET%" %CMAKE_EXTRA_ARGS%
 )
 if errorlevel 1 (
     echo Configuration failed!

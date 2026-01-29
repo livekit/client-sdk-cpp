@@ -142,10 +142,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          .\build.cmd release-examples
-
           $version   = "${{ steps.version.outputs.version }}"
           $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-$version"
+
+          .\build.cmd release-examples --version $version
 
           # There is the missing step that generates LiveKitTargets.cmake in the install tree
           # TODO(sxian): fix it after getting access to a windows machine
