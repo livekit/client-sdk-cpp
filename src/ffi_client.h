@@ -169,8 +169,12 @@ private:
     }
 
     void cancel() override {
-      promise.set_exception(std::make_exception_ptr(
-          std::runtime_error("Async operation cancelled")));
+      try {
+        promise.set_exception(std::make_exception_ptr(
+            std::runtime_error("Async operation cancelled")));
+      } catch (const std::future_error &) {
+        // already satisfied
+      }
     }
   };
 
@@ -187,10 +191,11 @@ private:
   bool cancelPendingByAsyncId(AsyncId async_id);
 
   std::unordered_map<ListenerId, Listener> listeners_;
-  ListenerId nextListenerId = 1;
+  std::atomic<ListenerId> next_listener_id{1};
   mutable std::mutex lock_;
-  mutable std::vector<std::unique_ptr<PendingBase>> pending_;
-  std::atomic<AsyncId> nextAsyncId_{1};
+  mutable std::unordered_map<AsyncId, std::unique_ptr<PendingBase>>
+      pending_by_id_;
+  std::atomic<AsyncId> next_async_id_{1};
 
   void PushEvent(const proto::FfiEvent &event) const;
   friend void LivekitFfiCallback(const uint8_t *buf, size_t len);

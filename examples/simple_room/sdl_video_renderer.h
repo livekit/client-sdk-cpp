@@ -49,4 +49,5 @@ private:
   std::shared_ptr<livekit::VideoStream> stream_;
   int width_ = 0;
   int height_ = 0;
+  std::chrono::steady_clock::time_point last_render_time_{};
 };

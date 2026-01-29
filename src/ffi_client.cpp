@@ -44,6 +44,93 @@ inline void logAndThrow(const std::string &error_msg) {
   throw std::runtime_error(error_msg);
 }
 
+std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent &event) {
+  using E = proto::FfiEvent;
+  switch (event.message_case()) {
+  case E::kConnect:
+    return event.connect().async_id();
+  case E::kDisconnect:
+    return event.disconnect().async_id();
+  case E::kDispose:
+    return event.dispose().async_id();
+  case E::kPublishTrack:
+    return event.publish_track().async_id();
+  case E::kUnpublishTrack:
+    return event.unpublish_track().async_id();
+  case E::kPublishData:
+    return event.publish_data().async_id();
+  case E::kPublishTranscription:
+    return event.publish_transcription().async_id();
+  case E::kCaptureAudioFrame:
+    return event.capture_audio_frame().async_id();
+  case E::kSetLocalMetadata:
+    return event.set_local_metadata().async_id();
+  case E::kSetLocalName:
+    return event.set_local_name().async_id();
+  case E::kSetLocalAttributes:
+    return event.set_local_attributes().async_id();
+  case E::kGetStats:
+    return event.get_stats().async_id();
+  case E::kGetSessionStats:
+    return event.get_session_stats().async_id();
+  case E::kPublishSipDtmf:
+    return event.publish_sip_dtmf().async_id();
+  case E::kChatMessage:
+    return event.chat_message().async_id();
+  case E::kPerformRpc:
+    return event.perform_rpc().async_id();
+
+  // low-level data stream callbacks
+  case E::kSendStreamHeader:
+    return event.send_stream_header().async_id();
+  case E::kSendStreamChunk:
+    return event.send_stream_chunk().async_id();
+  case E::kSendStreamTrailer:
+    return event.send_stream_trailer().async_id();
+
+  // high-level
+  case E::kByteStreamReaderReadAll:
+    return event.byte_stream_reader_read_all().async_id();
+  case E::kByteStreamReaderWriteToFile:
+    return event.byte_stream_reader_write_to_file().async_id();
+  case E::kByteStreamOpen:
+    return event.byte_stream_open().async_id();
+  case E::kByteStreamWriterWrite:
+    return event.byte_stream_writer_write().async_id();
+  case E::kByteStreamWriterClose:
+    return event.byte_stream_writer_close().async_id();
+  case E::kSendFile:
+    return event.send_file().async_id();
+
+  case E::kTextStreamReaderReadAll:
+    return event.text_stream_reader_read_all().async_id();
+  case E::kTextStreamOpen:
+    return event.text_stream_open().async_id();
+  case E::kTextStreamWriterWrite:
+    return event.text_stream_writer_write().async_id();
+  case E::kTextStreamWriterClose:
+    return event.text_stream_writer_close().async_id();
+  case E::kSendText:
+    return event.send_text().async_id();
+  case E::kSendBytes:
+    return event.send_bytes().async_id();
+
+  // NOT async completion:
+  case E::kRoomEvent:
+  case E::kTrackEvent:
+  case E::kVideoStreamEvent:
+  case E::kAudioStreamEvent:
+  case E::kByteStreamReaderEvent:
+  case E::kTextStreamReaderEvent:
+  case E::kRpcMethodInvocation:
+  case E::kLogs:
+  case E::kPanic:
+  case E::MESSAGE_NOT_SET:
+  default:
+    return std::nullopt;
+  }
+}
+
 } // namespace
 
 FfiClient::~FfiClient() {
@@ -77,7 +164,7 @@ bool FfiClient::isInitialized() const noexcept {
 FfiClient::ListenerId
 FfiClient::AddListener(const FfiClient::Listener &listener) {
   std::lock_guard<std::mutex> guard(lock_);
-  FfiClient::ListenerId id = nextListenerId++;
+  FfiClient::ListenerId id = next_listener_id++;
   listeners_[id] = listener;
   return id;
 }
@@ -117,34 +204,33 @@ FfiClient::sendRequest(const proto::FfiRequest &request) const {
 }
 
 void FfiClient::PushEvent(const proto::FfiEvent &event) const {
-  std::vector<std::unique_ptr<PendingBase>> to_complete;
-  {
-    std::lock_guard<std::mutex> guard(lock_);
-    for (auto it = pending_.begin(); it != pending_.end();) {
-      if ((*it)->matches(event)) {
-        to_complete.push_back(std::move(*it));
-        it = pending_.erase(it);
-      } else {
-        ++it;
-      }
-    }
-  }
-
-  // Run handlers outside lock
-  for (auto &p : to_complete) {
-    p->complete(event);
-  }
-
-  // Notify listeners. Note, we copy the listeners here to avoid calling into
-  // the listeners under the lock, which could potentially cause deadlock.
+  std::unique_ptr<PendingBase> to_complete;
   std::vector<Listener> listeners_copy;
   {
     std::lock_guard<std::mutex> guard(lock_);
+
+    // Complete pending future if this event is a callback with async_id
+    if (auto async_id = ExtractAsyncId(event)) {
+      auto it = pending_by_id_.find(*async_id);
+      if (it != pending_by_id_.end() && it->second &&
+          it->second->matches(event)) {
+        to_complete = std::move(it->second);
+        pending_by_id_.erase(it);
+      }
+    }
+
+    // Snapshot listeners
     listeners_copy.reserve(listeners_.size());
-    for (auto &[_, listener] : listeners_) {
-      listeners_copy.push_back(listener);
+    for (const auto &kv : listeners_) {
+      listeners_copy.push_back(kv.second);
     }
   }
+  // Run handler outside lock
+  if (to_complete) {
+    to_complete->complete(event);
+  }
+
+  // Notify listeners outside lock
   for (auto &listener : listeners_copy) {
     listener(event);
   }
@@ -158,22 +244,19 @@ void LivekitFfiCallback(const uint8_t *buf, size_t len) {
 }
 
 FfiClient::AsyncId FfiClient::generateAsyncId() {
-  return nextAsyncId_.fetch_add(1, std::memory_order_relaxed);
+  return next_async_id_.fetch_add(1, std::memory_order_relaxed);
 }
 
 bool FfiClient::cancelPendingByAsyncId(AsyncId async_id) {
   std::unique_ptr<PendingBase> to_cancel;
   {
     std::lock_guard<std::mutex> guard(lock_);
-    for (auto it = pending_.begin(); it != pending_.end(); ++it) {
-      if ((*it)->async_id == async_id) {
-        to_cancel = std::move(*it);
-        pending_.erase(it);
-        break;
-      }
+    auto it = pending_by_id_.find(async_id);
+    if (it != pending_by_id_.end()) {
+      to_cancel = std::move(it->second);
+      pending_by_id_.erase(it);
     }
   }
-
   if (to_cancel) {
     to_cancel->cancel();
     return true;
@@ -192,7 +275,7 @@ std::future<T> FfiClient::registerAsync(
   pending->handler = std::move(handler);
   {
     std::lock_guard<std::mutex> guard(lock_);
-    pending_.push_back(std::move(pending));
+    pending_by_id_.emplace(async_id, std::move(pending));
   }
   return fut;
 }
