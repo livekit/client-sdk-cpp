@@ -49,15 +49,34 @@ jobs:
         id: version
         shell: bash
         run: |
+          set -euo pipefail
+
           if [[ -n "${{ github.event.inputs.version }}" ]]; then
             VERSION="${{ github.event.inputs.version }}"
-          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            # github.ref_name is e.g. "v0.2.4"
+            TAG="${{ github.ref_name }}"
+            VERSION="${TAG#v}"
           else
             VERSION="0.0.0-dev"
           fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "SDK Version: ${VERSION}"
+
+          # Basic validation: must not be empty, must not start with v, no spaces
+          if [[ -z "$VERSION" ]]; then
+            echo "ERROR: Derived version is empty"
+            exit 1
+          fi
+          if [[ "$VERSION" == v* ]]; then
+            echo "ERROR: Derived version still has leading 'v': $VERSION"
+            exit 1
+          fi
+          if [[ "$VERSION" =~ [[:space:]] ]]; then
+            echo "ERROR: Version contains whitespace: '$VERSION'"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "SDK Version: $VERSION"
 
       # ---------- vcpkg for Windows ----------
       - name: Export GitHub Actions cache environment variables
@@ -130,8 +149,17 @@ jobs:
           chmod +x build.sh
           version="${{ steps.version.outputs.version }}"
           bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}-${version}"
+          if [[ -z "$version" ]]; then
+            echo "ERROR: version is empty"
+            exit 1
+          fi
 
-          ./build.sh release-examples --bundle --prefix "$bundleDir"
+          if [[ "$version" == "0.0.0-dev" ]]; then
+            echo "ERROR: refusing to build release with fallback version: $version"
+            exit 1
+          fi
+
+          ./build.sh release-examples --version "$version" --bundle --prefix "$bundleDir"
 
           # List bundle contents
           echo "Bundle contents:"
@@ -145,7 +173,8 @@ jobs:
           $version   = "${{ steps.version.outputs.version }}"
           $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-$version"
 
-          .\build.cmd release-examples --version $version
+          if ([string]::IsNullOrWhiteSpace($version)) { throw "version is empty" }
+          .\build.cmd release-examples --version "$version"
 
           # There is the missing step that generates LiveKitTargets.cmake in the install tree
           # TODO(sxian): fix it after getting access to a windows machine
@@ -178,14 +207,30 @@ jobs:
         id: version
         shell: bash
         run: |
+          set -euo pipefail
           if [[ -n "${{ github.event.inputs.version }}" ]]; then
             VERSION="${{ github.event.inputs.version }}"
-          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+            VERSION="${TAG#v}"
           else
             VERSION="0.0.0-dev"
           fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+          if [[ -z "$VERSION" ]]; then
+            echo "ERROR: Derived version is empty"
+            exit 1
+          fi
+          if [[ "$VERSION" == v* ]]; then
+            echo "ERROR: Derived version still has leading 'v': $VERSION"
+            exit 1
+          fi
+          if [[ "$VERSION" =~ [[:space:]] ]]; then
+            echo "ERROR: Version contains whitespace: '$VERSION'"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "SDK Version: $VERSION"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
