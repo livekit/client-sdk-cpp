@@ -61,28 +61,42 @@ if /I "%1"=="help" goto usage
 if "%1"=="-h" goto usage
 if "%1"=="--help" goto usage
 
-set "CMD=%1"
-shift
-goto parse_args
+set "CMD="
+set "LIVEKIT_VERSION="
 
-:parse_args
-if "%1"=="" goto after_parse
+:parse_all
+if "%~1"=="" goto after_parse
 
-if "%1"=="--version" (
+:: 1. Capture the command if we don't have one yet
+if not defined CMD (
+    set "CMD=%~1"
+    echo Command set to: %~1
     shift
-    if "%1"=="" (
-        echo ERROR: --version requires a value
-        exit /b 1
-    )
-    set "LIVEKIT_VERSION=%1"
-    shift
-    goto parse_args
+    goto parse_all
 )
 
-echo ERROR: Unknown option: %1
+:: 2. Check for the version flag
+if /I "%~1"=="--version" (
+    shift
+    goto :get_version_value
+)
+
+:: 3. Handle unknown arguments
+echo ERROR: Unknown option: %~1
 exit /b 1
 
+:get_version_value
+echo 1 after shift is : %~1
+set "LIVEKIT_VERSION=%~1"
+shift
+goto parse_all
+
 :after_parse
+if not defined CMD (
+    echo ERROR: No command specified
+    goto usage
+)
+
 if defined LIVEKIT_VERSION (
     set "CMAKE_EXTRA_ARGS=-DLIVEKIT_VERSION=%LIVEKIT_VERSION%"
     echo ==^> Injecting LIVEKIT_VERSION=%LIVEKIT_VERSION%
