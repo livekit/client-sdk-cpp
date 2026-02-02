@@ -22,10 +22,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y doxygen graphviz
 
-      # Optional: If your Doxyfile uses dot/graphviz for diagrams, graphviz above is useful.
-      # Optional: If you generate docs via CMake custom target instead of raw doxygen,
-      # add your build steps here.
-
       - name: Build Docs (Doxygen)
         run: |
           doxygen docs/Doxyfile
