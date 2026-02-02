@@ -285,3 +285,10 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------- Publish Docs Job ----------
+  publish-docs:
+    name: Publish Documentation
+    needs: release
+    uses: ./.github/workflows/publish-docs.yml
+    secrets: inherit

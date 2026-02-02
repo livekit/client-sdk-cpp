@@ -35,8 +35,14 @@ namespace proto {
 class FfiEvent;
 }
 
+/**
+ * @brief Event containing an audio frame received from an AudioStream.
+ *
+ * This struct wraps an AudioFrame and is used as the output type when
+ * reading from an AudioStream.
+ */
 struct AudioFrameEvent {
-  AudioFrame frame;
+  AudioFrame frame; ///< The decoded PCM audio frame.
 };
 
 /**

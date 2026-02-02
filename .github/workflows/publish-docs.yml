@@ -1,0 +1,48 @@
+name: Publish docs
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+          lfs: true
+
+      # Doxygen is available on ubuntu-latest, but we install explicitly for stability
+      - name: Install Doxygen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz
+
+      - name: Build Docs (Doxygen)
+        run: |
+          doxygen docs/Doxyfile
+
+      - name: S3 Upload
+        run: |
+          DOCS_DIR="html"
+          if [[ ! -d "$DOCS_DIR" ]]; then
+            echo "Expected docs at $DOCS_DIR but directory not found."
+            exit 1
+          fi
+
+          # Upload to rolling latest (no versioned docs, always overwrite)
+          aws s3 sync "$DOCS_DIR"/ s3://livekit-docs/cpp --delete
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: "us-east-1"
+
+      - name: Expire cloudfront cache
+        run: |
+          aws cloudfront create-invalidation --distribution-id EJJ40KLJ3TRY9 --paths "/cpp/*"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: "us-east-1"
+

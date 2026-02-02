@@ -27,6 +27,13 @@ class AudioFrameBufferInfo;
 class OwnedAudioFrameBuffer;
 } // namespace proto
 
+/**
+ * @brief Represents a raw PCM audio frame with interleaved int16 samples.
+ *
+ * AudioFrame holds decoded audio data along with metadata such as sample rate,
+ * number of channels, and samples per channel. It is used for capturing and
+ * processing audio in the LiveKit SDK.
+ */
 class AudioFrame {
 public:
   /**
