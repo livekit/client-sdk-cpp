@@ -293,13 +293,21 @@ struct VideoSourceStats {
   double frames_per_second;
 };
 
+/**
+ * @brief Statistics for audio playout performance.
+ *
+ * Contains metrics about audio sample synthesis and playout timing,
+ * useful for monitoring audio quality and detecting issues like underruns.
+ */
 struct AudioPlayoutStats {
-  std::string kind;
-  double synthesized_samples_duration;
-  std::uint32_t synthesized_samples_events;
-  double total_samples_duration;
-  double total_playout_delay;
-  std::uint64_t total_samples_count;
+  std::string kind;                    ///< The type of media ("audio").
+  double synthesized_samples_duration; ///< Duration of synthesized samples in
+                                       ///< seconds.
+  std::uint32_t synthesized_samples_events; ///< Number of synthesis events
+                                            ///< (e.g., concealment).
+  double total_samples_duration; ///< Total duration of all samples in seconds.
+  double total_playout_delay;    ///< Cumulative playout delay in seconds.
+  std::uint64_t total_samples_count; ///< Total number of samples played out.
 };
 
 struct PeerConnectionStats {

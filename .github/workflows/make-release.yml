@@ -285,3 +285,12 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------- Publish Docs Job ----------
+  publish-docs:
+    name: Publish Documentation
+    needs: release
+    uses: ./.github/workflows/publish-docs.yml
+    secrets:
+      DOCS_DEPLOY_AWS_ACCESS_KEY: ${{ secrets.DOCS_DEPLOY_AWS_ACCESS_KEY }}
+      DOCS_DEPLOY_AWS_API_SECRET: ${{ secrets.DOCS_DEPLOY_AWS_API_SECRET }}
