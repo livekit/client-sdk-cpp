@@ -33,8 +33,10 @@ Usage:
 Commands:
   debug             Configure + build Debug version (build-debug/)
   debug-examples    Configure + build Debug version with examples
+  debug-tests       Configure + build Debug version with tests
   release           Configure + build Release version (build-release/)
   release-examples  Configure + build Release version with examples
+  release-tests     Configure + build Release version with tests
   clean             Clean both Debug and Release build directories
   clean-all         Full clean (build dirs + Rust targets)
   help              Show this help message
@@ -56,6 +58,8 @@ Examples:
   ./build.sh release
   ./build.sh release-examples
   ./build.sh debug
+  ./build.sh debug-tests
+  ./build.sh release-tests
   ./build.sh clean
   ./build.sh clean-all
 EOF
@@ -291,19 +295,19 @@ clean() {
 
 clean_all() {
   echo "==> Running full clean-all (C++ + Rust)..."
-  
+
   echo "Removing build-debug directory..."
   rm -rf "${PROJECT_ROOT}/build-debug" || true
-  
+
   echo "Removing build-release directory..."
   rm -rf "${PROJECT_ROOT}/build-release" || true
-  
+
   echo "Removing Rust debug artifacts..."
   rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/debug" || true
-  
+
   echo "Removing Rust release artifacts..."
   rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/release" || true
-  
+
   echo "==> Clean-all complete."
 }
 
@@ -358,6 +362,32 @@ case "${cmd}" in
     BUILD_TYPE="Release"
     BUILD_DIR="${PROJECT_ROOT}/build-release"
     PRESET="${OS_TYPE}-release-examples"
+    configure
+    build
+    if [[ "${DO_BUNDLE}" == "1" ]]; then
+      install_bundle
+      if [[ "${DO_ARCHIVE}" == "1" ]]; then
+        archive_bundle
+      fi
+    fi
+    ;;
+  debug-tests)
+    BUILD_TYPE="Debug"
+    BUILD_DIR="${PROJECT_ROOT}/build-debug"
+    PRESET="${OS_TYPE}-debug-tests"
+    configure
+    build
+    if [[ "${DO_BUNDLE}" == "1" ]]; then
+      install_bundle
+      if [[ "${DO_ARCHIVE}" == "1" ]]; then
+        archive_bundle
+      fi
+    fi
+    ;;
+  release-tests)
+    BUILD_TYPE="Release"
+    BUILD_DIR="${PROJECT_ROOT}/build-release"
+    PRESET="${OS_TYPE}-release-tests"
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then

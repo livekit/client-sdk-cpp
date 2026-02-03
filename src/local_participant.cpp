@@ -282,7 +282,6 @@ void LocalParticipant::handleRpcMethodInvocation(
     const std::string &payload, double response_timeout_sec) {
   std::optional<RpcError> response_error;
   std::optional<std::string> response_payload;
-  std::cout << "handleRpcMethodInvocation \n";
   RpcInvocationData params{request_id, caller_identity, payload,
                            response_timeout_sec};
   auto it = rpc_handlers_.find(method);
@@ -317,7 +316,6 @@ void LocalParticipant::handleRpcMethodInvocation(
   if (response_payload.has_value()) {
     msg->set_payload(*response_payload);
   }
-  std::cout << "handleRpcMethodInvocation sendrequest \n";
   FfiClient::instance().sendRequest(req);
 }
 
