@@ -40,7 +40,7 @@ using namespace std::chrono_literals;
 constexpr size_t kMaxRpcPayloadSize = 15 * 1024;
 
 // Default stress test duration in seconds (can be overridden by env var)
-constexpr int kDefaultStressDurationSeconds = 3600; // 1 hour
+constexpr int kDefaultStressDurationSeconds = 600; // 10mins
 
 // Test configuration from environment variables
 struct RpcStressTestConfig {
@@ -167,20 +167,49 @@ private:
   std::map<std::string, int> error_counts_;
 };
 
-// Generate a random string of specified size
+// Sample sentences for generating compressible payloads
+static const std::vector<std::string> kSampleSentences = {
+    "The quick brown fox jumps over the lazy dog. ",
+    "LiveKit is a real-time communication platform for building video and "
+    "audio applications. ",
+    "RPC allows participants to call methods on remote peers with "
+    "request-response semantics. ",
+    "This stress test measures the performance and reliability of the RPC "
+    "system under load. ",
+    "WebRTC enables peer-to-peer communication for real-time media streaming. ",
+    "The payload is compressed using Zstd to reduce bandwidth and improve "
+    "throughput. ",
+    "Data channels provide reliable or unreliable delivery of arbitrary "
+    "application data. ",
+    "Participants can publish audio and video tracks to share media with "
+    "others in the room. ",
+    "The signaling server coordinates connection establishment between peers. ",
+    "End-to-end encryption ensures that media content is only accessible to "
+    "participants. ",
+};
+
+// Generate a payload of specified size using repeating sentences (compressible)
 std::string generateRandomPayload(size_t size) {
-  static const char charset[] =
-      "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
   static thread_local std::random_device rd;
   static thread_local std::mt19937 gen(rd());
-  static std::uniform_int_distribution<> dis(0, sizeof(charset) - 2);
+  static std::uniform_int_distribution<size_t> dis(0,
+                                                   kSampleSentences.size() - 1);
 
   std::string result;
   result.reserve(size);
-  for (size_t i = 0; i < size; ++i) {
-    result += charset[dis(gen)];
+
+  // Start with a random sentence to add some variation between payloads
+  size_t start_idx = dis(gen);
+
+  while (result.size() < size) {
+    // Cycle through sentences starting from a random position
+    const std::string &sentence =
+        kSampleSentences[(start_idx + result.size()) % kSampleSentences.size()];
+    result += sentence;
   }
-  return result;
+
+  // Trim to exact size
+  return result.substr(0, size);
 }
 
 // Wait for a remote participant to appear
