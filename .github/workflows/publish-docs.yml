@@ -9,9 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
-          lfs: true
+        # Note: submodules and LFS not needed for docs generation
+        # Doxygen only reads from include/, docs/, README.md, and examples/
 
       # Doxygen is available on ubuntu-latest, but we install explicitly for stability
       - name: Install Doxygen
