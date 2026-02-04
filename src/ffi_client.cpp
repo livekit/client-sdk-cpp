@@ -17,10 +17,10 @@
 #include <cassert>
 #include <iostream>
 
-#include "build.h"
 #include "e2ee.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
+#include "livekit/build.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h"

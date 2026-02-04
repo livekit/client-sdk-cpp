@@ -132,6 +132,20 @@ if "%CMD%"=="release-examples" (
     goto configure_build
 )
 
+if "%CMD%"=="debug-tests" (
+    set "BUILD_TYPE=Debug"
+    set "PRESET=windows-debug-tests"
+    set "BUILD_DIR=%PROJECT_ROOT%\build-debug"
+    goto configure_build
+)
+
+if "%CMD%"=="release-tests" (
+    set "BUILD_TYPE=Release"
+    set "PRESET=windows-release-tests"
+    set "BUILD_DIR=%PROJECT_ROOT%\build-release"
+    goto configure_build
+)
+
 if "%CMD%"=="clean" goto clean
 if "%CMD%"=="clean-all" goto clean_all
 
@@ -144,8 +158,10 @@ echo.
 echo Commands:
 echo   debug             Configure + build Debug version (build-debug/)
 echo   debug-examples    Configure + build Debug version with examples
+echo   debug-tests       Configure + build Debug version with tests
 echo   release           Configure + build Release version (build-release/)
 echo   release-examples  Configure + build Release version with examples
+echo   release-tests     Configure + build Release version with tests
 echo   clean             Clean both Debug and Release build directories
 echo   clean-all         Full clean (build dirs + Rust targets)
 echo   help              Show this help
@@ -154,6 +170,8 @@ echo Examples:
 echo   build.cmd debug
 echo   build.cmd release
 echo   build.cmd release-examples
+echo   build.cmd debug-tests
+echo   build.cmd release-tests
 echo   build.cmd clean
 echo   build.cmd clean-all
 goto :eof

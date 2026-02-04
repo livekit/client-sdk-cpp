@@ -69,14 +69,27 @@ Room::Room() {}
 
 Room::~Room() {
   int listener_to_remove = 0;
+  std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
   {
     std::lock_guard<std::mutex> g(lock_);
     listener_to_remove = listener_id_;
     listener_id_ = 0;
+    // Move local participant out for cleanup outside the lock
+    local_participant_to_cleanup = std::move(local_participant_);
   }
+
+  // Shutdown local participant (unregisters RPC handlers, etc.) before
+  // removing the listener. This prevents in-flight RPC responses from
+  // trying to use destroyed handles.
+  if (local_participant_to_cleanup) {
+    local_participant_to_cleanup->shutdown();
+  }
+
   if (listener_to_remove != 0) {
     FfiClient::instance().RemoveListener(listener_to_remove);
   }
+
+  // local_participant_to_cleanup is destroyed here after listener is removed
 }
 
 void Room::setDelegate(RoomDelegate *delegate) {

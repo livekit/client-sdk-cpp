@@ -9,6 +9,8 @@ build/
 build-debug/
 build-release/
 vcpkg_installed/
+# Generated header
+include/livekit/build.h
 received_green.avif
 docs/*.bak
 docs/html/

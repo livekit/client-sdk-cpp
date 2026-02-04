@@ -21,9 +21,12 @@
 #include "livekit/room_event_types.h"
 #include "livekit/rpc_error.h"
 
+#include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -185,6 +188,13 @@ public:
   void unregisterRpcMethod(const std::string &method_name);
 
 protected:
+  /**
+   * Shutdown the local participant, cleaning up all resources.
+   *
+   * This unregisters all RPC handlers and prepares the participant for
+   * destruction. Called by Room during its destruction sequence.
+   */
+  void shutdown();
   // Called by Room when an rpc_method_invocation event is received from the
   // SFU. This is internal plumbing and not intended to be called directly by
   // SDK users.
@@ -202,6 +212,18 @@ protected:
 private:
   PublicationMap track_publications_;
   std::unordered_map<std::string, RpcHandler> rpc_handlers_;
+
+  // Shared state for RPC invocation tracking. Using shared_ptr so the state
+  // can outlive the LocalParticipant if there are in-flight invocations when
+  // the participant is destroyed.
+  struct RpcInvocationState {
+    std::mutex mutex;
+    std::condition_variable cv;
+    int active_invocations = 0;
+    bool shutting_down = false;
+  };
+  std::shared_ptr<RpcInvocationState> rpc_state_ =
+      std::make_shared<RpcInvocationState>();
 };
 
 } // namespace livekit

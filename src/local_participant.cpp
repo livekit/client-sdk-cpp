@@ -29,6 +29,7 @@
 #include "track.pb.h"
 #include "track_proto_converter.h"
 
+#include <chrono>
 #include <stdexcept>
 
 namespace livekit {
@@ -276,13 +277,70 @@ void LocalParticipant::unregisterRpcMethod(const std::string &method_name) {
   (void)FfiClient::instance().sendRequest(req);
 }
 
+void LocalParticipant::shutdown() {
+  // Mark as shutting down and wait for all active invocations to complete
+  {
+    std::unique_lock<std::mutex> lock(rpc_state_->mutex);
+    rpc_state_->shutting_down = true;
+    // Wait up to 5 seconds for active RPC invocations to complete.
+    // If timeout expires, proceed anyway - late responses will fail but
+    // at least we won't block shutdown indefinitely.
+    rpc_state_->cv.wait_for(lock, std::chrono::seconds(5), [this] {
+      return rpc_state_->active_invocations == 0;
+    });
+  }
+
+  auto handle_id = ffiHandleId();
+  // If handle is invalid, just clear local handlers - FFI cleanup not possible
+  if (handle_id == 0) {
+    rpc_handlers_.clear();
+    return;
+  }
+
+  // Unregister all RPC methods with FFI and clear local handlers
+  for (const auto &pair : rpc_handlers_) {
+    FfiRequest req;
+    auto *msg = req.mutable_unregister_rpc_method();
+    msg->set_local_participant_handle(static_cast<std::uint64_t>(handle_id));
+    msg->set_method(pair.first);
+    (void)FfiClient::instance().sendRequest(req);
+  }
+  rpc_handlers_.clear();
+}
+
 void LocalParticipant::handleRpcMethodInvocation(
     uint64_t invocation_id, const std::string &method,
     const std::string &request_id, const std::string &caller_identity,
     const std::string &payload, double response_timeout_sec) {
+  // Capture shared state so it outlives LocalParticipant if needed
+  auto state = rpc_state_;
+
+  // Track this invocation and check if we're shutting down
+  {
+    std::lock_guard<std::mutex> lock(state->mutex);
+    if (state->shutting_down) {
+      // Already shutting down, don't process new invocations
+      return;
+    }
+    state->active_invocations++;
+  }
+
+  // RAII guard to decrement counter and notify on exit.
+  // Captures shared_ptr to state so mutex stays valid even if
+  // LocalParticipant is destroyed during handler execution.
+  struct InvocationGuard {
+    std::shared_ptr<RpcInvocationState> state;
+    ~InvocationGuard() {
+      std::lock_guard<std::mutex> lock(state->mutex);
+      state->active_invocations--;
+      if (state->active_invocations == 0) {
+        state->cv.notify_all();
+      }
+    }
+  } guard{state};
+
   std::optional<RpcError> response_error;
   std::optional<std::string> response_payload;
-  std::cout << "handleRpcMethodInvocation \n";
   RpcInvocationData params{request_id, caller_identity, payload,
                            response_timeout_sec};
   auto it = rpc_handlers_.find(method);
@@ -306,6 +364,15 @@ void LocalParticipant::handleRpcMethodInvocation(
     }
   }
 
+  // Check again if shutdown started during handler execution
+  {
+    std::lock_guard<std::mutex> lock(state->mutex);
+    if (state->shutting_down) {
+      // Shutdown started, don't send response - handle may be invalid
+      return;
+    }
+  }
+
   FfiRequest req;
   auto *msg = req.mutable_rpc_method_invocation_response();
   msg->set_local_participant_handle(ffiHandleId());
@@ -317,7 +384,6 @@ void LocalParticipant::handleRpcMethodInvocation(
   if (response_payload.has_value()) {
     msg->set_payload(*response_payload);
   }
-  std::cout << "handleRpcMethodInvocation sendrequest \n";
   FfiClient::instance().sendRequest(req);
 }
 

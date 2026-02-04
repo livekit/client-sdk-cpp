@@ -66,7 +66,9 @@
       "inherits": "windows-base",
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "OFF"
       }
     },
     {
@@ -76,7 +78,9 @@
       "inherits": "windows-base",
       "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "OFF"
       }
     },
     {
@@ -88,6 +92,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "LIVEKIT_BUILD_TESTS": "OFF",
         "VCPKG_MANIFEST_FEATURES": "examples"
       }
     },
@@ -100,6 +105,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "LIVEKIT_BUILD_TESTS": "OFF",
         "VCPKG_MANIFEST_FEATURES": "examples"
       }
     },
@@ -110,7 +116,9 @@
       "inherits": "linux-base",
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "OFF"
       }
     },
     {
@@ -120,7 +128,9 @@
       "inherits": "linux-base",
       "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "OFF"
       }
     },
     {
@@ -131,7 +141,8 @@
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "LIVEKIT_BUILD_EXAMPLES": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "LIVEKIT_BUILD_TESTS": "OFF"
       }
     },
     {
@@ -142,7 +153,8 @@
       "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "LIVEKIT_BUILD_EXAMPLES": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "LIVEKIT_BUILD_TESTS": "OFF"
       }
     },
     {
@@ -152,7 +164,9 @@
       "inherits": "macos-base",
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
+        "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "OFF"
       }
     },
     {
@@ -162,7 +176,9 @@
       "inherits": "macos-base",
       "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug"
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "OFF"
       }
     },
     {
@@ -173,7 +189,8 @@
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "LIVEKIT_BUILD_EXAMPLES": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "LIVEKIT_BUILD_TESTS": "OFF"
       }
     },
     {
@@ -184,7 +201,80 @@
       "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "LIVEKIT_BUILD_EXAMPLES": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "ON",
+        "LIVEKIT_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "windows-release-tests",
+      "displayName": "Windows x64 Release with Tests",
+      "description": "Build for Windows x64 Release with test suite",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "windows-debug-tests",
+      "displayName": "Windows x64 Debug with Tests",
+      "description": "Build for Windows x64 Debug with test suite",
+      "inherits": "windows-base",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "linux-release-tests",
+      "displayName": "Linux Release with Tests",
+      "description": "Build for Linux Release with test suite",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "linux-debug-tests",
+      "displayName": "Linux Debug with Tests",
+      "description": "Build for Linux Debug with test suite",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "macos-release-tests",
+      "displayName": "macOS Release with Tests",
+      "description": "Build for macOS Release with test suite",
+      "inherits": "macos-base",
+      "binaryDir": "${sourceDir}/build-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "ON"
+      }
+    },
+    {
+      "name": "macos-debug-tests",
+      "displayName": "macOS Debug with Tests",
+      "description": "Build for macOS Debug with test suite",
+      "inherits": "macos-base",
+      "binaryDir": "${sourceDir}/build-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "ON"
       }
     }
   ],
@@ -240,6 +330,78 @@
     {
       "name": "macos-debug-examples",
       "configurePreset": "macos-debug-examples"
+    },
+    {
+      "name": "windows-release-tests",
+      "configurePreset": "windows-release-tests",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-debug-tests",
+      "configurePreset": "windows-debug-tests",
+      "configuration": "Debug"
+    },
+    {
+      "name": "linux-release-tests",
+      "configurePreset": "linux-release-tests"
+    },
+    {
+      "name": "linux-debug-tests",
+      "configurePreset": "linux-debug-tests"
+    },
+    {
+      "name": "macos-release-tests",
+      "configurePreset": "macos-release-tests"
+    },
+    {
+      "name": "macos-debug-tests",
+      "configurePreset": "macos-debug-tests"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-release-tests",
+      "configurePreset": "windows-release-tests",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-debug-tests",
+      "configurePreset": "windows-debug-tests",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-release-tests",
+      "configurePreset": "linux-release-tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-debug-tests",
+      "configurePreset": "linux-debug-tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-release-tests",
+      "configurePreset": "macos-release-tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-debug-tests",
+      "configurePreset": "macos-debug-tests",
+      "output": {
+        "outputOnFailure": true
+      }
     }
   ]
 }
