@@ -31,15 +31,15 @@ jobs:
           fi
 
           # Upload to rolling latest (no versioned docs, always overwrite)
-          aws s3 sync "$DOCS_DIR"/ s3://livekit-docs/cpp --delete
+          aws s3 cp "$DOCS_DIR"/ s3://livekit-docs/client-sdk-cpp --recursive
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: "us-east-1"
 
-      - name: Expire cloudfront cache
+      - name: Invalidate cloudfront cache
         run: |
-          aws cloudfront create-invalidation --distribution-id EJJ40KLJ3TRY9 --paths "/cpp/*"
+          aws cloudfront create-invalidation --distribution-id EJJ40KLJ3TRY9 --paths "/client-sdk-cpp/*"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
