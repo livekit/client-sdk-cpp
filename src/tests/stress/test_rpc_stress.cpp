@@ -40,7 +40,7 @@ using namespace std::chrono_literals;
 constexpr size_t kMaxRpcPayloadSize = 15 * 1024;
 
 // Default stress test duration in seconds (can be overridden by env var)
-constexpr int kDefaultStressDurationSeconds = 600; // 10mins
+constexpr int kDefaultStressDurationSeconds = 3600; // 1 hour
 
 // Test configuration from environment variables
 struct RpcStressTestConfig {
@@ -611,12 +611,19 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   std::atomic<int> b_received{0};
 
   // Register handlers on both sides
+  // Return checksum instead of full payload to avoid exceeding 15KB response
+  // limit
   room_a->localParticipant()->registerRpcMethod(
       "ping",
       [&a_received](
           const RpcInvocationData &data) -> std::optional<std::string> {
         a_received++;
-        return "pong:" + data.payload;
+        size_t checksum = 0;
+        for (char c : data.payload) {
+          checksum += static_cast<unsigned char>(c);
+        }
+        return "pong:" + std::to_string(data.payload.size()) + ":" +
+               std::to_string(checksum);
       });
 
   room_b->localParticipant()->registerRpcMethod(
@@ -624,7 +631,12 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
       [&b_received](
           const RpcInvocationData &data) -> std::optional<std::string> {
         b_received++;
-        return "pong:" + data.payload;
+        size_t checksum = 0;
+        for (char c : data.payload) {
+          checksum += static_cast<unsigned char>(c);
+        }
+        return "pong:" + std::to_string(data.payload.size()) + ":" +
+               std::to_string(checksum);
       });
 
   StressTestStats stats_a_to_b;
@@ -639,6 +651,15 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
     int counter = 0;
     while (running.load()) {
       std::string payload = generateRandomPayload(kMaxRpcPayloadSize);
+
+      // Calculate expected checksum for verification
+      size_t expected_checksum = 0;
+      for (char c : payload) {
+        expected_checksum += static_cast<unsigned char>(c);
+      }
+      std::string expected_response = "pong:" + std::to_string(payload.size()) +
+                                      ":" + std::to_string(expected_checksum);
+
       auto call_start = std::chrono::high_resolution_clock::now();
 
       try {
@@ -650,7 +671,7 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
             std::chrono::duration<double, std::milli>(call_end - call_start)
                 .count();
 
-        if (response == "pong:" + payload) {
+        if (response == expected_response) {
           stats_a_to_b.recordCall(true, latency_ms, kMaxRpcPayloadSize);
         } else {
           stats_a_to_b.recordCall(false, latency_ms, kMaxRpcPayloadSize);
@@ -669,6 +690,15 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
     int counter = 0;
     while (running.load()) {
       std::string payload = generateRandomPayload(kMaxRpcPayloadSize);
+
+      // Calculate expected checksum for verification
+      size_t expected_checksum = 0;
+      for (char c : payload) {
+        expected_checksum += static_cast<unsigned char>(c);
+      }
+      std::string expected_response = "pong:" + std::to_string(payload.size()) +
+                                      ":" + std::to_string(expected_checksum);
+
       auto call_start = std::chrono::high_resolution_clock::now();
 
       try {
@@ -680,7 +710,7 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
             std::chrono::duration<double, std::milli>(call_end - call_start)
                 .count();
 
-        if (response == "pong:" + payload) {
+        if (response == expected_response) {
           stats_b_to_a.recordCall(true, latency_ms, kMaxRpcPayloadSize);
         } else {
           stats_b_to_a.recordCall(false, latency_ms, kMaxRpcPayloadSize);

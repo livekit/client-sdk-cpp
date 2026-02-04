@@ -104,7 +104,7 @@ protected:
     livekit::initialize(livekit::LogSink::kConsole);
 
     const char *url_env = std::getenv("LIVEKIT_URL");
-    const char *token_env = std::getenv("LIVEKIT_TOKEN");
+    const char *token_env = std::getenv("LIVEKIT_CALLER_TOKEN");
 
     if (url_env && token_env) {
       server_url_ = url_env;

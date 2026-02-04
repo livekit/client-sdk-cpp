@@ -133,14 +133,20 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
 
-  // Register RPC handler on receiver
+  // Register RPC handler on receiver - returns size and checksum instead of
+  // full payload
   std::atomic<int> rpc_calls_received{0};
   receiver_room->localParticipant()->registerRpcMethod(
       "echo",
       [&rpc_calls_received](
           const RpcInvocationData &data) -> std::optional<std::string> {
         rpc_calls_received++;
-        return "echo: " + data.payload;
+        size_t checksum = 0;
+        for (char c : data.payload) {
+          checksum += static_cast<unsigned char>(c);
+        }
+        return "echo:" + std::to_string(data.payload.size()) + ":" +
+               std::to_string(checksum);
       });
 
   // Create caller room
@@ -158,10 +164,19 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
   // Perform RPC call
+  std::string test_payload = "hello world";
   std::string response = caller_room->localParticipant()->performRpc(
-      receiver_identity, "echo", "hello world", 10.0);
+      receiver_identity, "echo", test_payload, 10.0);
 
-  EXPECT_EQ(response, "echo: hello world");
+  // Verify response contains correct size and checksum
+  size_t expected_checksum = 0;
+  for (char c : test_payload) {
+    expected_checksum += static_cast<unsigned char>(c);
+  }
+  std::string expected_response =
+      "echo:" + std::to_string(test_payload.size()) + ":" +
+      std::to_string(expected_checksum);
+  EXPECT_EQ(response, expected_response);
   EXPECT_EQ(rpc_calls_received.load(), 1);
 
   // Cleanup
