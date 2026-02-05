@@ -276,6 +276,7 @@ add_custom_target(build_rust_ffi
 
 add_library(livekit SHARED
   src/audio_frame.cpp
+  src/audio_processing_module.cpp
   src/audio_source.cpp
   src/audio_stream.cpp
   src/data_stream.cpp
