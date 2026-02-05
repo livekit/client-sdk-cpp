@@ -1,6 +1,6 @@
-# LiveKit C++ Client SDK
+# Build & Installation Guide
 
-This SDK enables native C++ applications to connect to LiveKit servers for real-time audio/video communication.
+This page covers how to build and install the LiveKit C++ Client SDK for real-time audio/video communication.
 
 ---
 
