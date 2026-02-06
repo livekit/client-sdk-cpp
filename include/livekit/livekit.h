@@ -17,6 +17,7 @@
 #pragma once
 
 #include "audio_frame.h"
+#include "audio_processing_module.h"
 #include "audio_source.h"
 #include "audio_stream.h"
 #include "build.h"

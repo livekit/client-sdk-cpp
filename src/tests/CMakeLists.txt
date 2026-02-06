@@ -51,6 +51,12 @@ if(INTEGRATION_TEST_SOURCES)
       ${LIVEKIT_ROOT_DIR}/src
   )
 
+  # Define LIVEKIT_ROOT_DIR for tests to find data files
+  target_compile_definitions(livekit_integration_tests
+    PRIVATE
+      LIVEKIT_ROOT_DIR="${LIVEKIT_ROOT_DIR}"
+  )
+
   # Copy shared libraries to test executable directory
   if(WIN32)
     add_custom_command(TARGET livekit_integration_tests POST_BUILD
