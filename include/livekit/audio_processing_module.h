@@ -154,15 +154,15 @@ public:
    */
   void setStreamDelayMs(int delay_ms);
 
-  /// Check if the APM handle is valid.
+private:
+  /// Check if the APM handle is valid (used internally).
   bool valid() const noexcept { return handle_.valid(); }
 
-  /// Get the underlying FFI handle ID (for advanced use).
+  /// Get the underlying FFI handle ID (used internally).
   std::uint64_t ffi_handle_id() const noexcept {
     return static_cast<std::uint64_t>(handle_.get());
   }
 
-private:
   FfiHandle handle_;
 };
 

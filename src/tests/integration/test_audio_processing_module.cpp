@@ -219,9 +219,8 @@ protected:
 
 TEST_F(AudioProcessingModuleTest, CreateWithDefaultOptions) {
   AudioProcessingModule::Options opts;
-  AudioProcessingModule apm(opts);
-
-  EXPECT_TRUE(apm.valid());
+  // Constructor throws on failure, so reaching this point means success
+  EXPECT_NO_THROW(AudioProcessingModule apm(opts));
 }
 
 TEST_F(AudioProcessingModuleTest, CreateWithAllFeaturesEnabled) {
@@ -231,45 +230,40 @@ TEST_F(AudioProcessingModuleTest, CreateWithAllFeaturesEnabled) {
   opts.high_pass_filter = true;
   opts.auto_gain_control = true;
 
-  AudioProcessingModule apm(opts);
-
-  EXPECT_TRUE(apm.valid());
+  // Constructor throws on failure, so reaching this point means success
+  EXPECT_NO_THROW(AudioProcessingModule apm(opts));
 }
 
 TEST_F(AudioProcessingModuleTest, CreateWithEchoCancellationOnly) {
   AudioProcessingModule::Options opts;
   opts.echo_cancellation = true;
 
-  AudioProcessingModule apm(opts);
-
-  EXPECT_TRUE(apm.valid());
+  // Constructor throws on failure, so reaching this point means success
+  EXPECT_NO_THROW(AudioProcessingModule apm(opts));
 }
 
 TEST_F(AudioProcessingModuleTest, CreateWithNoiseSuppressionOnly) {
   AudioProcessingModule::Options opts;
   opts.noise_suppression = true;
 
-  AudioProcessingModule apm(opts);
-
-  EXPECT_TRUE(apm.valid());
+  // Constructor throws on failure, so reaching this point means success
+  EXPECT_NO_THROW(AudioProcessingModule apm(opts));
 }
 
 TEST_F(AudioProcessingModuleTest, CreateWithAutoGainControlOnly) {
   AudioProcessingModule::Options opts;
   opts.auto_gain_control = true;
 
-  AudioProcessingModule apm(opts);
-
-  EXPECT_TRUE(apm.valid());
+  // Constructor throws on failure, so reaching this point means success
+  EXPECT_NO_THROW(AudioProcessingModule apm(opts));
 }
 
 TEST_F(AudioProcessingModuleTest, CreateWithHighPassFilterOnly) {
   AudioProcessingModule::Options opts;
   opts.high_pass_filter = true;
 
-  AudioProcessingModule apm(opts);
-
-  EXPECT_TRUE(apm.valid());
+  // Constructor throws on failure, so reaching this point means success
+  EXPECT_NO_THROW(AudioProcessingModule apm(opts));
 }
 
 // ============================================================================
@@ -442,12 +436,12 @@ TEST_F(AudioProcessingModuleTest, MoveConstruction) {
   opts.noise_suppression = true;
   AudioProcessingModule apm1(opts);
 
-  EXPECT_TRUE(apm1.valid());
-
+  // Move construct - should not throw
   AudioProcessingModule apm2(std::move(apm1));
 
-  EXPECT_TRUE(apm2.valid());
-  EXPECT_FALSE(apm1.valid()); // Moved-from should be invalid
+  // The moved-to APM should be usable
+  AudioFrame frame = create10msFrame(48000, 1);
+  EXPECT_NO_THROW(apm2.processStream(frame));
 }
 
 TEST_F(AudioProcessingModuleTest, MoveAssignment) {
@@ -456,24 +450,12 @@ TEST_F(AudioProcessingModuleTest, MoveAssignment) {
   AudioProcessingModule apm1(opts);
   AudioProcessingModule apm2(opts);
 
-  EXPECT_TRUE(apm1.valid());
-  EXPECT_TRUE(apm2.valid());
-
+  // Move assign - should not throw
   apm2 = std::move(apm1);
 
-  EXPECT_TRUE(apm2.valid());
-  EXPECT_FALSE(apm1.valid()); // Moved-from should be invalid
-}
-
-// ============================================================================
-// FfiHandleId Test
-// ============================================================================
-
-TEST_F(AudioProcessingModuleTest, FfiHandleIdNonZero) {
-  AudioProcessingModule::Options opts;
-  AudioProcessingModule apm(opts);
-
-  EXPECT_NE(apm.ffi_handle_id(), 0u);
+  // The moved-to APM should be usable
+  AudioFrame frame = create10msFrame(48000, 1);
+  EXPECT_NO_THROW(apm2.processStream(frame));
 }
 
 // ============================================================================
