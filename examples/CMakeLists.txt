@@ -116,6 +116,19 @@ target_link_libraries(SimpleDataStream
     livekit
 )
 
+add_executable(PublishNv12TcpSource
+  publish_nv12_tcp_source/main.cpp
+  publish_nv12_tcp_source/raw_nv12_tcp_source.cpp
+  publish_nv12_tcp_source/raw_nv12_tcp_source.h
+)
+
+target_include_directories(PublishNv12TcpSource PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(PublishNv12TcpSource
+  PRIVATE
+    livekit
+)
+
 add_custom_command(
   TARGET SimpleDataStream
   POST_BUILD
@@ -135,7 +148,7 @@ if(WIN32)
   )
   
   # Copy DLLs to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream)
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream PublishNv12TcpSource)
     foreach(DLL ${REQUIRED_DLLS})
       add_custom_command(TARGET ${EXAMPLE} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -159,7 +172,7 @@ if(UNIX)
   endif()
   
   # Copy shared library to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream)
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream PublishNv12TcpSource)
     add_custom_command(TARGET ${EXAMPLE} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
               "${LIVEKIT_LIB_DIR}/${FFI_SHARED_LIB}"
