@@ -1,0 +1,347 @@
+Here are the main issues / foot-guns I see in that snippet, grouped by severity.
+
+1) Input validation & type safety problems
+
+Blindly trusting $body[...] shapes.
+participant_attributes, participant_metadata, room_config are assumed to be the correct types. If a client sends "participant_attributes": "lol" you’ll pass a string into setAttributes() and may get a runtime error or (worse) unexpected serialization.
+
+Fix: explicitly validate types:
+
+participant_identity, participant_name, room_name → strings, non-empty, length capped
+
+participant_metadata → string (or JSON string, depending on SDK expectation)
+
+participant_attributes → associative array of strings
+
+room_config → array / specific schema expected by SDK
+
+!empty() is the wrong check for some fields.
+empty() treats "0", 0, false, [] as empty. If someone intentionally sets metadata to "0" you’ll skip it.
+
+Fix: use array_key_exists() / isset() + type checks instead.
+
+No bounds on identity/name/metadata sizes.
+A client can send megabytes of metadata/attributes and you’ll happily embed it into a JWT → big CPU + big response + possible gateway/proxy issues.
+
+Fix: enforce max lengths (identity/name/metadata) and max attribute count/size.
+
+2) Security / abuse concerns
+
+Unauthenticated token minting endpoint (likely).
+If this is exposed publicly without auth/rate limiting, anyone can mint tokens and join any room name they choose (including “admin-ish” room names), and they can set arbitrary identity/name/metadata/attributes.
+
+Fix: require auth (session cookie, API key, JWT from your app, etc.) + rate limit + allowlist/validate room names and identities.
+
+Identity spoofing.
+Because identity comes from the request body, a malicious client can claim to be another user (participant_identity: "alice").
+
+Fix: identity/name should come from your authenticated user context, not from client input.
+
+Room name injection / namespace collisions.
+Letting clients pick arbitrary room_name can cause collisions or unauthorized access patterns.
+
+Fix: server decides the room or validates it against what the authenticated user is allowed to join.
+
+3) Error handling & operational problems
+
+Missing checks for env vars.
+If LIVEKIT_API_KEY, LIVEKIT_API_SECRET, or LIVEKIT_URL are missing, you’ll mint invalid tokens or return bad data without a clear error.
+
+Fix: validate envs and return 500 with a clear message (don’t leak secrets).
+
+No try/catch around SDK calls.
+->toJwt() and some setters can throw. As-is, you may return HTML/500 with no JSON body.
+
+Fix: wrap token generation in try { ... } catch (\Throwable $e) { ... }.
+
+No response headers.
+You’re returning JSON but not setting Content-Type: application/json.
+
+Fix: header('Content-Type: application/json'); (and ideally charset).
+
+json_decode without checking for non-object JSON.
+If the request body is valid JSON but not an object (e.g. [] or "hi"), $body['room_name'] will emit warnings because $body isn’t an array.
+
+Fix: after decode, ensure is_array($body).
+
+4) Grants / permissions clarity
+
+Grant is “join room” only, but still potentially too broad.
+setRoomJoin() allows joining the room; depending on defaults, users can publish/subscribe. That may be fine, but many apps want finer control.
+
+Fix: set explicit publish/subscribe/record/admin permissions if your SDK supports it and your use case needs it.
+
+RoomConfig trust boundary.
+If room_config can influence server-side room behavior, accepting it from clients is risky unless you strictly validate/allowlist.
+
+Fix: server-owned config only, or validate against a safe subset.
+
+5) Minor correctness / style nits
+
+Port 3000 comment is meaningless in PHP.
+PHP typically runs behind a web server or built-in server; the code can’t “make sure it’s on port 3000.” This is likely copy/paste from a Node quickstart.
+
+Potential JWT bloat.
+Attributes/metadata/config all contribute to token size. Large JWTs can exceed header limits if later used in headers, or simply become unwieldy.
+
+A “safer skeleton” checklist (no big rewrite)
+
+If you want quick improvements without changing the structure:
+
+Set headers: Content-Type: application/json
+
+Ensure $body is an array: if (!is_array($body)) ...
+
+Validate env vars are present
+
+Validate/normalize inputs (string lengths, allowed characters, attribute schema)
+
+Don’t take identity/name from the client; derive from auth
+
+Wrap minting in try/catch and return JSON errors
+
+Add auth + rate limiting
+
+If you tell me what LiveKit PHP SDK version you’re using and what types it expects for setMetadata, setAttributes, and setRoomConfig, I can point out the exact type mismatches and suggest concrete validation rules.
+
+
+Yes — an intentional reconnect (especially if it wasn’t fully handled / “reconnected” wasn’t applied cleanly) can explain exactly that pattern: B is publishing audio, C hears it, A doesn’t; A still sees B’s video; everyone else is fine.
+
+Here are the most common mechanisms that produce that “A can’t hear B, but everything else works” symptom, and how they relate to reconnect / missing handling.
+
+1) A’s receiver-side subscription for B’s audio got dropped or stuck
+
+After reconnect/resume, the SDK often has to re-sync:
+
+which tracks A is subscribed to,
+
+which track IDs/SIDs are current,
+
+and the receiver pipeline for each track.
+
+If the reconnect path misses “re-apply subscriptions” (or misses the audio subset), you can get:
+
+B’s video subscribed correctly (so A sees B),
+
+B’s audio not subscribed / not attached / not resumed (so A hears nothing),
+
+while C successfully re-subscribed (so C hears B).
+
+What you’d see in logs (often on A’s side, not B’s):
+
+track subscribed/unsubscribed events for B audio missing
+
+“muted”/“enabled=false”/“track not attached” for audio only
+
+receiver stats: video inbound bytes increasing; audio inbound bytes ~0
+
+2) A is receiving B’s audio RTP, but decrypt/MLS state is wrong for that one stream
+
+If you’re using end-to-end encryption / MLS, a reconnect/desync can produce a selective decrypt failure:
+
+video might decrypt (different key usage / timing / SSRC mapping / separate sender keys)
+
+audio might fail decrypt (or fail key lookup) → silence
+
+other participants still fine (they have correct epoch/keys)
+
+This matches “C hears B, A doesn’t” because only A is out of sync.
+
+What you’d see:
+
+on A: “cannot decrypt frame”, “unknown key”, “epoch mismatch”, “discarding packet” for audio SSRC
+
+on B: usually nothing (B is just sending)
+
+on C: normal decrypt / no errors
+
+3) Track identity changed across reconnect and A is still bound to the old audio track
+
+An intentional reconnect can result in:
+
+B’s audio track being republished (new track SID / new transceiver / new SSRC),
+
+but A’s app logic or state machine still pointing at the old one.
+
+Result:
+
+UI shows B present + video (new video track handled)
+
+audio element for B is still bound to the old track (or never attached)
+
+C happened to bind to the new track
+
+Clues:
+
+two different audio track SIDs for B around the reconnect
+
+“unpublished old audio track” followed by “published new audio track”
+
+A never logs “subscribed to new audio track”
+
+4) Audio receiver exists but is muted/disabled only on A due to state not re-applied
+
+During reconnect, some SDKs re-create track objects; app code that manages mute/unmute can accidentally:
+
+keep B’s audio track muted on A,
+
+while video remains enabled.
+
+Clues:
+
+on A: audio track enabled=false, muted=true, or volume set to 0
+
+no inbound audio level, but subscription exists
+
+Why “B-side logs only” often can’t prove this
+
+Because the failure is usually on A’s receiving path:
+
+B is publishing and C hears it → B’s publisher is probably fine.
+
+The divergence is: A’s subscription/decrypt/attach path is broken.
+
+So B’s logs might show reconnect happened, but to explain “A can’t hear B” you almost always need:
+
+A-side track events + inbound-rtp stats + (if E2EE) decrypt logs.
+
+What to check quickly (high signal)
+
+If you can grab these, it will pinpoint which bucket you’re in:
+
+On participant A (receiver)
+
+Did A ever log Subscribed to B’s audio track (track SID)?
+
+Are inbound RTP audio bytes/packets increasing for B’s audio SSRC?
+
+Any decrypt/MLS errors tied to audio SSRC or key epoch?
+
+Is the audio track muted/disabled or not attached to an audio element?
+
+On participant B (publisher)
+
+Did B’s audio track get republished (new track SID) around reconnect?
+
+Any “audio track ended/restarted” events?
+
+Direct answer to your question
+
+Intentional reconnect + missing reconnected handling absolutely can explain this behavior, most commonly by leaving A’s audio subscription or receiver pipeline out of sync while video stays fine.
+
+If MLS/E2EE is in play, it can also explain it via a selective decrypt/key mismatch on A for B’s audio stream.
+
+If you paste:
+
+the reconnect section from B’s logs, and
+
+the same time window from A’s logs (even shorter),
+I can tell you which of the above is most likely and what exact log lines to look for next.
+
+Here’s a small, practical pattern that works well for 100+ rooms with autoSubscribe:false and survives reconnect/resume without “A can’t hear B” type drift.
+
+Core idea
+
+Keep a single source of truth for “who should I be subscribed to right now?”
+
+On any event that can desync state (reconnect/resumed, participant joined/left, tracks published/unpublished, active speaker change), re-apply that desired subscription set.
+
+You don’t need to persist “current subscription state” perfectly — you can recompute desired state and call subscribe/unsubscribe idempotently.
+
+Minimal JS/TS snippet
+import { Room, RoomEvent, Track } from "livekit-client";
+
+const room = new Room({
+  autoSubscribe: false,
+  // ...other options
+});
+
+// Your policy knobs
+const MAX_AUDIO_SUBS = 12; // keep small for 100+ rooms
+const pinnedIdentities = new Set<string>(); // optional: user pins
+
+function desiredAudioPublishers(): string[] {
+  // 1) Pins always included
+  const pins = [...pinnedIdentities];
+
+  // 2) Active speakers next (Room keeps this list updated)
+  const speakers = room.activeSpeakers
+    .map(p => p.identity)
+    .filter(Boolean);
+
+  // Merge, preserve order, cap
+  const ordered = [...new Set([...pins, ...speakers])];
+  return ordered.slice(0, MAX_AUDIO_SUBS);
+}
+
+function applyAudioSubscriptions() {
+  const wanted = new Set(desiredAudioPublishers());
+
+  for (const [, p] of room.remoteParticipants) {
+    // Find this participant’s mic publication (if any)
+    const micPub = [...p.audioTrackPublications.values()].find(pub =>
+      pub.source === Track.Source.Microphone
+    );
+    if (!micPub) continue;
+
+    const shouldSub = wanted.has(p.identity);
+
+    // Idempotent: calling setSubscribed repeatedly is fine
+    if (micPub.isSubscribed !== shouldSub) {
+      micPub.setSubscribed(shouldSub);
+    }
+  }
+}
+
+// Re-apply policy on anything that can change reality/state
+room
+  .on(RoomEvent.Connected, applyAudioSubscriptions)
+  .on(RoomEvent.Reconnected, applyAudioSubscriptions)       // WS/RTC recovered
+  .on(RoomEvent.Resumed, applyAudioSubscriptions)           // if using resume
+  .on(RoomEvent.ParticipantConnected, applyAudioSubscriptions)
+  .on(RoomEvent.ParticipantDisconnected, applyAudioSubscriptions)
+  .on(RoomEvent.TrackPublished, applyAudioSubscriptions)
+  .on(RoomEvent.TrackUnpublished, applyAudioSubscriptions)
+  .on(RoomEvent.ActiveSpeakersChanged, applyAudioSubscriptions);
+
+Do you need to track participant list / subscription state?
+
+You need less than you think:
+
+Participant list
+
+No — the room.remoteParticipants map is your participant list. You can iterate it whenever you re-apply.
+
+Subscription state
+
+Not really.
+
+You can compute desired state and call setSubscribed(true/false).
+
+Checking pub.isSubscribed is only to avoid spamming calls; it’s optional.
+
+What you do want to track
+
+Policy inputs you own:
+
+pinnedIdentities (if you support pins)
+
+maybe a “stage” list / visible tiles list
+
+MAX_AUDIO_SUBS
+
+Everything else can be derived from the room.
+
+Why this helps your “reconnect caused selective audio loss” case
+
+If a reconnect/resume accidentally leaves some audio subscriptions “off” (or bound to old track pubs), calling applyAudioSubscriptions() after Reconnected/Resumed/TrackPublished forces the client back to the correct state.
+
+This is the key: treat reconnect as “my local state might be wrong; re-sync everything.”
+
+Two small extras that prevent common gotchas
+
+Handle track SID changes
+On reconnect, you can see new publications. Hooking TrackPublished and reapplying covers this.
+
+Make sure your “identity” is stable
+Use participant.identity (string) rather than SIDs that might change between sessions.
