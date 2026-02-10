@@ -405,6 +405,7 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   for (int t = 0; t < config_.num_caller_threads; ++t) {
     caller_threads.emplace_back([&, thread_id = t]() {
       while (running.load()) {
+        // Use small payload that fits in single SCTP chunk
         std::string payload = generateRandomPayload(kSmallPayloadSize);
 
         size_t expected_checksum = 0;
@@ -423,6 +424,7 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
               std::chrono::duration<double, std::milli>(call_end - call_start)
                   .count();
 
+          // Verify response by comparing checksum
           size_t response_checksum = 0;
           for (char c : response) {
             response_checksum += static_cast<unsigned char>(c);
