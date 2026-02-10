@@ -570,14 +570,6 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
 
   StressTestStats stats;
   std::atomic<bool> running{true};
-  std::atomic<int> packet_counter{0};
-
-  // Helper to get current timestamp in microseconds since epoch
-  auto get_timestamp_us = []() {
-    return std::chrono::duration_cast<std::chrono::microseconds>(
-               std::chrono::system_clock::now().time_since_epoch())
-        .count();
-  };
 
   auto start_time = std::chrono::steady_clock::now();
   auto duration = std::chrono::seconds(config_.duration_seconds);
@@ -587,8 +579,6 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   for (int t = 0; t < config_.num_caller_threads; ++t) {
     caller_threads.emplace_back([&, thread_id = t]() {
       while (running.load()) {
-        int pkt_id = packet_counter.fetch_add(1);
-
         // Use small payload that fits in single SCTP chunk
         std::string payload = generateRandomPayload(kSmallPayloadSize);
 
@@ -599,24 +589,15 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
         }
 
         auto call_start = std::chrono::high_resolution_clock::now();
-        auto send_ts = get_timestamp_us();
-
-        std::cerr << "[LATENCY] SENDER pkt=" << pkt_id
-                  << " SEND_START ts=" << send_ts << std::endl;
 
         try {
           std::string response = caller_room->localParticipant()->performRpc(
               receiver_identity, "small-payload-stress", payload, 60.0);
 
           auto call_end = std::chrono::high_resolution_clock::now();
-          auto recv_ts = get_timestamp_us();
           double latency_ms =
               std::chrono::duration<double, std::milli>(call_end - call_start)
                   .count();
-
-          std::cerr << "[LATENCY] SENDER pkt=" << pkt_id
-                    << " RESPONSE_RECEIVED ts=" << recv_ts
-                    << " latency_ms=" << latency_ms << std::endl;
 
           // Verify response by comparing checksum
           size_t response_checksum = 0;
