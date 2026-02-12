@@ -29,3 +29,5 @@ lib/
 *.dll
 *.exe
 livekit.log
+
+examples/realsense-livekit/
