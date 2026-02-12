@@ -8,6 +8,7 @@ out
 build/
 build-debug/
 build-release/
+release/
 vcpkg_installed/
 # Generated header
 include/livekit/build.h
@@ -17,6 +18,7 @@ docs/html/
 docs/latex/
 .vs/
 .vscode/
+.cursor/
 # Compiled output
 bin/
 lib/
