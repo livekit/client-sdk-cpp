@@ -120,13 +120,13 @@ void runFileSinkDemo() {
 
   // The shared_ptr keeps the stream alive inside the lambda even if
   // the local variable goes out of scope before the callback fires.
-  livekit::LogCallback fileSink =
-      [file](livekit::LogLevel level, const std::string &logger_name,
-             const std::string &message) {
-        *file << nowISO8601() << " [" << levelTag(level) << "] ["
-              << logger_name << "] " << message << "\n";
-        file->flush();
-      };
+  livekit::LogCallback fileSink = [file](livekit::LogLevel level,
+                                         const std::string &logger_name,
+                                         const std::string &message) {
+    *file << nowISO8601() << " [" << levelTag(level) << "] [" << logger_name
+          << "] " << message << "\n";
+    file->flush();
+  };
 
   // In a real app you would call:
   //   livekit::setLogCallback(fileSink);
@@ -178,14 +178,13 @@ std::string escapeJson(const std::string &s) {
 void runJsonSinkDemo() {
   std::cout << "\n=== JSON sink: structured log lines to stdout ===\n\n";
 
-  livekit::LogCallback jsonSink =
-      [](livekit::LogLevel level, const std::string &logger_name,
-         const std::string &message) {
-        std::cout << R"({"ts":")" << nowISO8601() << R"(","level":")"
-                  << levelTag(level) << R"(","logger":")"
-                  << escapeJson(logger_name) << R"(","msg":")"
-                  << escapeJson(message) << "\"}\n";
-      };
+  livekit::LogCallback jsonSink = [](livekit::LogLevel level,
+                                     const std::string &logger_name,
+                                     const std::string &message) {
+    std::cout << R"({"ts":")" << nowISO8601() << R"(","level":")"
+              << levelTag(level) << R"(","logger":")" << escapeJson(logger_name)
+              << R"(","msg":")" << escapeJson(message) << "\"}\n";
+  };
 
   livekit::setLogCallback(jsonSink);
   driveCallback(jsonSink);
@@ -228,39 +227,38 @@ void runRos2SinkDemo() {
 
   const std::string node_name = "livekit_bridge_node";
 
-  livekit::LogCallback ros2Sink =
-      [&node_name](livekit::LogLevel level, const std::string &logger_name,
-                   const std::string &message) {
-        const char *ros_level;
-        switch (level) {
-        case livekit::LogLevel::Trace:
-        case livekit::LogLevel::Debug:
-          ros_level = "DEBUG";
-          break;
-        case livekit::LogLevel::Info:
-          ros_level = "INFO";
-          break;
-        case livekit::LogLevel::Warn:
-          ros_level = "WARN";
-          break;
-        case livekit::LogLevel::Error:
-        case livekit::LogLevel::Critical:
-          ros_level = "ERROR";
-          break;
-        default:
-          ros_level = "INFO";
-          break;
-        }
+  livekit::LogCallback ros2Sink = [&node_name](livekit::LogLevel level,
+                                               const std::string &logger_name,
+                                               const std::string &message) {
+    const char *ros_level;
+    switch (level) {
+    case livekit::LogLevel::Trace:
+    case livekit::LogLevel::Debug:
+      ros_level = "DEBUG";
+      break;
+    case livekit::LogLevel::Info:
+      ros_level = "INFO";
+      break;
+    case livekit::LogLevel::Warn:
+      ros_level = "WARN";
+      break;
+    case livekit::LogLevel::Error:
+    case livekit::LogLevel::Critical:
+      ros_level = "ERROR";
+      break;
+    default:
+      ros_level = "INFO";
+      break;
+    }
 
-        // Mimic: [INFO] [1719500000.123] [livekit_bridge_node]: [livekit] msg
-        auto epoch_s =
-            std::chrono::duration<double>(
-                std::chrono::system_clock::now().time_since_epoch())
-                .count();
-        std::cout << "[" << ros_level << "] [" << std::fixed
-                  << std::setprecision(3) << epoch_s << "] [" << node_name
-                  << "]: [" << logger_name << "] " << message << "\n";
-      };
+    // Mimic: [INFO] [1719500000.123] [livekit_bridge_node]: [livekit] msg
+    auto epoch_s = std::chrono::duration<double>(
+                       std::chrono::system_clock::now().time_since_epoch())
+                       .count();
+    std::cout << "[" << ros_level << "] [" << std::fixed << std::setprecision(3)
+              << epoch_s << "] [" << node_name << "]: [" << logger_name << "] "
+              << message << "\n";
+  };
 
   livekit::setLogCallback(ros2Sink);
   driveCallback(ros2Sink);

@@ -72,12 +72,11 @@ TEST_F(LoggingTest, CallbackReceivesLogMessages) {
   std::mutex mtx;
   std::vector<Captured> captured;
 
-  livekit::setLogCallback(
-      [&](LogLevel level, const std::string &logger_name,
-          const std::string &message) {
-        std::lock_guard<std::mutex> lock(mtx);
-        captured.push_back({level, logger_name, message});
-      });
+  livekit::setLogCallback([&](LogLevel level, const std::string &logger_name,
+                              const std::string &message) {
+    std::lock_guard<std::mutex> lock(mtx);
+    captured.push_back({level, logger_name, message});
+  });
 
   livekit::setLogLevel(LogLevel::Trace);
 
@@ -102,11 +101,11 @@ TEST_F(LoggingTest, CallbackReceivesCorrectLevel) {
   std::mutex mtx;
   std::vector<LogLevel> levels_seen;
 
-  livekit::setLogCallback([&](LogLevel level, const std::string &,
-                              const std::string &) {
-    std::lock_guard<std::mutex> lock(mtx);
-    levels_seen.push_back(level);
-  });
+  livekit::setLogCallback(
+      [&](LogLevel level, const std::string &, const std::string &) {
+        std::lock_guard<std::mutex> lock(mtx);
+        levels_seen.push_back(level);
+      });
 
   livekit::setLogLevel(LogLevel::Trace);
 
@@ -202,10 +201,8 @@ TEST_F(LoggingTest, ReplacingCallbackStopsOldOne) {
   std::atomic<int> old_count{0};
   std::atomic<int> new_count{0};
 
-  livekit::setLogCallback(
-      [&](LogLevel, const std::string &, const std::string &) {
-        old_count.fetch_add(1);
-      });
+  livekit::setLogCallback([&](LogLevel, const std::string &,
+                              const std::string &) { old_count.fetch_add(1); });
 
   livekit::setLogLevel(LogLevel::Trace);
   LK_LOG_INFO("to old");
@@ -213,10 +210,8 @@ TEST_F(LoggingTest, ReplacingCallbackStopsOldOne) {
 
   int old_before = old_count.load();
 
-  livekit::setLogCallback(
-      [&](LogLevel, const std::string &, const std::string &) {
-        new_count.fetch_add(1);
-      });
+  livekit::setLogCallback([&](LogLevel, const std::string &,
+                              const std::string &) { new_count.fetch_add(1); });
 
   LK_LOG_INFO("to new");
 

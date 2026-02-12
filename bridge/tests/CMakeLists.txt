@@ -37,6 +37,11 @@ if(BRIDGE_TEST_SOURCES)
     ${BRIDGE_TEST_SOURCES}
   )
 
+  target_include_directories(livekit_bridge_tests
+    PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/../src
+  )
+
   target_link_libraries(livekit_bridge_tests
     PRIVATE
       livekit_bridge

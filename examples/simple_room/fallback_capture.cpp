@@ -23,8 +23,8 @@
 #include <iostream>
 #include <thread>
 
-#include "lk_log.h"
 #include "livekit/livekit.h"
+#include "lk_log.h"
 #include "wav_audio_source.h"
 
 using namespace livekit;

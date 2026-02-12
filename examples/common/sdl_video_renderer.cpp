@@ -16,8 +16,8 @@
 
 #include "sdl_video_renderer.h"
 
-#include "lk_log.h"
 #include "livekit/livekit.h"
+#include "lk_log.h"
 #include <cstring>
 
 using namespace livekit;

@@ -88,7 +88,7 @@ public:
   std::optional<std::string> mime_type() const noexcept { return mime_type_; }
 
   // Handle access
-  bool has_handle() const noexcept { return !handle_.valid(); }
+  bool has_handle() const noexcept { return handle_.valid(); }
   uintptr_t ffi_handle_id() const noexcept { return handle_.get(); }
 
   // Async get stats

@@ -152,9 +152,10 @@ public:
    * @throws std::runtime_error If the underlying FFI handle is invalid or
    *                             the FFI call fails unexpectedly.
    */
-  std::string performRpc(const std::string &destination_identity,
-                         const std::string &method, const std::string &payload,
-                         std::optional<double> response_timeout = std::nullopt);
+  std::string
+  performRpc(const std::string &destination_identity, const std::string &method,
+             const std::string &payload,
+             const std::optional<double> &response_timeout = std::nullopt);
 
   /**
    * Register a handler for an incoming RPC method.

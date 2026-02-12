@@ -108,14 +108,15 @@ jobs:
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
             libabsl-dev \
-            libwayland-dev libdecor-0-dev
+            libwayland-dev libdecor-0-dev \
+            libspdlog-dev
 
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
         run: |
           set -eux
           brew update
-          brew install cmake ninja protobuf abseil
+          brew install cmake ninja protobuf abseil spdlog
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)

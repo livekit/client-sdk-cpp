@@ -36,6 +36,41 @@ add_compile_definitions(SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL})
 # Shared example code (SDL media, wav source, etc.)
 set(EXAMPLES_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
 
+# All example executables (used for copying livekit_ffi DLL/shared lib)
+set(EXAMPLES_ALL
+  SimpleRoom
+  SimpleRpc
+  SimpleJoystickSender
+  SimpleJoystickReceiver
+  SimpleDataStream
+  LoggingLevelsBasicUsage
+  LoggingLevelsCustomSinks
+  BridgeRobot
+  BridgeHuman
+  BridgeMuteCaller
+  BridgeMuteReceiver
+  BridgeRpcCaller
+  BridgeRpcReceiver
+)
+
+# Bridge examples (need livekit_bridge DLL/shared lib in addition to livekit_ffi)
+set(EXAMPLES_BRIDGE
+  BridgeRobot
+  BridgeHuman
+  BridgeMuteCaller
+  BridgeMuteReceiver
+  BridgeRpcCaller
+  BridgeRpcReceiver
+)
+
+# Examples that use SDL3 (need SDL3 lib copied on Linux; SimpleRoom is handled separately above)
+set(EXAMPLES_NEED_SDL3
+  BridgeRobot
+  BridgeHuman
+  BridgeMuteCaller
+  BridgeMuteReceiver
+)
+
 add_executable(SimpleRoom
   simple_room/main.cpp
   simple_room/fallback_capture.cpp
@@ -232,9 +267,45 @@ target_include_directories(BridgeHuman PRIVATE
 )
 target_link_libraries(BridgeHuman PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
 
-# Copy SDL3 shared library to bridge_human_robot example output directories
+# --- bridge_rpc examples (headless custom RPC caller + receiver) ---
+
+add_executable(BridgeRpcCaller
+  bridge_rpc/custom_caller.cpp
+)
+target_link_libraries(BridgeRpcCaller PRIVATE livekit_bridge)
+
+add_executable(BridgeRpcReceiver
+  bridge_rpc/custom_receiver.cpp
+)
+target_link_libraries(BridgeRpcReceiver PRIVATE livekit_bridge)
+
+# --- bridge_mute_unmute examples (caller uses SDL3 for A/V playback; receiver is headless) ---
+
+add_executable(BridgeMuteCaller
+  bridge_mute_unmute/caller.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.h
+)
+target_include_directories(BridgeMuteCaller PRIVATE
+  ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
+  ${EXAMPLES_COMMON_DIR}
+)
+target_link_libraries(BridgeMuteCaller PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
+
+add_executable(BridgeMuteReceiver
+  bridge_mute_unmute/receiver.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.h
+)
+target_include_directories(BridgeMuteReceiver PRIVATE
+  ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
+  ${EXAMPLES_COMMON_DIR}
+)
+target_link_libraries(BridgeMuteReceiver PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
+
+# Copy SDL3 shared library to bridge example output directories
 if(UNIX AND NOT APPLE)
-  foreach(_target BridgeRobot BridgeHuman)
+  foreach(_target ${EXAMPLES_NEED_SDL3})
     add_custom_command(TARGET ${_target} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
               "$<TARGET_FILE:SDL3::SDL3>"
@@ -247,7 +318,7 @@ if(UNIX AND NOT APPLE)
     )
   endforeach()
 else()
-  foreach(_target BridgeRobot BridgeHuman)
+  foreach(_target ${EXAMPLES_NEED_SDL3})
     add_custom_command(TARGET ${_target} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
               "$<TARGET_FILE:SDL3::SDL3>"
@@ -258,70 +329,74 @@ else()
   endforeach()
 endif()
 
-# Windows: Copy required DLLs to examples output directory
+# Windows: Copy required DLLs to examples output directory (single copy to avoid parallel POST_BUILD races)
 if(WIN32)
-  # Get the livekit library output directory (where DLLs are copied during main build)
-  set(LIVEKIT_LIB_DIR $<TARGET_FILE_DIR:livekit>)
-  
-  # List of DLLs to copy (using generator expressions for config-dependent names)
-  set(REQUIRED_DLLS
-    "livekit_ffi.dll"
+  set(REQUIRED_DLLS "livekit_ffi.dll")
+
+  # One copy of each DLL to bin/; all examples depend on this target
+  add_custom_command(OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/livekit_ffi.dll
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE_DIR:livekit>/livekit_ffi.dll
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/livekit_ffi.dll
+    DEPENDS livekit
+    COMMENT "Copying livekit_ffi.dll to examples output directory"
   )
-  
-  # Copy DLLs to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleJoystickSender SimpleJoystickReceiver SimpleDataStream LoggingLevelsBasicUsage LoggingLevelsCustomSinks BridgeRobot BridgeHuman)
-    foreach(DLL ${REQUIRED_DLLS})
-      add_custom_command(TARGET ${EXAMPLE} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "${LIVEKIT_LIB_DIR}/${DLL}"
-                "$<TARGET_FILE_DIR:${EXAMPLE}>/${DLL}"
-        COMMENT "Copying ${DLL} to ${EXAMPLE} output directory"
-        VERBATIM
-      )
-    endforeach()
+  add_custom_target(copy_ffi_dll_to_bin ALL DEPENDS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/livekit_ffi.dll)
+  foreach(EXAMPLE ${EXAMPLES_ALL})
+    add_dependencies(${EXAMPLE} copy_ffi_dll_to_bin)
   endforeach()
 
-  # bridge_human_robot examples also need livekit_bridge.dll
-  foreach(EXAMPLE BridgeRobot BridgeHuman)
-    add_custom_command(TARGET ${EXAMPLE} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "$<TARGET_FILE:livekit_bridge>"
-              "$<TARGET_FILE_DIR:${EXAMPLE}>/$<TARGET_FILE_NAME:livekit_bridge>"
-      COMMENT "Copying livekit_bridge DLL to ${EXAMPLE} output directory"
-      VERBATIM
-    )
+  # Bridge examples also need livekit_bridge.dll (single copy to bin/)
+  set(BRIDGE_DLL "livekit_bridge.dll")
+  add_custom_command(OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_DLL}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:livekit_bridge>
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_DLL}
+    DEPENDS livekit_bridge
+    COMMENT "Copying livekit_bridge DLL to examples output directory"
+  )
+  add_custom_target(copy_bridge_dll_to_bin ALL DEPENDS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_DLL})
+  foreach(EXAMPLE ${EXAMPLES_BRIDGE})
+    add_dependencies(${EXAMPLE} copy_bridge_dll_to_bin)
   endforeach()
 endif()
 
-# Linux/macOS: Copy shared library to examples output directory
+# Linux/macOS: Copy shared library to examples output directory (single copy to avoid parallel POST_BUILD races)
 if(UNIX)
-  set(LIVEKIT_LIB_DIR $<TARGET_FILE_DIR:livekit>)
-  
   if(APPLE)
     set(FFI_SHARED_LIB "liblivekit_ffi.dylib")
   else()
     set(FFI_SHARED_LIB "liblivekit_ffi.so")
   endif()
-  
-  # Copy shared library to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleJoystickSender SimpleJoystickReceiver SimpleDataStream LoggingLevelsBasicUsage LoggingLevelsCustomSinks BridgeRobot BridgeHuman)
-    add_custom_command(TARGET ${EXAMPLE} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "${LIVEKIT_LIB_DIR}/${FFI_SHARED_LIB}"
-              "$<TARGET_FILE_DIR:${EXAMPLE}>/${FFI_SHARED_LIB}"
-      COMMENT "Copying ${FFI_SHARED_LIB} to ${EXAMPLE} output directory"
-      VERBATIM
-    )
+
+  # One copy to bin/; all examples depend on this target so the copy runs once
+  add_custom_command(OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${FFI_SHARED_LIB}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE_DIR:livekit>/${FFI_SHARED_LIB}
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${FFI_SHARED_LIB}
+    DEPENDS livekit
+    COMMENT "Copying ${FFI_SHARED_LIB} to examples output directory"
+  )
+  add_custom_target(copy_ffi_to_bin ALL DEPENDS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${FFI_SHARED_LIB})
+  foreach(EXAMPLE ${EXAMPLES_ALL})
+    add_dependencies(${EXAMPLE} copy_ffi_to_bin)
   endforeach()
 
-  # bridge_human_robot examples also need livekit_bridge shared library
-  foreach(EXAMPLE BridgeRobot BridgeHuman)
-    add_custom_command(TARGET ${EXAMPLE} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-              "$<TARGET_FILE:livekit_bridge>"
-              "$<TARGET_FILE_DIR:${EXAMPLE}>/$<TARGET_FILE_NAME:livekit_bridge>"
-      COMMENT "Copying livekit_bridge to ${EXAMPLE} output directory"
-      VERBATIM
-    )
+  # Bridge examples also need livekit_bridge shared library (single copy to bin/)
+  if(APPLE)
+    set(BRIDGE_SHARED_LIB "liblivekit_bridge.dylib")
+  else()
+    set(BRIDGE_SHARED_LIB "liblivekit_bridge.so")
+  endif()
+  add_custom_command(OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_SHARED_LIB}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:livekit_bridge>
+            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_SHARED_LIB}
+    DEPENDS livekit_bridge
+    COMMENT "Copying livekit_bridge to examples output directory"
+  )
+  add_custom_target(copy_bridge_to_bin ALL DEPENDS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_SHARED_LIB})
+  foreach(EXAMPLE ${EXAMPLES_BRIDGE})
+    add_dependencies(${EXAMPLE} copy_bridge_to_bin)
   endforeach()
 endif()
