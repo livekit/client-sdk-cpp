@@ -341,7 +341,6 @@ private:
   std::vector<std::shared_ptr<BridgeAudioTrack>> published_audio_tracks_;
   /// @copydoc published_audio_tracks_
   std::vector<std::shared_ptr<BridgeVideoTrack>> published_video_tracks_;
-
 };
 
 } // namespace livekit_bridge

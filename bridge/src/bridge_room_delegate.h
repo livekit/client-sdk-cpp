@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 
+<<<<<<< HEAD
 /// @file bridge_room_delegate.h
 /// @brief Internal RoomDelegate forwarding SDK events to LiveKitBridge.
 
+=======
+>>>>>>> ec4d4d4 (livekit_bridge: Ergonomic library on top of the Client C++ SDK)
 #pragma once
 
 #include "livekit/room_delegate.h"
@@ -39,7 +42,8 @@ public:
   void onTrackSubscribed(livekit::Room &room,
                          const livekit::TrackSubscribedEvent &ev) override;
 
-  /// Forwards a track-unsubscribed event to LiveKitBridge::onTrackUnsubscribed().
+  /// Forwards a track-unsubscribed event to
+  /// LiveKitBridge::onTrackUnsubscribed().
   void onTrackUnsubscribed(livekit::Room &room,
                            const livekit::TrackUnsubscribedEvent &ev) override;
 
