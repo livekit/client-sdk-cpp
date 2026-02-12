@@ -18,7 +18,6 @@
 
 #include <array>
 #include <atomic>
-#include <array>
 #include <chrono>
 #include <cstdint>
 #include <iostream>
