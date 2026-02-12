@@ -1,0 +1,9 @@
+/**:
+  ros__parameters:
+    room_name: "robo_room"
+    topic_polling_period_ms: 500
+
+    # Examples: "/lidar/points" (exact), "/tf.*" (prefix match), "/camera/.*" (namespace match)
+    ros_topics: ["/camera/image_raw", "/lidar/points", "/odom", "/battery_state", "/tf.*"]
+    # TODO(sderosa)
+    # livekit_to_ros_allow_topics: ["human.teleop"]

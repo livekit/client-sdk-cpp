@@ -1,0 +1,12 @@
+<launch>
+  <arg name="debug"                           default="false" />
+  <arg name="num_ros_threads"                 default="0" />
+  <arg name="config_file"                     default="$(find ros2_livekit_bridge)/config/ros2_livekit_bridge_params.yaml" />
+
+  <node pkg="ros2_livekit_bridge" exec="ros2_livekit_bridge_node", name="ros2_livekit_bridge" output="screen">
+    <param from="$(var config_file)"/>
+    
+    <param name="debug" value="$(var debug)"/>
+    <param name="num_ros_threads" value="$(var num_ros_threads)"/>
+  </node>
+</launch>

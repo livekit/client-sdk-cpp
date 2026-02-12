@@ -37,6 +37,9 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 
 > **Note**: If the SDK was built with Protobuf 6.0+, you also need `libabsl-dev` (Linux) or `abseil` (macOS).
 
+## Prerequisites
+- install livekit-cli by following the (official livekit docs)[https://docs.livekit.io/intro/basics/cli/start/]
+
 ## 🧩 Clone the Repository
 
 Make sure to initialize the Rust submodule (`client-sdk-rust`):
@@ -446,7 +449,6 @@ CPP SDK is using clang C++ format
 ```bash
 brew install clang-format
 ```
-
 
 #### Memory Checks
 Run valgrind on various examples or tests to check for memory leaks and other issues.
