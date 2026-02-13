@@ -91,7 +91,7 @@ jobs:
         if: runner.os == 'Windows'
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: 'c82f74667287d3dc386bce81e44964370c91a289'
+          vcpkgGitCommitId: 'fb87e2bb3fe69e16c224989acb5a61349166c782'
 
       # ---------- OS-specific deps ----------
       - name: Install deps (Ubuntu)
