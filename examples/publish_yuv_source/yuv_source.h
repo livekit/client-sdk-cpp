@@ -38,12 +38,8 @@ using YuvFrameCallback = std::function<void(YuvFrame)>;
  */
 class YuvSource {
 public:
-  YuvSource(const std::string &host,
-            std::uint16_t port,
-            int width,
-            int height,
-            int fps,
-            YuvFrameCallback callback);
+  YuvSource(const std::string &host, std::uint16_t port, int width, int height,
+            int fps, YuvFrameCallback callback);
   ~YuvSource();
 
   void start();

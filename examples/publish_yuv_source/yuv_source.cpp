@@ -43,14 +43,16 @@ namespace {
 socket_t connectTcp(const std::string &host, std::uint16_t port) {
 #ifdef _WIN32
   WSADATA wsa;
-  if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) return INVALID_SOCKET_VALUE;
+  if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+    return INVALID_SOCKET_VALUE;
 #endif
   struct addrinfo hints = {}, *res = nullptr;
   hints.ai_family = AF_UNSPEC;
   hints.ai_socktype = SOCK_STREAM;
   std::string portStr = std::to_string(port);
   if (getaddrinfo(host.c_str(), portStr.c_str(), &hints, &res) != 0) {
-    std::cerr << "YuvSource: getaddrinfo failed for " << host << ":" << port << "\n";
+    std::cerr << "YuvSource: getaddrinfo failed for " << host << ":" << port
+              << "\n";
     return INVALID_SOCKET_VALUE;
   }
   socket_t fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
@@ -69,34 +71,28 @@ socket_t connectTcp(const std::string &host, std::uint16_t port) {
 
 } // namespace
 
-YuvSource::YuvSource(const std::string &host,
-                     std::uint16_t port,
-                     int width,
-                     int height,
-                     int fps,
-                     YuvFrameCallback callback)
-    : host_(host),
-      port_(port),
-      width_(width),
-      height_(height),
-      fps_(fps),
+YuvSource::YuvSource(const std::string &host, std::uint16_t port, int width,
+                     int height, int fps, YuvFrameCallback callback)
+    : host_(host), port_(port), width_(width), height_(height), fps_(fps),
       callback_(std::move(callback)) {
   if (width_ > 0 && height_ > 0) {
-    frame_size_ =
-        static_cast<std::size_t>(width_) * static_cast<std::size_t>(height_) * 3 / 2;
+    frame_size_ = static_cast<std::size_t>(width_) *
+                  static_cast<std::size_t>(height_) * 3 / 2;
   }
 }
 
 YuvSource::~YuvSource() { stop(); }
 
 void YuvSource::start() {
-  if (running_.exchange(true)) return;
+  if (running_.exchange(true))
+    return;
   thread_ = std::thread(&YuvSource::loop, this);
 }
 
 void YuvSource::stop() {
   running_.store(false);
-  if (thread_.joinable()) thread_.join();
+  if (thread_.joinable())
+    thread_.join();
 }
 
 void YuvSource::loop() {
@@ -108,14 +104,15 @@ void YuvSource::loop() {
 
   socket_t fd = connectTcp(host_, port_);
   if (fd == INVALID_SOCKET_VALUE) {
-    std::cerr << "YuvSource: failed to connect to " << host_ << ":" << port_ << "\n";
+    std::cerr << "YuvSource: failed to connect to " << host_ << ":" << port_
+              << "\n";
     running_.store(false);
     return;
   }
 
-  std::cout << "YuvSource: connected to " << host_ << ":" << port_ << " (" << width_
-            << "x" << height_ << "@" << fps_ << "fps, frame=" << frame_size_
-            << " bytes)\n";
+  std::cout << "YuvSource: connected to " << host_ << ":" << port_ << " ("
+            << width_ << "x" << height_ << "@" << fps_
+            << "fps, frame=" << frame_size_ << " bytes)\n";
 
   auto t0 = std::chrono::steady_clock::now();
 
@@ -135,12 +132,12 @@ void YuvSource::loop() {
       }
       filled += static_cast<std::size_t>(n);
     }
-    if (!running_.load() || filled < frame_size_) break;
+    if (!running_.load() || filled < frame_size_)
+      break;
 
-    std::int64_t ts_us =
-        std::chrono::duration_cast<std::chrono::microseconds>(
-            std::chrono::steady_clock::now() - t0)
-            .count();
+    std::int64_t ts_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                             std::chrono::steady_clock::now() - t0)
+                             .count();
     if (callback_) {
       YuvFrame out;
       out.data = std::move(frame);
