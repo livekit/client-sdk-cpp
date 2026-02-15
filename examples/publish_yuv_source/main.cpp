@@ -36,19 +36,18 @@ namespace {
 std::atomic<bool> g_running{true};
 
 void printUsage(const char *prog) {
-  std::cerr
-      << "Usage: " << prog
-      << " --url <ws-url> --token <token> --raw-nv12 <host:port> [options]\n\n"
-      << "  --url <url>              LiveKit WebSocket URL\n"
-      << "  --token <token>          JWT token\n"
-      << "  --enable_e2ee            Enable E2EE\n"
-      << "  --e2ee_key <key>         E2EE shared key\n\n"
-      << "  --raw-nv12 <host:port>   TCP server for raw NV12 (default "
-         "127.0.0.1:5004)\n"
-      << "  --raw-width <w>          Frame width (default: 1280)\n"
-      << "  --raw-height <h>         Frame height (default: 720)\n"
-      << "  --raw-fps <fps>          Frame rate (default: 30)\n\n"
-      << "Env: LIVEKIT_URL, LIVEKIT_TOKEN, LIVEKIT_E2EE_KEY\n";
+  std::cerr << "Usage: " << prog
+            << " --url <ws-url> --token <token> --tcp <host:port> [options]\n\n"
+            << "  --url <url>              LiveKit WebSocket URL\n"
+            << "  --token <token>          JWT token\n"
+            << "  --enable_e2ee            Enable E2EE\n"
+            << "  --e2ee_key <key>         E2EE shared key\n\n"
+            << "  --tcp <host:port>        TCP server for raw NV12 (default "
+               "127.0.0.1:5004)\n"
+            << "  --raw-width <w>          Frame width (default: 1280)\n"
+            << "  --raw-height <h>         Frame height (default: 720)\n"
+            << "  --raw-fps <fps>          Frame rate (default: 30)\n\n"
+            << "Env: LIVEKIT_URL, LIVEKIT_TOKEN, LIVEKIT_E2EE_KEY\n";
 }
 
 void handleSignal(int) { g_running.store(false); }
@@ -86,8 +85,8 @@ bool parseArgs(int argc, char *argv[], std::string &url, std::string &token,
       enable_e2ee = true;
       continue;
     }
-    if (a.rfind("--raw-nv12", 0) == 0) {
-      std::string v = get_flag_value("--raw-nv12", i);
+    if (a.rfind("--tcp", 0) == 0) {
+      std::string v = get_flag_value("--tcp", i);
       if (v.empty())
         v = "127.0.0.1:5004";
       size_t colon = v.find(':');

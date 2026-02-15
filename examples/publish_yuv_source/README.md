@@ -7,5 +7,5 @@ gst-launch-1.0 avfvideosrc device-index=0 ! videoconvert ! videorate ! videoscal
 ### Publish stream to LiveKit
 
 ```bash
-./build-release/bin/PublishYuvSource --url wss://... --token <JWT> --raw-nv12 0.0.0.0:5004 --raw-width 1280 --raw-height 720 --raw-fps 30
+./build-release/bin/PublishYuvSource --url wss://... --token <JWT> --tcp 0.0.0.0:5004 --raw-width 1280 --raw-height 720 --raw-fps 30
 ```
