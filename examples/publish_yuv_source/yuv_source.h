@@ -23,28 +23,28 @@
 #include <thread>
 #include <vector>
 
-namespace publish_nv12 {
+namespace publish_yuv {
 
-struct RawNv12Frame {
+struct YuvFrame {
   std::vector<std::uint8_t> data;
   std::int64_t timestamp_us{0};
 };
 
-using RawNv12FrameCallback = std::function<void(RawNv12Frame)>;
+using YuvFrameCallback = std::function<void(YuvFrame)>;
 
 /**
  * Reads raw NV12 frames from a TCP server (fixed-size frames).
  * Runs a background thread; call stop() to disconnect.
  */
-class RawNv12TcpSource {
+class YuvSource {
 public:
-  RawNv12TcpSource(const std::string &host,
-                   std::uint16_t port,
-                   int width,
-                   int height,
-                   int fps,
-                   RawNv12FrameCallback callback);
-  ~RawNv12TcpSource();
+  YuvSource(const std::string &host,
+            std::uint16_t port,
+            int width,
+            int height,
+            int fps,
+            YuvFrameCallback callback);
+  ~YuvSource();
 
   void start();
   void stop();
@@ -59,9 +59,9 @@ private:
   int height_;
   int fps_;
   std::size_t frame_size_{0};
-  RawNv12FrameCallback callback_;
+  YuvFrameCallback callback_;
   std::atomic<bool> running_{false};
   std::thread thread_;
 };
 
-} // namespace publish_nv12
+} // namespace publish_yuv

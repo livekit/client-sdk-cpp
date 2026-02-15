@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "raw_nv12_tcp_source.h"
+#include "yuv_source.h"
 
 #include <chrono>
 #include <iostream>
@@ -36,7 +36,7 @@ typedef int socket_t;
 #define close_socket close
 #endif
 
-namespace publish_nv12 {
+namespace publish_yuv {
 
 namespace {
 
@@ -50,8 +50,7 @@ socket_t connectTcp(const std::string &host, std::uint16_t port) {
   hints.ai_socktype = SOCK_STREAM;
   std::string portStr = std::to_string(port);
   if (getaddrinfo(host.c_str(), portStr.c_str(), &hints, &res) != 0) {
-    std::cerr << "RawNv12TcpSource: getaddrinfo failed for " << host << ":" << port
-              << "\n";
+    std::cerr << "YuvSource: getaddrinfo failed for " << host << ":" << port << "\n";
     return INVALID_SOCKET_VALUE;
   }
   socket_t fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
@@ -70,12 +69,12 @@ socket_t connectTcp(const std::string &host, std::uint16_t port) {
 
 } // namespace
 
-RawNv12TcpSource::RawNv12TcpSource(const std::string &host,
-                                   std::uint16_t port,
-                                   int width,
-                                   int height,
-                                   int fps,
-                                   RawNv12FrameCallback callback)
+YuvSource::YuvSource(const std::string &host,
+                     std::uint16_t port,
+                     int width,
+                     int height,
+                     int fps,
+                     YuvFrameCallback callback)
     : host_(host),
       port_(port),
       width_(width),
@@ -83,41 +82,40 @@ RawNv12TcpSource::RawNv12TcpSource(const std::string &host,
       fps_(fps),
       callback_(std::move(callback)) {
   if (width_ > 0 && height_ > 0) {
-    frame_size_ = static_cast<std::size_t>(width_) *
-                  static_cast<std::size_t>(height_) * 3 / 2;
+    frame_size_ =
+        static_cast<std::size_t>(width_) * static_cast<std::size_t>(height_) * 3 / 2;
   }
 }
 
-RawNv12TcpSource::~RawNv12TcpSource() { stop(); }
+YuvSource::~YuvSource() { stop(); }
 
-void RawNv12TcpSource::start() {
+void YuvSource::start() {
   if (running_.exchange(true)) return;
-  thread_ = std::thread(&RawNv12TcpSource::loop, this);
+  thread_ = std::thread(&YuvSource::loop, this);
 }
 
-void RawNv12TcpSource::stop() {
+void YuvSource::stop() {
   running_.store(false);
   if (thread_.joinable()) thread_.join();
 }
 
-void RawNv12TcpSource::loop() {
+void YuvSource::loop() {
   if (frame_size_ == 0) {
-    std::cerr << "RawNv12TcpSource: invalid frame size\n";
+    std::cerr << "YuvSource: invalid frame size\n";
     running_.store(false);
     return;
   }
 
   socket_t fd = connectTcp(host_, port_);
   if (fd == INVALID_SOCKET_VALUE) {
-    std::cerr << "RawNv12TcpSource: failed to connect to " << host_ << ":" << port_
-              << "\n";
+    std::cerr << "YuvSource: failed to connect to " << host_ << ":" << port_ << "\n";
     running_.store(false);
     return;
   }
 
-  std::cout << "RawNv12TcpSource: connected to " << host_ << ":" << port_
-            << " (" << width_ << "x" << height_ << "@" << fps_ << "fps, frame="
-            << frame_size_ << " bytes)\n";
+  std::cout << "YuvSource: connected to " << host_ << ":" << port_ << " (" << width_
+            << "x" << height_ << "@" << fps_ << "fps, frame=" << frame_size_
+            << " bytes)\n";
 
   auto t0 = std::chrono::steady_clock::now();
 
@@ -144,7 +142,7 @@ void RawNv12TcpSource::loop() {
             std::chrono::steady_clock::now() - t0)
             .count();
     if (callback_) {
-      RawNv12Frame out;
+      YuvFrame out;
       out.data = std::move(frame);
       out.timestamp_us = ts_us;
       callback_(std::move(out));
@@ -155,4 +153,4 @@ void RawNv12TcpSource::loop() {
   running_.store(false);
 }
 
-} // namespace publish_nv12
+} // namespace publish_yuv

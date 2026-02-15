@@ -116,15 +116,15 @@ target_link_libraries(SimpleDataStream
     livekit
 )
 
-add_executable(PublishNv12TcpSource
-  publish_nv12_tcp_source/main.cpp
-  publish_nv12_tcp_source/raw_nv12_tcp_source.cpp
-  publish_nv12_tcp_source/raw_nv12_tcp_source.h
+add_executable(PublishYuvSource
+  publish_yuv_source/main.cpp
+  publish_yuv_source/yuv_source.cpp
+  publish_yuv_source/yuv_source.h
 )
 
-target_include_directories(PublishNv12TcpSource PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+target_include_directories(PublishYuvSource PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
 
-target_link_libraries(PublishNv12TcpSource
+target_link_libraries(PublishYuvSource
   PRIVATE
     livekit
 )
@@ -148,7 +148,7 @@ if(WIN32)
   )
   
   # Copy DLLs to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream PublishNv12TcpSource)
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream PublishYuvSource)
     foreach(DLL ${REQUIRED_DLLS})
       add_custom_command(TARGET ${EXAMPLE} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -172,7 +172,7 @@ if(UNIX)
   endif()
   
   # Copy shared library to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream PublishNv12TcpSource)
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream PublishYuvSource)
     add_custom_command(TARGET ${EXAMPLE} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
               "${LIVEKIT_LIB_DIR}/${FFI_SHARED_LIB}"
