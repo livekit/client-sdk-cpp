@@ -65,39 +65,55 @@ LiveKitBridge::~LiveKitBridge() { disconnect(); }
 // ---------------------------------------------------------------
 
 bool LiveKitBridge::connect(const std::string &url, const std::string &token) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  // ---- Phase 1: quick check under lock ----
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
 
-  if (connected_) {
-    return true; // already connected
+    if (connected_) {
+      return true; // already connected
+    }
+
+    if (connecting_) {
+      return false; // another thread is already connecting
+    }
+
+    connecting_ = true;
+
+    // Initialize the LiveKit SDK (idempotent)
+    if (!sdk_initialized_) {
+      livekit::initialize(livekit::LogSink::kConsole);
+      sdk_initialized_ = true;
+    }
   }
 
-  // Initialize the LiveKit SDK (idempotent)
-  if (!sdk_initialized_) {
-    livekit::initialize(livekit::LogSink::kConsole);
-    sdk_initialized_ = true;
-  }
+  // ---- Phase 2: create room and connect without holding the lock ----
+  // This avoids blocking other threads during the network handshake and
+  // eliminates the risk of deadlock if the SDK delivers delegate callbacks
+  // synchronously during Connect().
+  auto room = std::make_unique<livekit::Room>();
+  auto delegate = std::make_unique<BridgeRoomDelegate>(*this);
+  room->setDelegate(delegate.get());
 
-  // Create room and delegate
-  room_ = std::make_unique<livekit::Room>();
-  assert(room_ != nullptr);
-  delegate_ = std::make_unique<BridgeRoomDelegate>(*this);
-  assert(delegate_ != nullptr);
-  room_->setDelegate(delegate_.get());
-
-  // Connect with auto_subscribe enabled
   livekit::RoomOptions options;
   options.auto_subscribe = true;
   options.dynacast = false;
 
-  bool result = room_->Connect(url, token, options);
+  bool result = room->Connect(url, token, options);
   if (!result) {
-    room_->setDelegate(nullptr);
-    delegate_.reset();
-    room_.reset();
+    room->setDelegate(nullptr);
+    std::lock_guard<std::mutex> lock(mutex_);
+    connecting_ = false;
     return false;
   }
 
-  connected_ = true;
+  // ---- Phase 3: commit under lock ----
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    room_ = std::move(room);
+    delegate_ = std::move(delegate);
+    connected_ = true;
+    connecting_ = false;
+  }
   return true;
 }
 
@@ -115,6 +131,7 @@ void LiveKitBridge::disconnect() {
     }
 
     connected_ = false;
+    connecting_ = false;
 
     // Close all streams (unblocks read loops) and collect threads
     for (auto &[key, reader] : active_readers_) {

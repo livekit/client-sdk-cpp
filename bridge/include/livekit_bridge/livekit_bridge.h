@@ -259,6 +259,7 @@ private:
 
   mutable std::mutex mutex_;
   bool connected_ = false;
+  bool connecting_ = false; // guards against concurrent connect() calls
   bool sdk_initialized_ = false;
 
   std::unique_ptr<livekit::Room> room_;
