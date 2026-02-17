@@ -24,14 +24,14 @@
 #ifdef _WIN32
 #include <conio.h>
 #else
+#include <sys/select.h>
 #include <termios.h>
 #include <unistd.h>
-#include <sys/select.h>
 #endif
 
 #include "json_utils.h"
-#include "utils.h"
 #include "livekit/livekit.h"
+#include "utils.h"
 
 using namespace livekit;
 using namespace std::chrono_literals;
@@ -168,8 +168,7 @@ int main(int argc, char *argv[]) {
         std::cout << "[Human] 'robot' connected! Use keys to send commands.\n";
         robot_connected = true;
       } else if (!robot_present && robot_connected) {
-        std::cout
-            << "[Human] 'robot' disconnected. Waiting for reconnect...\n";
+        std::cout << "[Human] 'robot' disconnected. Waiting for reconnect...\n";
         robot_connected = false;
       }
     }
@@ -237,8 +236,7 @@ int main(int argc, char *argv[]) {
     simple_robot::JoystickCommand cmd{x, y, z};
     std::string payload = simple_robot::joystick_to_json(cmd);
 
-    std::cout << "[Human] Sending: x=" << x << " y=" << y << " z=" << z
-              << "\n";
+    std::cout << "[Human] Sending: x=" << x << " y=" << y << " z=" << z << "\n";
 
     try {
       std::string response =
@@ -248,8 +246,7 @@ int main(int argc, char *argv[]) {
       std::cerr << "[Human] RPC error: " << e.message() << "\n";
       if (static_cast<RpcError::ErrorCode>(e.code()) ==
           RpcError::ErrorCode::RECIPIENT_DISCONNECTED) {
-        std::cout
-            << "[Human] Robot disconnected. Waiting for reconnect...\n";
+        std::cout << "[Human] Robot disconnected. Waiting for reconnect...\n";
         robot_connected = false;
       }
     } catch (const std::exception &e) {

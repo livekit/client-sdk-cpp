@@ -45,8 +45,9 @@ void BridgeVideoTrack::pushFrame(const std::vector<std::uint8_t> &data,
         "BridgeVideoTrack::pushFrame: track has been released");
   }
 
-  livekit::VideoFrame frame(width_, height_, livekit::VideoBufferType::RGBA,
-                            std::vector<std::uint8_t>(data.begin(), data.end()));
+  livekit::VideoFrame frame(
+      width_, height_, livekit::VideoBufferType::RGBA,
+      std::vector<std::uint8_t>(data.begin(), data.end()));
   source_->captureFrame(frame, timestamp_us);
 }
 

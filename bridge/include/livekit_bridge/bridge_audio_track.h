@@ -65,8 +65,8 @@ public:
    * @param timeout_ms          Max time to wait for FFI confirmation.
    *                            0 = wait indefinitely (default).
    */
-  void pushFrame(const std::vector<std::int16_t> &data,
-                 int samples_per_channel, int timeout_ms = 0);
+  void pushFrame(const std::vector<std::int16_t> &data, int samples_per_channel,
+                 int timeout_ms = 0);
 
   /**
    * Push a PCM audio frame from a raw pointer.

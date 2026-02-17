@@ -46,9 +46,8 @@ void BridgeAudioTrack::pushFrame(const std::vector<std::int16_t> &data,
         "BridgeAudioTrack::pushFrame: track has been released");
   }
 
-  livekit::AudioFrame frame(
-      std::vector<std::int16_t>(data.begin(), data.end()), sample_rate_,
-      num_channels_, samples_per_channel);
+  livekit::AudioFrame frame(std::vector<std::int16_t>(data.begin(), data.end()),
+                            sample_rate_, num_channels_, samples_per_channel);
   source_->captureFrame(frame, timeout_ms);
 }
 

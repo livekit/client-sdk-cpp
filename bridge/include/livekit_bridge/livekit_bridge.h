@@ -55,9 +55,8 @@ using AudioFrameCallback = std::function<void(const livekit::AudioFrame &)>;
 /// Called on a background reader thread.
 /// @param frame        The decoded video frame (RGBA by default).
 /// @param timestamp_us Presentation timestamp in microseconds.
-using VideoFrameCallback =
-    std::function<void(const livekit::VideoFrame &frame,
-                       std::int64_t timestamp_us)>;
+using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
+                                              std::int64_t timestamp_us)>;
 
 /**
  * High-level bridge to the LiveKit C++ SDK.
@@ -158,8 +157,8 @@ public:
    * @return Shared pointer to the published video track handle.
    * @throws std::runtime_error on failure.
    */
-  std::shared_ptr<BridgeVideoTrack>
-  createVideoTrack(const std::string &name, int width, int height);
+  std::shared_ptr<BridgeVideoTrack> createVideoTrack(const std::string &name,
+                                                     int width, int height);
 
   // ---------------------------------------------------------------
   // Incoming frame callbacks

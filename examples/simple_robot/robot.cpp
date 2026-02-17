@@ -22,8 +22,8 @@
 #include <thread>
 
 #include "json_utils.h"
-#include "utils.h"
 #include "livekit/livekit.h"
+#include "utils.h"
 
 using namespace livekit;
 using namespace std::chrono_literals;
