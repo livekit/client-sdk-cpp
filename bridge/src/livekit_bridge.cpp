@@ -31,6 +31,7 @@
 #include "livekit/video_source.h"
 #include "livekit/video_stream.h"
 
+#include <cassert>
 #include <iostream>
 #include <stdexcept>
 
@@ -78,7 +79,9 @@ bool LiveKitBridge::connect(const std::string &url, const std::string &token) {
 
   // Create room and delegate
   room_ = std::make_unique<livekit::Room>();
+  assert(room_ != nullptr);
   delegate_ = std::make_unique<BridgeRoomDelegate>(*this);
+  assert(delegate_ != nullptr);
   room_->setDelegate(delegate_.get());
 
   // Connect with auto_subscribe enabled
@@ -107,7 +110,8 @@ void LiveKitBridge::disconnect() {
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!connected_) {
-      return;
+      std::cerr << "[LiveKitBridge] Attempting to disconnect an already "
+                   "disconnected bridge. Things may not disconnect properly.\n";
     }
 
     connected_ = false;

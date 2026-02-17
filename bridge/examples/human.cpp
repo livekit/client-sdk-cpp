@@ -195,6 +195,10 @@ int main(int argc, char *argv[]) {
 
   auto last_report = std::chrono::steady_clock::now();
 
+  // Reused across iterations so the swap gives the producer a pre-allocated
+  // buffer back, avoiding repeated allocations in steady state.
+  std::vector<std::uint8_t> local_pixels;
+
   while (g_running.load()) {
     // Pump SDL events
     SDL_Event ev;
@@ -204,43 +208,48 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    // Check for a new video frame
+    // Grab the latest video frame under a minimal lock, then render outside it.
+    int fw = 0, fh = 0;
+    bool have_frame = false;
     {
       std::lock_guard<std::mutex> lock(g_latest_video.mutex);
       if (g_latest_video.dirty && g_latest_video.width > 0 &&
           g_latest_video.height > 0) {
-        int fw = g_latest_video.width;
-        int fh = g_latest_video.height;
-
-        // Recreate texture if size changed
-        if (fw != tex_width || fh != tex_height) {
-          if (texture)
-            SDL_DestroyTexture(texture);
-          texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32,
-                                      SDL_TEXTUREACCESS_STREAMING, fw, fh);
-          if (!texture) {
-            std::cerr << "[human] SDL_CreateTexture failed: " << SDL_GetError()
-                      << "\n";
-          }
-          tex_width = fw;
-          tex_height = fh;
-        }
-
-        // Upload pixels to texture
-        if (texture) {
-          void *pixels = nullptr;
-          int pitch = 0;
-          if (SDL_LockTexture(texture, nullptr, &pixels, &pitch)) {
-            const int srcPitch = fw * 4;
-            for (int y = 0; y < fh; ++y) {
-              std::memcpy(static_cast<std::uint8_t *>(pixels) + y * pitch,
-                          g_latest_video.data.data() + y * srcPitch, srcPitch);
-            }
-            SDL_UnlockTexture(texture);
-          }
-        }
-
+        fw = g_latest_video.width;
+        fh = g_latest_video.height;
+        local_pixels.swap(g_latest_video.data);
         g_latest_video.dirty = false;
+        have_frame = true;
+      }
+    }
+
+    if (have_frame) {
+      // Recreate texture if size changed
+      if (fw != tex_width || fh != tex_height) {
+        if (texture)
+          SDL_DestroyTexture(texture);
+        texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32,
+                                    SDL_TEXTUREACCESS_STREAMING, fw, fh);
+        if (!texture) {
+          std::cerr << "[human] SDL_CreateTexture failed: " << SDL_GetError()
+                    << "\n";
+        }
+        tex_width = fw;
+        tex_height = fh;
+      }
+
+      // Upload pixels to texture
+      if (texture) {
+        void *pixels = nullptr;
+        int pitch = 0;
+        if (SDL_LockTexture(texture, nullptr, &pixels, &pitch)) {
+          const int srcPitch = fw * 4;
+          for (int y = 0; y < fh; ++y) {
+            std::memcpy(static_cast<std::uint8_t *>(pixels) + y * pitch,
+                        local_pixels.data() + y * srcPitch, srcPitch);
+          }
+          SDL_UnlockTexture(texture);
+        }
       }
     }
 
