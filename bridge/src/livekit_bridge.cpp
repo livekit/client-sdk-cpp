@@ -91,8 +91,7 @@ bool LiveKitBridge::connect(const std::string &url, const std::string &token) {
   // eliminates the risk of deadlock if the SDK delivers delegate callbacks
   // synchronously during Connect().
   auto room = std::make_unique<livekit::Room>();
-  auto delegate = std::make_unique<BridgeRoomDelegate>(*this);
-  room->setDelegate(delegate.get());
+  assert(room != nullptr);
 
   livekit::RoomOptions options;
   options.auto_subscribe = true;
@@ -100,13 +99,19 @@ bool LiveKitBridge::connect(const std::string &url, const std::string &token) {
 
   bool result = room->Connect(url, token, options);
   if (!result) {
-    room->setDelegate(nullptr);
     std::lock_guard<std::mutex> lock(mutex_);
     connecting_ = false;
     return false;
   }
 
-  // ---- Phase 3: commit under lock ----
+  // ---- Phase 3: commit and attach delegate under lock ----
+  // Setting the delegate here (after Connect) ensures that any queued
+  // onTrackSubscribed events are delivered only after
+  // room_/delegate_/connected_ are all in a consistent state.
+
+  auto delegate = std::make_unique<BridgeRoomDelegate>(*this);
+  assert(delegate != nullptr);
+  room->setDelegate(delegate.get());
   {
     std::lock_guard<std::mutex> lock(mutex_);
     room_ = std::move(room);
@@ -311,20 +316,30 @@ void LiveKitBridge::unregisterOnVideoFrame(
 void LiveKitBridge::onTrackSubscribed(
     const std::string &participant_identity, livekit::TrackSource source,
     const std::shared_ptr<livekit::Track> &track) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::thread old_thread;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
 
-  CallbackKey key{participant_identity, source};
+    CallbackKey key{participant_identity, source};
 
-  if (track->kind() == livekit::TrackKind::KIND_AUDIO) {
-    auto it = audio_callbacks_.find(key);
-    if (it != audio_callbacks_.end()) {
-      startAudioReader(key, track, it->second);
+    if (track->kind() == livekit::TrackKind::KIND_AUDIO) {
+      auto it = audio_callbacks_.find(key);
+      if (it != audio_callbacks_.end()) {
+        old_thread = startAudioReader(key, track, it->second);
+      }
+    } else if (track->kind() == livekit::TrackKind::KIND_VIDEO) {
+      auto it = video_callbacks_.find(key);
+      if (it != video_callbacks_.end()) {
+        old_thread = startVideoReader(key, track, it->second);
+      }
     }
-  } else if (track->kind() == livekit::TrackKind::KIND_VIDEO) {
-    auto it = video_callbacks_.find(key);
-    if (it != video_callbacks_.end()) {
-      startVideoReader(key, track, it->second);
-    }
+  }
+  // If this key already had a reader (e.g. track was re-subscribed), the old
+  // reader's stream was closed inside startAudioReader/startVideoReader. We
+  // join its thread here -- outside the lock -- to guarantee it has finished
+  // invoking the old callback before we return.
+  if (old_thread.joinable()) {
+    old_thread.join();
   }
 }
 
@@ -368,29 +383,21 @@ std::thread LiveKitBridge::extractReaderThread(const CallbackKey &key) {
   return thread;
 }
 
-void LiveKitBridge::stopReader(const CallbackKey &key) {
+std::thread
+LiveKitBridge::startAudioReader(const CallbackKey &key,
+                                const std::shared_ptr<livekit::Track> &track,
+                                AudioFrameCallback cb) {
   // Caller must hold mutex_.
-  // Closes the stream and detaches the thread.
-  // Used internally when replacing readers (e.g. in startAudioReader).
-  auto thread = extractReaderThread(key);
-  if (thread.joinable()) {
-    thread.detach();
-  }
-}
-
-void LiveKitBridge::startAudioReader(
-    const CallbackKey &key, const std::shared_ptr<livekit::Track> &track,
-    AudioFrameCallback cb) {
-  // Caller must hold mutex_
-  // Stop any existing reader for this key
-  stopReader(key);
+  // Returns the old reader thread (if any) for the caller to join outside
+  // the lock.
+  auto old_thread = extractReaderThread(key);
 
   livekit::AudioStream::Options opts;
   auto stream = livekit::AudioStream::fromTrack(track, opts);
   if (!stream) {
     std::cerr << "[LiveKitBridge] Failed to create AudioStream for "
               << key.identity << "\n";
-    return;
+    return old_thread;
   }
 
   auto stream_copy = stream; // captured by the thread
@@ -411,13 +418,17 @@ void LiveKitBridge::startAudioReader(
   });
 
   active_readers_[key] = std::move(reader);
+  return old_thread;
 }
 
-void LiveKitBridge::startVideoReader(
-    const CallbackKey &key, const std::shared_ptr<livekit::Track> &track,
-    VideoFrameCallback cb) {
-  // Caller must hold mutex_
-  stopReader(key);
+std::thread
+LiveKitBridge::startVideoReader(const CallbackKey &key,
+                                const std::shared_ptr<livekit::Track> &track,
+                                VideoFrameCallback cb) {
+  // Caller must hold mutex_.
+  // Returns the old reader thread (if any) for the caller to join outside
+  // the lock.
+  auto old_thread = extractReaderThread(key);
 
   livekit::VideoStream::Options opts;
   opts.format = livekit::VideoBufferType::RGBA;
@@ -425,7 +436,7 @@ void LiveKitBridge::startVideoReader(
   if (!stream) {
     std::cerr << "[LiveKitBridge] Failed to create VideoStream for "
               << key.identity << "\n";
-    return;
+    return old_thread;
   }
 
   auto stream_copy = stream;
@@ -446,6 +457,7 @@ void LiveKitBridge::startVideoReader(
   });
 
   active_readers_[key] = std::move(reader);
+  return old_thread;
 }
 
 } // namespace livekit_bridge

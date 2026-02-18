@@ -105,13 +105,18 @@ public:
   /**
    * Connect to a LiveKit room.
    *
-   * Initializes the SDK (if not already), creates a Room, and connects.
-   * auto_subscribe is enabled so that remote tracks are subscribed
-   * automatically.
+   * Initializes the SDK (if not already), creates a Room, and performs
+   * the WebSocket handshake. This call **blocks** until the connection
+   * succeeds or fails. auto_subscribe is enabled so that remote tracks
+   * are subscribed automatically.
+   *
+   * If the bridge is already connected, returns true immediately.
+   * If another thread is already in the process of connecting, returns
+   * false without blocking.
    *
    * @param url    WebSocket URL of the LiveKit server.
    * @param token  Access token for authentication.
-   * @return true if connection succeeded.
+   * @return true if connection succeeded (or was already connected).
    */
   bool connect(const std::string &url, const std::string &token);
 
@@ -136,11 +141,14 @@ public:
    * The returned handle is RAII-managed: dropping the shared_ptr
    * automatically unpublishes the track.
    *
+   * @pre The bridge must be connected (via connect()). Calling this on a
+   *      disconnected bridge is a programming error.
+   *
    * @param name         Human-readable track name.
    * @param sample_rate  Sample rate in Hz (e.g. 48000).
    * @param num_channels Number of audio channels (1 = mono, 2 = stereo).
-   * @return Shared pointer to the published audio track handle.
-   * @throws std::runtime_error on failure.
+   * @return Shared pointer to the published audio track handle (never null).
+   * @throws std::runtime_error if the bridge is not connected.
    */
   std::shared_ptr<BridgeAudioTrack>
   createAudioTrack(const std::string &name, int sample_rate, int num_channels);
@@ -151,11 +159,14 @@ public:
    * The returned handle is RAII-managed: dropping the shared_ptr
    * automatically unpublishes the track.
    *
+   * @pre The bridge must be connected (via connect()). Calling this on a
+   *      disconnected bridge is a programming error.
+   *
    * @param name   Human-readable track name.
    * @param width  Video width in pixels.
    * @param height Video height in pixels.
-   * @return Shared pointer to the published video track handle.
-   * @throws std::runtime_error on failure.
+   * @return Shared pointer to the published video track handle (never null).
+   * @throws std::runtime_error if the bridge is not connected.
    */
   std::shared_ptr<BridgeVideoTrack> createVideoTrack(const std::string &name,
                                                      int width, int height);
@@ -246,16 +257,15 @@ private:
   // (caller must hold mutex_)
   std::thread extractReaderThread(const CallbackKey &key);
 
-  // Close the stream and detach the thread (caller must hold mutex_)
-  void stopReader(const CallbackKey &key);
-
-  // Start a reader thread for a subscribed track
-  void startAudioReader(const CallbackKey &key,
-                        const std::shared_ptr<livekit::Track> &track,
-                        AudioFrameCallback cb);
-  void startVideoReader(const CallbackKey &key,
-                        const std::shared_ptr<livekit::Track> &track,
-                        VideoFrameCallback cb);
+  // Start a reader thread for a subscribed track.
+  // Returns the old reader thread (if any) for the caller to join outside
+  // the lock. (caller must hold mutex_)
+  std::thread startAudioReader(const CallbackKey &key,
+                               const std::shared_ptr<livekit::Track> &track,
+                               AudioFrameCallback cb);
+  std::thread startVideoReader(const CallbackKey &key,
+                               const std::shared_ptr<livekit::Track> &track,
+                               VideoFrameCallback cb);
 
   mutable std::mutex mutex_;
   bool connected_ = false;
