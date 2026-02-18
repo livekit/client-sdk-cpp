@@ -165,6 +165,9 @@ public:
    * @pre The bridge must be connected (via connect()). Calling this on a
    *      disconnected bridge is a programming error.
    *
+   * @pre The bridge must be connected (via connect()). Calling this on a
+   *      disconnected bridge is a programming error.
+   *
    * @param name         Human-readable track name.
    * @param sample_rate  Sample rate in Hz (e.g. 48000).
    * @param num_channels Number of audio channels (1 = mono, 2 = stereo).
@@ -185,6 +188,9 @@ public:
    * The bridge retains a reference to the track internally. To unpublish
    * mid-session, call release() on the returned track. All surviving
    * tracks are automatically released on disconnect().
+   *
+   * @pre The bridge must be connected (via connect()). Calling this on a
+   *      disconnected bridge is a programming error.
    *
    * @pre The bridge must be connected (via connect()). Calling this on a
    *      disconnected bridge is a programming error.
