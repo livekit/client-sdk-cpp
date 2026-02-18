@@ -193,7 +193,7 @@ bool LiveKitBridge::isConnected() const {
 
 std::shared_ptr<BridgeAudioTrack>
 LiveKitBridge::createAudioTrack(const std::string &name, int sample_rate,
-                                int num_channels) {
+                                int num_channels, livekit::TrackSource source) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!connected_ || !room_) {
@@ -202,27 +202,28 @@ LiveKitBridge::createAudioTrack(const std::string &name, int sample_rate,
   }
 
   // 1. Create audio source (real-time mode, queue_size_ms=0)
-  auto source =
+  auto audio_source =
       std::make_shared<livekit::AudioSource>(sample_rate, num_channels, 0);
 
   // 2. Create local audio track
-  auto track = livekit::LocalAudioTrack::createLocalAudioTrack(name, source);
+  auto track =
+      livekit::LocalAudioTrack::createLocalAudioTrack(name, audio_source);
 
-  // 3. Publish with sensible defaults
+  // 3. Publish with the caller-specified source
   livekit::TrackPublishOptions opts;
-  opts.source = livekit::TrackSource::SOURCE_MICROPHONE;
+  opts.source = source;
 
   auto publication = room_->localParticipant()->publishTrack(track, opts);
 
   // 4. Wrap in RAII handle
   return std::shared_ptr<BridgeAudioTrack>(new BridgeAudioTrack(
-      name, sample_rate, num_channels, std::move(source), std::move(track),
-      std::move(publication), room_->localParticipant()));
+      name, sample_rate, num_channels, std::move(audio_source),
+      std::move(track), std::move(publication), room_->localParticipant()));
 }
 
 std::shared_ptr<BridgeVideoTrack>
-LiveKitBridge::createVideoTrack(const std::string &name, int width,
-                                int height) {
+LiveKitBridge::createVideoTrack(const std::string &name, int width, int height,
+                                livekit::TrackSource source) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!connected_ || !room_) {
@@ -231,20 +232,21 @@ LiveKitBridge::createVideoTrack(const std::string &name, int width,
   }
 
   // 1. Create video source
-  auto source = std::make_shared<livekit::VideoSource>(width, height);
+  auto video_source = std::make_shared<livekit::VideoSource>(width, height);
 
   // 2. Create local video track
-  auto track = livekit::LocalVideoTrack::createLocalVideoTrack(name, source);
+  auto track =
+      livekit::LocalVideoTrack::createLocalVideoTrack(name, video_source);
 
-  // 3. Publish with sensible defaults
+  // 3. Publish with the caller-specified source
   livekit::TrackPublishOptions opts;
-  opts.source = livekit::TrackSource::SOURCE_CAMERA;
+  opts.source = source;
 
   auto publication = room_->localParticipant()->publishTrack(track, opts);
 
   // 4. Wrap in RAII handle
   return std::shared_ptr<BridgeVideoTrack>(new BridgeVideoTrack(
-      name, width, height, std::move(source), std::move(track),
+      name, width, height, std::move(video_source), std::move(track),
       std::move(publication), room_->localParticipant()));
 }
 

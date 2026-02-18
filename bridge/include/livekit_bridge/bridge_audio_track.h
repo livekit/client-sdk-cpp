@@ -47,7 +47,8 @@ class BridgeAudioTrackTest;
  * pushFrame() concurrently from multiple threads.
  *
  * Usage:
- *   auto mic = bridge.createAudioTrack("mic", 48000, 2);
+ *   auto mic = bridge.createAudioTrack("mic", 48000, 2,
+ *       livekit::TrackSource::SOURCE_MICROPHONE);
  *   mic->pushFrame(pcm_data, samples_per_channel);
  *   mic->mute();
  *   mic.reset();  // unpublishes

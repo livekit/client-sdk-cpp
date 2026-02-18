@@ -21,8 +21,10 @@ livekit_bridge::LiveKitBridge bridge;
 bridge.connect("wss://my-server.livekit.cloud", token);
 
 // 2. Create outgoing tracks (RAII-managed)
-auto mic = bridge.createAudioTrack("mic", 48000, 2);   // name, sample_rate, channels
-auto cam = bridge.createVideoTrack("cam", 1280, 720);  // name, width, height
+auto mic = bridge.createAudioTrack("mic", 48000, 2,
+    livekit::TrackSource::SOURCE_MICROPHONE);  // name, sample_rate, channels, source
+auto cam = bridge.createVideoTrack("cam", 1280, 720,
+    livekit::TrackSource::SOURCE_CAMERA);  // name, width, height, source
 
 // 3. Push frames to remote participants
 mic->pushFrame(pcm_data, samples_per_channel);
@@ -96,7 +98,11 @@ Reader threads are managed entirely by the bridge. They are created when a match
 
 ### Callback Registration Timing
 
-Callbacks are keyed by `(participant_identity, track_source)`. You can register them **before** the remote participant has joined the room. The bridge stores the callback and automatically wires it up when the matching track is subscribed. This means the typical pattern is:
+Callbacks are keyed by `(participant_identity, track_source)`. You can register them **before** the remote participant has joined the room. The bridge stores the callback and automatically wires it up when the matching track is subscribed.
+
+> **Note:** Only one callback may be registered per `(participant_identity, track_source)` pair. Calling `registerOnAudioFrame` or `registerOnVideoFrame` again with the same identity and source will silently replace the previous callback. If you need to fan-out a single stream to multiple consumers, do so inside your callback.
+
+This means the typical pattern is:
 
 ```cpp
 // Register first, connect second -- or register after connect but before
@@ -121,8 +127,8 @@ bridge.connect(url, token);
 | `connect(url, token)` | Connect to a LiveKit room. Initializes the SDK, creates a Room, and connects with auto-subscribe enabled. |
 | `disconnect()` | Disconnect and release all resources. Joins all reader threads. Safe to call multiple times. |
 | `isConnected()` | Returns whether the bridge is currently connected. |
-| `createAudioTrack(name, sample_rate, num_channels)` | Create and publish a local audio track. Returns an RAII `shared_ptr<BridgeAudioTrack>`. |
-| `createVideoTrack(name, width, height)` | Create and publish a local video track. Returns an RAII `shared_ptr<BridgeVideoTrack>`. |
+| `createAudioTrack(name, sample_rate, num_channels, source)` | Create and publish a local audio track with the given `TrackSource` (e.g. `SOURCE_MICROPHONE`, `SOURCE_SCREENSHARE_AUDIO`). Returns an RAII `shared_ptr<BridgeAudioTrack>`. |
+| `createVideoTrack(name, width, height, source)` | Create and publish a local video track with the given `TrackSource` (e.g. `SOURCE_CAMERA`, `SOURCE_SCREENSHARE`). Returns an RAII `shared_ptr<BridgeVideoTrack>`. |
 | `registerOnAudioFrame(identity, source, callback)` | Register a callback for audio frames from a specific remote participant + track source. |
 | `registerOnVideoFrame(identity, source, callback)` | Register a callback for video frames from a specific remote participant + track source. |
 | `unregisterOnAudioFrame(identity, source)` | Unregister an audio callback. Stops and joins the reader thread if active. |
@@ -234,5 +240,6 @@ The bridge is designed for simplicity and currently only supports limited audio 
 - Simulcast tuning
 - Video format selection (RGBA is the default; no format option yet)
 - Custom `RoomOptions` or `TrackPublishOptions`
+- **One callback per (participant, source):** Only a single callback can be registered for each `(participant_identity, track_source)` pair. Re-registering with the same key silently replaces the previous callback. To fan-out a stream to multiple consumers, dispatch from within your single callback.
 
 For advanced use cases, use the full `client-sdk-cpp` API directly, or expand the bridge to support your use case.

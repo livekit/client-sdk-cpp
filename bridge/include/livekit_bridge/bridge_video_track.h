@@ -47,7 +47,8 @@ class BridgeVideoTrackTest;
  * pushFrame() concurrently from multiple threads.
  *
  * Usage:
- *   auto cam = bridge.createVideoTrack("cam", 1280, 720);
+ *   auto cam = bridge.createVideoTrack("cam", 1280, 720,
+ *       livekit::TrackSource::SOURCE_CAMERA);
  *   cam->pushFrame(rgba_data, timestamp_us);
  *   cam->mute();
  *   cam.reset();  // unpublishes

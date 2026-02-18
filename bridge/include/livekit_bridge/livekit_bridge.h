@@ -69,8 +69,10 @@ using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
  *   LiveKitBridge bridge;
  *   bridge.connect("wss://my-server.livekit.cloud", my_token);
  *
- *   auto mic = bridge.createAudioTrack("mic", 48000, 2);
- *   auto cam = bridge.createVideoTrack("cam", 1280, 720);
+ *   auto mic = bridge.createAudioTrack("mic", 48000, 2,
+ *       livekit::TrackSource::SOURCE_MICROPHONE);
+ *   auto cam = bridge.createVideoTrack("cam", 1280, 720,
+ *       livekit::TrackSource::SOURCE_CAMERA);
  *
  *   mic->pushFrame(pcm_data, samples_per_channel);
  *   cam->pushFrame(rgba_data, timestamp_us);
@@ -147,11 +149,16 @@ public:
    * @param name         Human-readable track name.
    * @param sample_rate  Sample rate in Hz (e.g. 48000).
    * @param num_channels Number of audio channels (1 = mono, 2 = stereo).
+   * @param source       Track source type (e.g. SOURCE_MICROPHONE). Use a
+   *                     different source (e.g. SOURCE_SCREENSHARE_AUDIO) to
+   *                     publish multiple audio tracks from the same
+   *                     participant that can be independently subscribed to.
    * @return Shared pointer to the published audio track handle (never null).
    * @throws std::runtime_error if the bridge is not connected.
    */
   std::shared_ptr<BridgeAudioTrack>
-  createAudioTrack(const std::string &name, int sample_rate, int num_channels);
+  createAudioTrack(const std::string &name, int sample_rate, int num_channels,
+                   livekit::TrackSource source);
 
   /**
    * Create and publish a local video track.
@@ -165,11 +172,16 @@ public:
    * @param name   Human-readable track name.
    * @param width  Video width in pixels.
    * @param height Video height in pixels.
+   * @param source Track source type (default: SOURCE_CAMERA). Use a
+   *               different source (e.g. SOURCE_SCREENSHARE) to publish
+   *               multiple video tracks from the same participant that
+   *               can be independently subscribed to.
    * @return Shared pointer to the published video track handle (never null).
    * @throws std::runtime_error if the bridge is not connected.
    */
-  std::shared_ptr<BridgeVideoTrack> createVideoTrack(const std::string &name,
-                                                     int width, int height);
+  std::shared_ptr<BridgeVideoTrack>
+  createVideoTrack(const std::string &name, int width, int height,
+                   livekit::TrackSource source);
 
   // ---------------------------------------------------------------
   // Incoming frame callbacks
@@ -184,6 +196,10 @@ public:
    * callback is stored and auto-wired when the participant's track is
    * subscribed.
    *
+   * @note Only **one** callback may be registered per (participant, source)
+   *       pair. Calling this again with the same identity and source will
+   *       silently replace the previous callback.
+   *
    * @param participant_identity  Identity of the remote participant.
    * @param source                Track source (e.g. SOURCE_MICROPHONE).
    * @param callback              Function to invoke per audio frame.
@@ -195,6 +211,10 @@ public:
   /**
    * Register a callback for video frames from a specific remote participant
    * and track source.
+   *
+   * @note Only **one** callback may be registered per (participant, source)
+   *       pair. Calling this again with the same identity and source will
+   *       silently replace the previous callback.
    *
    * @param participant_identity  Identity of the remote participant.
    * @param source                Track source (e.g. SOURCE_CAMERA).
@@ -224,7 +244,8 @@ private:
   friend class test::CallbackKeyTest;
   friend class test::LiveKitBridgeTest;
 
-  // Composite key for the callback map: (participant_identity, source)
+  // Composite key for the callback map: (participant_identity, source).
+  // Only one callback can exist per key -- re-registering overwrites.
   struct CallbackKey {
     std::string identity;
     livekit::TrackSource source;
