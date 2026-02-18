@@ -41,43 +41,57 @@ BridgeAudioTrack::~BridgeAudioTrack() { release(); }
 
 void BridgeAudioTrack::pushFrame(const std::vector<std::int16_t> &data,
                                  int samples_per_channel, int timeout_ms) {
+  // construct first to reduce lock contention
+  livekit::AudioFrame frame(std::vector<std::int16_t>(data.begin(), data.end()),
+                            sample_rate_, num_channels_, samples_per_channel);
+
+  std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
     throw std::runtime_error(
         "BridgeAudioTrack::pushFrame: track has been released");
   }
 
-  livekit::AudioFrame frame(std::vector<std::int16_t>(data.begin(), data.end()),
-                            sample_rate_, num_channels_, samples_per_channel);
   source_->captureFrame(frame, timeout_ms);
 }
 
 void BridgeAudioTrack::pushFrame(const std::int16_t *data,
                                  int samples_per_channel, int timeout_ms) {
+  // construct first to reduce lock contention
+  const int total_samples = samples_per_channel * num_channels_;
+  livekit::AudioFrame frame(
+      std::vector<std::int16_t>(data, data + total_samples), sample_rate_,
+      num_channels_, samples_per_channel);
+
+  std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
     throw std::runtime_error(
         "BridgeAudioTrack::pushFrame: track has been released");
   }
 
-  const int total_samples = samples_per_channel * num_channels_;
-  livekit::AudioFrame frame(
-      std::vector<std::int16_t>(data, data + total_samples), sample_rate_,
-      num_channels_, samples_per_channel);
   source_->captureFrame(frame, timeout_ms);
 }
 
 void BridgeAudioTrack::mute() {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (!released_ && track_) {
     track_->mute();
   }
 }
 
 void BridgeAudioTrack::unmute() {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (!released_ && track_) {
     track_->unmute();
   }
 }
 
+bool BridgeAudioTrack::isReleased() const noexcept {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return released_;
+}
+
 void BridgeAudioTrack::release() {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
     return;
   }

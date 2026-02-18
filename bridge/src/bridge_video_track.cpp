@@ -40,43 +40,57 @@ BridgeVideoTrack::~BridgeVideoTrack() { release(); }
 
 void BridgeVideoTrack::pushFrame(const std::vector<std::uint8_t> &rgba,
                                  std::int64_t timestamp_us) {
+  // construct first to reduce lock contention
+  livekit::VideoFrame frame(
+      width_, height_, livekit::VideoBufferType::RGBA,
+      std::vector<std::uint8_t>(rgba.begin(), rgba.end()));
+
+  std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
     throw std::runtime_error(
         "BridgeVideoTrack::pushFrame: track has been released");
   }
 
-  livekit::VideoFrame frame(
-      width_, height_, livekit::VideoBufferType::RGBA,
-      std::vector<std::uint8_t>(rgba.begin(), rgba.end()));
   source_->captureFrame(frame, timestamp_us);
 }
 
 void BridgeVideoTrack::pushFrame(const std::uint8_t *rgba,
                                  std::size_t rgba_size,
                                  std::int64_t timestamp_us) {
+  // construct first to reduce lock contention
+  livekit::VideoFrame frame(width_, height_, livekit::VideoBufferType::RGBA,
+                            std::vector<std::uint8_t>(rgba, rgba + rgba_size));
+
+  std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
     throw std::runtime_error(
         "BridgeVideoTrack::pushFrame: track has been released");
   }
 
-  livekit::VideoFrame frame(width_, height_, livekit::VideoBufferType::RGBA,
-                            std::vector<std::uint8_t>(rgba, rgba + rgba_size));
   source_->captureFrame(frame, timestamp_us);
 }
 
 void BridgeVideoTrack::mute() {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (!released_ && track_) {
     track_->mute();
   }
 }
 
 void BridgeVideoTrack::unmute() {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (!released_ && track_) {
     track_->unmute();
   }
 }
 
+bool BridgeVideoTrack::isReleased() const noexcept {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return released_;
+}
+
 void BridgeVideoTrack::release() {
+  std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
     return;
   }

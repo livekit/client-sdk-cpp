@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -40,6 +41,10 @@ class BridgeAudioTrackTest;
  * Created via LiveKitBridge::createAudioTrack(). When the last shared_ptr
  * reference is released (or release() is called explicitly), the track is
  * unpublished and all underlying SDK resources are freed.
+ *
+ * All public methods are thread-safe: it is safe to call pushFrame() from
+ * one thread while another calls mute()/unmute()/release(), or to call
+ * pushFrame() concurrently from multiple threads.
  *
  * Usage:
  *   auto mic = bridge.createAudioTrack("mic", 48000, 2);
@@ -94,7 +99,7 @@ public:
   int numChannels() const noexcept { return num_channels_; }
 
   /// Whether this track has been released / unpublished.
-  bool isReleased() const noexcept { return released_; }
+  bool isReleased() const noexcept;
 
 private:
   /// Explicitly unpublish and release all resources.
@@ -110,6 +115,7 @@ private:
                    std::shared_ptr<livekit::LocalTrackPublication> publication,
                    livekit::LocalParticipant *participant);
 
+  mutable std::mutex mutex_;
   std::string name_;
   int sample_rate_;
   int num_channels_;

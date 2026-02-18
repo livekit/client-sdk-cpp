@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -40,6 +41,10 @@ class BridgeVideoTrackTest;
  * Created via LiveKitBridge::createVideoTrack(). When the last shared_ptr
  * reference is released (or release() is called explicitly), the track is
  * unpublished and all underlying SDK resources are freed.
+ *
+ * All public methods are thread-safe: it is safe to call pushFrame() from
+ * one thread while another calls mute()/unmute()/release(), or to call
+ * pushFrame() concurrently from multiple threads.
  *
  * Usage:
  *   auto cam = bridge.createVideoTrack("cam", 1280, 720);
@@ -82,10 +87,6 @@ public:
   /// Unmute the video track (resumes sending video to the room).
   void unmute();
 
-  /// Explicitly unpublish and release all resources.
-  /// Called automatically by the destructor.
-  void release();
-
   /// Track name as provided at creation.
   const std::string &name() const noexcept { return name_; }
 
@@ -96,9 +97,13 @@ public:
   int height() const noexcept { return height_; }
 
   /// Whether this track has been released / unpublished.
-  bool isReleased() const noexcept { return released_; }
+  bool isReleased() const noexcept;
 
 private:
+  /// Explicitly unpublish and release all resources.
+  /// Called automatically by the destructor.
+  void release();
+
   friend class LiveKitBridge;
   friend class test::BridgeVideoTrackTest;
 
@@ -108,6 +113,7 @@ private:
                    std::shared_ptr<livekit::LocalTrackPublication> publication,
                    livekit::LocalParticipant *participant);
 
+  mutable std::mutex mutex_;
   std::string name_;
   int width_;
   int height_;
