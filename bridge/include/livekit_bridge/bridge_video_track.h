@@ -55,6 +55,10 @@ class BridgeVideoTrackTest;
  * one thread while another calls mute()/unmute()/release(), or to call
  * pushFrame() concurrently from multiple threads.
  *
+ * All public methods are thread-safe: it is safe to call pushFrame() from
+ * one thread while another calls mute()/unmute()/release(), or to call
+ * pushFrame() concurrently from multiple threads.
+ *
  * Usage:
  *   auto cam = bridge.createVideoTrack("cam", 1280, 720,
  *       livekit::TrackSource::SOURCE_CAMERA);
@@ -121,6 +125,10 @@ public:
   void release();
 
 private:
+  /// Explicitly unpublish and release all resources.
+  /// Called automatically by the destructor.
+  void release();
+
   friend class LiveKitBridge;
   friend class test::BridgeVideoTrackTest;
 
