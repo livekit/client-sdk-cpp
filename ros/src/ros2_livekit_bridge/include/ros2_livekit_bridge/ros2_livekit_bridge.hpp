@@ -50,21 +50,29 @@ private:
   bool matchesTopic(const std::string& topic_name) const;
 
   /**
-  * @brief Get the QoS for the publisher
-  * @param topic_name The name of the topic
-  * @return The QoS for the publisher
+  * @brief Determine QoS for subscribing to a topic by aggregating all publisher endpoints.
+  *
+  * Depth is the sum of per-publisher history depths (min 1 each), clamped to
+  * [min_qos_depth, max_qos_depth]. Reliability is RELIABLE only when every publisher
+  * offers RELIABLE (unless overridden by best_effort_qos_topics). Durability is
+  * TRANSIENT_LOCAL only when every publisher offers TRANSIENT_LOCAL.
   */
-  rclcpp::QoS getPublisherQos(const std::string& topic_name) const;
+  rclcpp::QoS determineQoS(const std::string& topic_name) const;
 
   //! @brief The name of the room
   std::string room_name_;
-  //! @brief The polling period for the topics
   int topic_polling_period_ms_;
   //! @brief The patterns for the topics
   std::vector<std::string> ros_topic_patterns_;
   //! @brief The compiled patterns for the topics
   std::vector<std::regex> compiled_patterns_;
 
+  //! @brief The minimum QoS depth
+  size_t min_qos_depth_;
+  //! @brief The maximum QoS depth
+  size_t max_qos_depth_;
+  //! @brief The patterns for the topics that should be forced to BEST_EFFORT
+  std::vector<std::regex> best_effort_qos_topic_patterns_;
   //! @brief The timer for the polling for new topics
   rclcpp::TimerBase::SharedPtr poll_timer_;
   //! @brief The subscriptions for the topics

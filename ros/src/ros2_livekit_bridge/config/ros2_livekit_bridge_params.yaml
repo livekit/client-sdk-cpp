@@ -3,7 +3,19 @@
     room_name: "robo_room"
     topic_polling_period_ms: 500
 
+    # ECMAScript regex patterns matched against full topic names.
     # Examples: "/lidar/points" (exact), "/tf.*" (prefix match), "/camera/.*" (namespace match)
-    ros_topics: ["/camera/image_raw", "/lidar/points", "/odom", "/battery_state", "/tf.*"]
+    ros_topics: ["/rgbd_camera/image", /rgbd_camera/depth_image, "/laser_scan", "/lidar/points", "/odom", "/battery_state", "/tf.*"]
+
+
+    # QoS depth bounds. Subscriber depth is the sum of all publisher depths, clamped to this range.
+    min_qos_depth: 1
+    max_qos_depth: 25
+
+    # Topics matching these regex patterns are forced to BEST_EFFORT reliability regardless
+    # of what the publishers advertise. Useful for topics with unreliable transports.
+    # Omit or comment out to use default (no overrides -- QoS is inferred from publishers).
+    # best_effort_qos_topics: ["/camera/.*", "/lidar/.*"]
+
     # TODO(sderosa)
     # livekit_to_ros_allow_topics: ["human.teleop"]
