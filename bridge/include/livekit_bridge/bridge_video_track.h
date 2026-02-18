@@ -58,22 +58,22 @@ public:
   /**
    * Push an RGBA video frame to the track.
    *
-   * @param data          Raw RGBA pixel data. Must contain exactly
+   * @param rgba          Raw RGBA pixel data. Must contain exactly
    *                      (width * height * 4) bytes.
    * @param timestamp_us  Presentation timestamp in microseconds.
    *                      Pass 0 to let the SDK assign one.
    */
-  void pushFrame(const std::vector<std::uint8_t> &data,
+  void pushFrame(const std::vector<std::uint8_t> &rgba,
                  std::int64_t timestamp_us = 0);
 
   /**
    * Push an RGBA video frame from a raw pointer.
    *
-   * @param data          Pointer to RGBA pixel data.
-   * @param data_size     Size of the data buffer in bytes.
+   * @param rgba          Pointer to RGBA pixel data.
+   * @param rgba_size     Size of the data buffer in bytes.
    * @param timestamp_us  Presentation timestamp in microseconds.
    */
-  void pushFrame(const std::uint8_t *data, std::size_t data_size,
+  void pushFrame(const std::uint8_t *rgba, std::size_t rgba_size,
                  std::int64_t timestamp_us = 0);
 
   /// Mute the video track (stops sending video to the room).

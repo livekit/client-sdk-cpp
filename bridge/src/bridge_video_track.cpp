@@ -38,7 +38,7 @@ BridgeVideoTrack::BridgeVideoTrack(
 
 BridgeVideoTrack::~BridgeVideoTrack() { release(); }
 
-void BridgeVideoTrack::pushFrame(const std::vector<std::uint8_t> &data,
+void BridgeVideoTrack::pushFrame(const std::vector<std::uint8_t> &rgba,
                                  std::int64_t timestamp_us) {
   if (released_) {
     throw std::runtime_error(
@@ -47,12 +47,12 @@ void BridgeVideoTrack::pushFrame(const std::vector<std::uint8_t> &data,
 
   livekit::VideoFrame frame(
       width_, height_, livekit::VideoBufferType::RGBA,
-      std::vector<std::uint8_t>(data.begin(), data.end()));
+      std::vector<std::uint8_t>(rgba.begin(), rgba.end()));
   source_->captureFrame(frame, timestamp_us);
 }
 
-void BridgeVideoTrack::pushFrame(const std::uint8_t *data,
-                                 std::size_t data_size,
+void BridgeVideoTrack::pushFrame(const std::uint8_t *rgba,
+                                 std::size_t rgba_size,
                                  std::int64_t timestamp_us) {
   if (released_) {
     throw std::runtime_error(
@@ -60,7 +60,7 @@ void BridgeVideoTrack::pushFrame(const std::uint8_t *data,
   }
 
   livekit::VideoFrame frame(width_, height_, livekit::VideoBufferType::RGBA,
-                            std::vector<std::uint8_t>(data, data + data_size));
+                            std::vector<std::uint8_t>(rgba, rgba + rgba_size));
   source_->captureFrame(frame, timestamp_us);
 }
 

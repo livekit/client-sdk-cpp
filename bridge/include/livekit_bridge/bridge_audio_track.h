@@ -84,10 +84,6 @@ public:
   /// Unmute the audio track (resumes sending audio to the room).
   void unmute();
 
-  /// Explicitly unpublish and release all resources.
-  /// Called automatically by the destructor.
-  void release();
-
   /// Track name as provided at creation.
   const std::string &name() const noexcept { return name_; }
 
@@ -101,6 +97,10 @@ public:
   bool isReleased() const noexcept { return released_; }
 
 private:
+  /// Explicitly unpublish and release all resources.
+  /// Called automatically by the destructor.
+  void release();
+
   friend class LiveKitBridge;
   friend class test::BridgeAudioTrackTest;
 
