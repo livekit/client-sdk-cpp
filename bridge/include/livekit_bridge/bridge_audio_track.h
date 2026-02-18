@@ -123,6 +123,10 @@ public:
   void release();
 
 private:
+  /// Explicitly unpublish and release all resources.
+  /// Called automatically by the destructor.
+  void release();
+
   friend class LiveKitBridge;
   friend class test::BridgeAudioTrackTest;
 
