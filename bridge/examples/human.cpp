@@ -18,8 +18,16 @@
  * Human example -- receives audio and video frames from a robot in a
  * LiveKit room and renders them using SDL3.
  *
- * Video: displayed in an SDL window via a streaming texture.
- * Audio: played through the default speaker using DDLSpeakerSink.
+ * The robot publishes two video tracks and two audio tracks:
+ *   - "robot-cam"        (SOURCE_CAMERA)            -- webcam or placeholder
+ *   - "robot-sim-frame"  (SOURCE_SCREENSHARE)        -- simulated diagnostic
+ * frame
+ *   - "robot-mic"        (SOURCE_MICROPHONE)          -- real microphone or
+ * silence
+ *   - "robot-sim-audio"  (SOURCE_SCREENSHARE_AUDIO)   -- simulated siren tone
+ *
+ * Press 'w' to play the webcam feed + real mic, or 's' for sim frame + siren.
+ * The selection controls both video and audio simultaneously.
  *
  * Usage:
  *   human <ws-url> <token>
@@ -48,13 +56,20 @@
 #include <cstring>
 #include <iostream>
 #include <mutex>
+#include <string>
+#include <thread>
 #include <vector>
 
 static std::atomic<bool> g_running{true};
 static void handleSignal(int) { g_running.store(false); }
 
+// ---- Video source selection ----
+enum class VideoSource : int { Webcam = 0, SimFrame = 1 };
+static std::atomic<int> g_selected_source{
+    static_cast<int>(VideoSource::Webcam)};
+
 // ---- Thread-safe video frame slot ----
-// The bridge callback writes the latest frame here; the main loop reads it.
+// renderFrame() writes the latest frame here; the main loop reads it.
 struct LatestVideoFrame {
   std::mutex mutex;
   std::vector<std::uint8_t> data;
@@ -64,6 +79,21 @@ struct LatestVideoFrame {
 };
 
 static LatestVideoFrame g_latest_video;
+
+/// Store a video frame for the main loop to render.
+/// Called from bridge callbacks when their source is the active selection.
+static void renderFrame(const livekit::VideoFrame &frame) {
+  const std::uint8_t *src = frame.data();
+  const std::size_t size = frame.dataSize();
+  if (!src || size == 0)
+    return;
+
+  std::lock_guard<std::mutex> lock(g_latest_video.mutex);
+  g_latest_video.data.assign(src, src + size);
+  g_latest_video.width = frame.width();
+  g_latest_video.height = frame.height();
+  g_latest_video.dirty = true;
+}
 
 // ---- Counters for periodic status ----
 static std::atomic<uint64_t> g_audio_frames{0};
@@ -141,57 +171,99 @@ int main(int argc, char *argv[]) {
   }
   std::cout << "[human] Connected. Waiting for robot...\n";
 
-  // ----- Register audio callback -----
+  // Helper: enqueue audio to the speaker (lazily initializes on first call)
+  auto playAudio = [&speaker,
+                    &speaker_mutex](const livekit::AudioFrame &frame) {
+    const auto &samples = frame.data();
+    if (samples.empty())
+      return;
+
+    std::lock_guard<std::mutex> lock(speaker_mutex);
+
+    if (!speaker) {
+      speaker = std::make_unique<DDLSpeakerSink>(frame.sample_rate(),
+                                                 frame.num_channels());
+      if (!speaker->init()) {
+        std::cerr << "[human] Failed to init SDL speaker.\n";
+        speaker.reset();
+        return;
+      }
+      std::cout << "[human] Speaker opened: " << frame.sample_rate() << " Hz, "
+                << frame.num_channels() << " ch.\n";
+    }
+
+    speaker->enqueue(samples.data(), frame.samples_per_channel());
+  };
+
+  // ----- Register audio callbacks -----
+  // Real mic (SOURCE_MICROPHONE) -- plays only when 'w' is selected
   bridge.registerOnAudioFrame(
       "robot", livekit::TrackSource::SOURCE_MICROPHONE,
-      [&speaker, &speaker_mutex](const livekit::AudioFrame &frame) {
+      [playAudio](const livekit::AudioFrame &frame) {
         g_audio_frames.fetch_add(1, std::memory_order_relaxed);
-
-        const auto &samples = frame.data();
-        if (samples.empty())
-          return;
-
-        std::lock_guard<std::mutex> lock(speaker_mutex);
-
-        // Lazily initialize speaker on first frame
-        if (!speaker) {
-          speaker = std::make_unique<DDLSpeakerSink>(frame.sample_rate(),
-                                                     frame.num_channels());
-          if (!speaker->init()) {
-            std::cerr << "[human] Failed to init SDL speaker.\n";
-            speaker.reset();
-            return;
-          }
-          std::cout << "[human] Speaker opened: " << frame.sample_rate()
-                    << " Hz, " << frame.num_channels() << " ch.\n";
+        if (g_selected_source.load(std::memory_order_relaxed) ==
+            static_cast<int>(VideoSource::Webcam)) {
+          playAudio(frame);
         }
-
-        speaker->enqueue(samples.data(), frame.samples_per_channel());
       });
 
-  // ----- Register video callback -----
+  // Sim audio / siren (SOURCE_SCREENSHARE_AUDIO) -- plays only when 's' is
+  // selected
+  bridge.registerOnAudioFrame(
+      "robot", livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO,
+      [playAudio](const livekit::AudioFrame &frame) {
+        g_audio_frames.fetch_add(1, std::memory_order_relaxed);
+        if (g_selected_source.load(std::memory_order_relaxed) ==
+            static_cast<int>(VideoSource::SimFrame)) {
+          playAudio(frame);
+        }
+      });
+
+  // ----- Register video callbacks -----
+  // Webcam feed (SOURCE_CAMERA) -- renders only when 'w' is selected
   bridge.registerOnVideoFrame(
       "robot", livekit::TrackSource::SOURCE_CAMERA,
       [](const livekit::VideoFrame &frame, std::int64_t /*timestamp_us*/) {
         g_video_frames.fetch_add(1, std::memory_order_relaxed);
-
-        // Store the latest frame for the main loop to render.
-        // The frame arrives as RGBA by default.
-        const std::uint8_t *src = frame.data();
-        const std::size_t size = frame.dataSize();
-        if (!src || size == 0)
-          return;
-
-        std::lock_guard<std::mutex> lock(g_latest_video.mutex);
-        g_latest_video.data.assign(src, src + size);
-        g_latest_video.width = frame.width();
-        g_latest_video.height = frame.height();
-        g_latest_video.dirty = true;
+        if (g_selected_source.load(std::memory_order_relaxed) ==
+            static_cast<int>(VideoSource::Webcam)) {
+          renderFrame(frame);
+        }
       });
 
+  // Sim frame feed (SOURCE_SCREENSHARE) -- renders only when 's' is selected
+  bridge.registerOnVideoFrame(
+      "robot", livekit::TrackSource::SOURCE_SCREENSHARE,
+      [](const livekit::VideoFrame &frame, std::int64_t /*timestamp_us*/) {
+        g_video_frames.fetch_add(1, std::memory_order_relaxed);
+        if (g_selected_source.load(std::memory_order_relaxed) ==
+            static_cast<int>(VideoSource::SimFrame)) {
+          renderFrame(frame);
+        }
+      });
+
+  // ----- Stdin input thread (for switching when the SDL window is not focused)
+  // -----
+  std::thread input_thread([&]() {
+    std::string line;
+    while (g_running.load() && std::getline(std::cin, line)) {
+      if (line == "w" || line == "W") {
+        g_selected_source.store(static_cast<int>(VideoSource::Webcam),
+                                std::memory_order_relaxed);
+        std::cout << "[human] Switched to webcam + mic.\n";
+      } else if (line == "s" || line == "S") {
+        g_selected_source.store(static_cast<int>(VideoSource::SimFrame),
+                                std::memory_order_relaxed);
+        std::cout << "[human] Switched to sim frame + siren.\n";
+      }
+    }
+  });
+
   // ----- Main loop -----
-  std::cout << "[human] Rendering robot feed... press Ctrl-C or close window "
-               "to stop.\n";
+  std::cout
+      << "[human] Rendering robot feed. Press 'w' for webcam + mic, "
+         "'s' for sim frame + siren (in this terminal or the SDL window). "
+         "Ctrl-C or close window to stop.\n";
 
   auto last_report = std::chrono::steady_clock::now();
 
@@ -200,11 +272,21 @@ int main(int argc, char *argv[]) {
   std::vector<std::uint8_t> local_pixels;
 
   while (g_running.load()) {
-    // Pump SDL events
+    // Pump SDL events (including keyboard input for source selection)
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
       if (ev.type == SDL_EVENT_QUIT) {
         g_running.store(false);
+      } else if (ev.type == SDL_EVENT_KEY_DOWN) {
+        if (ev.key.key == SDLK_W) {
+          g_selected_source.store(static_cast<int>(VideoSource::Webcam),
+                                  std::memory_order_relaxed);
+          std::cout << "[human] Switched to webcam + mic.\n";
+        } else if (ev.key.key == SDLK_S) {
+          g_selected_source.store(static_cast<int>(VideoSource::SimFrame),
+                                  std::memory_order_relaxed);
+          std::cout << "[human] Switched to sim frame + siren.\n";
+        }
       }
     }
 
@@ -265,9 +347,14 @@ int main(int argc, char *argv[]) {
     auto now = std::chrono::steady_clock::now();
     if (now - last_report >= std::chrono::seconds(5)) {
       last_report = now;
+      const char *src_name =
+          g_selected_source.load(std::memory_order_relaxed) ==
+                  static_cast<int>(VideoSource::Webcam)
+              ? "webcam"
+              : "sim_frame";
       std::cout << "[human] Status: " << g_audio_frames.load()
                 << " audio frames, " << g_video_frames.load()
-                << " video frames received.\n";
+                << " video frames received (showing: " << src_name << ").\n";
     }
 
     // ~60fps render loop
@@ -278,6 +365,11 @@ int main(int argc, char *argv[]) {
   std::cout << "[human] Shutting down...\n";
   std::cout << "[human] Total received: " << g_audio_frames.load()
             << " audio frames, " << g_video_frames.load() << " video frames.\n";
+
+  // The input thread blocks on std::getline; detach it since there is no
+  // portable way to interrupt blocking stdin reads.
+  if (input_thread.joinable())
+    input_thread.detach();
 
   bridge.disconnect();
 

@@ -86,8 +86,10 @@ int main(int argc, char *argv[]) {
   constexpr int kWidth = 640;
   constexpr int kHeight = 480;
 
-  auto mic = bridge.createAudioTrack("robot-mic", kSampleRate, kChannels);
-  auto cam = bridge.createVideoTrack("robot-cam", kWidth, kHeight);
+  auto mic = bridge.createAudioTrack("robot-mic", kSampleRate, kChannels,
+                                     livekit::TrackSource::SOURCE_MICROPHONE);
+  auto cam = bridge.createVideoTrack("robot-cam", kWidth, kHeight,
+                                     livekit::TrackSource::SOURCE_CAMERA);
   std::cout << "[robot] Publishing audio (" << kSampleRate << " Hz, "
             << kChannels << " ch) and video (" << kWidth << "x" << kHeight
             << ").\n";
