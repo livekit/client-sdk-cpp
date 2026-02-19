@@ -9,6 +9,7 @@ PRESET=""
 DO_BUNDLE="0"
 DO_ARCHIVE="0"
 PREFIX=""
+DESTINATION=""
 ARCHIVE_NAME=""
 GENERATOR=""
 MACOS_ARCH=""
@@ -24,6 +25,18 @@ detect_os() {
 }
 
 OS_TYPE="$(detect_os)"
+
+# When --destination is set, override BUILD_DIR and bypass presets
+apply_destination() {
+  if [[ -n "${DESTINATION}" ]]; then
+    if [[ "${DESTINATION}" != /* ]]; then
+      BUILD_DIR="${PROJECT_ROOT}/${DESTINATION}"
+    else
+      BUILD_DIR="${DESTINATION}"
+    fi
+    PRESET=""
+  fi
+}
 
 usage() {
   cat <<EOF
@@ -46,6 +59,8 @@ Options (for debug / release):
   --bundle                 Install the SDK bundle using 'cmake --install'
   --prefix <dir>           Install prefix for --bundle
                            (default: ./sdk-out/livekit-sdk)
+  --destination <dir>      Build artifacts output directory
+                           (default: build-debug/ or build-release/)
   --archive                After --bundle, create an archive of the SDK bundle
                            (.zip if available, otherwise .tar.gz)
   --archive-name <name>    Override archive base name (no extension)
@@ -80,6 +95,14 @@ parse_opts() {
         PREFIX="${2:-}"
         if [[ -z "${PREFIX}" ]]; then
           echo "ERROR: --prefix requires a value"
+          exit 1
+        fi
+        shift 2
+        ;;
+      --destination)
+        DESTINATION="${2:-}"
+        if [[ -z "${DESTINATION}" ]]; then
+          echo "ERROR: --destination requires a value"
           exit 1
         fi
         shift 2
@@ -131,7 +154,6 @@ parse_opts() {
 }
 
 configure() {
-  echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
   local -a extra_args=()
   if [[ -n "${LIVEKIT_VERSION}" ]]; then
     echo "==> Injecting LIVEKIT_VERSION=${LIVEKIT_VERSION}"
@@ -145,10 +167,24 @@ configure() {
     if ! cmake --preset "${PRESET}" "${extra_args[@]}"; then
       echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
       cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" "${extra_args[@]}"
+  if [[ -n "${PRESET}" ]]; then
+    echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
+    if ((${#extra_args[@]})); then
+      if ! cmake --preset "${PRESET}" "${extra_args[@]}"; then
+        echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
+        cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" "${extra_args[@]}"
+      fi
+    else
+      if ! cmake --preset "${PRESET}"; then
+        echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
+        cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
+      fi
     fi
   else
-    if ! cmake --preset "${PRESET}"; then
-      echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
+    echo "==> Configuring CMake (${BUILD_TYPE}) to ${BUILD_DIR}..."
+    if ((${#extra_args[@]})); then
+      cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" "${extra_args[@]}"
+    else
       cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
     fi
   fi
@@ -329,6 +365,7 @@ case "${cmd}" in
     BUILD_TYPE="Debug"
     BUILD_DIR="${PROJECT_ROOT}/build-debug"
     PRESET="${OS_TYPE}-debug"
+    apply_destination
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then
@@ -342,6 +379,7 @@ case "${cmd}" in
     BUILD_TYPE="Debug"
     BUILD_DIR="${PROJECT_ROOT}/build-debug"
     PRESET="${OS_TYPE}-debug-examples"
+    apply_destination
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then
@@ -355,6 +393,7 @@ case "${cmd}" in
     BUILD_TYPE="Release"
     BUILD_DIR="${PROJECT_ROOT}/build-release"
     PRESET="${OS_TYPE}-release"
+    apply_destination
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then
@@ -368,6 +407,7 @@ case "${cmd}" in
     BUILD_TYPE="Release"
     BUILD_DIR="${PROJECT_ROOT}/build-release"
     PRESET="${OS_TYPE}-release-examples"
+    apply_destination
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then
@@ -381,6 +421,7 @@ case "${cmd}" in
     BUILD_TYPE="Debug"
     BUILD_DIR="${PROJECT_ROOT}/build-debug"
     PRESET="${OS_TYPE}-debug-tests"
+    apply_destination
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then
@@ -394,6 +435,7 @@ case "${cmd}" in
     BUILD_TYPE="Release"
     BUILD_DIR="${PROJECT_ROOT}/build-release"
     PRESET="${OS_TYPE}-release-tests"
+    apply_destination
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then

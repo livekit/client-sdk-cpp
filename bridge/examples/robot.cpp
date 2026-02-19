@@ -295,6 +295,24 @@ static void drawString(std::uint8_t *buf, int buf_w, int buf_h, int x0, int y0,
 static std::atomic<bool> g_running{true};
 static void handleSignal(int) { g_running.store(false); }
 
+static bool hasAudioDevices() {
+  int count = 0;
+  SDL_AudioDeviceID *devs = SDL_GetAudioRecordingDevices(&count);
+  bool has = devs && count > 0;
+  if (devs)
+    SDL_free(devs);
+  return has;
+}
+
+static bool hasVideoDevices() {
+  int count = 0;
+  SDL_CameraID *cams = SDL_GetCameras(&count);
+  bool has = cams && count > 0;
+  if (cams)
+    SDL_free(cams);
+  return has;
+}
+
 int main(int argc, char *argv[]) {
   // ----- Parse args / env -----
   std::string url, token;
@@ -317,11 +335,26 @@ int main(int argc, char *argv[]) {
 
   std::signal(SIGINT, handleSignal);
 
-  // ----- Initialize SDL3 -----
-  if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_CAMERA)) {
-    std::cerr << "[robot] SDL_Init failed: " << SDL_GetError() << "\n";
-    return 1;
+  // ----- Initialize SDL3 (must happen before device enumeration) -----
+  // SDL init is best-effort: if it fails we still stream sim tracks.
+  bool sdl_ok = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_CAMERA | SDL_INIT_AUDIO);
+  if (!sdl_ok) {
+    std::cerr << "[robot] WARNING: SDL_Init failed: " << SDL_GetError()
+              << "; hardware capture disabled, sim tracks only.\n";
   }
+
+  // ----- Check for audio/video devices -----
+  bool has_audio_device = sdl_ok && hasAudioDevices();
+  bool has_video_device = sdl_ok && hasVideoDevices();
+  if (!has_audio_device) {
+    std::cerr << "[robot] WARNING: No audio recording device found; skipping "
+                 "microphone track.\n";
+  }
+  if (!has_video_device) {
+    std::cerr << "[robot] WARNING: No video/camera device found; skipping "
+                 "camera track.\n";
+  }
+
 
   // ----- Connect to LiveKit -----
   livekit_bridge::LiveKitBridge bridge;
@@ -333,6 +366,8 @@ int main(int argc, char *argv[]) {
   }
   std::cout << "[robot] Connected.\n";
 
+
+
   // ----- Create outgoing tracks -----
   constexpr int kSampleRate = 48000;
   constexpr int kChannels = 1;
@@ -342,19 +377,31 @@ int main(int argc, char *argv[]) {
   constexpr int kSimWidth = 480;
   constexpr int kSimHeight = 320;
 
-  auto mic = bridge.createAudioTrack("robot-mic", kSampleRate, kChannels,
-                                     livekit::TrackSource::SOURCE_MICROPHONE);
-  auto sim_audio =
+  std::shared_ptr<livekit_bridge::BridgeAudioTrack> mic;
+  std::shared_ptr<livekit_bridge::BridgeAudioTrack> sim_audio;
+  std::shared_ptr<livekit_bridge::BridgeVideoTrack> cam;
+  std::shared_ptr<livekit_bridge::BridgeVideoTrack> sim_cam;
+
+  if (has_audio_device) {
+    mic = bridge.createAudioTrack("robot-mic", kSampleRate, kChannels,
+                                  livekit::TrackSource::SOURCE_MICROPHONE);
+  }
+  sim_audio =
       bridge.createAudioTrack("robot-sim-audio", kSampleRate, kChannels,
                               livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO);
-  auto cam = bridge.createVideoTrack("robot-cam", kWidth, kHeight,
-                                     livekit::TrackSource::SOURCE_CAMERA);
-  auto sim_cam =
+  if (has_video_device) {
+    cam = bridge.createVideoTrack("robot-cam", kWidth, kHeight,
+                                  livekit::TrackSource::SOURCE_CAMERA);
+  }
+  sim_cam =
       bridge.createVideoTrack("robot-sim-frame", kSimWidth, kSimHeight,
                               livekit::TrackSource::SOURCE_SCREENSHARE);
-  std::cout << "[robot] Publishing mic + sim audio (" << kSampleRate << " Hz, "
-            << kChannels << " ch), cam + sim frame (" << kWidth << "x"
-            << kHeight << " / " << kSimWidth << "x" << kSimHeight << ").\n";
+  std::cout << "[robot] Publishing "
+            << (has_audio_device ? "mic + " : "")
+            << "sim audio (" << kSampleRate << " Hz, " << kChannels << " ch), "
+            << (has_video_device ? "cam + " : "")
+            << "sim frame (" << kWidth << "x" << kHeight << " / " << kSimWidth
+            << "x" << kSimHeight << ").\n";
 
   // ----- SDL Mic capture -----
   // SDLMicSource pulls 10ms frames from the default recording device and
@@ -364,7 +411,7 @@ int main(int argc, char *argv[]) {
   std::atomic<bool> mic_running{true};
   std::thread mic_thread;
 
-  {
+  if (has_audio_device) {
     int recCount = 0;
     SDL_AudioDeviceID *recDevs = SDL_GetAudioRecordingDevices(&recCount);
     bool has_mic = recDevs && recCount > 0;
@@ -397,6 +444,10 @@ int main(int argc, char *argv[]) {
         sdl_mic.reset();
       }
     }
+    else
+    {
+      std::cout << "[robot] No microphone found; will not stream microphone frames\n";
+    }
 
     if (!mic_using_sdl) {
       std::cout << "[robot] No microphone found; sending silence.\n";
@@ -423,7 +474,7 @@ int main(int argc, char *argv[]) {
   std::atomic<bool> cam_running{true};
   std::thread cam_thread;
 
-  {
+  if (has_video_device) {
     int camCount = 0;
     SDL_CameraID *cams = SDL_GetCameras(&camCount);
     bool has_cam = cams && camCount > 0;
@@ -486,6 +537,10 @@ int main(int argc, char *argv[]) {
         }
       });
     }
+  }
+  else
+  {
+    std::cout << "[robot] No camera found; will not stream camera frames\n";
   }
 
   // ----- Sim frame video track (red bg, white text with frame # and time)
