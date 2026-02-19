@@ -40,6 +40,47 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 ## Prerequisites
 - install livekit-cli by following the (official livekit docs)[https://docs.livekit.io/intro/basics/cli/start/]
 
+### For arm64
+__WARNING:__ this has only been tested on jetson
+- install gcc14 and make it the default
+```
+sudo apt install build-essential
+sudo apt install libmpfr-dev libgmp3-dev libmpc-dev -y
+wget https://ftp.gnu.org/gnu/gcc/gcc-14.1.0/gcc-14.1.0.tar.gz
+tar -xf gcc-14.1.0.tar.gz
+cd gcc-14.1.0
+./configure -v --build=$(uname -m)-linux-gnu --host=$(uname -m)-linux-gnu --target=$(uname -m)-linux-gnu --prefix=/usr/local/gcc-14.1.0 --enable-checking=release --enable-languages=c,c++ --disable-multilib --program-suffix=-14.1.0
+make
+sudo make install
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/local/gcc-14.1.0/bin/gcc-14.1.0 14
+```
+- install proto
+```
+git clone https://github.com/protocolbuffers/protobuf.git 
+cd protobuf
+git checkout v3.21.12
+cmake -B build -DCMAKE_BUILD_TYPE=Release -Dprotobuf_BUILD_TESTS=OFF
+cmake --build build -j$(nproc)
+cmake --install build
+ldconfig
+```
+- copy in protos
+```
+mkdir -p build-debug/runtime_libs
+cp $(gcc -print-file-name=libstdc++.so) build-debug/runtime_libs/
+cp $(gcc -print-file-name=libgcc_s.so) build-debug/runtime_libs/
+```
+- update PATH in ~/.bashrc
+```
+❯ export LD_LIBRARY_PATH=/usr/local/gcc-14.1.0/lib64:/usr/local/gcc-14.1.0/lib/gcc/aarch64-linux-gnu/14.1.0:$LD_LIBRARY_PATH
+```
+- install and utilize patchelf, a lightweight dynamic linker tool
+```
+sudo apt install patchelf
+patchelf --print-rpath build-debug/bin/protoc-25.3.0
+```
+
+
 ## 🧩 Clone the Repository
 
 Make sure to initialize the Rust submodule (`client-sdk-rust`):
