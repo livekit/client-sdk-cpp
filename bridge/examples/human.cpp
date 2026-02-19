@@ -30,8 +30,10 @@
  * The selection controls both video and audio simultaneously.
  *
  * Usage:
- *   human <ws-url> <token>
- *   LIVEKIT_URL=... LIVEKIT_TOKEN=... human
+ *   human [--no-audio] <ws-url> <token>
+ *   LIVEKIT_URL=... LIVEKIT_TOKEN=... human [--no-audio]
+ *
+ * --no-audio   Subscribe to audio tracks but suppress local playback.
  *
  * The token must grant identity "human". Generate one with:
  *   lk token create --api-key <key> --api-secret <secret> \
@@ -101,10 +103,20 @@ static std::atomic<uint64_t> g_video_frames{0};
 
 int main(int argc, char *argv[]) {
   // ----- Parse args / env -----
+  bool no_audio = false;
+  std::vector<std::string> positional;
+  for (int i = 1; i < argc; ++i) {
+    if (std::string(argv[i]) == "--no-audio") {
+      no_audio = true;
+    } else {
+      positional.push_back(argv[i]);
+    }
+  }
+
   std::string url, token;
-  if (argc >= 3) {
-    url = argv[1];
-    token = argv[2];
+  if (positional.size() >= 2) {
+    url = positional[0];
+    token = positional[1];
   } else {
     const char *e = std::getenv("LIVEKIT_URL");
     if (e)
@@ -114,9 +126,13 @@ int main(int argc, char *argv[]) {
       token = e;
   }
   if (url.empty() || token.empty()) {
-    std::cerr << "Usage: human <ws-url> <token>\n"
-              << "   or: LIVEKIT_URL=... LIVEKIT_TOKEN=... human\n";
+    std::cerr
+        << "Usage: human [--no-audio] <ws-url> <token>\n"
+        << "   or: LIVEKIT_URL=... LIVEKIT_TOKEN=... human [--no-audio]\n";
     return 1;
+  }
+  if (no_audio) {
+    std::cout << "[human] --no-audio: audio playback disabled.\n";
   }
 
   std::signal(SIGINT, handleSignal);
@@ -199,10 +215,10 @@ int main(int argc, char *argv[]) {
   // Real mic (SOURCE_MICROPHONE) -- plays only when 'w' is selected
   bridge.registerOnAudioFrame(
       "robot", livekit::TrackSource::SOURCE_MICROPHONE,
-      [playAudio](const livekit::AudioFrame &frame) {
+      [playAudio, no_audio](const livekit::AudioFrame &frame) {
         g_audio_frames.fetch_add(1, std::memory_order_relaxed);
-        if (g_selected_source.load(std::memory_order_relaxed) ==
-            static_cast<int>(VideoSource::Webcam)) {
+        if (!no_audio && g_selected_source.load(std::memory_order_relaxed) ==
+                             static_cast<int>(VideoSource::Webcam)) {
           playAudio(frame);
         }
       });
@@ -211,10 +227,10 @@ int main(int argc, char *argv[]) {
   // selected
   bridge.registerOnAudioFrame(
       "robot", livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO,
-      [playAudio](const livekit::AudioFrame &frame) {
+      [playAudio, no_audio](const livekit::AudioFrame &frame) {
         g_audio_frames.fetch_add(1, std::memory_order_relaxed);
-        if (g_selected_source.load(std::memory_order_relaxed) ==
-            static_cast<int>(VideoSource::SimFrame)) {
+        if (!no_audio && g_selected_source.load(std::memory_order_relaxed) ==
+                             static_cast<int>(VideoSource::SimFrame)) {
           playAudio(frame);
         }
       });
