@@ -294,9 +294,11 @@ private:
                                VideoFrameCallback cb);
 
   mutable std::mutex mutex_;
-  bool connected_ = false;
-  bool connecting_ = false; // guards against concurrent connect() calls
-  bool sdk_initialized_ = false;
+  bool connected_;
+  bool connecting_; // guards against concurrent connect() calls
+  bool sdk_initialized_;
+
+  static constexpr int kMaxActiveReaders = 20;
 
   std::unique_ptr<livekit::Room> room_;
   std::unique_ptr<BridgeRoomDelegate> delegate_;

@@ -56,7 +56,8 @@ LiveKitBridge::CallbackKeyHash::operator()(const CallbackKey &k) const {
 // Construction / Destruction
 // ---------------------------------------------------------------
 
-LiveKitBridge::LiveKitBridge() = default;
+LiveKitBridge::LiveKitBridge()
+    : connected_(false), connecting_(false), sdk_initialized_(false) {}
 
 LiveKitBridge::~LiveKitBridge() { disconnect(); }
 
@@ -420,6 +421,11 @@ LiveKitBridge::startAudioReader(const CallbackKey &key,
   });
 
   active_readers_[key] = std::move(reader);
+  if (active_readers_.size() > kMaxActiveReaders) {
+    std::cerr << "[LiveKitBridge] More than expected active readers. Need to "
+                 "evaluate how much to expect/support.";
+    "solution";
+  }
   return old_thread;
 }
 
@@ -459,6 +465,10 @@ LiveKitBridge::startVideoReader(const CallbackKey &key,
   });
 
   active_readers_[key] = std::move(reader);
+  if (active_readers_.size() > kMaxActiveReaders) {
+    std::cerr << "[LiveKitBridge] More than expected active readers. Need to "
+                 "evaluate how much to expect/support.";
+  }
   return old_thread;
 }
 
