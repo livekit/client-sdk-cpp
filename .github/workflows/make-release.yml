@@ -27,6 +27,9 @@ jobs:
           - os: ubuntu-latest
             name: linux-x64
             generator: Ninja
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+            generator: Ninja
           - os: macos-latest
             name: macos-arm64
             generator: Ninja
@@ -129,8 +132,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-reg-
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
@@ -255,7 +258,7 @@ jobs:
           ls -la
           
           # Create tar.gz for Linux and macOS
-          for platform in linux-x64 macos-arm64; do
+          for platform in linux-x64 linux-arm64 macos-arm64; do
             dirName="livekit-sdk-${platform}-${VERSION}"
             if [[ -d "${dirName}" ]]; then
               echo "Creating archive for ${platform}..."
