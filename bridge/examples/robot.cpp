@@ -326,7 +326,9 @@ int main(int argc, char *argv[]) {
   // ----- Connect to LiveKit -----
   livekit_bridge::LiveKitBridge bridge;
   std::cout << "[robot] Connecting to " << url << " ...\n";
-  if (!bridge.connect(url, token)) {
+  livekit::RoomOptions options;
+  options.auto_subscribe = true;
+  if (!bridge.connect(url, token, options)) {
     std::cerr << "[robot] Failed to connect.\n";
     SDL_Quit();
     return 1;

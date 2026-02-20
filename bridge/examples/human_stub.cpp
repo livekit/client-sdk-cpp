@@ -78,8 +78,11 @@ int main(int argc, char *argv[]) {
 
   // ----- Connect -----
   livekit_bridge::LiveKitBridge bridge;
+  livekit::RoomOptions options;
+  options.auto_subscribe = true;
+  options.dynacast = false;
   std::cout << "[human] Connecting to " << url << " ...\n";
-  if (!bridge.connect(url, token)) {
+  if (!bridge.connect(url, token, options)) {
     std::cerr << "[human] Failed to connect.\n";
     return 1;
   }
