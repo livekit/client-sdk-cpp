@@ -240,6 +240,7 @@ cmake --build build-debug --target livekit_bridge_tests
 
 The bridge is designed for simplicity and currently only supports limited audio and video features. It does not expose:
 
+- We dont support all events defined in the RoomDelegate interface.
 - E2EE configuration
 - RPC / data channels / data tracks
 - Simulcast tuning

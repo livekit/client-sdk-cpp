@@ -66,6 +66,12 @@ using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
  * Owns the full room lifecycle: initialize SDK, create Room, connect,
  * publish tracks, and manage incoming frame callbacks.
  *
+ * The bridge retains a shared_ptr to every track it creates. On
+ * disconnect(), all tracks are released (unpublished) before the room
+ * is torn down, guaranteeing safe teardown order. To unpublish a track
+ * mid-session, call release() on the track explicitly; dropping the
+ * application's shared_ptr alone is not sufficient.
+ *
  * Example:
  *
  *   LiveKitBridge bridge;
@@ -89,8 +95,10 @@ using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
  *       livekit::TrackSource::SOURCE_CAMERA,
  *       [](const livekit::VideoFrame& f, int64_t ts) { render(f); });
  *
- *   // Cleanup is automatic via RAII, or explicit:
- *   mic.reset();
+ *   // Unpublish a single track mid-session:
+ *   mic->release();
+ *
+ *   // Disconnect releases all remaining tracks and tears down the room:
  *   bridge.disconnect();
  */
 class LiveKitBridge {
@@ -147,8 +155,9 @@ public:
   /**
    * Create and publish a local audio track.
    *
-   * The returned handle is RAII-managed: dropping the shared_ptr
-   * automatically unpublishes the track.
+   * The bridge retains a reference to the track internally. To unpublish
+   * mid-session, call release() on the returned track. All surviving
+   * tracks are automatically released on disconnect().
    *
    * @pre The bridge must be connected (via connect()). Calling this on a
    *      disconnected bridge is a programming error.
@@ -170,8 +179,9 @@ public:
   /**
    * Create and publish a local video track.
    *
-   * The returned handle is RAII-managed: dropping the shared_ptr
-   * automatically unpublishes the track.
+   * The bridge retains a reference to the track internally. To unpublish
+   * mid-session, call release() on the returned track. All surviving
+   * tracks are automatically released on disconnect().
    *
    * @pre The bridge must be connected (via connect()). Calling this on a
    *      disconnected bridge is a programming error.
@@ -319,6 +329,13 @@ private:
   // Active reader threads for subscribed tracks
   std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash>
       active_readers_;
+
+  // All tracks created by this bridge. The bridge retains a shared_ptr so
+  // it can force-release every track on disconnect() before the room is
+  // destroyed, preventing dangling participant_ pointers.
+  std::vector<std::shared_ptr<BridgeAudioTrack>> published_audio_tracks_;
+  std::vector<std::shared_ptr<BridgeVideoTrack>> published_video_tracks_;
+
 };
 
 } // namespace livekit_bridge

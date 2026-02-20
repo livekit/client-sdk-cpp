@@ -136,6 +136,17 @@ void LiveKitBridge::disconnect() {
     connected_ = false;
     connecting_ = false;
 
+    // Release all published tracks while the room/participant are still alive.
+    // This calls unpublishTrack() on each, ensuring participant_ is valid.
+    for (auto &track : published_audio_tracks_) {
+      track->release();
+    }
+    for (auto &track : published_video_tracks_) {
+      track->release();
+    }
+    published_audio_tracks_.clear();
+    published_video_tracks_.clear();
+
     // Close all streams (unblocks read loops) and collect threads
     for (auto &[key, reader] : active_readers_) {
       if (reader.audio_stream) {
@@ -145,7 +156,7 @@ void LiveKitBridge::disconnect() {
         reader.video_stream->close();
       }
       if (reader.thread.joinable()) {
-        threads_to_join.push_back(std::move(reader.thread));
+        threads_to_join.emplace_back(std::move(reader.thread));
       }
     }
     active_readers_.clear();
@@ -213,10 +224,12 @@ LiveKitBridge::createAudioTrack(const std::string &name, int sample_rate,
 
   auto publication = room_->localParticipant()->publishTrack(track, opts);
 
-  // 4. Wrap in RAII handle
-  return std::shared_ptr<BridgeAudioTrack>(new BridgeAudioTrack(
+  // 4. Wrap in handle and retain a reference
+  auto bridge_track = std::shared_ptr<BridgeAudioTrack>(new BridgeAudioTrack(
       name, sample_rate, num_channels, std::move(audio_source),
       std::move(track), std::move(publication), room_->localParticipant()));
+  published_audio_tracks_.emplace_back(bridge_track);
+  return bridge_track;
 }
 
 std::shared_ptr<BridgeVideoTrack>
@@ -242,10 +255,12 @@ LiveKitBridge::createVideoTrack(const std::string &name, int width, int height,
 
   auto publication = room_->localParticipant()->publishTrack(track, opts);
 
-  // 4. Wrap in RAII handle
-  return std::shared_ptr<BridgeVideoTrack>(new BridgeVideoTrack(
+  // 4. Wrap in handle and retain a reference
+  auto bridge_track = std::shared_ptr<BridgeVideoTrack>(new BridgeVideoTrack(
       name, width, height, std::move(video_source), std::move(track),
       std::move(publication), room_->localParticipant()));
+  published_video_tracks_.emplace_back(bridge_track);
+  return bridge_track;
 }
 
 // ---------------------------------------------------------------

@@ -23,11 +23,10 @@ namespace livekit_bridge {
 class LiveKitBridge;
 
 /**
- * Internal RoomDelegate that automatically wires up AudioStream/VideoStream
- * reader threads when remote tracks are subscribed, and tears them down
- * on unsubscribe.
+ * Internal RoomDelegate that forwards SDK room events to the LiveKitBridge.
  *
- * Not part of the public API, so its in src/ instead of include/.
+ * Handles track subscribe/unsubscribe lifecycle. Not part of the public API,
+ * so its in src/ instead of include/.
  */
 class BridgeRoomDelegate : public livekit::RoomDelegate {
 public:

@@ -36,11 +36,17 @@ class BridgeAudioTrackTest;
 } // namespace test
 
 /**
- * RAII wrapper around a published local audio track.
+ * Handle to a published local audio track.
  *
- * Created via LiveKitBridge::createAudioTrack(). When the last shared_ptr
- * reference is released (or release() is called explicitly), the track is
- * unpublished and all underlying SDK resources are freed.
+ * Created via LiveKitBridge::createAudioTrack(). The bridge retains a
+ * reference to every track it creates and will automatically release all
+ * tracks when disconnect() is called. To unpublish a track mid-session,
+ * call release() explicitly; dropping the shared_ptr alone is not
+ * sufficient because the bridge still holds a reference.
+ *
+ * After release() (whether called explicitly or by the bridge on
+ * disconnect), pushFrame() returns false and mute()/unmute() become
+ * no-ops. The track object remains valid but inert.
  *
  * All public methods are thread-safe: it is safe to call pushFrame() from
  * one thread while another calls mute()/unmute()/release(), or to call
@@ -51,7 +57,7 @@ class BridgeAudioTrackTest;
  *       livekit::TrackSource::SOURCE_MICROPHONE);
  *   mic->pushFrame(pcm_data, samples_per_channel);
  *   mic->mute();
- *   mic.reset();  // unpublishes
+ *   mic->release();  // unpublishes the track mid-session
  */
 class BridgeAudioTrack {
 public:
@@ -104,11 +110,16 @@ public:
   /// Whether this track has been released / unpublished.
   bool isReleased() const noexcept;
 
-private:
-  /// Explicitly unpublish and release all resources.
-  /// Called automatically by the destructor.
+  /**
+   * Explicitly unpublish the track and release all underlying SDK resources.
+   *
+   * After this call, pushFrame() returns false and mute()/unmute() are
+   * no-ops. Called automatically by the destructor and by
+   * LiveKitBridge::disconnect(). Safe to call multiple times (idempotent).
+   */
   void release();
 
+private:
   friend class LiveKitBridge;
   friend class test::BridgeAudioTrackTest;
 
