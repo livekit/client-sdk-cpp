@@ -378,10 +378,8 @@ int main(int argc, char *argv[]) {
           kSampleRate, kChannels, kSampleRate / 100, // 10ms frames
           [&mic](const int16_t *samples, int num_samples_per_channel,
                  int /*sample_rate*/, int /*num_channels*/) {
-            try {
-              mic->pushFrame(samples, num_samples_per_channel);
-            } catch (const std::exception &e) {
-              std::cerr << "[robot] Mic push error: " << e.what() << "\n";
+            if (!mic->pushFrame(samples, num_samples_per_channel)) {
+              std::cerr << "[robot] Mic track released.\n";
             }
           });
 
@@ -407,9 +405,8 @@ int main(int argc, char *argv[]) {
         std::vector<std::int16_t> silence(kSamplesPerFrame * kChannels, 0);
         auto next = std::chrono::steady_clock::now();
         while (mic_running.load()) {
-          try {
-            mic->pushFrame(silence, kSamplesPerFrame);
-          } catch (...) {
+          if (!mic->pushFrame(silence, kSamplesPerFrame)) {
+            break;
           }
           next += std::chrono::milliseconds(10);
           std::this_thread::sleep_until(next);
@@ -437,18 +434,15 @@ int main(int argc, char *argv[]) {
           kWidth, kHeight, 30, SDL_PIXELFORMAT_RGBA32,
           [&cam](const uint8_t *pixels, int pitch, int width, int height,
                  SDL_PixelFormat /*fmt*/, Uint64 timestampNS) {
-            // Copy row-by-row (pitch may differ from width*4)
             const int dstPitch = width * 4;
             std::vector<std::uint8_t> buf(dstPitch * height);
             for (int y = 0; y < height; ++y) {
               std::memcpy(buf.data() + y * dstPitch, pixels + y * pitch,
                           dstPitch);
             }
-            try {
-              cam->pushFrame(buf.data(), buf.size(),
-                             static_cast<std::int64_t>(timestampNS / 1000));
-            } catch (const std::exception &e) {
-              std::cerr << "[robot] Cam push error: " << e.what() << "\n";
+            if (!cam->pushFrame(buf.data(), buf.size(),
+                                static_cast<std::int64_t>(timestampNS / 1000))) {
+              std::cerr << "[robot] Cam track released.\n";
             }
           });
 
@@ -479,11 +473,10 @@ int main(int argc, char *argv[]) {
         }
         std::int64_t ts = 0;
         while (cam_running.load()) {
-          try {
-            cam->pushFrame(green, ts);
-            ts += 33333;
-          } catch (...) {
+          if (!cam->pushFrame(green, ts)) {
+            break;
           }
+          ts += 33333;
           std::this_thread::sleep_for(std::chrono::milliseconds(33));
         }
       });
@@ -538,9 +531,8 @@ int main(int argc, char *argv[]) {
                               line2, kScale, 255, 255, 255);
 
       std::int64_t ts = static_cast<std::int64_t>(elapsed_ms) * 1000;
-      try {
-        sim_cam->pushFrame(frame, ts);
-      } catch (...) {
+      if (!sim_cam->pushFrame(frame, ts)) {
+        break;
       }
       ++frame_num;
       std::this_thread::sleep_for(std::chrono::milliseconds(33));
@@ -580,9 +572,8 @@ int main(int argc, char *argv[]) {
           buf[i * kChannels + ch] = sample;
         ++sample_idx;
       }
-      try {
-        sim_audio->pushFrame(buf, kFrameSamples);
-      } catch (...) {
+      if (!sim_audio->pushFrame(buf, kFrameSamples)) {
+        break;
       }
       next += std::chrono::milliseconds(10);
       std::this_thread::sleep_until(next);

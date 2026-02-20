@@ -129,20 +129,18 @@ int main(int argc, char *argv[]) {
           kAmplitude * std::sin(2.0 * M_PI * kToneHz * t));
     }
 
-    try {
-      mic->pushFrame(audio_buf, kSamplesPerFrame);
-    } catch (const std::exception &e) {
-      std::cerr << "[robot] Audio push error: " << e.what() << "\n";
+    if (!mic->pushFrame(audio_buf, kSamplesPerFrame)) {
+      std::cerr << "[robot] Audio track released, stopping.\n";
+      break;
     }
 
     // Push video at ~30 fps (every 3rd loop iteration, since loop is 10ms)
     if (++loop_count % 3 == 0) {
-      try {
-        cam->pushFrame(video_buf, video_ts);
-        video_ts += 33333; // ~30 fps in microseconds
-      } catch (const std::exception &e) {
-        std::cerr << "[robot] Video push error: " << e.what() << "\n";
+      if (!cam->pushFrame(video_buf, video_ts)) {
+        std::cerr << "[robot] Video track released, stopping.\n";
+        break;
       }
+      video_ts += 33333; // ~30 fps in microseconds
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
