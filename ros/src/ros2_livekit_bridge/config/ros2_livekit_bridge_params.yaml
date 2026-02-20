@@ -2,10 +2,11 @@
   ros__parameters:
     room_name: "robo_room"
     topic_polling_period_ms: 500
+    ros_threads: 4
 
     # ECMAScript regex patterns matched against full topic names.
     # Examples: "/lidar/points" (exact), "/tf.*" (prefix match), "/camera/.*" (namespace match)
-    ros_topics: ["/rgbd_camera/image", /rgbd_camera/depth_image, "/laser_scan", "/lidar/points", "/odom", "/battery_state", "/tf.*"]
+    ros_topics: ["/rgbd_camera/image", "/laser_scan", "/lidar/points", "/odom", "/battery_state", "/tf.*", "/test/image.*"]
 
 
     # QoS depth bounds. Subscriber depth is the sum of all publisher depths, clamped to this range.

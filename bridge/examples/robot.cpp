@@ -355,7 +355,6 @@ int main(int argc, char *argv[]) {
                  "camera track.\n";
   }
 
-
   // ----- Connect to LiveKit -----
   livekit_bridge::LiveKitBridge bridge;
   std::cout << "[robot] Connecting to " << url << " ...\n";
@@ -365,8 +364,6 @@ int main(int argc, char *argv[]) {
     return 1;
   }
   std::cout << "[robot] Connected.\n";
-
-
 
   // ----- Create outgoing tracks -----
   constexpr int kSampleRate = 48000;
@@ -393,15 +390,13 @@ int main(int argc, char *argv[]) {
     cam = bridge.createVideoTrack("robot-cam", kWidth, kHeight,
                                   livekit::TrackSource::SOURCE_CAMERA);
   }
-  sim_cam =
-      bridge.createVideoTrack("robot-sim-frame", kSimWidth, kSimHeight,
-                              livekit::TrackSource::SOURCE_SCREENSHARE);
-  std::cout << "[robot] Publishing "
-            << (has_audio_device ? "mic + " : "")
+  sim_cam = bridge.createVideoTrack("robot-sim-frame", kSimWidth, kSimHeight,
+                                    livekit::TrackSource::SOURCE_SCREENSHARE);
+  std::cout << "[robot] Publishing " << (has_audio_device ? "mic + " : "")
             << "sim audio (" << kSampleRate << " Hz, " << kChannels << " ch), "
-            << (has_video_device ? "cam + " : "")
-            << "sim frame (" << kWidth << "x" << kHeight << " / " << kSimWidth
-            << "x" << kSimHeight << ").\n";
+            << (has_video_device ? "cam + " : "") << "sim frame (" << kWidth
+            << "x" << kHeight << " / " << kSimWidth << "x" << kSimHeight
+            << ").\n";
 
   // ----- SDL Mic capture -----
   // SDLMicSource pulls 10ms frames from the default recording device and
@@ -443,10 +438,9 @@ int main(int argc, char *argv[]) {
         std::cerr << "[robot] SDL mic init failed.\n";
         sdl_mic.reset();
       }
-    }
-    else
-    {
-      std::cout << "[robot] No microphone found; will not stream microphone frames\n";
+    } else {
+      std::cout
+          << "[robot] No microphone found; will not stream microphone frames\n";
     }
 
     if (!mic_using_sdl) {
@@ -537,9 +531,7 @@ int main(int argc, char *argv[]) {
         }
       });
     }
-  }
-  else
-  {
+  } else {
     std::cout << "[robot] No camera found; will not stream camera frames\n";
   }
 
