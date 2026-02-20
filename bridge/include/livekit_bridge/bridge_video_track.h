@@ -68,8 +68,9 @@ public:
    *                      (width * height * 4) bytes.
    * @param timestamp_us  Presentation timestamp in microseconds.
    *                      Pass 0 to let the SDK assign one.
+   * @return true if the frame was pushed, false if the track has been released.
    */
-  void pushFrame(const std::vector<std::uint8_t> &rgba,
+  bool pushFrame(const std::vector<std::uint8_t> &rgba,
                  std::int64_t timestamp_us = 0);
 
   /**
@@ -78,8 +79,9 @@ public:
    * @param rgba          Pointer to RGBA pixel data.
    * @param rgba_size     Size of the data buffer in bytes.
    * @param timestamp_us  Presentation timestamp in microseconds.
+   * @return true if the frame was pushed, false if the track has been released.
    */
-  void pushFrame(const std::uint8_t *rgba, std::size_t rgba_size,
+  bool pushFrame(const std::uint8_t *rgba, std::size_t rgba_size,
                  std::int64_t timestamp_us = 0);
 
   /// Mute the video track (stops sending video to the room).

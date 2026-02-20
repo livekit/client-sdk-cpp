@@ -19,7 +19,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <stdexcept>
 #include <vector>
 
 namespace livekit_bridge {
@@ -76,24 +75,24 @@ TEST_F(BridgeAudioTrackTest, DoubleReleaseIsIdempotent) {
   EXPECT_TRUE(track.isReleased());
 }
 
-TEST_F(BridgeAudioTrackTest, PushFrameAfterReleaseThrows) {
+TEST_F(BridgeAudioTrackTest, PushFrameAfterReleaseReturnsFalse) {
   auto track = createNullTrack();
   track.release();
 
   std::vector<std::int16_t> data(960, 0);
 
-  EXPECT_THROW(track.pushFrame(data, 480), std::runtime_error)
-      << "pushFrame (vector) on a released track should throw";
+  EXPECT_FALSE(track.pushFrame(data, 480))
+      << "pushFrame (vector) on a released track should return false";
 }
 
-TEST_F(BridgeAudioTrackTest, PushFrameRawPointerAfterReleaseThrows) {
+TEST_F(BridgeAudioTrackTest, PushFrameRawPointerAfterReleaseReturnsFalse) {
   auto track = createNullTrack();
   track.release();
 
   std::vector<std::int16_t> data(960, 0);
 
-  EXPECT_THROW(track.pushFrame(data.data(), 480), std::runtime_error)
-      << "pushFrame (raw pointer) on a released track should throw";
+  EXPECT_FALSE(track.pushFrame(data.data(), 480))
+      << "pushFrame (raw pointer) on a released track should return false";
 }
 
 TEST_F(BridgeAudioTrackTest, MuteOnReleasedTrackDoesNotCrash) {

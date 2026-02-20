@@ -22,8 +22,6 @@
 #include "livekit/video_frame.h"
 #include "livekit/video_source.h"
 
-#include <stdexcept>
-
 namespace livekit_bridge {
 
 BridgeVideoTrack::BridgeVideoTrack(
@@ -38,36 +36,34 @@ BridgeVideoTrack::BridgeVideoTrack(
 
 BridgeVideoTrack::~BridgeVideoTrack() { release(); }
 
-void BridgeVideoTrack::pushFrame(const std::vector<std::uint8_t> &rgba,
+bool BridgeVideoTrack::pushFrame(const std::vector<std::uint8_t> &rgba,
                                  std::int64_t timestamp_us) {
-  // construct first to reduce lock contention
   livekit::VideoFrame frame(
       width_, height_, livekit::VideoBufferType::RGBA,
       std::vector<std::uint8_t>(rgba.begin(), rgba.end()));
 
   std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
-    throw std::runtime_error(
-        "BridgeVideoTrack::pushFrame: track has been released");
+    return false;
   }
 
   source_->captureFrame(frame, timestamp_us);
+  return true;
 }
 
-void BridgeVideoTrack::pushFrame(const std::uint8_t *rgba,
+bool BridgeVideoTrack::pushFrame(const std::uint8_t *rgba,
                                  std::size_t rgba_size,
                                  std::int64_t timestamp_us) {
-  // construct first to reduce lock contention
   livekit::VideoFrame frame(width_, height_, livekit::VideoBufferType::RGBA,
                             std::vector<std::uint8_t>(rgba, rgba + rgba_size));
 
   std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
-    throw std::runtime_error(
-        "BridgeVideoTrack::pushFrame: track has been released");
+    return false;
   }
 
   source_->captureFrame(frame, timestamp_us);
+  return true;
 }
 
 void BridgeVideoTrack::mute() {

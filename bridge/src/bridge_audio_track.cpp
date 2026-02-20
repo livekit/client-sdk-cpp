@@ -22,8 +22,6 @@
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
 
-#include <stdexcept>
-
 namespace livekit_bridge {
 
 BridgeAudioTrack::BridgeAudioTrack(
@@ -39,24 +37,22 @@ BridgeAudioTrack::BridgeAudioTrack(
 
 BridgeAudioTrack::~BridgeAudioTrack() { release(); }
 
-void BridgeAudioTrack::pushFrame(const std::vector<std::int16_t> &data,
+bool BridgeAudioTrack::pushFrame(const std::vector<std::int16_t> &data,
                                  int samples_per_channel, int timeout_ms) {
-  // construct first to reduce lock contention
   livekit::AudioFrame frame(std::vector<std::int16_t>(data.begin(), data.end()),
                             sample_rate_, num_channels_, samples_per_channel);
 
   std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
-    throw std::runtime_error(
-        "BridgeAudioTrack::pushFrame: track has been released");
+    return false;
   }
 
   source_->captureFrame(frame, timeout_ms);
+  return true;
 }
 
-void BridgeAudioTrack::pushFrame(const std::int16_t *data,
+bool BridgeAudioTrack::pushFrame(const std::int16_t *data,
                                  int samples_per_channel, int timeout_ms) {
-  // construct first to reduce lock contention
   const int total_samples = samples_per_channel * num_channels_;
   livekit::AudioFrame frame(
       std::vector<std::int16_t>(data, data + total_samples), sample_rate_,
@@ -64,11 +60,11 @@ void BridgeAudioTrack::pushFrame(const std::int16_t *data,
 
   std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
-    throw std::runtime_error(
-        "BridgeAudioTrack::pushFrame: track has been released");
+    return false;
   }
 
   source_->captureFrame(frame, timeout_ms);
+  return true;
 }
 
 void BridgeAudioTrack::mute() {

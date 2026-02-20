@@ -70,8 +70,9 @@ public:
    * @param samples_per_channel Number of samples per channel in this frame.
    * @param timeout_ms          Max time to wait for FFI confirmation.
    *                            0 = wait indefinitely (default).
+   * @return true if the frame was pushed, false if the track has been released.
    */
-  void pushFrame(const std::vector<std::int16_t> &data, int samples_per_channel,
+  bool pushFrame(const std::vector<std::int16_t> &data, int samples_per_channel,
                  int timeout_ms = 0);
 
   /**
@@ -80,8 +81,9 @@ public:
    * @param data                Pointer to interleaved int16 PCM samples.
    * @param samples_per_channel Number of samples per channel.
    * @param timeout_ms          Max time to wait for FFI confirmation.
+   * @return true if the frame was pushed, false if the track has been released.
    */
-  void pushFrame(const std::int16_t *data, int samples_per_channel,
+  bool pushFrame(const std::int16_t *data, int samples_per_channel,
                  int timeout_ms = 0);
 
   /// Mute the audio track (stops sending audio to the room).
