@@ -77,11 +77,11 @@ using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
  *   mic->pushFrame(pcm_data, samples_per_channel);
  *   cam->pushFrame(rgba_data, timestamp_us);
  *
- *   bridge.registerOnAudioFrame("remote-participant",
+ *   bridge.setOnAudioFrameCallback("remote-participant",
  *       livekit::TrackSource::SOURCE_MICROPHONE,
  *       [](const livekit::AudioFrame& f) { process(f); });
  *
- *   bridge.registerOnVideoFrame("remote-participant",
+ *   bridge.setOnVideoFrameCallback("remote-participant",
  *       livekit::TrackSource::SOURCE_CAMERA,
  *       [](const livekit::VideoFrame& f, int64_t ts) { render(f); });
  *
@@ -188,7 +188,7 @@ public:
   // ---------------------------------------------------------------
 
   /**
-   * Register a callback for audio frames from a specific remote participant
+   * Set the callback for audio frames from a specific remote participant
    * and track source.
    *
    * The callback fires on a background thread whenever a new audio frame
@@ -204,9 +204,9 @@ public:
    * @param source                Track source (e.g. SOURCE_MICROPHONE).
    * @param callback              Function to invoke per audio frame.
    */
-  void registerOnAudioFrame(const std::string &participant_identity,
-                            livekit::TrackSource source,
-                            AudioFrameCallback callback);
+  void setOnAudioFrameCallback(const std::string &participant_identity,
+                               livekit::TrackSource source,
+                               AudioFrameCallback callback);
 
   /**
    * Register a callback for video frames from a specific remote participant
@@ -220,24 +220,29 @@ public:
    * @param source                Track source (e.g. SOURCE_CAMERA).
    * @param callback              Function to invoke per video frame.
    */
-  void registerOnVideoFrame(const std::string &participant_identity,
-                            livekit::TrackSource source,
-                            VideoFrameCallback callback);
+  void setOnVideoFrameCallback(const std::string &participant_identity,
+                               livekit::TrackSource source,
+                               VideoFrameCallback callback);
 
   /**
-   * Unregister a previously registered audio frame callback.
+   * Clear the audio frame callback for a specific remote participant + track
+   * source.
    *
    * If a reader thread is active for this (identity, source), it is
    * stopped and joined.
    */
-  void unregisterOnAudioFrame(const std::string &participant_identity,
-                              livekit::TrackSource source);
+  void clearOnAudioFrameCallback(const std::string &participant_identity,
+                                 livekit::TrackSource source);
 
   /**
-   * Unregister a previously registered video frame callback.
+   * Clear the video frame callback for a specific remote participant + track
+   * source.
+   *
+   * If a reader thread is active for this (identity, source), it is
+   * stopped and joined.
    */
-  void unregisterOnVideoFrame(const std::string &participant_identity,
-                              livekit::TrackSource source);
+  void clearOnVideoFrameCallback(const std::string &participant_identity,
+                                 livekit::TrackSource source);
 
 private:
   friend class BridgeRoomDelegate;

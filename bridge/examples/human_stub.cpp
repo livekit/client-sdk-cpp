@@ -20,7 +20,7 @@
  *
  * This participant does not publish any tracks of its own; it only
  * subscribes to the robot's camera and microphone streams via
- * registerOnAudioFrame / registerOnVideoFrame.
+ * setOnAudioFrameCallback / setOnVideoFrameCallback.
  *
  * Usage:
  *   human <ws-url> <token>
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
   // These are registered BEFORE the robot joins, so the bridge will
   // automatically wire them up when the robot's tracks are subscribed.
 
-  bridge.registerOnAudioFrame(
+  bridge.setOnAudioFrameCallback(
       "robot", livekit::TrackSource::SOURCE_MICROPHONE,
       [](const livekit::AudioFrame &frame) {
         uint64_t count = g_audio_frames.fetch_add(1) + 1;
@@ -105,7 +105,7 @@ int main(int argc, char *argv[]) {
         }
       });
 
-  bridge.registerOnVideoFrame(
+  bridge.setOnVideoFrameCallback(
       "robot", livekit::TrackSource::SOURCE_CAMERA,
       [](const livekit::VideoFrame &frame, std::int64_t timestamp_us) {
         uint64_t count = g_video_frames.fetch_add(1) + 1;

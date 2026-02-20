@@ -31,12 +31,12 @@ mic->pushFrame(pcm_data, samples_per_channel);
 cam->pushFrame(rgba_data, timestamp_us);
 
 // 4. Receive frames from a remote participant
-bridge.registerOnAudioFrame("remote-peer", livekit::TrackSource::SOURCE_MICROPHONE,
+bridge.setOnAudioFrameCallback("remote-peer", livekit::TrackSource::SOURCE_MICROPHONE,
     [](const livekit::AudioFrame& frame) {
         // Called on a background reader thread
     });
 
-bridge.registerOnVideoFrame("remote-peer", livekit::TrackSource::SOURCE_CAMERA,
+bridge.setOnVideoFrameCallback("remote-peer", livekit::TrackSource::SOURCE_CAMERA,
     [](const livekit::VideoFrame& frame, int64_t timestamp_us) {
         // Called on a background reader thread
     });
@@ -100,14 +100,14 @@ Reader threads are managed entirely by the bridge. They are created when a match
 
 Callbacks are keyed by `(participant_identity, track_source)`. You can register them **before** the remote participant has joined the room. The bridge stores the callback and automatically wires it up when the matching track is subscribed.
 
-> **Note:** Only one callback may be registered per `(participant_identity, track_source)` pair. Calling `registerOnAudioFrame` or `registerOnVideoFrame` again with the same identity and source will silently replace the previous callback. If you need to fan-out a single stream to multiple consumers, do so inside your callback.
+> **Note:** Only one callback may be set per `(participant_identity, track_source)` pair. Calling `setOnAudioFrameCallback` or `setOnVideoFrameCallback` again with the same identity and source will silently replace the previous callback. If you need to fan-out a single stream to multiple consumers, do so inside your callback.
 
 This means the typical pattern is:
 
 ```cpp
 // Register first, connect second -- or register after connect but before
 // the remote participant joins.
-bridge.registerOnAudioFrame("robot-1", livekit::TrackSource::SOURCE_MICROPHONE, my_callback);
+bridge.setOnAudioFrameCallback("robot-1", livekit::TrackSource::SOURCE_MICROPHONE, my_callback);
 bridge.connect(url, token);
 // When robot-1 joins and publishes a mic track, my_callback starts firing.
 ```
@@ -129,10 +129,10 @@ bridge.connect(url, token);
 | `isConnected()` | Returns whether the bridge is currently connected. |
 | `createAudioTrack(name, sample_rate, num_channels, source)` | Create and publish a local audio track with the given `TrackSource` (e.g. `SOURCE_MICROPHONE`, `SOURCE_SCREENSHARE_AUDIO`). Returns an RAII `shared_ptr<BridgeAudioTrack>`. |
 | `createVideoTrack(name, width, height, source)` | Create and publish a local video track with the given `TrackSource` (e.g. `SOURCE_CAMERA`, `SOURCE_SCREENSHARE`). Returns an RAII `shared_ptr<BridgeVideoTrack>`. |
-| `registerOnAudioFrame(identity, source, callback)` | Register a callback for audio frames from a specific remote participant + track source. |
-| `registerOnVideoFrame(identity, source, callback)` | Register a callback for video frames from a specific remote participant + track source. |
-| `unregisterOnAudioFrame(identity, source)` | Unregister an audio callback. Stops and joins the reader thread if active. |
-| `unregisterOnVideoFrame(identity, source)` | Unregister a video callback. Stops and joins the reader thread if active. |
+| `setOnAudioFrameCallback(identity, source, callback)` | Register a callback for audio frames from a specific remote participant + track source. |
+| `setOnVideoFrameCallback(identity, source, callback)` | Register a callback for video frames from a specific remote participant + track source. |
+| `clearOnAudioFrameCallback(identity, source)` | Clear the audio callback for a specific remote participant + track source. Stops and joins the reader thread if active. |
+| `clearOnVideoFrameCallback(identity, source)` | Clear the video callback for a specific remote participant + track source. Stops and joins the reader thread if active. |
 
 ### `BridgeAudioTrack`
 

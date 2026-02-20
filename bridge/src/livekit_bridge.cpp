@@ -254,7 +254,7 @@ LiveKitBridge::createVideoTrack(const std::string &name, int width, int height,
 // Incoming frame callbacks
 // ---------------------------------------------------------------
 
-void LiveKitBridge::registerOnAudioFrame(
+void LiveKitBridge::setOnAudioFrameCallback(
     const std::string &participant_identity, livekit::TrackSource source,
     AudioFrameCallback callback) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -274,7 +274,7 @@ void LiveKitBridge::registerOnAudioFrame(
   // be picked up.
 }
 
-void LiveKitBridge::registerOnVideoFrame(
+void LiveKitBridge::setOnVideoFrameCallback(
     const std::string &participant_identity, livekit::TrackSource source,
     VideoFrameCallback callback) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -283,7 +283,7 @@ void LiveKitBridge::registerOnVideoFrame(
   video_callbacks_[key] = std::move(callback);
 }
 
-void LiveKitBridge::unregisterOnAudioFrame(
+void LiveKitBridge::clearOnAudioFrameCallback(
     const std::string &participant_identity, livekit::TrackSource source) {
   std::thread thread_to_join;
   {
@@ -297,7 +297,7 @@ void LiveKitBridge::unregisterOnAudioFrame(
   }
 }
 
-void LiveKitBridge::unregisterOnVideoFrame(
+void LiveKitBridge::clearOnVideoFrameCallback(
     const std::string &participant_identity, livekit::TrackSource source) {
   std::thread thread_to_join;
   {
