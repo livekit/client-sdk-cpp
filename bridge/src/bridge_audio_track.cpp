@@ -22,6 +22,9 @@
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
 
+#include <iostream>
+#include <stdexcept>
+
 namespace livekit_bridge {
 
 BridgeAudioTrack::BridgeAudioTrack(
@@ -47,7 +50,12 @@ bool BridgeAudioTrack::pushFrame(const std::vector<std::int16_t> &data,
     return false;
   }
 
-  source_->captureFrame(frame, timeout_ms);
+  try {
+    source_->captureFrame(frame, timeout_ms);
+  } catch (const std::exception &e) {
+    std::cerr << "[BridgeAudioTrack] captureFrame error: " << e.what() << "\n";
+    return false;
+  }
   return true;
 }
 
@@ -63,7 +71,12 @@ bool BridgeAudioTrack::pushFrame(const std::int16_t *data,
     return false;
   }
 
-  source_->captureFrame(frame, timeout_ms);
+  try {
+    source_->captureFrame(frame, timeout_ms);
+  } catch (const std::exception &e) {
+    std::cerr << "[BridgeAudioTrack] captureFrame error: " << e.what() << "\n";
+    return false;
+  }
   return true;
 }
 
@@ -99,6 +112,8 @@ void BridgeAudioTrack::release() {
       participant_->unpublishTrack(publication_->sid());
     } catch (...) {
       // Best-effort cleanup; ignore errors during teardown
+      std::cerr << "[BridgeAudioTrack] unpublishTrack error, continuing with "
+                   "cleanup\n";
     }
   }
 
