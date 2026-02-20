@@ -18,7 +18,10 @@ Since this is an extention of the LiveKit C++ SDK, go through the LiveKit C++ SD
 
 // 1. Connect
 livekit_bridge::LiveKitBridge bridge;
-bridge.connect("wss://my-server.livekit.cloud", token);
+livekit::RoomOptions options;
+options.auto_subscribe = true; // automatically subscribe to all remote tracks
+options.dynacast = false;
+bridge.connect("wss://my-server.livekit.cloud", token, options);
 
 // 2. Create outgoing tracks (RAII-managed)
 auto mic = bridge.createAudioTrack("mic", 48000, 2,
@@ -108,7 +111,9 @@ This means the typical pattern is:
 // Register first, connect second -- or register after connect but before
 // the remote participant joins.
 bridge.setOnAudioFrameCallback("robot-1", livekit::TrackSource::SOURCE_MICROPHONE, my_callback);
-bridge.connect(url, token);
+livekit::RoomOptions options;
+options.auto_subscribe = true;
+bridge.connect(url, token, options);
 // When robot-1 joins and publishes a mic track, my_callback starts firing.
 ```
 
@@ -124,7 +129,7 @@ bridge.connect(url, token);
 
 | Method | Description |
 |---|---|
-| `connect(url, token)` | Connect to a LiveKit room. Initializes the SDK, creates a Room, and connects with auto-subscribe enabled. |
+| `connect(url, token, options)` | Connect to a LiveKit room. Initializes the SDK, creates a Room, and connects with auto-subscribe enabled. |
 | `disconnect()` | Disconnect and release all resources. Joins all reader threads. Safe to call multiple times. |
 | `isConnected()` | Returns whether the bridge is currently connected. |
 | `createAudioTrack(name, sample_rate, num_channels, source)` | Create and publish a local audio track with the given `TrackSource` (e.g. `SOURCE_MICROPHONE`, `SOURCE_SCREENSHARE_AUDIO`). Returns an RAII `shared_ptr<BridgeAudioTrack>`. |

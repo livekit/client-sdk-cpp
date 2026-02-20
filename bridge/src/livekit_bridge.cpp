@@ -65,7 +65,8 @@ LiveKitBridge::~LiveKitBridge() { disconnect(); }
 // Connection
 // ---------------------------------------------------------------
 
-bool LiveKitBridge::connect(const std::string &url, const std::string &token) {
+bool LiveKitBridge::connect(const std::string &url, const std::string &token,
+                            const livekit::RoomOptions &options) {
   // ---- Phase 1: quick check under lock ----
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -93,10 +94,6 @@ bool LiveKitBridge::connect(const std::string &url, const std::string &token) {
   // synchronously during Connect().
   auto room = std::make_unique<livekit::Room>();
   assert(room != nullptr);
-
-  livekit::RoomOptions options;
-  options.auto_subscribe = true;
-  options.dynacast = false;
 
   bool result = room->Connect(url, token, options);
   if (!result) {

@@ -19,6 +19,8 @@
 #include "livekit_bridge/bridge_audio_track.h"
 #include "livekit_bridge/bridge_video_track.h"
 
+#include "livekit/room.h"
+
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -67,7 +69,9 @@ using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
  * Example:
  *
  *   LiveKitBridge bridge;
- *   bridge.connect("wss://my-server.livekit.cloud", my_token);
+ *   livekit::RoomOptions options;
+ *   options.auto_subscribe = true;
+ *   bridge.connect("wss://my-server.livekit.cloud", my_token, options);
  *
  *   auto mic = bridge.createAudioTrack("mic", 48000, 2,
  *       livekit::TrackSource::SOURCE_MICROPHONE);
@@ -118,9 +122,12 @@ public:
    *
    * @param url    WebSocket URL of the LiveKit server.
    * @param token  Access token for authentication.
+   * @param options Room options.
+
    * @return true if connection succeeded (or was already connected).
    */
-  bool connect(const std::string &url, const std::string &token);
+  bool connect(const std::string &url, const std::string &token,
+               const livekit::RoomOptions &options);
 
   /**
    * Disconnect from the room and release all resources.
