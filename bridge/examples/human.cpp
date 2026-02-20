@@ -211,9 +211,9 @@ int main(int argc, char *argv[]) {
     speaker->enqueue(samples.data(), frame.samples_per_channel());
   };
 
-  // ----- Register audio callbacks -----
+  // ----- set audio callbacks -----
   // Real mic (SOURCE_MICROPHONE) -- plays only when 'w' is selected
-  bridge.registerOnAudioFrame(
+  bridge.setOnAudioFrameCallback(
       "robot", livekit::TrackSource::SOURCE_MICROPHONE,
       [playAudio, no_audio](const livekit::AudioFrame &frame) {
         g_audio_frames.fetch_add(1, std::memory_order_relaxed);
@@ -225,7 +225,7 @@ int main(int argc, char *argv[]) {
 
   // Sim audio / siren (SOURCE_SCREENSHARE_AUDIO) -- plays only when 's' is
   // selected
-  bridge.registerOnAudioFrame(
+  bridge.setOnAudioFrameCallback(
       "robot", livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO,
       [playAudio, no_audio](const livekit::AudioFrame &frame) {
         g_audio_frames.fetch_add(1, std::memory_order_relaxed);
@@ -235,9 +235,9 @@ int main(int argc, char *argv[]) {
         }
       });
 
-  // ----- Register video callbacks -----
+  // ----- set video callbacks -----
   // Webcam feed (SOURCE_CAMERA) -- renders only when 'w' is selected
-  bridge.registerOnVideoFrame(
+  bridge.setOnVideoFrameCallback(
       "robot", livekit::TrackSource::SOURCE_CAMERA,
       [](const livekit::VideoFrame &frame, std::int64_t /*timestamp_us*/) {
         g_video_frames.fetch_add(1, std::memory_order_relaxed);
@@ -248,7 +248,7 @@ int main(int argc, char *argv[]) {
       });
 
   // Sim frame feed (SOURCE_SCREENSHARE) -- renders only when 's' is selected
-  bridge.registerOnVideoFrame(
+  bridge.setOnVideoFrameCallback(
       "robot", livekit::TrackSource::SOURCE_SCREENSHARE,
       [](const livekit::VideoFrame &frame, std::int64_t /*timestamp_us*/) {
         g_video_frames.fetch_add(1, std::memory_order_relaxed);
