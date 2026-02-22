@@ -25,6 +25,9 @@ This page covers how to build and install the LiveKit C++ Client SDK for real-ti
 
 > **Note**: If the SDK was built with Protobuf 6.0+, you also need `libabsl-dev` (Linux) or `abseil` (macOS).
 
+## Prerequisites
+- install livekit-cli by following the (official livekit docs)[https://docs.livekit.io/intro/basics/cli/start/]
+
 ## 🧩 Clone the Repository
 
 Make sure to initialize the Rust submodule (`client-sdk-rust`):
