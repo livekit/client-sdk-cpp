@@ -46,6 +46,10 @@ jobs:
             name: linux-x64
             build_cmd: ./build.sh release-examples
             build_dir: build-release
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+            build_cmd: ./build.sh release-examples
+            build_dir: build-release
           - os: macos-latest
             name: macos-arm64
             build_cmd: ./build.sh release-examples
@@ -116,16 +120,16 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-          key: ${{ runner.os }}-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-reg-
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-
 
       - name: Cache Cargo target
         uses: actions/cache@v4
         with:
           path: client-sdk-rust/target
-          key: ${{ runner.os }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-target-
+            ${{ runner.os }}-${{ matrix.name }}-cargo-target-
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
