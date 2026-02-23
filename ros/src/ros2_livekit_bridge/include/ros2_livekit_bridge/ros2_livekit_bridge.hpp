@@ -25,6 +25,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
 
+#include "livekit_bridge/bridge_data_track.h"
 #include "livekit_bridge/bridge_video_track.h"
 #include "livekit_bridge/livekit_bridge.h"
 
@@ -73,6 +74,17 @@ private:
    * pushFrame() is called directly inside the subscription callback.
    */
   void createImageSubscriber(const std::string &topic_name);
+
+  /**
+   * @brief Create a typed subscriber that converts ROS messages to Foxglove
+   * protobuf and pushes serialized bytes over a LiveKit data track.
+   *
+   * A BridgeDataTrack is created lazily on the first received message.
+   * The template parameter must be a ROS2 message type for which a
+   * ros2_foxglove_adapters::toFoxglove() overload exists.
+   */
+  template <typename RosMsgT>
+  void createDataSubscriber(const std::string &topic_name);
 
   /**
    * @brief Check if the topic matches the allowed topics
@@ -130,6 +142,14 @@ private:
     std::vector<std::uint8_t> rgba_buf;
   };
   std::unordered_map<std::string, ImageTopicState> image_topic_states_;
+
+  //! @brief Per-data-topic state: lazily created data track.
+  //! Declared after livekit_bridge_ so it is destroyed first (tracks
+  //! released before the bridge disconnects).
+  struct DataTopicState {
+    std::shared_ptr<livekit_bridge::BridgeDataTrack> track;
+  };
+  std::unordered_map<std::string, DataTopicState> data_topic_states_;
 };
 
 } // namespace ros2_livekit_bridge

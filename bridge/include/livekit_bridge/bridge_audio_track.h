@@ -55,6 +55,13 @@ class BridgeAudioTrackTest;
  * one thread while another calls mute()/unmute()/release(), or to call
  * pushFrame() concurrently from multiple threads.
  *
+<<<<<<< HEAD
+=======
+ * All public methods are thread-safe: it is safe to call pushFrame() from
+ * one thread while another calls mute()/unmute()/release(), or to call
+ * pushFrame() concurrently from multiple threads.
+ *
+>>>>>>> 00a9137 (restore to data-tracks)
  * Usage:
  *   auto mic = bridge.createAudioTrack("mic", 48000, 2,
  *       livekit::TrackSource::SOURCE_MICROPHONE);

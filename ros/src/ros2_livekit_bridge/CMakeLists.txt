@@ -9,6 +9,10 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(ros2_foxglove_adapters REQUIRED)
 
 # ---------------------------------------------------------------------------
 # LiveKit SDK location
@@ -24,6 +28,12 @@ find_package(sensor_msgs REQUIRED)
 # <repo>/build-debug or <repo>/build-release) that contains lib/ and include/.
 # The bridge source headers are resolved automatically from its sibling
 # bridge/ directory.
+#
+# When building the SDK for use with this ROS2 node, you must build the SDK
+# *itself* (the client-sdk-cpp project) with -DLIVEKIT_USE_SYSTEM_SPDLOG=ON
+# so that livekit_bridge uses system spdlog. Do NOT pass LIVEKIT_USE_SYSTEM_SPDLOG
+# to colcon; it has no effect here and the SDK must be rebuilt with that option.
+# Otherwise the node can hit SIGBUS in rcl logging (two spdlog/fmt in one process).
 # ---------------------------------------------------------------------------
 set(LIVEKIT_SDK_DIR "" CACHE PATH
   "Path to the livekit-cpp SDK build directory (e.g. /path/to/build-debug)")
@@ -31,7 +41,7 @@ set(LIVEKIT_SDK_DIR "" CACHE PATH
 if(NOT LIVEKIT_SDK_DIR OR NOT EXISTS "${LIVEKIT_SDK_DIR}")
   message(FATAL_ERROR
     "LIVEKIT_SDK_DIR must be set to the livekit-cpp build directory, e.g.:\n"
-    "  -DLIVEKIT_SDK_DIR=/path/to/sderosa-client-sdk-cpp/build-debug")
+    "  -DLIVEKIT_SDK_DIR=/path/to/client-sdk-cpp/build-debug")
 endif()
 
 # The bridge/ source tree lives one level above the build directory.
@@ -64,12 +74,14 @@ target_link_libraries(ros2_livekit_bridge_node
   "${LIVEKIT_BRIDGE_LIB}"
   "${LIVEKIT_LIB}"
   "${LIVEKIT_FFI_LIB}"
+  ros2_foxglove_adapters::ros2_foxglove_adapters
 )
 set_target_properties(ros2_livekit_bridge_node PROPERTIES
   BUILD_RPATH  "${LIVEKIT_SDK_DIR}/lib"
   INSTALL_RPATH "${LIVEKIT_SDK_DIR}/lib"
 )
-ament_target_dependencies(ros2_livekit_bridge_node rclcpp sensor_msgs)
+ament_target_dependencies(ros2_livekit_bridge_node
+  rclcpp sensor_msgs std_msgs geometry_msgs nav_msgs ros2_foxglove_adapters)
 
 install(TARGETS ros2_livekit_bridge_node
   DESTINATION lib/${PROJECT_NAME})

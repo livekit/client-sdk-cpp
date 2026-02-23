@@ -50,12 +50,25 @@ include(FetchContent)
 
 set(LIVEKIT_SPDLOG_VERSION "1.15.1" CACHE STRING "Vendored spdlog version")
 
+option(LIVEKIT_USE_SYSTEM_SPDLOG
+  "Use system spdlog instead of vendored (set ON when building for ROS 2 to avoid ABI conflicts with rcl_logging_spdlog)"
+  OFF)
+
 # ---------------------------------------------------------------------------
 # Windows: use vcpkg
 # ---------------------------------------------------------------------------
 if(WIN32 AND LIVEKIT_USE_VCPKG)
   find_package(spdlog CONFIG REQUIRED)
   message(STATUS "Windows: using vcpkg spdlog")
+  return()
+endif()
+
+# ---------------------------------------------------------------------------
+# System spdlog (required for ROS 2 nodes to avoid dual-spdlog SIGBUS)
+# ---------------------------------------------------------------------------
+if(LIVEKIT_USE_SYSTEM_SPDLOG)
+  find_package(spdlog REQUIRED)
+  message(STATUS "Using system spdlog (LIVEKIT_USE_SYSTEM_SPDLOG=ON)")
   return()
 endif()
 

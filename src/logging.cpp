@@ -18,7 +18,7 @@
 
 #include <mutex>
 
-#include <spdlog/sinks/callback_sink.h>
+#include <spdlog/sinks/base_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
@@ -26,6 +26,26 @@ namespace livekit {
 namespace {
 
 const char *kLoggerName = "livekit";
+
+template <typename Mutex>
+class lk_callback_sink : public spdlog::sinks::base_sink<Mutex> {
+ public:
+  using callback_t =
+      std::function<void(const spdlog::details::log_msg &msg)>;
+
+  explicit lk_callback_sink(callback_t cb) : cb_(std::move(cb)) {}
+
+ protected:
+  void sink_it_(const spdlog::details::log_msg &msg) override {
+    cb_(msg);
+  }
+  void flush_() override {}
+
+ private:
+  callback_t cb_;
+};
+
+using lk_callback_sink_mt = lk_callback_sink<std::mutex>;
 
 spdlog::level::level_enum toSpdlogLevel(LogLevel level) {
   switch (level) {
@@ -127,7 +147,7 @@ void setLogCallback(LogCallback callback) {
   }
 
   if (callback) {
-    auto sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
+    auto sink = std::make_shared<lk_callback_sink_mt>(
         [cb = std::move(callback)](const spdlog::details::log_msg &msg) {
           cb(fromSpdlogLevel(msg.level),
              std::string(msg.logger_name.data(), msg.logger_name.size()),

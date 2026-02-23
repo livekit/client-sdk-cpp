@@ -28,42 +28,61 @@ The bridge is implemented as a single ROS2 node (`Ros2LiveKitBridge`) that:
 
 ### Typed (restricted) message support
 
-| ROS2 message type          | LiveKit track type | Behaviour |
-|----------------------------|--------------------|-----------|
-| `sensor_msgs/msg/Image`   | Video track        | A `BridgeVideoTrack` is created lazily on the first received frame (using the image dimensions). Each callback converts the image to RGBA and calls `pushFrame()` directly. Supported encodings: `rgba8`, `rgb8`, `bgr8`, `bgra8`, `mono8`. |
+| ROS2 message type          | LiveKit track type | Wire format | Behaviour |
+|----------------------------|--------------------|-------------|-----------|
+| `sensor_msgs/msg/Image`   | Video track        | RGBA pixels | A `BridgeVideoTrack` is created lazily on the first received frame (using the image dimensions). Each callback converts the image to RGBA and calls `pushFrame()` directly. Supported encodings: `rgba8`, `rgb8`, `bgr8`, `bgra8`, `mono8`. |
+| `nav_msgs/msg/Odometry`   | Data track | Foxglove protobuf (`PoseInFrame`) | Converted via `ros2_foxglove_adapters`. Twist + covariance are dropped. |
+| `nav_msgs/msg/Path`       | Data track | Foxglove protobuf (`PosesInFrame`) | Per-pose timestamps are dropped; only the path header timestamp is used. |
+| `nav_msgs/msg/OccupancyGrid` | Data track | Foxglove protobuf (`Grid`) | Occupancy data stored as INT8 packed field. |
+| `geometry_msgs/msg/TransformStamped` | Data track | Foxglove protobuf (`FrameTransform`) | Direct field mapping. |
+| `geometry_msgs/msg/Pose2D` | Data track | Foxglove protobuf (`Pose`) | 2D pose promoted to 3D (z=0, quaternion encodes rotation about z). |
+| `geometry_msgs/msg/PolygonStamped` | Data track | Foxglove protobuf (`Log`) | Vertices serialized as structured text. |
+| `geometry_msgs/msg/PoseWithCovarianceStamped` | Data track | Foxglove protobuf (`PoseInFrame`) | Covariance matrix is dropped. |
+| `sensor_msgs/msg/PointCloud2` | Data track | Foxglove protobuf (`PointCloud`) | Binary point data copied verbatim with mapped field descriptors. |
+| `sensor_msgs/msg/Imu`     | Data track | Foxglove protobuf (`PoseInFrame`) | Only orientation preserved; angular velocity and linear acceleration are dropped. |
+| `sensor_msgs/msg/Joy`     | Data track | Foxglove protobuf (`Log`) | Axes and buttons serialized as structured text. |
+| `sensor_msgs/msg/BatteryState` | Data track | Foxglove protobuf (`Log`) | Key battery metrics serialized as structured text. |
+| `std_msgs/msg/String`     | Data track | Foxglove protobuf (`Log`) | String placed in Log.message field. |
 
-All other message types currently use a generic subscription that logs the topic
-name and serialized message size.
+Data track consumers only need the [Foxglove protobuf schema definitions](https://github.com/foxglove/schemas)
+to decode messages -- no ROS2 dependency is required. Unsupported message types
+are skipped with a warning logged at discovery time.
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                      Ros2LiveKitBridge Node                      │
-│                                                                  │
-│  ┌──────────┐    ┌──────────────┐    ┌────────────────────────┐  │
-│  │ Params   │───>│ Regex Engine │    │ Subscription Map       │  │
-│  │ (YAML)   │    │ (compiled    │    │ (topic -> sub)         │  │
-│  └──────────┘    │  patterns)   │    └───────────┬────────────┘  │
-│                  └──────┬───────┘                │               │
-│                         │                        │               │
-│  ┌──────────────────────▼────────────────────────▼────────────┐  │
-│  │                Poll Timer (wall clock)                     │  │
-│  │  1. get_topic_names_and_types()                            │  │
-│  │  2. regex match against patterns                           │  │
-│  │  3. skip already-subscribed topics                         │  │
-│  │  4. get_publishers_info_by_topic() for QoS                 │  │
-│  │  5a. sensor_msgs/msg/Image → typed sub → pushFrame(RGBA)  │  │
-│  │  5b. everything else       → generic sub (serialized log)  │  │
-│  └───────────────────────────────────────────────┬────────────┘  │
-│                                                  │               │
-│  ┌───────────────────────────────────────────────▼────────────┐  │
-│  │                  LiveKitBridge (livekit_bridge)             │  │
-│  │  ┌─────────────────┐                                       │  │
-│  │  │ BridgeVideoTrack│── pushFrame() ──> LiveKit Room        │  │
-│  │  │ (per image topic)│                                      │  │
-│  │  └─────────────────┘                                       │  │
-│  │  TODO: BridgeAudioTrack, data channels                     │  │
-│  └────────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                        Ros2LiveKitBridge Node                         │
+│                                                                       │
+│  ┌──────────┐    ┌──────────────┐    ┌─────────────────────────────┐  │
+│  │ Params   │───>│ Regex Engine │    │ Subscription Map            │  │
+│  │ (YAML)   │    │ (compiled    │    │ (topic -> sub)              │  │
+│  └──────────┘    │  patterns)   │    └──────────────┬──────────────┘  │
+│                  └──────┬───────┘                   │                 │
+│                         │                           │                 │
+│  ┌──────────────────────▼───────────────────────────▼──────────────┐  │
+│  │                 Poll Timer (wall clock)                         │  │
+│  │  1. get_topic_names_and_types()                                 │  │
+│  │  2. regex match against patterns                                │  │
+│  │  3. skip already-subscribed topics                              │  │
+│  │  4. get_publishers_info_by_topic() for QoS                      │  │
+│  │  5a. sensor_msgs/msg/Image  → typed sub → pushFrame(RGBA)      │  │
+│  │  5b. supported data types   → typed sub → toFoxglove() →       │  │
+│  │      SerializeToString() → pushFrame(protobuf bytes)            │  │
+│  │  5c. unsupported types      → warn + skip                      │  │
+│  └──────────────────────────────────────────────────┬──────────────┘  │
+│                                                     │                 │
+│  ┌──────────────────────────────────────────────────▼──────────────┐  │
+│  │                  LiveKitBridge (livekit_bridge)                  │  │
+│  │  ┌─────────────────┐                                            │  │
+│  │  │ BridgeVideoTrack│── pushFrame(RGBA) ───> LiveKit Room        │  │
+│  │  │ (per image topic)│                                           │  │
+│  │  └─────────────────┘                                            │  │
+│  │  ┌─────────────────┐                                            │  │
+│  │  │ BridgeDataTrack │── pushFrame(protobuf) ──> LiveKit Room     │  │
+│  │  │ (per data topic) │                                           │  │
+│  │  └─────────────────┘                                            │  │
+│  │  TODO: BridgeAudioTrack                                         │  │
+│  └─────────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Configuration
@@ -115,10 +134,22 @@ and the [Foxglove bridge](https://github.com/foxglove/foxglove-sdk/tree/main/ros
 
 ## Building
 
+**1. Build the LiveKit SDK** (from the repo root) with system spdlog so the
+ROS2 node and rcl share a single spdlog implementation (avoids SIGBUS in
+rcl logging when two spdlog/fmt copies are loaded):
+
+```bash
+# From client-sdk-cpp (repo root)
+cmake -B build-debug -S . -DCMAKE_BUILD_TYPE=Debug -DLIVEKIT_USE_SYSTEM_SPDLOG=ON
+cmake --build build-debug
+```
+
+**2. Build the ROS2 workspace** (do *not* pass `LIVEKIT_USE_SYSTEM_SPDLOG` to colcon—that option is only for the SDK build in step 1):
+
 ```bash
 cd ros/
 source /opt/ros/humble/setup.bash
-colcon build --packages-select ros2_livekit_bridge
+colcon build --packages-select ros2_livekit_bridge --cmake-args -DLIVEKIT_SDK_DIR=/path/to/cpp-client-sdk/build-debug
 ```
 
 ## Running
@@ -135,13 +166,17 @@ ros2 run ros2_livekit_bridge ros2_livekit_bridge_node \
 ros2 launch ros2_livekit_bridge ros2_livekit_bridge_launch.xml
 ```
 
+```bash
+# launch with gdb
+   gdb --args /home/jetson/workspaces/client-sdk-cpp/ros/install/ros2_livekit_bridge/lib/ros2_livekit_bridge/ros2_livekit_bridge_node --ros-args -r __node:=ros2_livekit_bridge --params-file /home/jetson/workspaces/client-sdk-cpp/ros/install/ros2_livekit_bridge/share/ros2_livekit_bridge/config/ros2_livekit_bridge_params.yaml
+```
+
 ## Current Limitations
 ### Must dos
 1. video track efficiency
 2. audio track impl
-3. data track impl
-4. cleaner compilation in CMakeLists.txt
-5. test/validation sub to multiple camera/audio and forward
+3. cleaner compilation in CMakeLists.txt
+4. test/validation sub to multiple camera/audio and forward
 
 ### Video tracks
 
@@ -172,11 +207,14 @@ ros2 launch ros2_livekit_bridge ros2_livekit_bridge_launch.xml
 
 ### Data tracks
 
-- **TODO:** Generic (non-image, non-audio) ROS2 messages are not yet forwarded
-  to LiveKit. The generic subscription callback currently only logs the topic
-  name and byte count. These should be published via LiveKit data channels or
-  data streams, with an appropriate serialization strategy (e.g. JSON, CDR, or
-  protobuf).
+- **Foxglove protobuf only.** Data tracks serialize using Foxglove protobuf
+  schemas via `ros2_foxglove_adapters`. Only the ~12 message types listed in
+  [Typed message support](#typed-restricted-message-support) are forwarded;
+  all other types are silently skipped. To add new types, implement a
+  `toFoxglove()` overload in the `ros2_foxglove_adapters` package.
+- **Schema information not sent out-of-band.** The consumer must know which
+  Foxglove protobuf type to deserialize for each topic. A future improvement
+  could include a schema negotiation or metadata channel.
 
 ### General
 

@@ -9,11 +9,11 @@ PRESET=""
 DO_BUNDLE="0"
 DO_ARCHIVE="0"
 PREFIX=""
-DESTINATION=""
 ARCHIVE_NAME=""
 GENERATOR=""
 MACOS_ARCH=""
 LIVEKIT_VERSION=""
+DESTINATION=""
 
 # Detect OS for preset selection
 detect_os() {
@@ -25,18 +25,6 @@ detect_os() {
 }
 
 OS_TYPE="$(detect_os)"
-
-# When --destination is set, override BUILD_DIR and bypass presets
-apply_destination() {
-  if [[ -n "${DESTINATION}" ]]; then
-    if [[ "${DESTINATION}" != /* ]]; then
-      BUILD_DIR="${PROJECT_ROOT}/${DESTINATION}"
-    else
-      BUILD_DIR="${DESTINATION}"
-    fi
-    PRESET=""
-  fi
-}
 
 usage() {
   cat <<EOF
@@ -59,14 +47,14 @@ Options (for debug / release):
   --bundle                 Install the SDK bundle using 'cmake --install'
   --prefix <dir>           Install prefix for --bundle
                            (default: ./sdk-out/livekit-sdk)
-  --destination <dir>      Build artifacts output directory
-                           (default: build-debug/ or build-release/)
   --archive                After --bundle, create an archive of the SDK bundle
                            (.zip if available, otherwise .tar.gz)
   --archive-name <name>    Override archive base name (no extension)
   --version <version>      Inject SDK version into build (sets LIVEKIT_VERSION)
                            Example: 0.1.0 or 1.0.0-rc1
   -G <generator>           CMake generator (e.g. Ninja, "Unix Makefiles")
+  --destination <dir>      Override the build output directory
+                           (default: build-debug/ or build-release/)
   --macos-arch <arch>      macOS architecture override (arm64 or x86_64)
                            Sets CMAKE_OSX_ARCHITECTURES
 
@@ -79,6 +67,7 @@ Examples:
   ./build.sh build-all
   ./build.sh clean
   ./build.sh clean-all
+  ./build.sh release --destination /tmp/my-build
 EOF
 }
 
@@ -95,14 +84,6 @@ parse_opts() {
         PREFIX="${2:-}"
         if [[ -z "${PREFIX}" ]]; then
           echo "ERROR: --prefix requires a value"
-          exit 1
-        fi
-        shift 2
-        ;;
-      --destination)
-        DESTINATION="${2:-}"
-        if [[ -z "${DESTINATION}" ]]; then
-          echo "ERROR: --destination requires a value"
           exit 1
         fi
         shift 2
@@ -135,6 +116,14 @@ parse_opts() {
         fi
         shift 2
         ;;
+      --destination)
+        DESTINATION="${2:-}"
+        if [[ -z "${DESTINATION}" ]]; then
+          echo "ERROR: --destination requires a value"
+          exit 1
+        fi
+        shift 2
+        ;;
       --version)
         LIVEKIT_VERSION="${2:-}"
         [[ -n "${LIVEKIT_VERSION}" ]] || { echo "ERROR: --version requires a value"; exit 1; }
@@ -163,28 +152,27 @@ configure() {
     echo "==> Setting CMAKE_OSX_ARCHITECTURES=${MACOS_ARCH}"
     extra_args+=("-DCMAKE_OSX_ARCHITECTURES=${MACOS_ARCH}")
   fi
-  if ((${#extra_args[@]})); then
-    if ! cmake --preset "${PRESET}" "${extra_args[@]}"; then
-      echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
-      cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" "${extra_args[@]}"
-  if [[ -n "${PRESET}" ]]; then
-    echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
-    if ((${#extra_args[@]})); then
-      if ! cmake --preset "${PRESET}" "${extra_args[@]}"; then
-        echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
-        cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" "${extra_args[@]}"
-      fi
-    else
-      if ! cmake --preset "${PRESET}"; then
-        echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
-        cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
-      fi
-    fi
-  else
+
+  # Custom destination bypasses presets (presets define their own binaryDir)
+  if [[ -n "${DESTINATION}" ]]; then
     echo "==> Configuring CMake (${BUILD_TYPE}) to ${BUILD_DIR}..."
     if ((${#extra_args[@]})); then
       cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" "${extra_args[@]}"
     else
+      cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
+    fi
+    return
+  fi
+
+  echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
+  if ((${#extra_args[@]})); then
+    if ! cmake --preset "${PRESET}" "${extra_args[@]}"; then
+      echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
+      cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" "${extra_args[@]}"
+    fi
+  else
+    if ! cmake --preset "${PRESET}"; then
+      echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."
       cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
     fi
   fi
@@ -192,11 +180,11 @@ configure() {
 
 build() {
   echo "==> Building (${BUILD_TYPE})..."
-  if [[ -n "${PRESET}" ]] && [[ -f "${PROJECT_ROOT}/CMakePresets.json" ]]; then
-    # Use preset build if available
+  if [[ -n "${DESTINATION}" ]]; then
+    cmake --build "${BUILD_DIR}"
+  elif [[ -n "${PRESET}" ]] && [[ -f "${PROJECT_ROOT}/CMakePresets.json" ]]; then
     cmake --build --preset "${PRESET}"
   else
-    # Fallback to traditional build
     cmake --build "${BUILD_DIR}"
   fi
 }
@@ -357,6 +345,15 @@ if [[ $# -eq 0 ]]; then
   usage
   exit 0
 fi
+
+apply_destination() {
+  if [[ -n "${DESTINATION}" ]]; then
+    if [[ "${DESTINATION}" != /* ]]; then
+      DESTINATION="${PROJECT_ROOT}/${DESTINATION}"
+    fi
+    BUILD_DIR="${DESTINATION}"
+  fi
+}
 
 cmd="$1"
 parse_opts "$@"

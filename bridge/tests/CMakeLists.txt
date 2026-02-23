@@ -37,12 +37,16 @@ if(BRIDGE_TEST_SOURCES)
     ${BRIDGE_TEST_SOURCES}
   )
 
+<<<<<<< HEAD
   target_include_directories(livekit_bridge_tests
     PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/../src
   )
 
   target_link_libraries(livekit_bridge_tests
+=======
+  target_link_libraries(livekit_bridge_unit_tests
+>>>>>>> 00a9137 (restore to data-tracks)
     PRIVATE
       livekit_bridge
       GTest::gtest_main

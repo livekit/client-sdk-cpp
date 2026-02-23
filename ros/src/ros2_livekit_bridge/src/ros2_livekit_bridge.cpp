@@ -16,8 +16,23 @@
 
 #include "ros2_livekit_bridge/ros2_livekit_bridge.hpp"
 
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
+#include <geometry_msgs/msg/polygon_stamped.hpp>
+#include <geometry_msgs/msg/pose2_d.hpp>
+#include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <nav_msgs/msg/occupancy_grid.hpp>
+#include <nav_msgs/msg/odometry.hpp>
+#include <nav_msgs/msg/path.hpp>
+#include <sensor_msgs/msg/battery_state.hpp>
+#include <sensor_msgs/msg/imu.hpp>
+#include <sensor_msgs/msg/joy.hpp>
+#include <sensor_msgs/msg/point_cloud2.hpp>
+#include <std_msgs/msg/string.hpp>
+
+#include <ros2_foxglove_adapters/to_foxglove.hpp>
 
 #include "livekit/track.h"
 
@@ -225,20 +240,24 @@ Ros2LiveKitBridge::Ros2LiveKitBridge(const rclcpp::NodeOptions &options)
               room_name_.c_str(), topic_polling_period_ms_,
               compiled_patterns_.size(), min_qos_depth_, max_qos_depth_);
 
-  for (const auto &pattern : ros_topic_patterns_) {
-    RCLCPP_INFO(this->get_logger(), "  topic pattern: %s", pattern.c_str());
-  }
-  for (const auto &pattern : best_effort_topics) {
-    RCLCPP_INFO(this->get_logger(), "  best-effort override pattern: %s",
-                pattern.c_str());
-  }
+  RCLCPP_INFO(this->get_logger(), "Attempting to resolve LiveKit credentials");
 
-  // ----- Resolve LiveKit credentials (param → env var fallback) -----
+  // ----- Resolve LiveKit credentials (param -> env var fallback) -----
   std::string url_source, token_source;
   const std::string livekit_url =
       resolveCredential(this, "livekit_url", "LIVEKIT_URL", url_source);
   const std::string livekit_token =
       resolveCredential(this, "livekit_token", "LIVEKIT_TOKEN", token_source);
+
+  RCLCPP_INFO(this->get_logger(), "LiveKit URL resolved from %s",
+              url_source.c_str());
+  RCLCPP_INFO(this->get_logger(), "LiveKit token resolved from %s",
+              token_source.c_str());
+
+  RCLCPP_INFO(this->get_logger(), "Creating default room options");
+  livekit::RoomOptions room_options;
+  room_options.auto_subscribe = true;
+  room_options.dynacast = true;
 
   if (livekit_url.empty() || livekit_token.empty()) {
     RCLCPP_WARN(
@@ -258,12 +277,14 @@ Ros2LiveKitBridge::Ros2LiveKitBridge(const rclcpp::NodeOptions &options)
                 token_source.c_str());
     RCLCPP_INFO(this->get_logger(), "Connecting to %s ...",
                 livekit_url.c_str());
-    if (livekit_bridge_.connect(livekit_url, livekit_token)) {
+    if (livekit_bridge_.connect(livekit_url, livekit_token, room_options)) {
       RCLCPP_INFO(this->get_logger(), "Connected to LiveKit room.");
     } else {
       RCLCPP_ERROR(this->get_logger(), "Failed to connect to LiveKit room.");
     }
   }
+
+  RCLCPP_INFO(this->get_logger(), "Creating timer for polling topics");
 
   poll_timer_ = this->create_wall_timer(
       std::chrono::milliseconds(topic_polling_period_ms_),
@@ -272,6 +293,7 @@ Ros2LiveKitBridge::Ros2LiveKitBridge(const rclcpp::NodeOptions &options)
 }
 
 Ros2LiveKitBridge::~Ros2LiveKitBridge() {
+  data_topic_states_.clear();
   image_topic_states_.clear();
   if (livekit_bridge_.isConnected()) {
     RCLCPP_INFO(this->get_logger(), "Disconnecting LiveKit bridge...");
@@ -306,45 +328,123 @@ void Ros2LiveKitBridge::createSubscriber(const std::string &topic_name,
                                          const std::string &topic_type) {
   if (topic_type == kImageMsgType) {
     createImageSubscriber(topic_name);
-    return;
+    // TODO(sderosa): audio track support
+    // } else if (topic_type == kAudioMsgType) {
+    //   createAudioSubscriber(topic_name);
+  } else if (topic_type == "nav_msgs/msg/Odometry") {
+    createDataSubscriber<nav_msgs::msg::Odometry>(topic_name);
+  } else if (topic_type == "nav_msgs/msg/Path") {
+    createDataSubscriber<nav_msgs::msg::Path>(topic_name);
+  } else if (topic_type == "nav_msgs/msg/OccupancyGrid") {
+    createDataSubscriber<nav_msgs::msg::OccupancyGrid>(topic_name);
+  } else if (topic_type == "geometry_msgs/msg/TransformStamped") {
+    createDataSubscriber<geometry_msgs::msg::TransformStamped>(topic_name);
+  } else if (topic_type == "geometry_msgs/msg/Pose2D") {
+    createDataSubscriber<geometry_msgs::msg::Pose2D>(topic_name);
+  } else if (topic_type == "geometry_msgs/msg/PolygonStamped") {
+    createDataSubscriber<geometry_msgs::msg::PolygonStamped>(topic_name);
+  } else if (topic_type == "geometry_msgs/msg/PoseWithCovarianceStamped") {
+    createDataSubscriber<geometry_msgs::msg::PoseWithCovarianceStamped>(
+        topic_name);
+  } else if (topic_type == "sensor_msgs/msg/PointCloud2") {
+    createDataSubscriber<sensor_msgs::msg::PointCloud2>(topic_name);
+  } else if (topic_type == "sensor_msgs/msg/Imu") {
+    createDataSubscriber<sensor_msgs::msg::Imu>(topic_name);
+  } else if (topic_type == "sensor_msgs/msg/Joy") {
+    createDataSubscriber<sensor_msgs::msg::Joy>(topic_name);
+  } else if (topic_type == "sensor_msgs/msg/BatteryState") {
+    createDataSubscriber<sensor_msgs::msg::BatteryState>(topic_name);
+  } else if (topic_type == "std_msgs/msg/String") {
+    createDataSubscriber<std_msgs::msg::String>(topic_name);
+  } else {
+    RCLCPP_WARN(this->get_logger(),
+                "Unsupported message type '%s' on topic '%s' -- skipping",
+                topic_type.c_str(), topic_name.c_str());
   }
-  // TODO(sderosa):
-  // else if (topic_type == kAudioMsgType) {
-  //   createAudioSubscriber(topic_name);
-  //   return;
-  // }
-  // else if (topic_type == kDataMsgType) {
-  //   createDataSubscriber(topic_name);
-  //   return;
-  // }
+}
 
+template <typename RosMsgT>
+void Ros2LiveKitBridge::createDataSubscriber(const std::string &topic_name) {
   auto qos = determineQoS(topic_name);
-
-  rclcpp::SubscriptionEventCallbacks event_callbacks;
-  event_callbacks.incompatible_qos_callback =
-      [this, topic_name](const rclcpp::QOSRequestedIncompatibleQoSInfo &) {
-        RCLCPP_ERROR(this->get_logger(),
-                     "Incompatible subscriber QoS settings for topic '%s'",
-                     topic_name.c_str());
-      };
 
   rclcpp::SubscriptionOptions sub_options;
   sub_options.callback_group = reentrant_callback_group_;
-  sub_options.event_callbacks = event_callbacks;
 
-  auto callback = [this,
-                   topic_name](std::shared_ptr<rclcpp::SerializedMessage> msg) {
-    RCLCPP_INFO(this->get_logger(), "Received message on '%s' (%zu bytes)",
-                topic_name.c_str(), msg->size());
+  data_topic_states_[topic_name] = DataTopicState{};
+
+  auto callback = [this, topic_name](typename RosMsgT::ConstSharedPtr msg) {
+    auto &state = data_topic_states_[topic_name];
+
+    if (!state.track) {
+      if (!livekit_bridge_.isConnected()) {
+        return;
+      }
+      try {
+        state.track = livekit_bridge_.createDataTrack(topic_name);
+        RCLCPP_INFO(this->get_logger(), "Created data track '%s'",
+                    topic_name.c_str());
+      } catch (const std::exception &e) {
+        RCLCPP_ERROR(this->get_logger(),
+                     "Failed to create data track for '%s': %s",
+                     topic_name.c_str(), e.what());
+        return;
+      }
+    }
+
+    auto fg_msg = ros2_foxglove_adapters::toFoxglove(*msg);
+    std::string serialized;
+    if (!fg_msg.SerializeToString(&serialized)) {
+      RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
+                           "Failed to serialize Foxglove message for '%s'",
+                           topic_name.c_str());
+      return;
+    }
+
+    state.track->pushFrame(
+        reinterpret_cast<const std::uint8_t *>(serialized.data()),
+        serialized.size());
   };
 
-  auto subscription = this->create_generic_subscription(
-      topic_name, topic_type, qos, callback, sub_options);
+  auto subscription = this->create_subscription<RosMsgT>(topic_name, qos,
+                                                         callback, sub_options);
   subscriptions_[topic_name] = subscription;
 
-  RCLCPP_INFO(this->get_logger(), "Subscribed to '%s' [%s]", topic_name.c_str(),
-              topic_type.c_str());
+  RCLCPP_INFO(this->get_logger(),
+              "Subscribed to data topic '%s' (Foxglove protobuf)",
+              topic_name.c_str());
 }
+
+// Explicit template instantiations for all supported Foxglove-adapted types.
+template void Ros2LiveKitBridge::createDataSubscriber<nav_msgs::msg::Odometry>(
+    const std::string &);
+template void Ros2LiveKitBridge::createDataSubscriber<nav_msgs::msg::Path>(
+    const std::string &);
+template void
+Ros2LiveKitBridge::createDataSubscriber<nav_msgs::msg::OccupancyGrid>(
+    const std::string &);
+template void
+Ros2LiveKitBridge::createDataSubscriber<geometry_msgs::msg::TransformStamped>(
+    const std::string &);
+template void
+Ros2LiveKitBridge::createDataSubscriber<geometry_msgs::msg::Pose2D>(
+    const std::string &);
+template void
+Ros2LiveKitBridge::createDataSubscriber<geometry_msgs::msg::PolygonStamped>(
+    const std::string &);
+template void Ros2LiveKitBridge::createDataSubscriber<
+    geometry_msgs::msg::PoseWithCovarianceStamped>(const std::string &);
+template void
+Ros2LiveKitBridge::createDataSubscriber<sensor_msgs::msg::PointCloud2>(
+    const std::string &);
+template void Ros2LiveKitBridge::createDataSubscriber<sensor_msgs::msg::Imu>(
+    const std::string &);
+template void Ros2LiveKitBridge::createDataSubscriber<sensor_msgs::msg::Joy>(
+    const std::string &);
+template void
+Ros2LiveKitBridge::createDataSubscriber<sensor_msgs::msg::BatteryState>(
+    const std::string &);
+template void Ros2LiveKitBridge::createDataSubscriber<std_msgs::msg::String>(
+    const std::string &);
 
 void Ros2LiveKitBridge::createImageSubscriber(const std::string &topic_name) {
   auto qos = determineQoS(topic_name);
@@ -402,6 +502,8 @@ void Ros2LiveKitBridge::createImageSubscriber(const std::string &topic_name) {
   RCLCPP_INFO(this->get_logger(), "Subscribed to image topic '%s' [%s]",
               topic_name.c_str(), kImageMsgType);
 }
+
+/** Helpers **/
 
 bool Ros2LiveKitBridge::matchesTopic(const std::string &topic_name) const {
   return matchesAnyPattern(topic_name, compiled_patterns_);

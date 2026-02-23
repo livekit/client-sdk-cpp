@@ -74,9 +74,3 @@ RUN set -ex \
         && make -j $(nproc) \
         && make install \
     && rm -rf /var/lib/apt/lists/*
-
-RUN apt-get update && apt-get install -y \
-        clang \
-        libc6-dev \
-        libstdc++-dev \
-    && rm -rf /var/lib/apt/lists/*

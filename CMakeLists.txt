@@ -697,9 +697,6 @@ if(LIVEKIT_BUILD_TESTS)
   add_subdirectory(src/tests)
 endif()
 
-# Build the LiveKit C++ bridge
-add_subdirectory(bridge)
-
 add_custom_target(clean_generated
   COMMAND ${CMAKE_COMMAND} -E rm -rf "${PROTO_BINARY_DIR}"
   COMMENT "Clean generated protobuf files"
