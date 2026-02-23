@@ -1,31 +1,40 @@
-# Build & Installation Guide
+<!--BEGIN_BANNER_IMAGE-->
+<!--END_BANNER_IMAGE-->
+
+# C++ SDK for LiveKit
+
+<!--BEGIN_DESCRIPTION-->
+Official native C++ client SDK for LiveKit: build real-time audio, video, and data applications using LiveKit.
+<!--END_DESCRIPTION-->
+
+## Build & Installation Guide
 
 This page covers how to build and install the LiveKit C++ Client SDK for real-time audio/video communication.
 
 ---
 
-## 📦 Requirements
-- **CMake** ≥ 3.20  
-- **Rust / Cargo** (latest stable toolchain)  
+### 📦 Requirements
+- **CMake** ≥ 3.20
+- **Rust / Cargo** (latest stable toolchain)
 - **Git LFS** (required for examples)
   Some example data files (e.g., audio assets) are stored using Git LFS.
   You must install Git LFS before cloning or pulling the repo if you want to run the examples.
 
 **Platform-Specific Requirements:**
 
-### For Building the SDK:
+#### For Building the SDK:
 - **Windows:** Visual Studio 2019+, vcpkg
 - **Linux:** `sudo apt install libprotobuf-dev libssl-dev` (protobuf 3.x)
 - **macOS:** `brew install protobuf` (protobuf 3.x)
 
-### For Using the Pre-built SDK:
+#### For Using the Pre-built SDK:
 - **Windows:** ✅ All dependencies included (DLLs bundled) - ready to use
 - **Linux:** ⚠️ Requires `libprotobuf` and `libssl-dev`; deploy `liblivekit_ffi.so` with your executable
 - **macOS:** ⚠️ Requires `protobuf`; deploy `liblivekit_ffi.dylib` with your executable
 
 > **Note**: If the SDK was built with Protobuf 6.0+, you also need `libabsl-dev` (Linux) or `abseil` (macOS).
 
-## 🧩 Clone the Repository
+### 🧩 Clone the Repository
 
 Make sure to initialize the Rust submodule (`client-sdk-rust`):
 
@@ -39,9 +48,9 @@ cd client-sdk-cpp
 git submodule update --init --recursive
 ```
 
-## ⚙️ BUILD
+### ⚙️ BUILD
 
-### Quick Build (Using Build Scripts)
+#### Quick Build (Using Build Scripts)
 
 **Linux/macOS:**
 ```bash
@@ -78,7 +87,7 @@ You must install protobuf via vcpkg (so CMake can find ProtobufConfig.cmake and 
 .\build.cmd release-tests  # Build Release with tests
 ```
 
-### Advanced Build (Using CMake Presets)
+#### Advanced Build (Using CMake Presets)
 
 For more control and platform-specific builds, see the detailed instructions in [README_BUILD.md](README_BUILD.md).
 
@@ -110,7 +119,7 @@ cmake --build --preset macos-release
 
 📖 **For complete build instructions, troubleshooting, and platform-specific notes, see [README_BUILD.md](README_BUILD.md)**
 
-## 🧪 Run Example
+### 🧪 Run Example
 
 ### Generate Tokens
 Before running any participant, create JWT tokens with the proper identity and room name, example
@@ -118,7 +127,7 @@ Before running any participant, create JWT tokens with the proper identity and r
 lk token create -r test -i your_own_identity  --join --valid-for 99999h --dev --room=your_own_room
 ```
 
-### SimpleRoom
+#### SimpleRoom
 
 ```bash
 ./build/examples/SimpleRoom --url $URL --token <jwt-token>
@@ -146,7 +155,7 @@ If the E2EE keys do not match between participants:
 
 Press Ctrl-C to exit the example.
 
-### SimpleRpc
+#### SimpleRpc
 The SimpleRpc example demonstrates how to:
 - Connect multiple participants to the same LiveKit room
 - Register RPC handlers (e.g., arrival, square-root, divide, long-calculation)
@@ -154,7 +163,7 @@ The SimpleRpc example demonstrates how to:
 - Handle success, application errors, unsupported methods, and timeouts
 - Observe round-trip times (RTT) for each RPC call
 
-#### 🔑 Generate Tokens
+##### 🔑 Generate Tokens
 Before running any participant, create JWT tokens with **caller**, **greeter** and **math-genius** identities and room name.
 ```bash
 lk token create -r test -i caller --join --valid-for 99999h --dev --room=your_own_room
@@ -162,7 +171,7 @@ lk token create -r test -i greeter --join --valid-for 99999h --dev --room=your_o
 lk token create -r test -i math-genius --join --valid-for 99999h --dev --room=your_own_room
 ```
 
-#### ▶ Start Participants
+##### ▶ Start Participants
 Every participant is run as a separate terminal process, note --role needs to match the token identity.
 ```bash
 ./build/examples/SimpleRpc --url $URL --token <jwt-token> --role=math-genius
@@ -173,7 +182,7 @@ The caller will automatically:
 - Print round-trip times
 - Annotate expected successes or expected failures
 
-### SimpleDataStream
+#### SimpleDataStream
 - The SimpleDataStream example demonstrates how to:
 - Connect multiple participants to the same LiveKit room
 - Register text stream and byte stream handlers by topic (e.g. "chat", "files")
@@ -183,21 +192,21 @@ The caller will automatically:
 - Measure and print one-way latency on the receiver using sender timestamps
 - Receive streamed chunks and reconstruct the full payload on the receiver
 
-#### 🔑 Generate Tokens
+##### 🔑 Generate Tokens
 Before running any participant, create JWT tokens with caller and greeter identities and your room name.
 ```bash
 lk token create -r test -i caller  --join --valid-for 99999h --dev --room=your_own_room
 lk token create -r test -i greeter --join --valid-for 99999h --dev --room=your_own_room
 ```
 
-#### ▶ Start Participants
+##### ▶ Start Participants
 Start the receiver first (so it registers stream handlers before messages arrive):
 ```bash
-./build/examples/SimpleDataStream --url $URL --token <jwt-token> 
+./build/examples/SimpleDataStream --url $URL --token <jwt-token>
 ```
 On another terminal or computer, start the sender
 ```bash
-./build/examples/SimpleDataStream --url $URL --token <jwt-token> 
+./build/examples/SimpleDataStream --url $URL --token <jwt-token>
 ```
 
 **Sender** (e.g. greeter)
@@ -207,11 +216,11 @@ On another terminal or computer, start the sender
 - Registers handlers for text and file streams, logs stream events, computes one-way latency, and saves the received file locally.
 
 
-## 🧪 Integration & Stress Tests
+### 🧪 Integration & Stress Tests
 
 The SDK includes integration and stress tests using Google Test (gtest).
 
-### Build Tests
+#### Build Tests
 
 **Linux/macOS:**
 ```bash
@@ -225,7 +234,7 @@ The SDK includes integration and stress tests using Google Test (gtest).
 .\build.cmd release-tests
 ```
 
-### Run Tests
+#### Run Tests
 
 After building, run tests using ctest or directly:
 
@@ -243,7 +252,7 @@ ctest --output-on-failure
 ./build-debug/bin/livekit_stress_tests --gtest_filter="*MaxPayloadStress*"
 ```
 
-### Test Types
+#### Test Types
 
 | Executable | Description |
 |------------|-------------|
@@ -271,7 +280,7 @@ lk token create -r test -i rpc-caller --join --valid-for 99999h --dev --room=rpc
 lk token create -r test -i rpc-receiver --join --valid-for 99999h --dev --room=rpc-test-room
 ```
 
-### Test Coverage
+#### Test Coverage
 
 - **SDK Initialization**: Initialize/shutdown lifecycle
 - **Room**: Room creation, options, connection
@@ -279,21 +288,21 @@ lk token create -r test -i rpc-receiver --join --valid-for 99999h --dev --room=r
 - **RPC**: Round-trip calls, max payload (15KB), timeouts, errors, concurrent calls
 - **Stress Tests**: High throughput, bidirectional RPC, memory pressure
 
-##  🧰 Recommended Setup
-### macOS
+###  🧰 Recommended Setup
+#### macOS
 ```bash
 brew install cmake protobuf rust
 ```
 
-### Ubuntu / Debian
+#### Ubuntu / Debian
 ```bash
 sudo apt update
 sudo apt install -y cmake protobuf-compiler build-essential
 curl https://sh.rustup.rs -sSf | sh
 ```
 
-## 🛠️ Development Tips
-###  Update Rust version
+### 🛠️ Development Tips
+####  Update Rust version
 ```bash
 cd client-sdk-cpp
 git fetch origin
@@ -312,20 +321,23 @@ git -C client-sdk-rust/yuv-sys submodule update --init --recursive --checkout
 git submodule status --recursive
 ```
 
-###  If yuv-sys fails to build
+####  If yuv-sys fails to build
 ```bash
 cargo clean -p yuv-sys
 cargo build -p yuv-sys -vv
 ```
 
-### Full clean (Rust + C++ build folders)
+#### Full clean (Rust + C++ build folders)
 In some cases, you may need to perform a full clean that deletes all build artifacts from both the Rust and C++ folders:
 ```bash
 ./build.sh clean-all
 ```
 
-### Clang format
+#### Clang format
 CPP SDK is using clang C++ format
 ```bash
 brew install clang-format
 ```
+
+<!--BEGIN_REPO_NAV-->
+<!--END_REPO_NAV-->
