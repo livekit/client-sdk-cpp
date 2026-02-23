@@ -358,7 +358,8 @@ lk token create \
   -i robot \
   --join \
   --valid-for 99999h \
-  --room robo_room
+  --room robo_room \
+  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}'
 ```
 
 <!--BEGIN_REPO_NAV-->
