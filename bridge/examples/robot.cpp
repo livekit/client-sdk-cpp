@@ -40,9 +40,6 @@
 
 #include <atomic>
 #include <chrono>
-#ifdef _MSC_VER
-#define _USE_MATH_DEFINES
-#endif
 #include <cmath>
 #include <csignal>
 #include <cstdint>
@@ -443,8 +440,9 @@ int main(int argc, char *argv[]) {
               std::memcpy(buf.data() + y * dstPitch, pixels + y * pitch,
                           dstPitch);
             }
-            if (!cam->pushFrame(buf.data(), buf.size(),
-                                static_cast<std::int64_t>(timestampNS / 1000))) {
+            if (!cam->pushFrame(
+                    buf.data(), buf.size(),
+                    static_cast<std::int64_t>(timestampNS / 1000))) {
               std::cerr << "[robot] Cam track released.\n";
             }
           });

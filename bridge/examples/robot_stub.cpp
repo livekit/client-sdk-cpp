@@ -39,9 +39,6 @@
 
 #include <atomic>
 #include <chrono>
-#ifdef _MSC_VER
-#define _USE_MATH_DEFINES
-#endif
 #include <cmath>
 #include <csignal>
 #include <cstdlib>
@@ -129,7 +126,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < kSamplesPerFrame; ++i) {
       double t = static_cast<double>(audio_sample_index++) / kSampleRate;
       audio_buf[i] = static_cast<std::int16_t>(
-          kAmplitude * std::sin(2.0 * M_PI * kToneHz * t));
+          kAmplitude * std::sin(2.0 * 3.14159265358979323846 * kToneHz * t));
     }
 
     if (!mic->pushFrame(audio_buf, kSamplesPerFrame)) {
