@@ -647,6 +647,7 @@ std::thread LiveKitBridge::startDataReader(
   auto identity = key.identity;
 
   ActiveDataReader reader;
+  reader.remote_track = track;
   reader.subscription = std::move(subscription);
   reader.thread = std::thread([sub_copy, cb, track_name, identity]() {
     std::cout << "[LiveKitBridge] Data reader thread running for \""

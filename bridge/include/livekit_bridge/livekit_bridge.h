@@ -375,6 +375,11 @@ private:
 
   /** Active reader thread + subscription for an incoming data track. */
   struct ActiveDataReader {
+    /** The remote track must stay alive for the subscription to receive frames.
+     *  Dropping the RemoteDataTrack handle tells the Rust FFI we no longer care
+     *  about this track, which may cause it to stop forwarding frames. */
+    std::shared_ptr<livekit::RemoteDataTrack> remote_track;
+
     /** Underlying SDK subscription that delivers frames via read(). */
     std::shared_ptr<livekit::DataTrackSubscription> subscription;
 
