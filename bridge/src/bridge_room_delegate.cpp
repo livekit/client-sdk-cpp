@@ -19,10 +19,13 @@
 
 #include "bridge_room_delegate.h"
 
+#include "livekit/remote_data_track.h"
 #include "livekit/remote_participant.h"
 #include "livekit/remote_track_publication.h"
 #include "livekit/track.h"
 #include "livekit_bridge/livekit_bridge.h"
+
+#include <iostream>
 
 namespace livekit_bridge {
 
@@ -48,6 +51,21 @@ void BridgeRoomDelegate::onTrackUnsubscribed(
   const livekit::TrackSource source = ev.publication->source();
 
   bridge_.onTrackUnsubscribed(identity, source);
+}
+
+void BridgeRoomDelegate::onRemoteDataTrackPublished(
+    livekit::Room & /*room*/,
+    const livekit::RemoteDataTrackPublishedEvent &ev) {
+  if (!ev.track) {
+    std::cerr << "[BridgeRoomDelegate] onRemoteDataTrackPublished called "
+                 "with null track.\n";
+    return;
+  }
+
+  std::cout << "[BridgeRoomDelegate] onRemoteDataTrackPublished: \""
+            << ev.track->info().name << "\" from \""
+            << ev.track->publisherIdentity() << "\"\n";
+  bridge_.onRemoteDataTrackPublished(ev.track);
 }
 
 } // namespace livekit_bridge

@@ -8,6 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(livekit_bridge SHARED
   src/livekit_bridge.cpp
   src/bridge_audio_track.cpp
+  src/bridge_data_track.cpp
   src/bridge_video_track.cpp
   src/bridge_room_delegate.cpp
   src/bridge_room_delegate.h

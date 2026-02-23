@@ -17,6 +17,7 @@
 #pragma once
 
 #include "livekit/ffi_handle.h"
+#include "livekit/local_data_track.h"
 #include "livekit/participant.h"
 #include "livekit/room_event_types.h"
 #include "livekit/rpc_error.h"
@@ -95,7 +96,13 @@ public:
                    const std::string &topic = {});
 
   /**
-   * Publish SIP DTMF message.
+   * Publish a SIP DTMF (phone keypad) tone into the room.
+   *
+   * Only meaningful when a SIP trunk is bridging a phone call into the
+   * room.  See SipDtmfData for background on SIP and DTMF.
+   *
+   * @param code  DTMF code (0-15).
+   * @param digit Human-readable digit string (e.g. "5", "#").
    */
   void publishDtmf(int code, const std::string &digit);
 
@@ -134,6 +141,20 @@ public:
    * If the publication exists in the local map, it is removed.
    */
   void unpublishTrack(const std::string &track_sid);
+
+  /**
+   * Publish a data track to the room.
+   *
+   * Data tracks carry arbitrary binary frames and are independent of the
+   * audio/video track hierarchy. The returned LocalDataTrack can push
+   * frames via tryPush() and be unpublished via unpublish().
+   *
+   * @param name  Unique track name visible to other participants.
+   * @return Shared pointer to the published data track.
+   * @throws std::runtime_error on FFI or publish failure.
+   */
+  std::shared_ptr<LocalDataTrack>
+  publishDataTrack(const std::string &name);
 
   /**
    * Initiate an RPC call to a remote participant.

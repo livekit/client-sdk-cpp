@@ -21,6 +21,7 @@
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
 #include "livekit/remote_audio_track.h"
+#include "livekit/remote_data_track.h"
 #include "livekit/remote_participant.h"
 #include "livekit/remote_track_publication.h"
 #include "livekit/remote_video_track.h"
@@ -28,6 +29,7 @@
 #include "livekit/room_event_types.h"
 #include "livekit/video_stream.h"
 
+#include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit_ffi.h"
@@ -599,6 +601,23 @@ void Room::OnEvent(const FfiEvent &event) {
       }
       if (delegate_snapshot) {
         delegate_snapshot->onTrackSubscriptionFailed(*this, ev);
+      }
+      break;
+    }
+    case proto::RoomEvent::kRemoteDataTrackPublished: {
+      const auto &rdtp = re.remote_data_track_published();
+      auto remote_track = std::make_shared<RemoteDataTrack>(rdtp.track());
+      std::cout << "[Room] RoomEvent::kRemoteDataTrackPublished: \""
+                << remote_track->info().name << "\" from \""
+                << remote_track->publisherIdentity()
+                << "\" (sid=" << remote_track->info().sid << ")\n";
+      RemoteDataTrackPublishedEvent ev;
+      ev.track = remote_track;
+      if (delegate_snapshot) {
+        delegate_snapshot->onRemoteDataTrackPublished(*this, ev);
+      } else {
+        std::cerr << "[Room] No delegate set; RemoteDataTrackPublished "
+                     "event dropped.\n";
       }
       break;
     }

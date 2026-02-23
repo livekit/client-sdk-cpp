@@ -15,10 +15,11 @@
  */
 
 /*
- * Robot example -- publishes audio and video frames to a LiveKit room.
+ * Robot example -- publishes audio, video, and data frames to a LiveKit room.
  *
  * The robot acts as a sensor platform: it streams a camera feed (simulated
- * as a solid-color frame) and microphone audio (simulated as a sine tone)
+ * as a solid-color frame), microphone audio (simulated as a sine tone),
+ * and a data track ("robot-status") carrying periodic string messages
  * into the room. A "human" participant can subscribe and receive these
  * frames via their own bridge instance.
  *
@@ -35,6 +36,7 @@
 #include "livekit/audio_frame.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
+#include "livekit_bridge/bridge_data_track.h"
 #include "livekit_bridge/livekit_bridge.h"
 
 #include <atomic>
@@ -43,6 +45,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -92,6 +95,14 @@ int main(int argc, char *argv[]) {
                                      livekit::TrackSource::SOURCE_MICROPHONE);
   auto cam = bridge.createVideoTrack("robot-cam", kWidth, kHeight,
                                      livekit::TrackSource::SOURCE_CAMERA);
+  std::shared_ptr<livekit_bridge::BridgeDataTrack> data;
+  try {
+    data = bridge.createDataTrack("robot-status");
+    std::cout << "[robot] Data track 'robot-status' published.\n";
+  } catch (const std::exception &e) {
+    std::cerr << "[robot] Failed to create data track: " << e.what()
+              << "\n         (does the token grant canPublishData?)\n";
+  }
   std::cout << "[robot] Publishing audio (" << kSampleRate << " Hz, "
             << kChannels << " ch) and video (" << kWidth << "x" << kHeight
             << ").\n";
@@ -120,6 +131,7 @@ int main(int argc, char *argv[]) {
 
   std::int64_t video_ts = 0;
   int loop_count = 0;
+  std::uint64_t data_msg_num = 0;
 
   while (g_running.load()) {
     // Generate 10ms of sine tone
@@ -134,13 +146,31 @@ int main(int argc, char *argv[]) {
       break;
     }
 
+    ++loop_count;
+
     // Push video at ~30 fps (every 3rd loop iteration, since loop is 10ms)
-    if (++loop_count % 3 == 0) {
+    if (loop_count % 3 == 0) {
       if (!cam->pushFrame(video_buf, video_ts)) {
         std::cerr << "[robot] Video track released, stopping.\n";
         break;
       }
       video_ts += 33333; // ~30 fps in microseconds
+    }
+
+    // Send a data track message every ~1 second (every 100th 10ms iteration)
+    if (data && loop_count % 100 == 0) {
+      ++data_msg_num;
+      std::string msg = "robot-status #" + std::to_string(data_msg_num)
+                        + " uptime=" + std::to_string(loop_count / 100) + "s";
+      std::vector<std::uint8_t> payload(msg.begin(), msg.end());
+      auto now_us = static_cast<std::uint64_t>(
+          std::chrono::duration_cast<std::chrono::microseconds>(
+              std::chrono::system_clock::now().time_since_epoch())
+              .count());
+      if (!data->pushFrame(payload, now_us)) {
+        std::cerr << "[robot] Data track released, stopping.\n";
+        break;
+      }
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -150,6 +180,7 @@ int main(int argc, char *argv[]) {
   std::cout << "[robot] Shutting down...\n";
   mic.reset();
   cam.reset();
+  data.reset();
   bridge.disconnect();
   std::cout << "[robot] Done.\n";
   return 0;

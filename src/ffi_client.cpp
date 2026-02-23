@@ -17,6 +17,7 @@
 #include <cassert>
 #include <iostream>
 
+#include "data_track.pb.h"
 #include "e2ee.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
@@ -115,6 +116,12 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent &event) {
   case E::kSendBytes:
     return event.send_bytes().async_id();
 
+  // data track async completions
+  case E::kPublishDataTrack:
+    return event.publish_data_track().async_id();
+  case E::kSubscribeDataTrack:
+    return event.subscribe_data_track().async_id();
+
   // NOT async completion:
   case E::kRoomEvent:
   case E::kTrackEvent:
@@ -122,6 +129,7 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent &event) {
   case E::kAudioStreamEvent:
   case E::kByteStreamReaderEvent:
   case E::kTextStreamReaderEvent:
+  case E::kDataTrackSubscriptionEvent:
   case E::kRpcMethodInvocation:
   case E::kLogs:
   case E::kPanic:
@@ -599,6 +607,99 @@ std::future<void> FfiClient::publishDataAsync(
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_publish_data()) {
       logAndThrow("FfiResponse missing publish_data");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+std::future<proto::OwnedLocalDataTrack>
+FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
+                                 const std::string &track_name) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<proto::OwnedLocalDataTrack>(
+      async_id,
+      [async_id](const proto::FfiEvent &event) {
+        return event.has_publish_data_track() &&
+               event.publish_data_track().async_id() == async_id;
+      },
+      [](const proto::FfiEvent &event,
+         std::promise<proto::OwnedLocalDataTrack> &pr) {
+        const auto &cb = event.publish_data_track();
+        if (cb.has_error() && !cb.error().empty()) {
+          pr.set_exception(
+              std::make_exception_ptr(std::runtime_error(cb.error())));
+          return;
+        }
+        if (!cb.has_track()) {
+          pr.set_exception(std::make_exception_ptr(
+              std::runtime_error("PublishDataTrackCallback missing track")));
+          return;
+        }
+        proto::OwnedLocalDataTrack track = cb.track();
+        pr.set_value(std::move(track));
+      });
+
+  proto::FfiRequest req;
+  auto *msg = req.mutable_publish_data_track();
+  msg->set_local_participant_handle(local_participant_handle);
+  msg->mutable_options()->set_name(track_name);
+  msg->set_request_async_id(async_id);
+
+  try {
+    proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_publish_data_track()) {
+      logAndThrow("FfiResponse missing publish_data_track");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+std::future<proto::OwnedDataTrackSubscription>
+FfiClient::subscribeDataTrackAsync(std::uint64_t track_handle) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<proto::OwnedDataTrackSubscription>(
+      async_id,
+      [async_id](const proto::FfiEvent &event) {
+        return event.has_subscribe_data_track() &&
+               event.subscribe_data_track().async_id() == async_id;
+      },
+      [](const proto::FfiEvent &event,
+         std::promise<proto::OwnedDataTrackSubscription> &pr) {
+        const auto &cb = event.subscribe_data_track();
+        if (cb.has_error() && !cb.error().empty()) {
+          pr.set_exception(
+              std::make_exception_ptr(std::runtime_error(cb.error())));
+          return;
+        }
+        if (!cb.has_subscription()) {
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(
+              "SubscribeDataTrackCallback missing subscription")));
+          return;
+        }
+        proto::OwnedDataTrackSubscription sub = cb.subscription();
+        pr.set_value(std::move(sub));
+      });
+
+  proto::FfiRequest req;
+  auto *msg = req.mutable_subscribe_data_track();
+  msg->set_track_handle(track_handle);
+  msg->mutable_options();
+  msg->set_request_async_id(async_id);
+
+  try {
+    proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_subscribe_data_track()) {
+      logAndThrow("FfiResponse missing subscribe_data_track");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);

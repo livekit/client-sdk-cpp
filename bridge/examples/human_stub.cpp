@@ -15,12 +15,13 @@
  */
 
 /*
- * Human example -- receives audio and video frames from a robot in a
- * LiveKit room and prints a summary each time a frame arrives.
+ * Human example -- receives audio, video, and data frames from a robot
+ * in a LiveKit room and prints a summary each time a frame arrives.
  *
  * This participant does not publish any tracks of its own; it only
- * subscribes to the robot's camera and microphone streams via
- * setOnAudioFrameCallback / setOnVideoFrameCallback.
+ * subscribes to the robot's camera, microphone, and data track streams
+ * via setOnAudioFrameCallback / setOnVideoFrameCallback /
+ * setOnDataFrameCallback.
  *
  * Usage:
  *   human <ws-url> <token>
@@ -45,6 +46,8 @@
 #include <cstdlib>
 #include <iomanip>
 #include <iostream>
+#include <optional>
+#include <string>
 #include <thread>
 
 static std::atomic<bool> g_running{true};
@@ -53,6 +56,7 @@ static void handleSignal(int) { g_running.store(false); }
 // Simple counters for periodic status reporting.
 static std::atomic<uint64_t> g_audio_frames{0};
 static std::atomic<uint64_t> g_video_frames{0};
+static std::atomic<uint64_t> g_data_frames{0};
 
 int main(int argc, char *argv[]) {
   // ----- Parse args / env -----
@@ -138,14 +142,16 @@ int main(int argc, char *argv[]) {
       last_report = now;
       std::cout << "[human] Status: " << g_audio_frames.load()
                 << " audio frames, " << g_video_frames.load()
-                << " video frames received so far.\n";
+                << " video frames, " << g_data_frames.load()
+                << " data frames received so far.\n";
     }
   }
 
   // ----- Cleanup -----
   std::cout << "[human] Shutting down...\n";
   std::cout << "[human] Total received: " << g_audio_frames.load()
-            << " audio frames, " << g_video_frames.load() << " video frames.\n";
+            << " audio frames, " << g_video_frames.load() << " video frames, "
+            << g_data_frames.load() << " data frames.\n";
   bridge.disconnect();
   std::cout << "[human] Done.\n";
   return 0;

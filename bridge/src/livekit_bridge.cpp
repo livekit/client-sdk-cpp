@@ -23,11 +23,15 @@
 #include "livekit/audio_frame.h"
 #include "livekit/audio_source.h"
 #include "livekit/audio_stream.h"
+#include "livekit/data_track_frame.h"
+#include "livekit/data_track_subscription.h"
 #include "livekit/livekit.h"
 #include "livekit/local_audio_track.h"
+#include "livekit/local_data_track.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
 #include "livekit/local_video_track.h"
+#include "livekit/remote_data_track.h"
 #include "livekit/room.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
@@ -52,6 +56,18 @@ std::size_t
 LiveKitBridge::CallbackKeyHash::operator()(const CallbackKey &k) const {
   std::size_t h1 = std::hash<std::string>{}(k.identity);
   std::size_t h2 = std::hash<int>{}(static_cast<int>(k.source));
+  return h1 ^ (h2 << 1);
+}
+
+bool LiveKitBridge::DataCallbackKey::operator==(
+    const DataCallbackKey &o) const {
+  return identity == o.identity && track_name == o.track_name;
+}
+
+std::size_t
+LiveKitBridge::DataCallbackKeyHash::operator()(const DataCallbackKey &k) const {
+  std::size_t h1 = std::hash<std::string>{}(k.identity);
+  std::size_t h2 = std::hash<std::string>{}(k.track_name);
   return h1 ^ (h2 << 1);
 }
 
@@ -91,12 +107,18 @@ bool LiveKitBridge::connect(const std::string &url, const std::string &token,
     }
   }
 
-  // ---- Phase 2: create room and connect without holding the lock ----
-  // This avoids blocking other threads during the network handshake and
-  // eliminates the risk of deadlock if the SDK delivers delegate callbacks
+  // ---- Phase 2: create room, attach delegate, and connect without holding the
+  // lock ---- This avoids blocking other threads during the network handshake
+  // and eliminates the risk of deadlock if the SDK delivers delegate callbacks
   // synchronously during Connect().
+  // Set the delegate before Connect() so that events (e.g.
+  // RemoteDataTrackPublished) that may be delivered during or immediately after
+  // Connect() are not dropped.
+  auto delegate = std::make_unique<BridgeRoomDelegate>(*this);
+  assert(delegate != nullptr);
   auto room = std::make_unique<livekit::Room>();
   assert(room != nullptr);
+  room->setDelegate(delegate.get());
 
   bool result = room->Connect(url, token, options);
   if (!result) {
@@ -105,14 +127,8 @@ bool LiveKitBridge::connect(const std::string &url, const std::string &token,
     return false;
   }
 
-  // ---- Phase 3: commit and attach delegate under lock ----
-  // Setting the delegate here (after Connect) ensures that any queued
-  // onTrackSubscribed events are delivered only after
-  // room_/delegate_/connected_ are all in a consistent state.
-
-  auto delegate = std::make_unique<BridgeRoomDelegate>(*this);
-  assert(delegate != nullptr);
-  room->setDelegate(delegate.get());
+  // ---- Phase 3: commit under lock ----
+  // room_/delegate_/connected_ are now in a consistent state.
   {
     std::lock_guard<std::mutex> lock(mutex_);
     room_ = std::move(room);
@@ -140,15 +156,18 @@ void LiveKitBridge::disconnect() {
     connecting_ = false;
 
     // Release all published tracks while the room/participant are still alive.
-    // This calls unpublishTrack() on each, ensuring participant_ is valid.
     for (auto &track : published_audio_tracks_) {
       track->release();
     }
     for (auto &track : published_video_tracks_) {
       track->release();
     }
+    for (auto &track : published_data_tracks_) {
+      track->release();
+    }
     published_audio_tracks_.clear();
     published_video_tracks_.clear();
+    published_data_tracks_.clear();
 
     // Close all streams (unblocks read loops) and collect threads
     for (auto &[key, reader] : active_readers_) {
@@ -164,9 +183,21 @@ void LiveKitBridge::disconnect() {
     }
     active_readers_.clear();
 
-    // Clear callback registrations
+    for (auto &[key, reader] : active_data_readers_) {
+      if (reader.subscription) {
+        reader.subscription->close();
+      }
+      if (reader.thread.joinable()) {
+        threads_to_join.emplace_back(std::move(reader.thread));
+      }
+    }
+    active_data_readers_.clear();
+
+    // Clear callback registrations and pending data tracks
     audio_callbacks_.clear();
     video_callbacks_.clear();
+    data_callbacks_.clear();
+    pending_remote_data_tracks_.clear();
 
     // Tear down the room
     if (room_) {
@@ -266,6 +297,26 @@ LiveKitBridge::createVideoTrack(const std::string &name, int width, int height,
   return bridge_track;
 }
 
+std::shared_ptr<BridgeDataTrack>
+LiveKitBridge::createDataTrack(const std::string &name) {
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  if (!connected_ || !room_) {
+    throw std::runtime_error(
+        "LiveKitBridge::createDataTrack: not connected to a room");
+  }
+
+  std::cout << "[LiveKitBridge] Publishing data track \"" << name << "\"...\n";
+  auto track = room_->localParticipant()->publishDataTrack(name);
+  std::cout << "[LiveKitBridge] Data track \"" << name << "\" published "
+            << "(sid=" << track->info().sid << ").\n";
+
+  auto bridge_track = std::shared_ptr<BridgeDataTrack>(
+      new BridgeDataTrack(name, std::move(track)));
+  published_data_tracks_.emplace_back(bridge_track);
+  return bridge_track;
+}
+
 // ---------------------------------------------------------------
 // Incoming frame callbacks
 // ---------------------------------------------------------------
@@ -327,6 +378,48 @@ void LiveKitBridge::clearOnVideoFrameCallback(
   }
 }
 
+void LiveKitBridge::setOnDataFrameCallback(
+    const std::string &participant_identity, const std::string &track_name,
+    DataFrameCallback callback) {
+  std::thread old_thread;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::cout << "[LiveKitBridge] Registered data callback for (\""
+              << participant_identity << "\", \"" << track_name << "\").\n";
+    DataCallbackKey key{participant_identity, track_name};
+    data_callbacks_[key] = std::move(callback);
+
+    // If this track was already published and stored as pending, start the
+    // reader now (mirrors late registration for audio/video).
+    auto pending_it = pending_remote_data_tracks_.find(key);
+    if (pending_it != pending_remote_data_tracks_.end()) {
+      auto track = std::move(pending_it->second);
+      pending_remote_data_tracks_.erase(pending_it);
+      auto cb_it = data_callbacks_.find(key);
+      if (cb_it != data_callbacks_.end()) {
+        old_thread = startDataReader(key, track, cb_it->second);
+      }
+    }
+  }
+  if (old_thread.joinable()) {
+    old_thread.join();
+  }
+}
+
+void LiveKitBridge::clearOnDataFrameCallback(
+    const std::string &participant_identity, const std::string &track_name) {
+  std::thread thread_to_join;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    DataCallbackKey key{participant_identity, track_name};
+    data_callbacks_.erase(key);
+    thread_to_join = extractDataReaderThread(key);
+  }
+  if (thread_to_join.joinable()) {
+    thread_to_join.join();
+  }
+}
+
 // ---------------------------------------------------------------
 // Internal: track subscribe / unsubscribe from delegate
 // ---------------------------------------------------------------
@@ -350,6 +443,10 @@ void LiveKitBridge::onTrackSubscribed(
       if (it != video_callbacks_.end()) {
         old_thread = startVideoReader(key, track, it->second);
       }
+    } else {
+      std::cout << "[LiveKitBridge] Track subscribed: \"" << track->name()
+                << "\" from \"" << participant_identity
+                << "\" (sid=" << track->sid() << ")\n";
     }
   }
   // If this key already had a reader (e.g. track was re-subscribed), the old
@@ -371,6 +468,42 @@ void LiveKitBridge::onTrackUnsubscribed(const std::string &participant_identity,
   }
   if (thread_to_join.joinable()) {
     thread_to_join.join();
+  }
+}
+
+void LiveKitBridge::onRemoteDataTrackPublished(
+    std::shared_ptr<livekit::RemoteDataTrack> track) {
+  std::cout << "[LiveKitBridge] Remote data track published: \""
+            << track->info().name << "\" from \"" << track->publisherIdentity()
+            << "\" (sid=" << track->info().sid << ")\n";
+
+  std::thread old_thread;
+  std::string identity;
+  std::string track_name;
+
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    DataCallbackKey key{track->publisherIdentity(), track->info().name};
+    identity = key.identity;
+    track_name = key.track_name;
+
+    auto it = data_callbacks_.find(key);
+    if (it != data_callbacks_.end()) {
+      std::cout << "[LiveKitBridge] Found matching callback for ("
+                << key.identity << ", " << key.track_name
+                << "), starting data reader.\n";
+      old_thread = startDataReader(key, track, it->second);
+    } else {
+      std::cout << "[LiveKitBridge] No callback registered yet for ("
+                << key.identity << ", " << key.track_name
+                << "); storing as pending (will start when callback is set).\n";
+      pending_remote_data_tracks_[key] = track;
+    }
+  }
+
+  if (old_thread.joinable()) {
+    old_thread.join();
   }
 }
 
@@ -487,4 +620,68 @@ LiveKitBridge::startVideoReader(const CallbackKey &key,
   return old_thread;
 }
 
+std::thread LiveKitBridge::startDataReader(
+    const DataCallbackKey &key,
+    const std::shared_ptr<livekit::RemoteDataTrack> &track,
+    DataFrameCallback cb) {
+  auto old_thread = extractDataReaderThread(key);
+
+  std::cout << "[LiveKitBridge] Subscribing to data track \"" << key.track_name
+            << "\" from \"" << key.identity << "\"...\n";
+
+  std::shared_ptr<livekit::DataTrackSubscription> subscription;
+  try {
+    subscription = track->subscribe();
+  } catch (const std::exception &e) {
+    std::cerr << "[LiveKitBridge] Failed to subscribe to data track \""
+              << key.track_name << "\" from \"" << key.identity
+              << "\": " << e.what() << "\n";
+    return old_thread;
+  }
+
+  std::cout << "[LiveKitBridge] Subscribed to data track \"" << key.track_name
+            << "\"; starting reader thread.\n";
+
+  auto sub_copy = subscription;
+  auto track_name = key.track_name;
+  auto identity = key.identity;
+
+  ActiveDataReader reader;
+  reader.subscription = std::move(subscription);
+  reader.thread = std::thread([sub_copy, cb, track_name, identity]() {
+    std::cout << "[LiveKitBridge] Data reader thread running for \""
+              << track_name << "\" from \"" << identity << "\".\n";
+    livekit::DataTrackFrame frame;
+    while (sub_copy->read(frame)) {
+      try {
+        cb(frame.payload, frame.user_timestamp);
+      } catch (const std::exception &e) {
+        std::cerr << "[LiveKitBridge] Data callback exception: " << e.what()
+                  << "\n";
+      }
+    }
+    std::cout << "[LiveKitBridge] Data reader thread exiting for \""
+              << track_name << "\" from \"" << identity << "\".\n";
+  });
+
+  active_data_readers_[key] = std::move(reader);
+  return old_thread;
+}
+
+std::thread LiveKitBridge::extractDataReaderThread(const DataCallbackKey &key) {
+  auto it = active_data_readers_.find(key);
+  if (it == active_data_readers_.end()) {
+    return {};
+  }
+
+  auto &reader = it->second;
+
+  if (reader.subscription) {
+    reader.subscription->close();
+  }
+
+  auto thread = std::move(reader.thread);
+  active_data_readers_.erase(it);
+  return thread;
+}
 } // namespace livekit_bridge

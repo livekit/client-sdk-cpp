@@ -282,13 +282,16 @@ add_library(livekit SHARED
   src/audio_source.cpp
   src/audio_stream.cpp
   src/data_stream.cpp
+  src/data_track_subscription.cpp
   src/e2ee.cpp
   src/ffi_handle.cpp
   src/ffi_client.cpp
   src/ffi_client.h
   src/livekit.cpp
   src/local_audio_track.cpp
+  src/local_data_track.cpp
   src/remote_audio_track.cpp
+  src/remote_data_track.cpp
   src/room.cpp
   src/room_proto_converter.cpp
   src/room_proto_converter.h

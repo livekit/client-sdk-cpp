@@ -17,10 +17,12 @@
 #include "livekit/local_participant.h"
 
 #include "livekit/ffi_handle.h"
+#include "livekit/local_data_track.h"
 #include "livekit/local_track_publication.h"
 #include "livekit/room_delegate.h"
 #include "livekit/track.h"
 
+#include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "participant.pb.h"
@@ -221,6 +223,21 @@ void LocalParticipant::unpublishTrack(const std::string &track_sid) {
   fut.get();
 
   track_publications_.erase(track_sid);
+}
+
+std::shared_ptr<LocalDataTrack>
+LocalParticipant::publishDataTrack(const std::string &name) {
+  auto handle_id = ffiHandleId();
+  if (handle_id == 0) {
+    throw std::runtime_error(
+        "LocalParticipant::publishDataTrack: invalid FFI handle");
+  }
+
+  auto fut = FfiClient::instance().publishDataTrackAsync(
+      static_cast<std::uint64_t>(handle_id), name);
+
+  proto::OwnedLocalDataTrack owned = fut.get();
+  return std::make_shared<LocalDataTrack>(owned);
 }
 
 std::string LocalParticipant::performRpc(

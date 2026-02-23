@@ -15,8 +15,9 @@
  */
 
 /*
- * Robot example -- streams real webcam video and microphone audio to a
- * LiveKit room using SDL3 for hardware capture.
+ * Robot example -- streams real webcam video, microphone audio, and
+ * periodic string data messages to a LiveKit room using SDL3 for
+ * hardware capture.
  *
  * Usage:
  *   robot <ws-url> <token>
@@ -27,12 +28,14 @@
  *       --join --room my-room --identity robot \
  *       --valid-for 24h
  *
- * Run alongside the "human" example (which displays the robot's feed).
+ * Run alongside the "human" example (which displays the robot's feed
+ * and prints received data track messages).
  */
 
 #include "livekit/audio_frame.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
+#include "livekit_bridge/bridge_data_track.h"
 #include "livekit_bridge/livekit_bridge.h"
 #include "sdl_media.h"
 
@@ -354,6 +357,14 @@ int main(int argc, char *argv[]) {
   auto sim_cam =
       bridge.createVideoTrack("robot-sim-frame", kSimWidth, kSimHeight,
                               livekit::TrackSource::SOURCE_SCREENSHARE);
+  std::shared_ptr<livekit_bridge::BridgeDataTrack> data;
+  try {
+    data = bridge.createDataTrack("robot-status");
+    std::cout << "[robot] Data track 'robot-status' published.\n";
+  } catch (const std::exception &e) {
+    std::cerr << "[robot] Failed to create data track: " << e.what()
+              << "\n         (does the token grant canPublishData?)\n";
+  }
   std::cout << "[robot] Publishing mic + sim audio (" << kSampleRate << " Hz, "
             << kChannels << " ch), cam + sim frame (" << kWidth << "x"
             << kHeight << " / " << kSimWidth << "x" << kSimHeight << ").\n";
@@ -582,6 +593,34 @@ int main(int argc, char *argv[]) {
   });
   std::cout << "[robot] Sim audio (siren) track started.\n";
 
+  // ----- Data track: periodic string messages (1 per second) -----
+  std::atomic<bool> data_running{true};
+  std::thread data_thread;
+  if (data) {
+    data_thread = std::thread([&]() {
+      std::uint64_t msg_num = 0;
+      while (data_running.load()) {
+        ++msg_num;
+        std::string msg = "robot-status #" + std::to_string(msg_num) +
+                          " uptime=" + std::to_string(msg_num) + "s";
+        std::vector<std::uint8_t> payload(msg.begin(), msg.end());
+        auto now_us = static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::system_clock::now().time_since_epoch())
+                .count());
+        if (!data->pushFrame(payload, now_us)) {
+          std::cerr << "[robot] Data track released.\n";
+          break;
+        }
+        std::cout << "[robot] Data track pushed: " << msg << "\n";
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+      }
+    });
+    std::cout << "[robot] Data track started.\n";
+  } else {
+    std::cout << "[robot] Data track skipped (publish failed).\n";
+  }
+
   // ----- Main loop: keep alive + pump SDL events -----
   std::cout << "[robot] Streaming... press Ctrl-C to stop.\n";
 
@@ -602,6 +641,7 @@ int main(int argc, char *argv[]) {
   cam_running.store(false);
   sim_running.store(false);
   sim_audio_running.store(false);
+  data_running.store(false);
   if (mic_thread.joinable())
     mic_thread.join();
   if (cam_thread.joinable())
@@ -610,6 +650,8 @@ int main(int argc, char *argv[]) {
     sim_thread.join();
   if (sim_audio_thread.joinable())
     sim_audio_thread.join();
+  if (data_thread.joinable())
+    data_thread.join();
   sdl_mic.reset();
   sdl_cam.reset();
 
@@ -617,6 +659,7 @@ int main(int argc, char *argv[]) {
   sim_audio.reset();
   cam.reset();
   sim_cam.reset();
+  data.reset();
   bridge.disconnect();
 
   SDL_Quit();

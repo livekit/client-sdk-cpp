@@ -15,19 +15,22 @@
  */
 
 /*
- * Human example -- receives audio and video frames from a robot in a
- * LiveKit room and renders them using SDL3.
+ * Human example -- receives audio, video, and data frames from a robot
+ * in a LiveKit room and renders them using SDL3.
  *
- * The robot publishes two video tracks and two audio tracks:
+ * The robot publishes two video tracks, two audio tracks, and a data track:
  *   - "robot-cam"        (SOURCE_CAMERA)            -- webcam or placeholder
  *   - "robot-sim-frame"  (SOURCE_SCREENSHARE)        -- simulated diagnostic
  * frame
  *   - "robot-mic"        (SOURCE_MICROPHONE)          -- real microphone or
  * silence
  *   - "robot-sim-audio"  (SOURCE_SCREENSHARE_AUDIO)   -- simulated siren tone
+ *   - "robot-status"     (DataTrack)                   -- periodic string
+ * messages
  *
  * Press 'w' to play the webcam feed + real mic, or 's' for sim frame + siren.
- * The selection controls both video and audio simultaneously.
+ * The selection controls both video and audio simultaneously. Data track
+ * messages are printed to the console regardless of the selected source.
  *
  * Usage:
  *   human [--no-audio] <ws-url> <token>
@@ -58,6 +61,7 @@
 #include <cstring>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -100,6 +104,7 @@ static void renderFrame(const livekit::VideoFrame &frame) {
 // ---- Counters for periodic status ----
 static std::atomic<uint64_t> g_audio_frames{0};
 static std::atomic<uint64_t> g_video_frames{0};
+static std::atomic<uint64_t> g_data_frames{0};
 
 int main(int argc, char *argv[]) {
   // ----- Parse args / env -----
@@ -177,6 +182,23 @@ int main(int argc, char *argv[]) {
 
   // ----- Connect to LiveKit -----
   livekit_bridge::LiveKitBridge bridge;
+
+  // Register data callback before connect so we don't miss the event if the
+  // robot is already in the room or publishes immediately after we join.
+  bridge.setOnDataFrameCallback(
+      "robot", "robot-status",
+      [](const std::vector<std::uint8_t> &payload,
+         std::optional<std::uint64_t> user_timestamp) {
+        uint64_t count =
+            g_data_frames.fetch_add(1, std::memory_order_relaxed) + 1;
+        std::string msg(payload.begin(), payload.end());
+        std::cout << "[human] Data #" << count << ": \"" << msg << "\"";
+        if (user_timestamp) {
+          std::cout << " ts=" << *user_timestamp << " us";
+        }
+        std::cout << "\n";
+      });
+
   std::cout << "[human] Connecting to " << url << " ...\n";
   livekit::RoomOptions options;
   options.auto_subscribe = true;
@@ -372,7 +394,8 @@ int main(int argc, char *argv[]) {
               : "sim_frame";
       std::cout << "[human] Status: " << g_audio_frames.load()
                 << " audio frames, " << g_video_frames.load()
-                << " video frames received (showing: " << src_name << ").\n";
+                << " video frames, " << g_data_frames.load()
+                << " data frames received (showing: " << src_name << ").\n";
     }
 
     // ~60fps render loop
@@ -382,7 +405,8 @@ int main(int argc, char *argv[]) {
   // ----- Cleanup -----
   std::cout << "[human] Shutting down...\n";
   std::cout << "[human] Total received: " << g_audio_frames.load()
-            << " audio frames, " << g_video_frames.load() << " video frames.\n";
+            << " audio frames, " << g_video_frames.load() << " video frames, "
+            << g_data_frames.load() << " data frames.\n";
 
   // The input thread blocks on std::getline; detach it since there is no
   // portable way to interrupt blocking stdin reads.

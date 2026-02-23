@@ -341,5 +341,25 @@ CPP SDK is using clang C++ format
 brew install clang-format
 ```
 
+# Running locally
+1. Install the livekit-server
+https://docs.livekit.io/transport/self-hosting/local/
+
+Start the livekit-server with data tracks enabled:
+```bash
+LIVEKIT_CONFIG="enable_data_tracks: true" livekit-server --dev
+```
+
+```bash
+# generate tokens, do for all participants
+lk token create \
+  --api-key devkey \
+  --api-secret secret \
+  -i robot \
+  --join \
+  --valid-for 99999h \
+  --room robo_room
+```
+
 <!--BEGIN_REPO_NAV-->
 <!--END_REPO_NAV-->

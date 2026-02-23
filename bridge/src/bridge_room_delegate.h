@@ -47,6 +47,10 @@ public:
   void onTrackUnsubscribed(livekit::Room &room,
                            const livekit::TrackUnsubscribedEvent &ev) override;
 
+  void onRemoteDataTrackPublished(
+      livekit::Room &room,
+      const livekit::RemoteDataTrackPublishedEvent &ev) override;
+
 private:
   LiveKitBridge &bridge_;
 };
