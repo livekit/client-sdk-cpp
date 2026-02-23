@@ -77,6 +77,7 @@ set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/e2ee.proto
     ${FFI_PROTO_DIR}/stats.proto
     ${FFI_PROTO_DIR}/data_stream.proto
+    ${FFI_PROTO_DIR}/data_track.proto
     ${FFI_PROTO_DIR}/rpc.proto
     ${FFI_PROTO_DIR}/track_publication.proto
 )

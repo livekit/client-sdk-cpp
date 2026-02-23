@@ -40,6 +40,9 @@
 
 #include <atomic>
 #include <chrono>
+#ifdef _MSC_VER
+#define _USE_MATH_DEFINES
+#endif
 #include <cmath>
 #include <csignal>
 #include <cstdint>
@@ -401,7 +404,7 @@ int main(int argc, char *argv[]) {
     if (!mic_using_sdl) {
       std::cout << "[robot] No microphone found; sending silence.\n";
       mic_thread = std::thread([&]() {
-        constexpr int kSamplesPerFrame = kSampleRate / 100;
+        const int kSamplesPerFrame = kSampleRate / 100;
         std::vector<std::int16_t> silence(kSamplesPerFrame * kChannels, 0);
         auto next = std::chrono::steady_clock::now();
         while (mic_running.load()) {
@@ -543,12 +546,12 @@ int main(int argc, char *argv[]) {
   // ----- Sim audio track (siren: sine sweep 600-1200 Hz, 1s period) -----
   std::atomic<bool> sim_audio_running{true};
   std::thread sim_audio_thread([&]() {
-    constexpr int kFrameSamples = kSampleRate / 100; // 10ms frames
+    const int kFrameSamples = kSampleRate / 100; // 10ms frames
     constexpr double kLoFreq = 600.0;
     constexpr double kHiFreq = 1200.0;
     constexpr double kSweepPeriod = 1.0; // seconds per full up-down cycle
     constexpr double kAmplitude = 16000.0;
-    constexpr double kTwoPi = 2.0 * M_PI;
+    constexpr double kTwoPi = 2.0 * 3.14159265358979323846;
 
     std::vector<std::int16_t> buf(kFrameSamples * kChannels);
     double phase = 0.0;
