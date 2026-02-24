@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 LiveKit
+ * Copyright 2026 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,6 +28,10 @@ class LocalDataTrack;
 } // namespace livekit
 
 namespace livekit_bridge {
+
+namespace test {
+class BridgeDataTrackTest;
+} // namespace test
 
 /**
  * Handle to a published local data track.
@@ -97,6 +101,7 @@ public:
 
 private:
   friend class LiveKitBridge;
+  friend class test::BridgeDataTrackTest;
 
   BridgeDataTrack(std::string name,
                   std::shared_ptr<livekit::LocalDataTrack> track);
