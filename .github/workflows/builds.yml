@@ -7,6 +7,7 @@ on:
       - src/**
       - include/**
       - examples/**
+      - bridge/**
       - client-sdk-rust/**
       - CMakeLists.txt
       - build.sh
@@ -20,6 +21,7 @@ on:
       - src/**
       - include/**
       - examples/**
+      - bridge/**
       - client-sdk-rust/**
       - CMakeLists.txt
       - build.sh

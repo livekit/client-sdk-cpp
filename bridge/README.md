@@ -206,10 +206,7 @@ The human will print periodic summaries like:
 
 ## Testing
 
-The bridge includes a unit test suite built with [Google Test](https://github.com/google/googletest). Tests cover
-1. `CallbackKey` hashing/equality,
-2. `BridgeAudioTrack`/`BridgeVideoTrack` state management, and
-3. `LiveKitBridge` pre-connection behaviour (callback registration, error handling).
+The bridge includes a unit test suite built with [Google Test](https://github.com/google/googletest). 
 
 ### Building and running tests
 
@@ -222,17 +219,45 @@ Bridge tests are automatically included when you build with the `debug-tests` or
 Then run them directly:
 
 ```bash
-./build-debug/bin/livekit_bridge_tests
+./build-debug/bin/livekit_bridge_*_tests
 ```
 
-### Standalone bridge tests only
+### Bridge Tests
 
-If you want to build bridge tests independently (without the parent SDK tests), set `LIVEKIT_BRIDGE_BUILD_TESTS=ON`:
+The bridge layer (`bridge/tests/`) has its own integration and stress tests
+that exercise the full `LiveKitBridge` API over a real LiveKit server.
+They use the **same environment variables** as the SDK tests above.
 
 ```bash
-cmake --preset macos-debug -DLIVEKIT_BRIDGE_BUILD_TESTS=ON
-cmake --build build-debug --target livekit_bridge_tests
+# Run bridge tests via CTest
+cd build-debug && ctest -L "bridge_integration" --output-on-failure
+cd build-debug && ctest -L "bridge_stress" --output-on-failure
+
+# Or run executables directly
+./build-debug/bin/livekit_bridge_integration_tests
+./build-debug/bin/livekit_bridge_stress_tests
+
+# Run specific test suites
+./build-debug/bin/livekit_bridge_integration_tests --gtest_filter="*AudioFrameRoundTrip*"
+./build-debug/bin/livekit_bridge_stress_tests --gtest_filter="*HighThroughput*"
 ```
+
+| Executable | Description |
+|------------|-------------|
+| `livekit_bridge_unit_tests` | Unit tests (no server required) |
+| `livekit_bridge_integration_tests` | Audio & data round-trip, latency, connect/disconnect cycles |
+| `livekit_bridge_stress_tests` | Sustained push, lifecycle, callback churn, multi-track concurrency |
+
+#### Stress test suites
+
+| Test file | Tests | What it exercises |
+|-----------|-------|-------------------|
+| `test_bridge_audio_stress` | SustainedAudioPush, ReleaseUnderActivePush, RapidConnectDisconnectWithCallback | Audio push at real-time pace, release/push race, abrupt teardown |
+| `test_bridge_data_stress` | HighThroughput, LargePayloadStress, CallbackChurn | Data throughput, 64 KB frames, data callback register/clear churn |
+| `test_bridge_lifecycle_stress` | DisconnectUnderLoad, TrackReleaseWhileReceiving, FullLifecycleSoak | Disconnect with active pushers+receivers, mid-stream track release, repeated full create→push→release→destroy |
+| `test_bridge_callback_stress` | AudioCallbackChurn, MixedCallbackChurn, CallbackReplacement | Audio set/clear churn, mixed audio+data churn, rapid callback overwrite |
+| `test_bridge_multi_track_stress` | ConcurrentMultiTrackPush, ConcurrentCreateRelease, FullDuplexMultiTrack | 4 tracks pushed concurrently, create/release cycles under contention, bidirectional audio+data |
+
 
 ## Limitations
 
