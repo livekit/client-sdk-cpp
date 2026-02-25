@@ -14,12 +14,9 @@
  * limitations under the License.
  */
 
-<<<<<<< HEAD
 /// @file bridge_room_delegate.h
 /// @brief Internal RoomDelegate forwarding SDK events to LiveKitBridge.
 
-=======
->>>>>>> ec4d4d4 (livekit_bridge: Ergonomic library on top of the Client C++ SDK)
 #pragma once
 
 #include "livekit/room_delegate.h"

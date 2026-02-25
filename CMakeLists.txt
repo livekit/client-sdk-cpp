@@ -635,10 +635,6 @@ install(FILES
 # Build the LiveKit C++ bridge before examples (human_robot depends on it)
 add_subdirectory(bridge)
 
-# ---- Examples ----
-# add_subdirectory(examples)
-
-
 if(LIVEKIT_BUILD_EXAMPLES)
   add_subdirectory(examples)
 endif()
@@ -646,9 +642,6 @@ endif()
 if(LIVEKIT_BUILD_TESTS)
   add_subdirectory(src/tests)
 endif()
-
-# Build the LiveKit C++ bridge
-add_subdirectory(bridge)
 
 add_custom_target(clean_generated
   COMMAND ${CMAKE_COMMAND} -E rm -rf "${PROTO_BINARY_DIR}"
