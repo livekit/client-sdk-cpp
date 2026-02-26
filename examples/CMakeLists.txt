@@ -30,21 +30,28 @@ set(EXAMPLES_PRIVATE_INCLUDE_DIRS
     ${LIVEKIT_BINARY_DIR}/generated
 )
 
+# Shared example code (SDL media, wav source, etc.)
+set(EXAMPLES_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
+
 add_executable(SimpleRoom
   simple_room/main.cpp
   simple_room/fallback_capture.cpp
   simple_room/fallback_capture.h
-  simple_room/sdl_media.cpp
-  simple_room/sdl_media.h
-  simple_room/sdl_media_manager.cpp
-  simple_room/sdl_media_manager.h
-  simple_room/sdl_video_renderer.cpp
-  simple_room/sdl_video_renderer.h
-  simple_room/wav_audio_source.cpp
-  simple_room/wav_audio_source.h
+  ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.h
+  ${EXAMPLES_COMMON_DIR}/sdl_media_manager.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media_manager.h
+  ${EXAMPLES_COMMON_DIR}/sdl_video_renderer.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_video_renderer.h
+  ${EXAMPLES_COMMON_DIR}/wav_audio_source.cpp
+  ${EXAMPLES_COMMON_DIR}/wav_audio_source.h
 )
 
-target_include_directories(SimpleRoom PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+target_include_directories(SimpleRoom PRIVATE
+  ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
+  ${EXAMPLES_COMMON_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/simple_room
+)
 
 target_link_libraries(SimpleRoom
     PRIVATE
@@ -105,6 +112,50 @@ target_link_libraries(SimpleRpc
     livekit
 )
 
+# --- SimpleRobot example (robot + human executables with shared json_utils) ---
+
+add_library(simple_robot_json_utils STATIC
+  simple_robot/json_utils.cpp
+  simple_robot/json_utils.h
+  simple_robot/utils.cpp
+  simple_robot/utils.h
+)
+
+target_include_directories(simple_robot_json_utils PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/simple_robot
+)
+
+target_link_libraries(simple_robot_json_utils
+  PUBLIC
+    nlohmann_json::nlohmann_json
+)
+
+add_executable(SimpleRobot
+  simple_robot/robot.cpp
+)
+
+target_include_directories(SimpleRobot PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(SimpleRobot
+  PRIVATE
+    simple_robot_json_utils
+    livekit
+)
+
+add_executable(SimpleHuman
+  simple_robot/human.cpp
+)
+
+target_include_directories(SimpleHuman PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(SimpleHuman
+  PRIVATE
+    simple_robot_json_utils
+    livekit
+)
+
+# --- SimpleDataStream example ---
+
 add_executable(SimpleDataStream
   simple_data_stream/main.cpp
 )
@@ -124,6 +175,56 @@ add_custom_command(
           $<TARGET_FILE_DIR:SimpleDataStream>/data
 )
 
+# --- bridge_human_robot examples (robot + human; use livekit_bridge and SDL3) ---
+
+add_executable(BridgeRobot
+  bridge_human_robot/robot.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.h
+)
+target_include_directories(BridgeRobot PRIVATE
+  ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
+  ${EXAMPLES_COMMON_DIR}
+)
+target_link_libraries(BridgeRobot PRIVATE livekit_bridge SDL3::SDL3)
+
+add_executable(BridgeHuman
+  bridge_human_robot/human.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.h
+)
+target_include_directories(BridgeHuman PRIVATE
+  ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
+  ${EXAMPLES_COMMON_DIR}
+)
+target_link_libraries(BridgeHuman PRIVATE livekit_bridge SDL3::SDL3)
+
+# Copy SDL3 shared library to bridge_human_robot example output directories
+if(UNIX AND NOT APPLE)
+  foreach(_target BridgeRobot BridgeHuman)
+    add_custom_command(TARGET ${_target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<TARGET_FILE:SDL3::SDL3>"
+              "$<TARGET_FILE_DIR:${_target}>"
+      COMMAND ${CMAKE_COMMAND} -E create_symlink
+              "$<TARGET_FILE_NAME:SDL3::SDL3>"
+              "$<TARGET_FILE_DIR:${_target}>/$<TARGET_SONAME_FILE_NAME:SDL3::SDL3>"
+      COMMENT "Copying SDL3 shared library and SONAME symlink to ${_target} output directory"
+      VERBATIM
+    )
+  endforeach()
+else()
+  foreach(_target BridgeRobot BridgeHuman)
+    add_custom_command(TARGET ${_target} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<TARGET_FILE:SDL3::SDL3>"
+              "$<TARGET_FILE_DIR:${_target}>"
+      COMMENT "Copying SDL3 shared library to ${_target} output directory"
+      VERBATIM
+    )
+  endforeach()
+endif()
+
 # Windows: Copy required DLLs to examples output directory
 if(WIN32)
   # Get the livekit library output directory (where DLLs are copied during main build)
@@ -135,7 +236,7 @@ if(WIN32)
   )
   
   # Copy DLLs to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream)
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleRobot SimpleHuman SimpleDataStream BridgeRobot BridgeHuman)
     foreach(DLL ${REQUIRED_DLLS})
       add_custom_command(TARGET ${EXAMPLE} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -145,6 +246,17 @@ if(WIN32)
         VERBATIM
       )
     endforeach()
+  endforeach()
+
+  # bridge_human_robot examples also need livekit_bridge.dll
+  foreach(EXAMPLE BridgeRobot BridgeHuman)
+    add_custom_command(TARGET ${EXAMPLE} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<TARGET_FILE:livekit_bridge>"
+              "$<TARGET_FILE_DIR:${EXAMPLE}>/$<TARGET_FILE_NAME:livekit_bridge>"
+      COMMENT "Copying livekit_bridge DLL to ${EXAMPLE} output directory"
+      VERBATIM
+    )
   endforeach()
 endif()
 
@@ -159,12 +271,23 @@ if(UNIX)
   endif()
   
   # Copy shared library to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleDataStream)
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleRobot SimpleHuman SimpleDataStream BridgeRobot BridgeHuman)
     add_custom_command(TARGET ${EXAMPLE} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
               "${LIVEKIT_LIB_DIR}/${FFI_SHARED_LIB}"
               "$<TARGET_FILE_DIR:${EXAMPLE}>/${FFI_SHARED_LIB}"
       COMMENT "Copying ${FFI_SHARED_LIB} to ${EXAMPLE} output directory"
+      VERBATIM
+    )
+  endforeach()
+
+  # bridge_human_robot examples also need livekit_bridge shared library
+  foreach(EXAMPLE BridgeRobot BridgeHuman)
+    add_custom_command(TARGET ${EXAMPLE} POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "$<TARGET_FILE:livekit_bridge>"
+              "$<TARGET_FILE_DIR:${EXAMPLE}>/$<TARGET_FILE_NAME:livekit_bridge>"
+      COMMENT "Copying livekit_bridge to ${EXAMPLE} output directory"
       VERBATIM
     )
   endforeach()

@@ -12,6 +12,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 option(LIVEKIT_BUILD_TESTS "Build LiveKit tests" OFF)
+option(LIVEKIT_BUILD_BRIDGE "Build LiveKit Bridge (simplified high-level API)" OFF)
 
 # vcpkg is only used on Windows; Linux/macOS use system package managers
 if(WIN32)
@@ -626,6 +627,9 @@ install(FILES
 )
 
 # ------------------------------------------------------------------------
+
+# Build the LiveKit C++ bridge before examples (human_robot depends on it)
+add_subdirectory(bridge)
 
 # ---- Examples ----
 # add_subdirectory(examples)
