@@ -149,8 +149,7 @@ public:
 
   private:
     friend class E2EEManager;
-    KeyProvider(std::uint64_t room_handle,
-                KeyProviderOptions options);
+    KeyProvider(std::uint64_t room_handle, KeyProviderOptions options);
     std::uint64_t room_handle_{0};
     KeyProviderOptions options_;
   };

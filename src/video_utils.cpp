@@ -160,7 +160,7 @@ VideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned) {
 }
 
 VideoFrame convertViaFfi(const VideoFrame &frame, VideoBufferType dst,
-                           bool flip_y) {
+                         bool flip_y) {
   proto::FfiRequest req;
   auto *vc = req.mutable_video_convert();
   vc->set_flip_y(flip_y);

@@ -7,6 +7,7 @@
 
 #include "ffi_client.h"
 #include "livekit/local_participant.h"
+#include "lk_log.h"
 #include "room.pb.h"
 
 namespace livekit {
@@ -295,7 +296,7 @@ void TextStreamWriter::write(const std::string &text) {
   for (const auto &chunk_str : splitUtf8(text, kStreamChunkSize)) {
     const auto *p = reinterpret_cast<const std::uint8_t *>(chunk_str.data());
     std::vector<std::uint8_t> bytes(p, p + chunk_str.size());
-    std::cout << "sending chunk " << std::endl;
+    LK_LOG_DEBUG("sending chunk");
     sendChunk(bytes);
   }
 }

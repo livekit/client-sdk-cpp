@@ -85,6 +85,8 @@ file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 
 # Livekit static protobuf.
 include(protobuf)
+# spdlog logging library (PRIVATE dependency).
+include(spdlog)
 # Ensure protoc executable is found.
 if(TARGET protobuf::protoc)
   set(Protobuf_PROTOC_EXECUTABLE "$<TARGET_FILE:protobuf::protoc>")
@@ -286,6 +288,7 @@ add_library(livekit SHARED
   src/ffi_client.cpp
   src/ffi_client.h
   src/livekit.cpp
+  src/logging.cpp
   src/local_audio_track.cpp
   src/remote_audio_track.cpp
   src/room.cpp
@@ -330,6 +333,12 @@ target_link_libraries(livekit
   PRIVATE
     livekit_ffi
     ${LIVEKIT_PROTOBUF_TARGET}
+    spdlog::spdlog
+)
+
+target_compile_definitions(livekit
+  PRIVATE
+    SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
 )
 
 message(STATUS "Protobuf: version=${Protobuf_VERSION}; protoc=${Protobuf_PROTOC_EXECUTABLE}")

@@ -26,6 +26,7 @@
 #include "local_participant.h"
 #include "local_track_publication.h"
 #include "local_video_track.h"
+#include "logging.h"
 #include "participant.h"
 #include "remote_participant.h"
 #include "remote_track_publication.h"
@@ -39,12 +40,10 @@
 
 namespace livekit {
 
-/// Where LiveKit logs should go.
-enum class LogSink {
-  /// Logs are printed to the default console output (FFI prints directly).
+/// @deprecated Use setLogLevel() and setLogCallback() from logging.h instead.
+enum class [[deprecated(
+    "Use setLogLevel() and setLogCallback() instead")]] LogSink {
   kConsole = 0,
-
-  /// Logs are delivered to the application's FFI callback for capturing.
   kCallback = 1,
 };
 
@@ -53,11 +52,18 @@ enum class LogSink {
 /// This **must be the first LiveKit API called** in the process.
 /// It configures global SDK state, including log routing.
 ///
-/// If LiveKit APIs are used before calling this function, the log
-/// configuration may not take effect as expected.
+/// @param level  Minimum log level for SDK messages (default: Info).
+///               Use setLogLevel() to change at runtime.
+///
 /// Returns true if initialization happened on this call, false if it was
 /// already initialized.
-bool initialize(LogSink log_sink = LogSink::kConsole);
+bool initialize(LogLevel level = LogLevel::Info);
+
+/// @deprecated Use initialize(LogLevel) instead.
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((deprecated("Use initialize(LogLevel) instead")))
+#endif
+bool initialize(LogSink log_sink);
 
 /// Shut down the LiveKit SDK.
 ///

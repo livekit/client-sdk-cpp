@@ -19,14 +19,40 @@
 
 namespace livekit {
 
+void initializeLogger();
+void shutdownLogger();
+
+bool initialize(LogLevel level) {
+  initializeLogger();
+  setLogLevel(level);
+  auto &ffi_client = FfiClient::instance();
+  return ffi_client.initialize(/*capture_logs=*/false);
+}
+
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 bool initialize(LogSink log_sink) {
+  initializeLogger();
   auto &ffi_client = FfiClient::instance();
   return ffi_client.initialize(log_sink == LogSink::kCallback);
 }
 
+#ifdef __clang__
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+
 void shutdown() {
   auto &ffi_client = FfiClient::instance();
   ffi_client.shutdown();
+  shutdownLogger();
 }
 
 } // namespace livekit

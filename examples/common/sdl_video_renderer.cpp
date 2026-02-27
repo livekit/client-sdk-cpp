@@ -16,9 +16,9 @@
 
 #include "sdl_video_renderer.h"
 
+#include "lk_log.h"
 #include "livekit/livekit.h"
 #include <cstring>
-#include <iostream>
 
 using namespace livekit;
 
@@ -35,13 +35,13 @@ bool SDLVideoRenderer::init(const char *title, int width, int height) {
   // Assume SDL_Init(SDL_INIT_VIDEO) already called in main()
   window_ = SDL_CreateWindow(title, width_, height_, 0);
   if (!window_) {
-    std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("SDL_CreateWindow failed: {}", SDL_GetError());
     return false;
   }
 
   renderer_ = SDL_CreateRenderer(window_, nullptr);
   if (!renderer_) {
-    std::cerr << "SDL_CreateRenderer failed: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("SDL_CreateRenderer failed: {}", SDL_GetError());
     return false;
   }
 
@@ -50,7 +50,7 @@ bool SDLVideoRenderer::init(const char *title, int width, int height) {
   texture_ = SDL_CreateTexture(renderer_, SDL_PIXELFORMAT_RGBA8888,
                                SDL_TEXTUREACCESS_STREAMING, width_, height_);
   if (!texture_) {
-    std::cerr << "SDL_CreateTexture failed: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("SDL_CreateTexture failed: {}", SDL_GetError());
     return false;
   }
 
@@ -123,8 +123,7 @@ void SDLVideoRenderer::render() {
     try {
       frame = frame.convert(livekit::VideoBufferType::RGBA, false);
     } catch (const std::exception &ex) {
-      std::cerr << "SDLVideoRenderer: convert to RGBA failed: " << ex.what()
-                << "\n";
+      LK_LOG_ERROR("SDLVideoRenderer: convert to RGBA failed: {}", ex.what());
       return;
     }
   }
@@ -144,8 +143,8 @@ void SDLVideoRenderer::render() {
                                 // compatible with Livekit RGBA format.
         SDL_TEXTUREACCESS_STREAMING, width_, height_);
     if (!texture_) {
-      std::cerr << "SDLVideoRenderer: SDL_CreateTexture failed: "
-                << SDL_GetError() << "\n";
+      LK_LOG_ERROR("SDLVideoRenderer: SDL_CreateTexture failed: {}",
+                   SDL_GetError());
       return;
     }
   }
@@ -154,8 +153,8 @@ void SDLVideoRenderer::render() {
   void *pixels = nullptr;
   int pitch = 0;
   if (!SDL_LockTexture(texture_, nullptr, &pixels, &pitch)) {
-    std::cerr << "SDLVideoRenderer: SDL_LockTexture failed: " << SDL_GetError()
-              << "\n";
+    LK_LOG_ERROR("SDLVideoRenderer: SDL_LockTexture failed: {}",
+                 SDL_GetError());
     return;
   }
 

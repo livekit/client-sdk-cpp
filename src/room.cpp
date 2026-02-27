@@ -31,12 +31,12 @@
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit_ffi.h"
+#include "lk_log.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
 #include "track.pb.h"
 #include "track_proto_converter.h"
 #include <functional>
-#include <iostream>
 
 namespace livekit {
 
@@ -162,7 +162,7 @@ bool Room::Connect(const std::string &url, const std::string &token,
     // Setup e2eeManager
     std::unique_ptr<E2EEManager> new_e2ee_manager;
     if (options.encryption) {
-      std::cout << "creating E2eeManager " << std::endl;
+      LK_LOG_INFO("creating E2eeManager");
       e2ee_manager_ = std::unique_ptr<E2EEManager>(
           new E2EEManager(room_handle_->get(), options.encryption.value()));
     }
@@ -190,7 +190,7 @@ bool Room::Connect(const std::string &url, const std::string &token,
   } catch (const std::exception &e) {
     // On error, set the connection_state_ to Disconnected
     connection_state_ = ConnectionState::Disconnected;
-    std::cerr << "Room::Connect failed: " << e.what() << std::endl;
+    LK_LOG_ERROR("Room::Connect failed: {}", e.what());
     return false;
   }
 }
@@ -341,8 +341,8 @@ void Room::OnEvent(const FfiEvent &event) {
           // We saw a disconnect event for a participant we don't track
           // internally. This can happen on races or if we never created a
           // RemoteParticipant
-          std::cerr << "participant_disconnected for unknown identity: "
-                    << identity << std::endl;
+          LK_LOG_WARN("participant_disconnected for unknown identity: {}",
+                      identity);
         }
       }
       if (removed) {
@@ -360,8 +360,7 @@ void Room::OnEvent(const FfiEvent &event) {
       {
         std::lock_guard<std::mutex> guard(lock_);
         if (!local_participant_) {
-          std::cerr << "kLocalTrackPublished: local_participant_ is nullptr"
-                    << std::endl;
+          LK_LOG_ERROR("kLocalTrackPublished: local_participant_ is nullptr");
           break;
         }
         const auto &ltp = re.local_track_published();
@@ -369,8 +368,7 @@ void Room::OnEvent(const FfiEvent &event) {
         auto &pubs = local_participant_->trackPublications();
         auto it = pubs.find(sid);
         if (it == pubs.end()) {
-          std::cerr << "local_track_published for unknown sid: " << sid
-                    << std::endl;
+          LK_LOG_WARN("local_track_published for unknown sid: {}", sid);
           break;
         }
         ev.publication = it->second;
@@ -386,8 +384,7 @@ void Room::OnEvent(const FfiEvent &event) {
       {
         std::lock_guard<std::mutex> guard(lock_);
         if (!local_participant_) {
-          std::cerr << "kLocalTrackPublished: local_participant_ is nullptr"
-                    << std::endl;
+          LK_LOG_ERROR("kLocalTrackUnpublished: local_participant_ is nullptr");
           break;
         }
         const auto &ltu = re.local_track_unpublished();
@@ -395,8 +392,8 @@ void Room::OnEvent(const FfiEvent &event) {
         auto &pubs = local_participant_->trackPublications();
         auto it = pubs.find(pub_sid);
         if (it == pubs.end()) {
-          std::cerr << "local_track_unpublished for unknown publication sid: "
-                    << pub_sid << std::endl;
+          LK_LOG_WARN("local_track_unpublished for unknown publication sid: {}",
+                      pub_sid);
           break;
         }
         ev.publication = it->second;
@@ -418,8 +415,7 @@ void Room::OnEvent(const FfiEvent &event) {
         auto &pubs = local_participant_->trackPublications();
         auto it = pubs.find(sid);
         if (it == pubs.end()) {
-          std::cerr << "local_track_subscribed for unknown sid: " << sid
-                    << std::endl;
+          LK_LOG_WARN("local_track_subscribed for unknown sid: {}", sid);
           break;
         }
         auto publication = it->second;
@@ -450,8 +446,7 @@ void Room::OnEvent(const FfiEvent &event) {
           ev.publication = rpublication;
         } else {
           // Optional: log if we get a track for an unknown participant
-          std::cerr << "track_published for unknown participant: " << identity
-                    << std::endl;
+          LK_LOG_WARN("track_published for unknown participant: {}", identity);
           // Don't emit the
           break;
         }
@@ -470,16 +465,17 @@ void Room::OnEvent(const FfiEvent &event) {
         const std::string &pub_sid = tu.publication_sid();
         auto pit = remote_participants_.find(identity);
         if (pit == remote_participants_.end()) {
-          std::cerr << "track_unpublished for unknown participant: " << identity
-                    << std::endl;
+          LK_LOG_WARN("track_unpublished for unknown participant: {}",
+                      identity);
           break;
         }
         RemoteParticipant *rparticipant = pit->second.get();
         auto &pubs = rparticipant->mutableTrackPublications();
         auto it = pubs.find(pub_sid);
         if (it == pubs.end()) {
-          std::cerr << "track_unpublished for unknown publication sid "
-                    << pub_sid << " (participant " << identity << ")\n";
+          LK_LOG_WARN("track_unpublished for unknown publication sid {} "
+                      "(participant {})",
+                      pub_sid, identity);
           break;
         }
         ev.participant = rparticipant;
@@ -505,8 +501,7 @@ void Room::OnEvent(const FfiEvent &event) {
         // Find participant
         auto pit = remote_participants_.find(identity);
         if (pit == remote_participants_.end()) {
-          std::cerr << "track_subscribed for unknown participant: " << identity
-                    << "\n";
+          LK_LOG_WARN("track_subscribed for unknown participant: {}", identity);
           break;
         }
         rparticipant = pit->second.get();
@@ -514,9 +509,9 @@ void Room::OnEvent(const FfiEvent &event) {
         auto &pubs = rparticipant->mutableTrackPublications();
         auto pubIt = pubs.find(track_info.sid());
         if (pubIt == pubs.end()) {
-          std::cerr << "track_subscribed for unknown publication sid "
-                    << track_info.sid() << " (participant " << identity
-                    << ")\n";
+          LK_LOG_WARN("track_subscribed for unknown publication sid {} "
+                      "(participant {})",
+                      track_info.sid(), identity);
           break;
         }
         rpublication = pubIt->second;
@@ -527,8 +522,8 @@ void Room::OnEvent(const FfiEvent &event) {
         } else if (track_info.kind() == proto::TrackKind::KIND_AUDIO) {
           remote_track = std::make_shared<RemoteAudioTrack>(owned_track);
         } else {
-          std::cerr << "track_subscribed with unsupported kind: "
-                    << track_info.kind() << "\n";
+          LK_LOG_WARN("track_subscribed with unsupported kind: {}",
+                      static_cast<int>(track_info.kind()));
           break;
         }
         // Attach to publication, mark subscribed
@@ -555,16 +550,17 @@ void Room::OnEvent(const FfiEvent &event) {
         const std::string &track_sid = tu.track_sid();
         auto pit = remote_participants_.find(identity);
         if (pit == remote_participants_.end()) {
-          std::cerr << "track_unsubscribed for unknown participant: "
-                    << identity << "\n";
+          LK_LOG_WARN("track_unsubscribed for unknown participant: {}",
+                      identity);
           break;
         }
         RemoteParticipant *rparticipant = pit->second.get();
         auto &pubs = rparticipant->mutableTrackPublications();
         auto pubIt = pubs.find(track_sid);
         if (pubIt == pubs.end()) {
-          std::cerr << "track_unsubscribed for unknown publication sid "
-                    << track_sid << " (participant " << identity << ")\n";
+          LK_LOG_WARN("track_unsubscribed for unknown publication sid {} "
+                      "(participant {})",
+                      track_sid, identity);
           break;
         }
         auto publication = pubIt->second;
@@ -589,8 +585,8 @@ void Room::OnEvent(const FfiEvent &event) {
         const std::string &identity = tsf.participant_identity();
         auto pit = remote_participants_.find(identity);
         if (pit == remote_participants_.end()) {
-          std::cerr << "track_subscription_failed for unknown participant: "
-                    << identity << "\n";
+          LK_LOG_WARN("track_subscription_failed for unknown participant: {}",
+                      identity);
           break;
         }
         ev.participant = pit->second.get();
@@ -620,14 +616,12 @@ void Room::OnEvent(const FfiEvent &event) {
           }
         }
         if (!participant) {
-          std::cerr << "track_muted for unknown participant: " << identity
-                    << "\n";
+          LK_LOG_WARN("track_muted for unknown participant: {}", identity);
           break;
         }
         auto pub = participant->findTrackPublication(sid);
         if (!pub) {
-          std::cerr << "track_muted for unknown track sid: " << sid
-                    << std::endl;
+          LK_LOG_WARN("track_muted for unknown track sid: {}", sid);
         } else {
           pub->setMuted(true);
           if (auto t = pub->track()) {
@@ -661,15 +655,13 @@ void Room::OnEvent(const FfiEvent &event) {
           }
         }
         if (!participant) {
-          std::cerr << "track_unmuted for unknown participant: " << identity
-                    << "\n";
+          LK_LOG_WARN("track_unmuted for unknown participant: {}", identity);
           break;
         }
 
         auto pub = participant->findTrackPublication(sid);
         if (!pub) {
-          std::cerr << "track_muted for unknown track sid: " << sid
-                    << std::endl;
+          LK_LOG_WARN("track_unmuted for unknown track sid: {}", sid);
         } else {
           pub->setMuted(false);
           if (auto t = pub->track()) {
@@ -757,8 +749,9 @@ void Room::OnEvent(const FfiEvent &event) {
           }
         }
         if (!participant) {
-          std::cerr << "participant_metadata_changed for unknown participant: "
-                    << identity << "\n";
+          LK_LOG_WARN(
+              "participant_metadata_changed for unknown participant: {}",
+              identity);
           break;
         }
         std::string old_metadata = participant->metadata();
@@ -789,8 +782,8 @@ void Room::OnEvent(const FfiEvent &event) {
           }
         }
         if (!participant) {
-          std::cerr << "participant_name_changed for unknown participant: "
-                    << identity << "\n";
+          LK_LOG_WARN("participant_name_changed for unknown participant: {}",
+                      identity);
           break;
         }
         std::string old_name = participant->name();
@@ -820,9 +813,9 @@ void Room::OnEvent(const FfiEvent &event) {
           }
         }
         if (!participant) {
-          std::cerr
-              << "participant_attributes_changed for unknown participant: "
-              << identity << "\n";
+          LK_LOG_WARN(
+              "participant_attributes_changed for unknown participant: {}",
+              identity);
           break;
         }
         // Build full attributes map
@@ -859,9 +852,9 @@ void Room::OnEvent(const FfiEvent &event) {
           }
         }
         if (!participant) {
-          std::cerr << "participant_encryption_status_changed for unknown "
-                       "participant: "
-                    << identity << "\n";
+          LK_LOG_WARN("participant_encryption_status_changed for unknown "
+                      "participant: {}",
+                      identity);
           break;
         }
         ev.participant = participant;
@@ -889,8 +882,8 @@ void Room::OnEvent(const FfiEvent &event) {
           }
         }
         if (!participant) {
-          std::cerr << "connection_quality_changed for unknown participant: "
-                    << identity << "\n";
+          LK_LOG_WARN("connection_quality_changed for unknown participant: {}",
+                      identity);
           break;
         }
         ev.participant = participant;
@@ -934,7 +927,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kE2EeStateChanged: {
       E2eeStateChangedEvent ev;
       {
-        std::cerr << "e2ee_state_changed for participant: " << std::endl;
+        LK_LOG_DEBUG("e2ee_state_changed for participant");
         std::lock_guard<std::mutex> guard(lock_);
         const auto &es = re.e2ee_state_changed();
         const std::string &identity = es.participant_identity();
@@ -948,8 +941,8 @@ void Room::OnEvent(const FfiEvent &event) {
           }
         }
         if (!participant) {
-          std::cerr << "e2ee_state_changed for unknown participant: "
-                    << identity << std::endl;
+          LK_LOG_WARN("e2ee_state_changed for unknown participant: {}",
+                      identity);
           break;
         }
 
@@ -974,8 +967,9 @@ void Room::OnEvent(const FfiEvent &event) {
         // TODO, maybe we should update our |connection_state_|
         // correspoindingly, but the this kConnectionStateChanged event is never
         // triggered in my local test.
-        std::cout << "cs.state() is " << cs.state() << " connection_state_ is "
-                  << (int)connection_state_ << std::endl;
+        LK_LOG_DEBUG("cs.state() is {} connection_state_ is {}",
+                     static_cast<int>(cs.state()),
+                     static_cast<int>(connection_state_));
         ev.state = static_cast<ConnectionState>(cs.state());
       }
       if (delegate_snapshot) {
@@ -1221,9 +1215,8 @@ void Room::OnEvent(const FfiEvent &event) {
             }
           }
           if (!participant) {
-            std::cerr << "Room::RoomEvent::kParticipantsUpdated participant "
-                         "does not exist: "
-                      << identity << std::endl;
+            LK_LOG_WARN("kParticipantsUpdated: participant does not exist: {}",
+                        identity);
             continue;
           }
 

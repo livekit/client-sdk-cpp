@@ -24,6 +24,7 @@
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit/audio_frame.h"
+#include "lk_log.h"
 
 namespace livekit {
 
@@ -123,8 +124,7 @@ void AudioSource::captureFrame(const AudioFrame &frame, int timeout_ms) {
       status == std::future_status::deferred) {
     fut.get();
   } else { // std::future_status::timeout
-    std::cerr << "captureAudioFrameAsync timed out after " << timeout_ms
-              << " ms\n";
+    LK_LOG_WARN("captureAudioFrameAsync timed out after {} ms", timeout_ms);
   }
 }
 

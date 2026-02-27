@@ -5,6 +5,7 @@
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit/track.h"
+#include "lk_log.h"
 #include "video_frame.pb.h"
 #include "video_utils.h"
 
@@ -130,8 +131,8 @@ void VideoStream::initFromTrack(const std::shared_ptr<Track> &track,
 
   auto resp = FfiClient::instance().sendRequest(req);
   if (!resp.has_new_video_stream()) {
-    std::cerr << "VideoStream::initFromTrack: FFI response missing "
-                 "new_video_stream()\n";
+    LK_LOG_ERROR(
+        "VideoStream::initFromTrack: FFI response missing new_video_stream()");
     throw std::runtime_error("new_video_stream FFI request failed");
   }
   // Adjust field names to match your proto exactly:

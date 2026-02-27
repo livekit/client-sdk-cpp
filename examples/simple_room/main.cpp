@@ -26,6 +26,7 @@
 #include <thread>
 #include <vector>
 
+#include "lk_log.h"
 #include "livekit/livekit.h"
 #include "sdl_media_manager.h"
 #include "wav_audio_source.h"
@@ -204,14 +205,13 @@ public:
       opts.format = livekit::VideoBufferType::RGBA;
       auto video_stream = VideoStream::fromTrack(ev.track, opts);
       if (!video_stream) {
-        std::cerr << "Failed to create VideoStream for track " << track_sid
-                  << "\n";
+        LK_LOG_ERROR("Failed to create VideoStream for track {}", track_sid);
         return;
       }
 
       MainThreadDispatcher::dispatch([this, video_stream] {
         if (!media_.initRenderer(video_stream)) {
-          std::cerr << "SDLMediaManager::startRenderer failed for track\n";
+          LK_LOG_ERROR("SDLMediaManager::startRenderer failed for track");
         }
       });
     } else if (ev.track && ev.track->kind() == TrackKind::KIND_AUDIO) {
@@ -219,7 +219,7 @@ public:
       auto audio_stream = AudioStream::fromTrack(ev.track, opts);
       MainThreadDispatcher::dispatch([this, audio_stream] {
         if (!media_.startSpeaker(audio_stream)) {
-          std::cerr << "SDLMediaManager::startRenderer failed for track\n";
+          LK_LOG_ERROR("SDLMediaManager::startSpeaker failed for track");
         }
       });
     }
@@ -258,7 +258,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (!SDL_Init(SDL_INIT_VIDEO)) {
-    std::cerr << "SDL_Init(SDL_INIT_VIDEO) failed: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("SDL_Init(SDL_INIT_VIDEO) failed: {}", SDL_GetError());
     // You can choose to exit, or run in "headless" mode without renderer.
     // return 1;
   }
@@ -271,8 +271,7 @@ int main(int argc, char *argv[]) {
   // Handle Ctrl-C to exit the idle loop
   std::signal(SIGINT, handleSignal);
 
-  // Initialize the livekit with logging to console.
-  livekit::initialize(livekit::LogSink::kConsole);
+  livekit::initialize();
   auto room = std::make_unique<livekit::Room>();
   SimpleRoomDelegate delegate(media);
   room->setDelegate(&delegate);
@@ -302,7 +301,7 @@ int main(int argc, char *argv[]) {
   bool res = room->Connect(url, token, options);
   std::cout << "Connect result is " << std::boolalpha << res << std::endl;
   if (!res) {
-    std::cerr << "Failed to connect to room\n";
+    LK_LOG_ERROR("Failed to connect to room");
     livekit::shutdown();
     return 1;
   }
@@ -349,7 +348,7 @@ int main(int argc, char *argv[]) {
               << "\n"
               << "  Muted: " << std::boolalpha << audioPub->muted() << "\n";
   } catch (const std::exception &e) {
-    std::cerr << "Failed to publish track: " << e.what() << std::endl;
+    LK_LOG_ERROR("Failed to publish track: {}", e.what());
   }
 
   media.startMic(audioSource);
@@ -377,7 +376,7 @@ int main(int argc, char *argv[]) {
               << "\n"
               << "  Muted: " << std::boolalpha << videoPub->muted() << "\n";
   } catch (const std::exception &e) {
-    std::cerr << "Failed to publish track: " << e.what() << std::endl;
+    LK_LOG_ERROR("Failed to publish track: {}", e.what());
   }
   media.startCamera(videoSource);
 

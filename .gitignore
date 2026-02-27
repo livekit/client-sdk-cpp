@@ -28,3 +28,4 @@ lib/
 *.dylib
 *.dll
 *.exe
+livekit.log

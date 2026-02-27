@@ -15,7 +15,6 @@
  */
 
 #include <cassert>
-#include <iostream>
 
 #include "e2ee.pb.h"
 #include "ffi.pb.h"
@@ -27,6 +26,7 @@
 #include "livekit/rpc_error.h"
 #include "livekit/track.h"
 #include "livekit_ffi.h"
+#include "lk_log.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
 
@@ -38,9 +38,8 @@ std::string bytesToString(const std::vector<std::uint8_t> &b) {
   return std::string(reinterpret_cast<const char *>(b.data()), b.size());
 }
 
-// Helper to log errors and throw
 inline void logAndThrow(const std::string &error_msg) {
-  std::cerr << "LiveKit SDK Error: " << error_msg << std::endl;
+  LK_LOG_ERROR("LiveKit SDK Error: {}", error_msg);
   throw std::runtime_error(error_msg);
 }
 

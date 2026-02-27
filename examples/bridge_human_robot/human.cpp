@@ -43,6 +43,7 @@
  * Run alongside the "robot" example (which publishes with identity "robot").
  */
 
+#include "lk_log.h"
 #include "livekit/audio_frame.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
@@ -139,7 +140,7 @@ int main(int argc, char *argv[]) {
 
   // ----- Initialize SDL3 -----
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
-    std::cerr << "[human] SDL_Init failed: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("[human] SDL_Init failed: {}", SDL_GetError());
     return 1;
   }
 
@@ -150,15 +151,14 @@ int main(int argc, char *argv[]) {
   SDL_Window *window = SDL_CreateWindow("Human - Robot Camera Feed",
                                         kWindowWidth, kWindowHeight, 0);
   if (!window) {
-    std::cerr << "[human] SDL_CreateWindow failed: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("[human] SDL_CreateWindow failed: {}", SDL_GetError());
     SDL_Quit();
     return 1;
   }
 
   SDL_Renderer *renderer = SDL_CreateRenderer(window, nullptr);
   if (!renderer) {
-    std::cerr << "[human] SDL_CreateRenderer failed: " << SDL_GetError()
-              << "\n";
+    LK_LOG_ERROR("[human] SDL_CreateRenderer failed: {}", SDL_GetError());
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 1;
@@ -181,7 +181,7 @@ int main(int argc, char *argv[]) {
   livekit::RoomOptions options;
   options.auto_subscribe = true;
   if (!bridge.connect(url, token, options)) {
-    std::cerr << "[human] Failed to connect.\n";
+    LK_LOG_ERROR("[human] Failed to connect.");
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
       speaker = std::make_unique<DDLSpeakerSink>(frame.sample_rate(),
                                                  frame.num_channels());
       if (!speaker->init()) {
-        std::cerr << "[human] Failed to init SDL speaker.\n";
+        LK_LOG_ERROR("[human] Failed to init SDL speaker.");
         speaker.reset();
         return;
       }
@@ -331,8 +331,7 @@ int main(int argc, char *argv[]) {
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32,
                                     SDL_TEXTUREACCESS_STREAMING, fw, fh);
         if (!texture) {
-          std::cerr << "[human] SDL_CreateTexture failed: " << SDL_GetError()
-                    << "\n";
+          LK_LOG_ERROR("[human] SDL_CreateTexture failed: {}", SDL_GetError());
         }
         tex_width = fw;
         tex_height = fh;
