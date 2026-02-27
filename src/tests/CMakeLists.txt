@@ -41,6 +41,7 @@ if(INTEGRATION_TEST_SOURCES)
   target_link_libraries(livekit_integration_tests
     PRIVATE
       livekit
+      spdlog::spdlog
       GTest::gtest_main
       GTest::gmock
   )
@@ -51,10 +52,10 @@ if(INTEGRATION_TEST_SOURCES)
       ${LIVEKIT_ROOT_DIR}/src
   )
 
-  # Define LIVEKIT_ROOT_DIR for tests to find data files
   target_compile_definitions(livekit_integration_tests
     PRIVATE
       LIVEKIT_ROOT_DIR="${LIVEKIT_ROOT_DIR}"
+      SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
   )
 
   # Copy shared libraries to test executable directory
