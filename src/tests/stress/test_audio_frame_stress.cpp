@@ -27,7 +27,9 @@ namespace test {
 
 class AudioFrameStressTest : public ::testing::Test {
 protected:
-  void SetUp() override { livekit::initialize(livekit::LogSink::kConsole); }
+  void SetUp() override {
+    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
+  }
 
   void TearDown() override { livekit::shutdown(); }
 };

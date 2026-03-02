@@ -11,7 +11,7 @@ Build real-time audio/video applications in C++ with LiveKit.
 
 bool initializeLivekit(const std::string& url, const std::string& token) {
   // Init LiveKit
-  livekit::initialize(livekit::LogSink::kConsole);
+  livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
 
   room_ = std::make_unique<livekit::Room>();
   livekit::RoomOptions options;

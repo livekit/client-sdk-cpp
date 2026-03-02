@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
   std::cout << "[Robot] Connecting to: " << url << "\n";
   std::signal(SIGINT, handleSignal);
 
-  livekit::initialize(livekit::LogSink::kConsole);
+  livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
   auto room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;

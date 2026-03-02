@@ -24,10 +24,12 @@ namespace livekit {
 namespace detail {
 
 /// Returns the shared "livekit" logger instance.
-/// The logger is created during livekit::initialize() and lives until
-/// livekit::shutdown().  Calling this before initialize() returns
-/// a fallback stderr logger.
+/// The logger is created lazily on first access and lives until
+/// shutdownLogger() is called.  Safe to call before initialize().
 std::shared_ptr<spdlog::logger> getLogger();
+
+/// Tears down the spdlog logger. Called by livekit::shutdown().
+void shutdownLogger();
 
 } // namespace detail
 } // namespace livekit

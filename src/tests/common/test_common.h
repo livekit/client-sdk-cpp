@@ -300,7 +300,7 @@ private:
 class LiveKitTestBase : public ::testing::Test {
 protected:
   void SetUp() override {
-    livekit::initialize(livekit::LogSink::kConsole);
+    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
     config_ = TestConfig::fromEnv();
   }
 

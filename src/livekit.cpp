@@ -8,7 +8,7 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an “AS IS” BASIS,
+ * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
@@ -16,43 +16,20 @@
 
 #include "livekit/livekit.h"
 #include "ffi_client.h"
+#include "lk_log.h"
 
 namespace livekit {
 
-void initializeLogger();
-void shutdownLogger();
-
-bool initialize(LogLevel level) {
-  initializeLogger();
+bool initialize(const LogLevel &level, const LogSink &log_sink) {
   setLogLevel(level);
-  auto &ffi_client = FfiClient::instance();
-  return ffi_client.initialize(/*capture_logs=*/false);
-}
-
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
-bool initialize(LogSink log_sink) {
-  initializeLogger();
   auto &ffi_client = FfiClient::instance();
   return ffi_client.initialize(log_sink == LogSink::kCallback);
 }
 
-#ifdef __clang__
-#pragma clang diagnostic pop
-#elif defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
-
 void shutdown() {
   auto &ffi_client = FfiClient::instance();
   ffi_client.shutdown();
-  shutdownLogger();
+  detail::shutdownLogger();
 }
 
 } // namespace livekit

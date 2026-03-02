@@ -40,10 +40,11 @@
 
 namespace livekit {
 
-/// @deprecated Use setLogLevel() and setLogCallback() from logging.h instead.
-enum class [[deprecated(
-    "Use setLogLevel() and setLogCallback() instead")]] LogSink {
+/// The log sink to use for SDK messages.
+enum class LogSink {
+  /// Log messages to the console.
   kConsole = 0,
+  /// Log messages to a callback function.
   kCallback = 1,
 };
 
@@ -52,18 +53,13 @@ enum class [[deprecated(
 /// This **must be the first LiveKit API called** in the process.
 /// It configures global SDK state, including log routing.
 ///
-/// @param level  Minimum log level for SDK messages (default: Info).
-///               Use setLogLevel() to change at runtime.
-///
-/// Returns true if initialization happened on this call, false if it was
-/// already initialized.
-bool initialize(LogLevel level = LogLevel::Info);
-
-/// @deprecated Use initialize(LogLevel) instead.
-#if defined(__GNUC__) || defined(__clang__)
-__attribute__((deprecated("Use initialize(LogLevel) instead")))
-#endif
-bool initialize(LogSink log_sink);
+/// @param level     Minimum log level for SDK messages (default: Info).
+///                  Use setLogLevel() to change at runtime.
+/// @param log_sink  The log sink to use for SDK messages (default: Console).
+/// @returns true if initialization happened on this call, false if it was
+///          already initialized.
+bool initialize(const LogLevel &level = LogLevel::Info,
+                const LogSink &log_sink = LogSink::kConsole);
 
 /// Shut down the LiveKit SDK.
 ///

@@ -100,17 +100,6 @@ std::shared_ptr<spdlog::logger> getLogger() {
   return logger;
 }
 
-} // namespace detail
-
-void initializeLogger() {
-  std::lock_guard<std::mutex> lock(loggerMutex());
-  auto &logger = loggerStorage();
-  if (!logger) {
-    logger = createDefaultLogger();
-    spdlog::register_logger(logger);
-  }
-}
-
 void shutdownLogger() {
   std::lock_guard<std::mutex> lock(loggerMutex());
   auto &logger = loggerStorage();
@@ -119,6 +108,8 @@ void shutdownLogger() {
     logger.reset();
   }
 }
+
+} // namespace detail
 
 void setLogLevel(LogLevel level) {
   detail::getLogger()->set_level(toSpdlogLevel(level));
