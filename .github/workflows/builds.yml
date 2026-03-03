@@ -54,6 +54,10 @@ jobs:
             name: macos-arm64
             build_cmd: ./build.sh release-examples
             build_dir: build-release
+          - os: macos-13
+            name: macos-x64
+            build_cmd: ./build.sh release-examples
+            build_dir: build-release
           - os: windows-latest
             name: windows-x64
             build_cmd: .\build.cmd release-examples
