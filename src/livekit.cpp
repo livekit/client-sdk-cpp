@@ -8,7 +8,7 @@
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an “AS IS” BASIS,
+ * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
@@ -16,10 +16,12 @@
 
 #include "livekit/livekit.h"
 #include "ffi_client.h"
+#include "lk_log.h"
 
 namespace livekit {
 
-bool initialize(LogSink log_sink) {
+bool initialize(const LogLevel &level, const LogSink &log_sink) {
+  setLogLevel(level);
   auto &ffi_client = FfiClient::instance();
   return ffi_client.initialize(log_sink == LogSink::kCallback);
 }
@@ -27,6 +29,7 @@ bool initialize(LogSink log_sink) {
 void shutdown() {
   auto &ffi_client = FfiClient::instance();
   ffi_client.shutdown();
+  detail::shutdownLogger();
 }
 
 } // namespace livekit

@@ -22,53 +22,47 @@ namespace test {
 
 class SDKInitializationTest : public ::testing::Test {
 protected:
-  void SetUp() override {
-    // Each test starts with a fresh SDK state
-  }
+  void SetUp() override {}
 
-  void TearDown() override {
-    // Ensure SDK is shutdown after each test
-    livekit::shutdown();
-  }
+  void TearDown() override { livekit::shutdown(); }
 };
 
-TEST_F(SDKInitializationTest, InitializeWithConsoleLogging) {
-  bool result = livekit::initialize(livekit::LogSink::kConsole);
+TEST_F(SDKInitializationTest, InitializeDefault) {
+  bool result = livekit::initialize();
   EXPECT_TRUE(result) << "First initialization should succeed";
 }
 
-TEST_F(SDKInitializationTest, InitializeWithCallbackLogging) {
-  bool result = livekit::initialize(livekit::LogSink::kCallback);
-  EXPECT_TRUE(result) << "Initialization with callback logging should succeed";
+TEST_F(SDKInitializationTest, InitializeWithLogLevel) {
+  bool result = livekit::initialize(livekit::LogLevel::Debug);
+  EXPECT_TRUE(result) << "Initialization with explicit log level should succeed";
+  EXPECT_EQ(livekit::getLogLevel(), livekit::LogLevel::Debug);
 }
 
 TEST_F(SDKInitializationTest, DoubleInitializationReturnsFalse) {
-  bool first = livekit::initialize(livekit::LogSink::kConsole);
+  bool first = livekit::initialize();
   EXPECT_TRUE(first) << "First initialization should succeed";
 
-  bool second = livekit::initialize(livekit::LogSink::kConsole);
+  bool second = livekit::initialize();
   EXPECT_FALSE(second) << "Second initialization should return false";
 }
 
 TEST_F(SDKInitializationTest, ReinitializeAfterShutdown) {
-  bool first = livekit::initialize(livekit::LogSink::kConsole);
+  bool first = livekit::initialize();
   EXPECT_TRUE(first) << "First initialization should succeed";
 
   livekit::shutdown();
 
-  bool second = livekit::initialize(livekit::LogSink::kConsole);
+  bool second = livekit::initialize();
   EXPECT_TRUE(second) << "Re-initialization after shutdown should succeed";
 }
 
 TEST_F(SDKInitializationTest, ShutdownWithoutInitialize) {
-  // Should not crash
   EXPECT_NO_THROW(livekit::shutdown());
 }
 
 TEST_F(SDKInitializationTest, MultipleShutdowns) {
-  livekit::initialize(livekit::LogSink::kConsole);
+  livekit::initialize();
 
-  // Multiple shutdowns should not crash
   EXPECT_NO_THROW(livekit::shutdown());
   EXPECT_NO_THROW(livekit::shutdown());
   EXPECT_NO_THROW(livekit::shutdown());

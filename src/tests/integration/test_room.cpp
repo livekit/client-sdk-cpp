@@ -22,7 +22,9 @@ namespace test {
 
 class RoomTest : public ::testing::Test {
 protected:
-  void SetUp() override { livekit::initialize(livekit::LogSink::kConsole); }
+  void SetUp() override {
+    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
+  }
 
   void TearDown() override { livekit::shutdown(); }
 };
@@ -101,7 +103,7 @@ TEST_F(RoomTest, RemoteParticipantLookupBeforeConnect) {
 class RoomServerTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    livekit::initialize(livekit::LogSink::kConsole);
+    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
 
     const char *url_env = std::getenv("LIVEKIT_URL");
     const char *token_env = std::getenv("LIVEKIT_CALLER_TOKEN");

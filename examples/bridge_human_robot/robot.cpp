@@ -30,6 +30,7 @@
  * Run alongside the "human" example (which displays the robot's feed).
  */
 
+#include "lk_log.h"
 #include "livekit/audio_frame.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
@@ -319,7 +320,7 @@ int main(int argc, char *argv[]) {
 
   // ----- Initialize SDL3 -----
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_CAMERA)) {
-    std::cerr << "[robot] SDL_Init failed: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("[robot] SDL_Init failed: {}", SDL_GetError());
     return 1;
   }
 
@@ -329,7 +330,7 @@ int main(int argc, char *argv[]) {
   livekit::RoomOptions options;
   options.auto_subscribe = true;
   if (!bridge.connect(url, token, options)) {
-    std::cerr << "[robot] Failed to connect.\n";
+    LK_LOG_ERROR("[robot] Failed to connect.");
     SDL_Quit();
     return 1;
   }
@@ -379,7 +380,7 @@ int main(int argc, char *argv[]) {
           [&mic](const int16_t *samples, int num_samples_per_channel,
                  int /*sample_rate*/, int /*num_channels*/) {
             if (!mic->pushFrame(samples, num_samples_per_channel)) {
-              std::cerr << "[robot] Mic track released.\n";
+              LK_LOG_WARN("[robot] Mic track released.");
             }
           });
 
@@ -393,7 +394,7 @@ int main(int argc, char *argv[]) {
           }
         });
       } else {
-        std::cerr << "[robot] SDL mic init failed.\n";
+        LK_LOG_ERROR("[robot] SDL mic init failed.");
         sdl_mic.reset();
       }
     }
@@ -443,7 +444,7 @@ int main(int argc, char *argv[]) {
             if (!cam->pushFrame(
                     buf.data(), buf.size(),
                     static_cast<std::int64_t>(timestampNS / 1000))) {
-              std::cerr << "[robot] Cam track released.\n";
+              LK_LOG_WARN("[robot] Cam track released.");
             }
           });
 
@@ -457,7 +458,7 @@ int main(int argc, char *argv[]) {
           }
         });
       } else {
-        std::cerr << "[robot] SDL camera init failed.\n";
+        LK_LOG_ERROR("[robot] SDL camera init failed.");
         sdl_cam.reset();
       }
     }

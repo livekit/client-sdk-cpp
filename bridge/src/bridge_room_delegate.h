@@ -39,7 +39,8 @@ public:
   void onTrackSubscribed(livekit::Room &room,
                          const livekit::TrackSubscribedEvent &ev) override;
 
-  /// Forwards a track-unsubscribed event to LiveKitBridge::onTrackUnsubscribed().
+  /// Forwards a track-unsubscribed event to
+  /// LiveKitBridge::onTrackUnsubscribed().
   void onTrackUnsubscribed(livekit::Room &room,
                            const livekit::TrackUnsubscribedEvent &ev) override;
 

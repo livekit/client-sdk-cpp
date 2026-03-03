@@ -23,6 +23,7 @@
 #include <iostream>
 #include <thread>
 
+#include "lk_log.h"
 #include "livekit/livekit.h"
 #include "wav_audio_source.h"
 
@@ -48,7 +49,7 @@ void runNoiseCaptureLoop(const std::shared_ptr<AudioSource> &source,
     try {
       source->captureFrame(frame);
     } catch (const std::exception &e) {
-      std::cerr << "Error in captureFrame (noise): " << e.what() << std::endl;
+      LK_LOG_ERROR("Error in captureFrame (noise): {}", e.what());
       break;
     }
 
@@ -60,7 +61,7 @@ void runNoiseCaptureLoop(const std::shared_ptr<AudioSource> &source,
   try {
     source->clearQueue();
   } catch (...) {
-    std::cout << "Error in clearQueue (noise)" << std::endl;
+    LK_LOG_WARN("Error in clearQueue (noise)");
   }
 }
 
@@ -110,8 +111,7 @@ void runFakeVideoCaptureLoop(const std::shared_ptr<VideoSource> &source,
       // If it expects I420, pass i420 instead.
       source->captureFrame(frame, 0, VideoRotation::VIDEO_ROTATION_0);
     } catch (const std::exception &e) {
-      std::cerr << "Error in captureFrame (fake video): " << e.what()
-                << std::endl;
+      LK_LOG_ERROR("Error in captureFrame (fake video): {}", e.what());
       break;
     }
 

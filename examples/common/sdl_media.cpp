@@ -16,7 +16,7 @@
 
 #include "sdl_media.h"
 
-#include <iostream>
+#include "lk_log.h"
 
 // ---------------------- SDLMicSource -----------------------------
 
@@ -48,13 +48,12 @@ bool SDLMicSource::init() {
       nullptr);
 
   if (!stream_) {
-    std::cerr << "Failed to open recording stream: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("Failed to open recording stream: {}", SDL_GetError());
     return false;
   }
 
   if (!SDL_ResumeAudioStreamDevice(stream_)) { // unpause device
-    std::cerr << "Failed to resume recording device: " << SDL_GetError()
-              << "\n";
+    LK_LOG_ERROR("Failed to resume recording device: {}", SDL_GetError());
     return false;
   }
 
@@ -125,12 +124,12 @@ bool DDLSpeakerSink::init() {
                                       nullptr);
 
   if (!stream_) {
-    std::cerr << "Failed to open playback stream: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("Failed to open playback stream: {}", SDL_GetError());
     return false;
   }
 
   if (!SDL_ResumeAudioStreamDevice(stream_)) {
-    std::cerr << "Failed to resume playback device: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("Failed to resume playback device: {}", SDL_GetError());
     return false;
   }
 
@@ -147,7 +146,7 @@ void DDLSpeakerSink::enqueue(const int16_t *samples,
 
   // SDL will resample / convert as needed on SDL_GetAudioStreamData() side.
   if (!SDL_PutAudioStreamData(stream_, samples, bytes)) {
-    std::cerr << "SDL_PutAudioStreamData failed: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("SDL_PutAudioStreamData failed: {}", SDL_GetError());
   }
 }
 
@@ -182,7 +181,7 @@ bool SDLCamSource::init() {
   int count = 0;
   SDL_CameraID *cams = SDL_GetCameras(&count); //
   if (!cams || count == 0) {
-    std::cerr << "No cameras available: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("No cameras available: {}", SDL_GetError());
     if (cams)
       SDL_free(cams);
     return false;
@@ -201,7 +200,7 @@ bool SDLCamSource::init() {
 
   camera_ = SDL_OpenCamera(camId, &spec_);
   if (!camera_) {
-    std::cerr << "Failed to open camera: " << SDL_GetError() << "\n";
+    LK_LOG_ERROR("Failed to open camera: {}", SDL_GetError());
     return false;
   }
 

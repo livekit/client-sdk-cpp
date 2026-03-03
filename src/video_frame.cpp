@@ -2,11 +2,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <iostream>
 #include <stdexcept>
 #include <vector>
 
 #include "livekit/ffi_handle.h"
+#include "lk_log.h"
 #include "video_utils.h"
 
 namespace livekit {
@@ -79,8 +79,8 @@ std::vector<VideoPlaneInfo>
 computePlaneInfos(uintptr_t base, int width, int height, VideoBufferType type) {
   std::vector<VideoPlaneInfo> planes;
   if (!base || width <= 0 || height <= 0) {
-    std::cerr << "[VideoFrame] Warning: invalid planeInfos input (ptr="
-              << base << ", w=" << width << ", h=" << height << ")\n";
+    LK_LOG_WARN("VideoFrame: invalid planeInfos input (ptr={}, w={}, h={})",
+                base, width, height);
     return planes;
   }
   const auto w = static_cast<uint32_t>(width);
@@ -268,7 +268,7 @@ VideoFrame::VideoFrame()
     : width_{0}, height_{0}, type_{VideoBufferType::BGRA}, data_{} {}
 
 VideoFrame::VideoFrame(int width, int height, VideoBufferType type,
-                           std::vector<std::uint8_t> data)
+                       std::vector<std::uint8_t> data)
     : width_(width), height_(height), type_(type), data_(std::move(data)) {
   const std::size_t expected = computeBufferSize(width_, height_, type_);
   if (data_.size() < expected) {
@@ -297,8 +297,7 @@ VideoFrame VideoFrame::convert(VideoBufferType dst, bool flip_y) const {
   // We still return a *new* VideoFrame, never `*this`, so copy-ctor
   // being deleted is not a problem.
   if (dst == type_ && !flip_y) {
-    std::cerr << "KVideoFrame::convert Warning: converting to the same format"
-              << std::endl;
+    LK_LOG_WARN("VideoFrame::convert: converting to the same format");
     // copy pixel data
     std::vector<std::uint8_t> buf = data_;
     return VideoFrame(width_, height_, type_, std::move(buf));

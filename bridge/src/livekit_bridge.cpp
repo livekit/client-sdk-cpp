@@ -35,8 +35,9 @@
 #include "livekit/video_stream.h"
 
 #include <cassert>
-#include <iostream>
 #include <stdexcept>
+
+#include "lk_log.h"
 
 namespace livekit_bridge {
 
@@ -86,7 +87,7 @@ bool LiveKitBridge::connect(const std::string &url, const std::string &token,
 
     // Initialize the LiveKit SDK (idempotent)
     if (!sdk_initialized_) {
-      livekit::initialize(livekit::LogSink::kConsole);
+      livekit::initialize();
       sdk_initialized_ = true;
     }
   }
@@ -132,8 +133,8 @@ void LiveKitBridge::disconnect() {
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!connected_) {
-      std::cerr << "[LiveKitBridge] Attempting to disconnect an already "
-                   "disconnected bridge. Things may not disconnect properly.\n";
+      LK_LOG_WARN("Attempting to disconnect an already disconnected bridge. "
+                  "Things may not disconnect properly.");
     }
 
     connected_ = false;
@@ -413,12 +414,11 @@ LiveKitBridge::startAudioReader(const CallbackKey &key,
   livekit::AudioStream::Options opts;
   auto stream = livekit::AudioStream::fromTrack(track, opts);
   if (!stream) {
-    std::cerr << "[LiveKitBridge] Failed to create AudioStream for "
-              << key.identity << "\n";
+    LK_LOG_ERROR("Failed to create AudioStream for {}", key.identity);
     return old_thread;
   }
 
-  auto stream_copy = stream; // captured by the thread
+  auto stream_copy = stream;
 
   ActiveReader reader;
   reader.audio_stream = std::move(stream);
@@ -429,17 +429,15 @@ LiveKitBridge::startAudioReader(const CallbackKey &key,
       try {
         cb(ev.frame);
       } catch (const std::exception &e) {
-        std::cerr << "[LiveKitBridge] Audio callback exception: " << e.what()
-                  << "\n";
+        LK_LOG_ERROR("Audio callback exception: {}", e.what());
       }
     }
   });
 
   active_readers_[key] = std::move(reader);
   if (active_readers_.size() > kMaxActiveReaders) {
-    std::cerr << "[LiveKitBridge] More than expected active readers. Need to "
-                 "evaluate how much to expect/support.";
-    "solution";
+    LK_LOG_WARN("More than expected active readers. Need to evaluate how much "
+                "to expect/support.");
   }
   return old_thread;
 }
@@ -457,8 +455,7 @@ LiveKitBridge::startVideoReader(const CallbackKey &key,
   opts.format = livekit::VideoBufferType::RGBA;
   auto stream = livekit::VideoStream::fromTrack(track, opts);
   if (!stream) {
-    std::cerr << "[LiveKitBridge] Failed to create VideoStream for "
-              << key.identity << "\n";
+    LK_LOG_ERROR("Failed to create VideoStream for {}", key.identity);
     return old_thread;
   }
 
@@ -473,16 +470,15 @@ LiveKitBridge::startVideoReader(const CallbackKey &key,
       try {
         cb(ev.frame, ev.timestamp_us);
       } catch (const std::exception &e) {
-        std::cerr << "[LiveKitBridge] Video callback exception: " << e.what()
-                  << "\n";
+        LK_LOG_ERROR("Video callback exception: {}", e.what());
       }
     }
   });
 
   active_readers_[key] = std::move(reader);
   if (active_readers_.size() > kMaxActiveReaders) {
-    std::cerr << "[LiveKitBridge] More than expected active readers. Need to "
-                 "evaluate how much to expect/support.";
+    LK_LOG_WARN("More than expected active readers. Need to evaluate how much "
+                "to expect/support.");
   }
   return old_thread;
 }

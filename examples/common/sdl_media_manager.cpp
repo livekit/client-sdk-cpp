@@ -17,11 +17,11 @@
 #include "sdl_media_manager.h"
 
 #include "fallback_capture.h"
+#include "lk_log.h"
 #include "livekit/livekit.h"
 #include "sdl_media.h"
 #include "sdl_video_renderer.h"
 #include <cstring>
-#include <iostream>
 #include <vector>
 using namespace livekit;
 
@@ -39,8 +39,8 @@ bool SDLMediaManager::ensureSDLInit(Uint32 flags) {
     return true; // already init
   }
   if (!SDL_InitSubSystem(flags)) {
-    std::cerr << "SDL_InitSubSystem failed (flags=" << flags
-              << "): " << SDL_GetError() << std::endl;
+    LK_LOG_ERROR("SDL_InitSubSystem failed (flags={}): {}", flags,
+                 SDL_GetError());
     return false;
   }
   return true;
@@ -53,7 +53,7 @@ bool SDLMediaManager::startMic(
   stopMic();
 
   if (!audio_source) {
-    std::cerr << "startMic: audioSource is null\n";
+    LK_LOG_ERROR("startMic: audioSource is null");
     return false;
   }
 
@@ -62,7 +62,7 @@ bool SDLMediaManager::startMic(
 
   // Try SDL path
   if (!ensureSDLInit(SDL_INIT_AUDIO)) {
-    std::cerr << "No SDL audio, falling back to noise loop.\n";
+    LK_LOG_WARN("No SDL audio, falling back to noise loop.");
     mic_using_sdl_ = false;
     mic_thread_ =
         std::thread(runNoiseCaptureLoop, mic_source_, std::ref(mic_running_));
@@ -72,7 +72,7 @@ bool SDLMediaManager::startMic(
   int recCount = 0;
   SDL_AudioDeviceID *recDevs = SDL_GetAudioRecordingDevices(&recCount);
   if (!recDevs || recCount == 0) {
-    std::cerr << "No microphone devices found, falling back to noise loop.\n";
+    LK_LOG_WARN("No microphone devices found, falling back to noise loop.");
     if (recDevs)
       SDL_free(recDevs);
     mic_using_sdl_ = false;
@@ -97,13 +97,12 @@ bool SDLMediaManager::startMic(
         try {
           src->captureFrame(frame);
         } catch (const std::exception &e) {
-          std::cerr << "Error in captureFrame (SDL mic): " << e.what()
-                    << std::endl;
+          LK_LOG_ERROR("Error in captureFrame (SDL mic): {}", e.what());
         }
       });
 
   if (!mic_sdl_->init()) {
-    std::cerr << "Failed to init SDL mic, falling back to noise loop.\n";
+    LK_LOG_WARN("Failed to init SDL mic, falling back to noise loop.");
     mic_using_sdl_ = false;
     mic_sdl_.reset();
     mic_thread_ =
@@ -138,7 +137,7 @@ bool SDLMediaManager::startCamera(
   stopCamera();
 
   if (!video_source) {
-    std::cerr << "startCamera: videoSource is null\n";
+    LK_LOG_ERROR("startCamera: videoSource is null");
     return false;
   }
 
@@ -147,7 +146,7 @@ bool SDLMediaManager::startCamera(
 
   // Try SDL
   if (!ensureSDLInit(SDL_INIT_CAMERA)) {
-    std::cerr << "No SDL camera subsystem, using fake video loop.\n";
+    LK_LOG_WARN("No SDL camera subsystem, using fake video loop.");
     cam_using_sdl_ = false;
     cam_thread_ = std::thread(runFakeVideoCaptureLoop, cam_source_,
                               std::ref(cam_running_));
@@ -157,7 +156,7 @@ bool SDLMediaManager::startCamera(
   int camCount = 0;
   SDL_CameraID *cams = SDL_GetCameras(&camCount);
   if (!cams || camCount == 0) {
-    std::cerr << "No camera devices found, using fake video loop.\n";
+    LK_LOG_WARN("No camera devices found, using fake video loop.");
     if (cams)
       SDL_free(cams);
     cam_using_sdl_ = false;
@@ -187,13 +186,12 @@ bool SDLMediaManager::startCamera(
           src->captureFrame(frame, timestampNS / 1000,
                             VideoRotation::VIDEO_ROTATION_0);
         } catch (const std::exception &e) {
-          std::cerr << "Error in captureFrame (SDL cam): " << e.what()
-                    << std::endl;
+          LK_LOG_ERROR("Error in captureFrame (SDL cam): {}", e.what());
         }
       });
 
   if (!can_sdl_->init()) {
-    std::cerr << "Failed to init SDL camera, using fake video loop.\n";
+    LK_LOG_WARN("Failed to init SDL camera, using fake video loop.");
     cam_using_sdl_ = false;
     can_sdl_.reset();
     cam_thread_ = std::thread(runFakeVideoCaptureLoop, cam_source_,
@@ -228,12 +226,12 @@ bool SDLMediaManager::startSpeaker(
   stopSpeaker();
 
   if (!audio_stream) {
-    std::cerr << "startSpeaker: audioStream is null\n";
+    LK_LOG_ERROR("startSpeaker: audioStream is null");
     return false;
   }
 
   if (!ensureSDLInit(SDL_INIT_AUDIO)) {
-    std::cerr << "startSpeaker: SDL_INIT_AUDIO failed\n";
+    LK_LOG_ERROR("startSpeaker: SDL_INIT_AUDIO failed");
     return false;
   }
 
@@ -246,8 +244,7 @@ bool SDLMediaManager::startSpeaker(
   try {
     speaker_thread_ = std::thread(&SDLMediaManager::speakerLoopSDL, this);
   } catch (const std::exception &e) {
-    std::cerr << "startSpeaker: failed to start speaker thread: " << e.what()
-              << "\n";
+    LK_LOG_ERROR("startSpeaker: failed to start speaker thread: {}", e.what());
     speaker_running_.store(false, std::memory_order_relaxed);
     speaker_stream_.reset();
     return false;
@@ -291,8 +288,8 @@ void SDLMediaManager::speakerLoopSDL() {
                                     /*userdata=*/nullptr);
 
       if (!localStream) {
-        std::cerr << "speakerLoopSDL: SDL_OpenAudioDeviceStream failed: "
-                  << SDL_GetError() << "\n";
+        LK_LOG_ERROR("speakerLoopSDL: SDL_OpenAudioDeviceStream failed: {}",
+                     SDL_GetError());
         break;
       }
 
@@ -300,14 +297,14 @@ void SDLMediaManager::speakerLoopSDL() {
 
       dev = SDL_GetAudioStreamDevice(localStream);
       if (dev == 0) {
-        std::cerr << "speakerLoopSDL: SDL_GetAudioStreamDevice failed: "
-                  << SDL_GetError() << "\n";
+        LK_LOG_ERROR("speakerLoopSDL: SDL_GetAudioStreamDevice failed: {}",
+                     SDL_GetError());
         break;
       }
 
       if (!SDL_ResumeAudioDevice(dev)) {
-        std::cerr << "speakerLoopSDL: SDL_ResumeAudioDevice failed: "
-                  << SDL_GetError() << "\n";
+        LK_LOG_ERROR("speakerLoopSDL: SDL_ResumeAudioDevice failed: {}",
+                     SDL_GetError());
         break;
       }
     }
@@ -317,8 +314,8 @@ void SDLMediaManager::speakerLoopSDL() {
     const int numBytes = static_cast<int>(data.size() * sizeof(std::int16_t));
 
     if (!SDL_PutAudioStreamData(localStream, data.data(), numBytes)) {
-      std::cerr << "speakerLoopSDL: SDL_PutAudioStreamData failed: "
-                << SDL_GetError() << "\n";
+      LK_LOG_ERROR("speakerLoopSDL: SDL_PutAudioStreamData failed: {}",
+                   SDL_GetError());
       break;
     }
 
@@ -352,12 +349,12 @@ void SDLMediaManager::stopSpeaker() {
 bool SDLMediaManager::initRenderer(
     const std::shared_ptr<VideoStream> &video_stream) {
   if (!video_stream) {
-    std::cerr << "startRenderer: videoStream is null\n";
+    LK_LOG_ERROR("startRenderer: videoStream is null");
     return false;
   }
   // Ensure SDL video subsystem is initialized
   if (!ensureSDLInit(SDL_INIT_VIDEO)) {
-    std::cerr << "startRenderer: SDL_INIT_VIDEO failed\n";
+    LK_LOG_ERROR("startRenderer: SDL_INIT_VIDEO failed");
     return false;
   }
   renderer_stream_ = video_stream;
@@ -368,7 +365,7 @@ bool SDLMediaManager::initRenderer(
     sdl_renderer_ = std::make_unique<SDLVideoRenderer>();
     // You can tune these dimensions or even make them options
     if (!sdl_renderer_->init("LiveKit Remote Video", 1280, 720)) {
-      std::cerr << "startRenderer: SDLVideoRenderer::init failed\n";
+      LK_LOG_ERROR("startRenderer: SDLVideoRenderer::init failed");
       sdl_renderer_.reset();
       renderer_stream_.reset();
       renderer_running_.store(false, std::memory_order_relaxed);

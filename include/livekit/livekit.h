@@ -26,6 +26,7 @@
 #include "local_participant.h"
 #include "local_track_publication.h"
 #include "local_video_track.h"
+#include "logging.h"
 #include "participant.h"
 #include "remote_participant.h"
 #include "remote_track_publication.h"
@@ -39,12 +40,11 @@
 
 namespace livekit {
 
-/// Where LiveKit logs should go.
+/// The log sink to use for SDK messages.
 enum class LogSink {
-  /// Logs are printed to the default console output (FFI prints directly).
+  /// Log messages to the console.
   kConsole = 0,
-
-  /// Logs are delivered to the application's FFI callback for capturing.
+  /// Log messages to a callback function.
   kCallback = 1,
 };
 
@@ -53,11 +53,13 @@ enum class LogSink {
 /// This **must be the first LiveKit API called** in the process.
 /// It configures global SDK state, including log routing.
 ///
-/// If LiveKit APIs are used before calling this function, the log
-/// configuration may not take effect as expected.
-/// Returns true if initialization happened on this call, false if it was
-/// already initialized.
-bool initialize(LogSink log_sink = LogSink::kConsole);
+/// @param level     Minimum log level for SDK messages (default: Info).
+///                  Use setLogLevel() to change at runtime.
+/// @param log_sink  The log sink to use for SDK messages (default: Console).
+/// @returns true if initialization happened on this call, false if it was
+///          already initialized.
+bool initialize(const LogLevel &level = LogLevel::Info,
+                const LogSink &log_sink = LogSink::kConsole);
 
 /// Shut down the LiveKit SDK.
 ///

@@ -60,7 +60,7 @@ class VideoFrame {
 public:
   VideoFrame();
   VideoFrame(int width, int height, VideoBufferType type,
-               std::vector<std::uint8_t> data);
+             std::vector<std::uint8_t> data);
   virtual ~VideoFrame() = default;
 
   VideoFrame(const VideoFrame &) = delete;

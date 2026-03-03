@@ -30,6 +30,9 @@ set(EXAMPLES_PRIVATE_INCLUDE_DIRS
     ${LIVEKIT_BINARY_DIR}/generated
 )
 
+# Propagate the compile-time log level to all example targets.
+add_compile_definitions(SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL})
+
 # Shared example code (SDL media, wav source, etc.)
 set(EXAMPLES_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
 
@@ -56,6 +59,7 @@ target_include_directories(SimpleRoom PRIVATE
 target_link_libraries(SimpleRoom
     PRIVATE
         livekit
+        spdlog::spdlog
         SDL3::SDL3
 )
 
@@ -110,6 +114,7 @@ target_link_libraries(SimpleRpc
   PRIVATE
     nlohmann_json::nlohmann_json
     livekit
+    spdlog::spdlog
 )
 
 # --- SimpleRobot example (robot + human executables with shared json_utils) ---
@@ -140,6 +145,7 @@ target_link_libraries(SimpleRobot
   PRIVATE
     simple_robot_json_utils
     livekit
+    spdlog::spdlog
 )
 
 add_executable(SimpleHuman
@@ -151,6 +157,32 @@ target_include_directories(SimpleHuman PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
 target_link_libraries(SimpleHuman
   PRIVATE
     simple_robot_json_utils
+    livekit
+    spdlog::spdlog
+)
+
+# --- LoggingLevelsBasicUsage example ---
+
+add_executable(LoggingLevelsBasicUsage
+  logging_levels/basic_usage.cpp
+)
+
+target_include_directories(LoggingLevelsBasicUsage PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(LoggingLevelsBasicUsage
+  PRIVATE
+    livekit
+    spdlog::spdlog
+)
+
+# --- LoggingLevelsCustomSinks example ---
+
+add_executable(LoggingLevelsCustomSinks
+  logging_levels/custom_sinks.cpp
+)
+
+target_link_libraries(LoggingLevelsCustomSinks
+  PRIVATE
     livekit
 )
 
@@ -165,6 +197,7 @@ target_include_directories(SimpleDataStream PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_D
 target_link_libraries(SimpleDataStream
   PRIVATE
     livekit
+    spdlog::spdlog
 )
 
 add_custom_command(
@@ -186,7 +219,7 @@ target_include_directories(BridgeRobot PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(BridgeRobot PRIVATE livekit_bridge SDL3::SDL3)
+target_link_libraries(BridgeRobot PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
 
 add_executable(BridgeHuman
   bridge_human_robot/human.cpp
@@ -197,7 +230,7 @@ target_include_directories(BridgeHuman PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(BridgeHuman PRIVATE livekit_bridge SDL3::SDL3)
+target_link_libraries(BridgeHuman PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
 
 # Copy SDL3 shared library to bridge_human_robot example output directories
 if(UNIX AND NOT APPLE)
@@ -236,7 +269,7 @@ if(WIN32)
   )
   
   # Copy DLLs to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleRobot SimpleHuman SimpleDataStream BridgeRobot BridgeHuman)
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleRobot SimpleHuman SimpleDataStream LoggingLevelsBasicUsage LoggingLevelsCustomSinks BridgeRobot BridgeHuman)
     foreach(DLL ${REQUIRED_DLLS})
       add_custom_command(TARGET ${EXAMPLE} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -271,7 +304,7 @@ if(UNIX)
   endif()
   
   # Copy shared library to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleRobot SimpleHuman SimpleDataStream BridgeRobot BridgeHuman)
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleRobot SimpleHuman SimpleDataStream LoggingLevelsBasicUsage LoggingLevelsCustomSinks BridgeRobot BridgeHuman)
     add_custom_command(TARGET ${EXAMPLE} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
               "${LIVEKIT_LIB_DIR}/${FFI_SHARED_LIB}"
