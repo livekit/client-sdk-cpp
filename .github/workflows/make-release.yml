@@ -33,7 +33,7 @@ jobs:
           - os: macos-latest
             name: macos-arm64
             generator: Ninja
-          - os: macos-13
+          - os: macos-latest
             name: macos-x64
             generator: Ninja
           - os: windows-latest
@@ -128,6 +128,10 @@ jobs:
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Rust cross-compilation target
+        if: matrix.name == 'macos-x64'
+        run: rustup target add x86_64-apple-darwin
+
       # ---------- Cache Cargo ----------
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -165,7 +169,11 @@ jobs:
             exit 1
           fi
 
-          ./build.sh release-examples --version "$version" --bundle --prefix "$bundleDir"
+          if [[ "${{ matrix.name }}" == "macos-x64" ]]; then
+            ./build.sh release-examples --version "$version" --bundle --prefix "$bundleDir" --macos-arch x86_64
+          else
+            ./build.sh release-examples --version "$version" --bundle --prefix "$bundleDir"
+          fi
 
           # List bundle contents
           echo "Bundle contents:"
