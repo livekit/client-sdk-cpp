@@ -20,6 +20,7 @@
 #pragma once
 
 #include "livekit/local_participant.h"
+#include "livekit_bridge/rpc_constants.h"
 
 #include <cassert>
 #include <functional>
@@ -55,8 +56,8 @@ public:
   /// Callback the bridge provides to execute a track action
   /// (mute/unmute/release). Throws livekit::RpcError if the track is not found
   /// or the action is invalid.
-  using TrackActionFn = std::function<void(const std::string &action,
-                                           const std::string &track_name)>;
+  using TrackActionFn = std::function<void(
+      const rpc::track_control::Action &action, const std::string &track_name)>;
 
   explicit RpcManager(TrackActionFn track_action_fn);
 
@@ -106,15 +107,15 @@ public:
   /// @brief Request a remote participant to mute a published track.
   /// @param destination_identity  Identity of the remote participant.
   /// @param track_name            Name of the track to mute.
-  /// @throws if the LocalParticipant requestTrackMute fails.
-  void requestTrackMute(const std::string &destination_identity,
-                        const std::string &track_name);
+  /// @throws if the LocalParticipant requestRemoteTrackMute fails.
+  void requestRemoteTrackMute(const std::string &destination_identity,
+                              const std::string &track_name);
   /// @brief Request a remote participant to unmute a published track.
   /// @param destination_identity  Identity of the remote participant.
   /// @param track_name            Name of the track to unmute.
-  /// @throws if the LocalParticipant requestTrackUnmute fails.
-  void requestTrackUnmute(const std::string &destination_identity,
-                          const std::string &track_name);
+  /// @throws if the LocalParticipant requestRemoteTrackUnmute fails.
+  void requestRemoteTrackUnmute(const std::string &destination_identity,
+                                const std::string &track_name);
 
 private:
   friend class test::RpcManagerTest;
@@ -138,7 +139,7 @@ private:
   TrackActionFn track_action_fn_;
 
   /// The LocalParticipant bound to the manager.
-  livekit::LocalParticipant *lp_ = nullptr;
+  livekit::LocalParticipant *lp_;
 };
 
 } // namespace livekit_bridge

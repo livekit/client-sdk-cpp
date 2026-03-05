@@ -29,7 +29,7 @@
 namespace livekit_bridge {
 
 RpcManager::RpcManager(TrackActionFn track_action_fn)
-    : track_action_fn_(std::move(track_action_fn)) {}
+    : track_action_fn_(std::move(track_action_fn)), lp_(nullptr) {}
 
 void RpcManager::enable(livekit::LocalParticipant *lp) {
   assert(lp != nullptr);
@@ -77,15 +77,15 @@ void RpcManager::unregisterRpcMethod(const std::string &method_name) {
 // Built-in outgoing convenience (track control)
 // ---------------------------------------------------------------
 
-void RpcManager::requestTrackMute(const std::string &destination_identity,
-                                  const std::string &track_name) {
+void RpcManager::requestRemoteTrackMute(const std::string &destination_identity,
+                                        const std::string &track_name) {
   namespace tc = rpc::track_control;
   performRpc(destination_identity, tc::kMethod,
              tc::formatPayload(tc::kActionMute, track_name), std::nullopt);
 }
 
-void RpcManager::requestTrackUnmute(const std::string &destination_identity,
-                                    const std::string &track_name) {
+void RpcManager::requestRemoteTrackUnmute(
+    const std::string &destination_identity, const std::string &track_name) {
   namespace tc = rpc::track_control;
   performRpc(destination_identity, tc::kMethod,
              tc::formatPayload(tc::kActionUnmute, track_name), std::nullopt);
@@ -125,15 +125,19 @@ RpcManager::handleTrackControlRpc(const livekit::RpcInvocationData &data) {
         livekit::RpcError::ErrorCode::APPLICATION_ERROR,
         "invalid payload format, expected \"<action>:<track_name>\"");
   }
-  std::string action = data.payload.substr(0, delim);
-  std::string track_name = data.payload.substr(delim + 1);
+  const std::string action = data.payload.substr(0, delim);
+  const std::string track_name = data.payload.substr(delim + 1);
 
   if (action != tc::kActionMute && action != tc::kActionUnmute) {
     throw livekit::RpcError(livekit::RpcError::ErrorCode::APPLICATION_ERROR,
                             "unknown action: " + action);
   }
 
-  track_action_fn_(action, track_name);
+  const auto action_enum = action == tc::kActionMute
+                               ? rpc::track_control::Action::kActionMute
+                               : rpc::track_control::Action::kActionUnmute;
+
+  track_action_fn_(action_enum, track_name);
   return tc::kResponseOk;
 }
 
