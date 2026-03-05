@@ -98,14 +98,14 @@ void printUsage(const char *prog) {
             << "  " << prog << " --url=<ws-url> --token=<token>\n\n"
             << "Env fallbacks:\n"
             << "  LIVEKIT_URL, LIVEKIT_TOKEN\n\n"
-            << "This is the 'human' role. It connects to the room and\n"
-            << "continuously checks for a 'robot' peer every 2 seconds.\n"
+            << "This is the sender. It connects to the room and\n"
+            << "continuously checks for a receiver peer every 2 seconds.\n"
             << "Once connected, use keyboard to send joystick commands:\n"
             << "  w / s  = +x / -x\n"
             << "  d / a  = +y / -y\n"
             << "  z / c  = +z / -z\n"
             << "  q      = quit\n"
-            << "Automatically reconnects if robot leaves.\n";
+            << "Automatically reconnects if receiver leaves.\n";
 }
 
 void printControls() {
@@ -121,12 +121,12 @@ void printControls() {
 
 int main(int argc, char *argv[]) {
   std::string url, token;
-  if (!simple_robot::parseArgs(argc, argv, url, token)) {
+  if (!simple_joystick::parseArgs(argc, argv, url, token)) {
     printUsage(argv[0]);
     return 1;
   }
 
-  std::cout << "[Human] Connecting to: " << url << "\n";
+  std::cout << "[Sender] Connecting to: " << url << "\n";
   std::signal(SIGINT, handleSignal);
 
   livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
@@ -136,40 +136,40 @@ int main(int argc, char *argv[]) {
   options.dynacast = false;
 
   bool res = room->Connect(url, token, options);
-  std::cout << "[Human] Connect result: " << std::boolalpha << res << "\n";
+  std::cout << "[Sender] Connect result: " << std::boolalpha << res << "\n";
   if (!res) {
-    std::cerr << "[Human] Failed to connect to room\n";
+    std::cerr << "[Sender] Failed to connect to room\n";
     livekit::shutdown();
     return 1;
   }
 
   auto info = room->room_info();
-  std::cout << "[Human] Connected to room: " << info.name << "\n";
+  std::cout << "[Sender] Connected to room: " << info.name << "\n";
 
   // Enable raw terminal mode for immediate keypress detection
   enableRawMode();
 
-  std::cout << "[Human] Waiting for 'robot' to join (checking every 2s)...\n";
+  std::cout << "[Sender] Waiting for 'robot' to join (checking every 2s)...\n";
   printControls();
 
   LocalParticipant *lp = room->localParticipant();
   double x = 0.0, y = 0.0, z = 0.0;
-  bool robot_connected = false;
-  auto last_robot_check = std::chrono::steady_clock::now();
+  bool receiver_connected = false;
+  auto last_receiver_check = std::chrono::steady_clock::now();
 
   while (g_running.load()) {
-    // Periodically check robot presence every 2 seconds
+    // Periodically check receiver presence every 2 seconds
     auto now = std::chrono::steady_clock::now();
-    if (now - last_robot_check >= 2s) {
-      last_robot_check = now;
-      bool robot_present = (room->remoteParticipant("robot") != nullptr);
+    if (now - last_receiver_check >= 2s) {
+      last_receiver_check = now;
+      bool receiver_present = (room->remoteParticipant("robot") != nullptr);
 
-      if (robot_present && !robot_connected) {
-        std::cout << "[Human] 'robot' connected! Use keys to send commands.\n";
-        robot_connected = true;
-      } else if (!robot_present && robot_connected) {
-        std::cout << "[Human] 'robot' disconnected. Waiting for reconnect...\n";
-        robot_connected = false;
+      if (receiver_present && !receiver_connected) {
+        std::cout << "[Sender] Receiver connected! Use keys to send commands.\n";
+        receiver_connected = true;
+      } else if (!receiver_present && receiver_connected) {
+        std::cout << "[Sender] Receiver disconnected. Waiting for reconnect...\n";
+        receiver_connected = false;
       }
     }
 
@@ -182,7 +182,7 @@ int main(int argc, char *argv[]) {
 
     // Handle quit
     if (key == 'q' || key == 'Q') {
-      std::cout << "\n[Human] Quit requested.\n";
+      std::cout << "\n[Sender] Quit requested.\n";
       break;
     }
 
@@ -226,37 +226,37 @@ int main(int argc, char *argv[]) {
     if (!changed)
       continue;
 
-    if (!robot_connected) {
-      std::cout << "[Human] (no robot connected) x=" << x << " y=" << y
+    if (!receiver_connected) {
+      std::cout << "[Sender] (no receiver connected) x=" << x << " y=" << y
                 << " z=" << z << "\n";
       continue;
     }
 
     // Send joystick command via RPC
-    simple_robot::JoystickCommand cmd{x, y, z};
-    std::string payload = simple_robot::joystick_to_json(cmd);
+    simple_joystick::JoystickCommand cmd{x, y, z};
+    std::string payload = simple_joystick::joystick_to_json(cmd);
 
-    std::cout << "[Human] Sending: x=" << x << " y=" << y << " z=" << z << "\n";
+    std::cout << "[Sender] Sending: x=" << x << " y=" << y << " z=" << z << "\n";
 
     try {
       std::string response =
           lp->performRpc("robot", "joystick_command", payload, 5.0);
-      std::cout << "[Human] Robot acknowledged: " << response << "\n";
+      std::cout << "[Sender] Receiver acknowledged: " << response << "\n";
     } catch (const RpcError &e) {
-      std::cerr << "[Human] RPC error: " << e.message() << "\n";
+      std::cerr << "[Sender] RPC error: " << e.message() << "\n";
       if (static_cast<RpcError::ErrorCode>(e.code()) ==
           RpcError::ErrorCode::RECIPIENT_DISCONNECTED) {
-        std::cout << "[Human] Robot disconnected. Waiting for reconnect...\n";
-        robot_connected = false;
+        std::cout << "[Sender] Receiver disconnected. Waiting for reconnect...\n";
+        receiver_connected = false;
       }
     } catch (const std::exception &e) {
-      std::cerr << "[Human] Error sending command: " << e.what() << "\n";
+      std::cerr << "[Sender] Error sending command: " << e.what() << "\n";
     }
   }
 
   disableRawMode();
 
-  std::cout << "[Human] Done. Shutting down.\n";
+  std::cout << "[Sender] Done. Shutting down.\n";
   room->setDelegate(nullptr);
   room.reset();
   livekit::shutdown();

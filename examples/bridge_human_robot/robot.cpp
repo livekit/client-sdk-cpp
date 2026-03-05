@@ -19,8 +19,11 @@
  * LiveKit room using SDL3 for hardware capture.
  *
  * Usage:
- *   robot <ws-url> <token>
- *   LIVEKIT_URL=... LIVEKIT_TOKEN=... robot
+ *   robot [--no-mic] <ws-url> <token>
+ *   LIVEKIT_URL=... LIVEKIT_TOKEN=... robot [--no-mic]
+ *
+ *   --no-mic  Do not create robot-mic audio track (no SDL audio init, no mic
+ * capture).
  *
  * The token must grant identity "robot". Generate one with:
  *   lk token create --api-key <key> --api-secret <secret> \
@@ -30,11 +33,11 @@
  * Run alongside the "human" example (which displays the robot's feed).
  */
 
-#include "lk_log.h"
 #include "livekit/audio_frame.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
 #include "livekit_bridge/livekit_bridge.h"
+#include "lk_log.h"
 #include "sdl_media.h"
 
 #include <SDL3/SDL.h>
@@ -298,10 +301,36 @@ static void handleSignal(int) { g_running.store(false); }
 
 int main(int argc, char *argv[]) {
   // ----- Parse args / env -----
+  bool use_mic = true;
+  std::vector<std::string> positional;
+  for (int i = 1; i < argc; ++i) {
+    if (std::strcmp(argv[i], "--no-mic") == 0) {
+      use_mic = false;
+    } else {
+      positional.push_back(argv[i]);
+    }
+  }
+
   std::string url, token;
-  if (argc >= 3) {
-    url = argv[1];
-    token = argv[2];
+  auto is_ws_url = [](const std::string &s) {
+    return (s.size() >= 5 && s.compare(0, 5, "ws://") == 0) ||
+           (s.size() >= 6 && s.compare(0, 6, "wss://") == 0);
+  };
+  if (positional.size() >= 2) {
+    for (const auto &arg : positional) {
+      if (is_ws_url(arg)) {
+        url = arg;
+        break;
+      }
+    }
+    for (const auto &arg : positional) {
+      if (arg != url) {
+        token = arg;
+        break;
+      }
+    }
+    if (url.empty())
+      url = positional[0], token = positional[1]; // fallback by position
   } else {
     const char *e = std::getenv("LIVEKIT_URL");
     if (e)
@@ -311,22 +340,25 @@ int main(int argc, char *argv[]) {
       token = e;
   }
   if (url.empty() || token.empty()) {
-    std::cerr << "Usage: robot <ws-url> <token>\n"
-              << "   or: LIVEKIT_URL=... LIVEKIT_TOKEN=... robot\n";
+    std::cerr << "Usage: robot [--no-mic] <ws-url> <token>\n"
+              << "   or: LIVEKIT_URL=... LIVEKIT_TOKEN=... robot [--no-mic]\n";
     return 1;
   }
 
   std::signal(SIGINT, handleSignal);
 
-  // ----- Initialize SDL3 -----
-  if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_CAMERA)) {
+  // ----- Initialize SDL3 (audio only when mic is used) -----
+  Uint32 sdl_flags = SDL_INIT_CAMERA;
+  if (use_mic)
+    sdl_flags |= SDL_INIT_AUDIO;
+  if (!SDL_Init(sdl_flags)) {
     LK_LOG_ERROR("[robot] SDL_Init failed: {}", SDL_GetError());
     return 1;
   }
 
   // ----- Connect to LiveKit -----
   livekit_bridge::LiveKitBridge bridge;
-  std::cout << "[robot] Connecting to " << url << " ...\n";
+  LK_LOG_INFO("[robot] Connecting to {} ...", url);
   livekit::RoomOptions options;
   options.auto_subscribe = true;
   if (!bridge.connect(url, token, options)) {
@@ -334,7 +366,7 @@ int main(int argc, char *argv[]) {
     SDL_Quit();
     return 1;
   }
-  std::cout << "[robot] Connected.\n";
+  LK_LOG_INFO("[robot] Connected.");
 
   // ----- Create outgoing tracks -----
   constexpr int kSampleRate = 48000;
@@ -345,8 +377,11 @@ int main(int argc, char *argv[]) {
   constexpr int kSimWidth = 480;
   constexpr int kSimHeight = 320;
 
-  auto mic = bridge.createAudioTrack("robot-mic", kSampleRate, kChannels,
-                                     livekit::TrackSource::SOURCE_MICROPHONE);
+  std::shared_ptr<livekit_bridge::BridgeAudioTrack> mic;
+  if (use_mic) {
+    mic = bridge.createAudioTrack("robot-mic", kSampleRate, kChannels,
+                                  livekit::TrackSource::SOURCE_MICROPHONE);
+  }
   auto sim_audio =
       bridge.createAudioTrack("robot-sim-audio", kSampleRate, kChannels,
                               livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO);
@@ -355,11 +390,12 @@ int main(int argc, char *argv[]) {
   auto sim_cam =
       bridge.createVideoTrack("robot-sim-frame", kSimWidth, kSimHeight,
                               livekit::TrackSource::SOURCE_SCREENSHARE);
-  std::cout << "[robot] Publishing mic + sim audio (" << kSampleRate << " Hz, "
-            << kChannels << " ch), cam + sim frame (" << kWidth << "x"
-            << kHeight << " / " << kSimWidth << "x" << kSimHeight << ").\n";
+  LK_LOG_INFO("[robot] Publishing {} sim audio ({} Hz, {} ch), cam + sim frame "
+              "({}x{} / {}x{}).",
+              use_mic ? "mic + " : "(no mic) ", kSampleRate, kChannels, kWidth,
+              kHeight, kSimWidth, kSimHeight);
 
-  // ----- SDL Mic capture -----
+  // ----- SDL Mic capture (only when use_mic) -----
   // SDLMicSource pulls 10ms frames from the default recording device and
   // invokes our callback with interleaved int16 samples.
   bool mic_using_sdl = false;
@@ -367,7 +403,7 @@ int main(int argc, char *argv[]) {
   std::atomic<bool> mic_running{true};
   std::thread mic_thread;
 
-  {
+  if (use_mic) {
     int recCount = 0;
     SDL_AudioDeviceID *recDevs = SDL_GetAudioRecordingDevices(&recCount);
     bool has_mic = recDevs && recCount > 0;
@@ -379,14 +415,14 @@ int main(int argc, char *argv[]) {
           kSampleRate, kChannels, kSampleRate / 100, // 10ms frames
           [&mic](const int16_t *samples, int num_samples_per_channel,
                  int /*sample_rate*/, int /*num_channels*/) {
-            if (!mic->pushFrame(samples, num_samples_per_channel)) {
+            if (mic && !mic->pushFrame(samples, num_samples_per_channel)) {
               LK_LOG_WARN("[robot] Mic track released.");
             }
           });
 
       if (sdl_mic->init()) {
         mic_using_sdl = true;
-        std::cout << "[robot] Using SDL microphone.\n";
+        LK_LOG_INFO("[robot] Using SDL microphone.");
         mic_thread = std::thread([&]() {
           while (mic_running.load()) {
             sdl_mic->pump();
@@ -400,13 +436,13 @@ int main(int argc, char *argv[]) {
     }
 
     if (!mic_using_sdl) {
-      std::cout << "[robot] No microphone found; sending silence.\n";
+      LK_LOG_INFO("[robot] No microphone found; sending silence.");
       mic_thread = std::thread([&]() {
         const int kSamplesPerFrame = kSampleRate / 100;
         std::vector<std::int16_t> silence(kSamplesPerFrame * kChannels, 0);
         auto next = std::chrono::steady_clock::now();
         while (mic_running.load()) {
-          if (!mic->pushFrame(silence, kSamplesPerFrame)) {
+          if (mic && !mic->pushFrame(silence, kSamplesPerFrame)) {
             break;
           }
           next += std::chrono::milliseconds(10);
@@ -450,7 +486,7 @@ int main(int argc, char *argv[]) {
 
       if (sdl_cam->init()) {
         cam_using_sdl = true;
-        std::cout << "[robot] Using SDL camera.\n";
+        LK_LOG_INFO("[robot] Using SDL camera.");
         cam_thread = std::thread([&]() {
           while (cam_running.load()) {
             sdl_cam->pump();
@@ -464,7 +500,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (!cam_using_sdl) {
-      std::cout << "[robot] No camera found; sending solid green frames.\n";
+      LK_LOG_INFO("[robot] No camera found; sending solid green frames.");
       cam_thread = std::thread([&]() {
         std::vector<std::uint8_t> green(kWidth * kHeight * 4);
         for (int i = 0; i < kWidth * kHeight; ++i) {
@@ -540,7 +576,7 @@ int main(int argc, char *argv[]) {
       std::this_thread::sleep_for(std::chrono::milliseconds(33));
     }
   });
-  std::cout << "[robot] Sim frame track started.\n";
+  LK_LOG_INFO("[robot] Sim frame track started.");
 
   // ----- Sim audio track (siren: sine sweep 600-1200 Hz, 1s period) -----
   std::atomic<bool> sim_audio_running{true};
@@ -581,10 +617,10 @@ int main(int argc, char *argv[]) {
       std::this_thread::sleep_until(next);
     }
   });
-  std::cout << "[robot] Sim audio (siren) track started.\n";
+  LK_LOG_INFO("[robot] Sim audio (siren) track started.");
 
   // ----- Main loop: keep alive + pump SDL events -----
-  std::cout << "[robot] Streaming... press Ctrl-C to stop.\n";
+  LK_LOG_INFO("[robot] Streaming... press Ctrl-C to stop.");
 
   while (g_running.load()) {
     SDL_Event e;
@@ -597,7 +633,7 @@ int main(int argc, char *argv[]) {
   }
 
   // ----- Cleanup -----
-  std::cout << "[robot] Shutting down...\n";
+  LK_LOG_INFO("[robot] Shutting down...");
 
   mic_running.store(false);
   cam_running.store(false);
@@ -621,6 +657,6 @@ int main(int argc, char *argv[]) {
   bridge.disconnect();
 
   SDL_Quit();
-  std::cout << "[robot] Done.\n";
+  LK_LOG_INFO("[robot] Done.");
   return 0;
 }

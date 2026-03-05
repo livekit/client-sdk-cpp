@@ -179,6 +179,20 @@ else()
   set(RUST_TARGET_DIR "${RUST_ROOT}/target")
 endif()
 
+# Detect the GCC toolchain's library directory so cargo can find the matching libstdc++.
+# This is needed when using a non-system GCC (e.g. GCC 14) on an older distro whose
+# system libstdc++ lacks symbols like __cxa_call_terminate.
+set(GCC_LIB_DIR "")
+if(NOT WIN32)
+  get_filename_component(_gcc_bin_dir "${CMAKE_C_COMPILER}" DIRECTORY)
+  get_filename_component(_gcc_root "${_gcc_bin_dir}" DIRECTORY)
+  if(IS_DIRECTORY "${_gcc_root}/lib64")
+    set(GCC_LIB_DIR "${_gcc_root}/lib64")
+  elseif(IS_DIRECTORY "${_gcc_root}/lib")
+    set(GCC_LIB_DIR "${_gcc_root}/lib")
+  endif()
+endif()
+
 set(RUN_CARGO_SCRIPT ${LIVEKIT_BINARY_DIR}/run_cargo.cmake)
 file(WRITE ${RUN_CARGO_SCRIPT}
 "if(NOT DEFINED CFG)
@@ -203,6 +217,11 @@ endif()
 
 message(STATUS \"[run_cargo.cmake] CFG=\${CFG}  CARGO=\${CARGO}  PROTOC=\${PROTOC_PATH}\")
 set(ENV{PROTOC} \"\${PROTOC_PATH}\")
+
+if(DEFINED GCC_LIB_DIR AND NOT GCC_LIB_DIR STREQUAL \"\")
+  set(ENV{RUSTFLAGS} \"-L \${GCC_LIB_DIR} \$ENV{RUSTFLAGS}\")
+  set(ENV{LD_LIBRARY_PATH} \"\${GCC_LIB_DIR}:\$ENV{LD_LIBRARY_PATH}\")
+endif()
 
 execute_process(
   COMMAND \"\${CARGO}\" \${ARGS}
@@ -286,6 +305,7 @@ add_custom_command(
           -DCARGO=${CARGO_EXECUTABLE}
           -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
           -DRUST_TARGET=${RUST_TARGET_TRIPLE}
+          -DGCC_LIB_DIR=${GCC_LIB_DIR}
           -P "${RUN_CARGO_SCRIPT}"
   WORKING_DIRECTORY "${RUST_ROOT}"
   DEPENDS ${RUST_SOURCES}

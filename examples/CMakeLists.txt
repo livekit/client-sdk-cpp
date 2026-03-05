@@ -117,46 +117,46 @@ target_link_libraries(SimpleRpc
     spdlog::spdlog
 )
 
-# --- SimpleRobot example (robot + human executables with shared json_utils) ---
+# --- SimpleJoystick example (sender + receiver executables with shared json_utils) ---
 
-add_library(simple_robot_json_utils STATIC
-  simple_robot/json_utils.cpp
-  simple_robot/json_utils.h
-  simple_robot/utils.cpp
-  simple_robot/utils.h
+add_library(simple_joystick_json_utils STATIC
+  simple_joystick/json_utils.cpp
+  simple_joystick/json_utils.h
+  simple_joystick/utils.cpp
+  simple_joystick/utils.h
 )
 
-target_include_directories(simple_robot_json_utils PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/simple_robot
+target_include_directories(simple_joystick_json_utils PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/simple_joystick
 )
 
-target_link_libraries(simple_robot_json_utils
+target_link_libraries(simple_joystick_json_utils
   PUBLIC
     nlohmann_json::nlohmann_json
 )
 
-add_executable(SimpleRobot
-  simple_robot/robot.cpp
+add_executable(SimpleJoystickReceiver
+  simple_joystick/receiver.cpp
 )
 
-target_include_directories(SimpleRobot PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+target_include_directories(SimpleJoystickReceiver PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
 
-target_link_libraries(SimpleRobot
+target_link_libraries(SimpleJoystickReceiver
   PRIVATE
-    simple_robot_json_utils
+    simple_joystick_json_utils
     livekit
     spdlog::spdlog
 )
 
-add_executable(SimpleHuman
-  simple_robot/human.cpp
+add_executable(SimpleJoystickSender
+  simple_joystick/sender.cpp
 )
 
-target_include_directories(SimpleHuman PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+target_include_directories(SimpleJoystickSender PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
 
-target_link_libraries(SimpleHuman
+target_link_libraries(SimpleJoystickSender
   PRIVATE
-    simple_robot_json_utils
+    simple_joystick_json_utils
     livekit
     spdlog::spdlog
 )
@@ -269,7 +269,7 @@ if(WIN32)
   )
   
   # Copy DLLs to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleRobot SimpleHuman SimpleDataStream LoggingLevelsBasicUsage LoggingLevelsCustomSinks BridgeRobot BridgeHuman)
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleJoystickSender SimpleJoystickReceiver SimpleDataStream LoggingLevelsBasicUsage LoggingLevelsCustomSinks BridgeRobot BridgeHuman)
     foreach(DLL ${REQUIRED_DLLS})
       add_custom_command(TARGET ${EXAMPLE} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -304,7 +304,7 @@ if(UNIX)
   endif()
   
   # Copy shared library to each example's output directory
-  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleRobot SimpleHuman SimpleDataStream LoggingLevelsBasicUsage LoggingLevelsCustomSinks BridgeRobot BridgeHuman)
+  foreach(EXAMPLE SimpleRoom SimpleRpc SimpleJoystickSender SimpleJoystickReceiver SimpleDataStream LoggingLevelsBasicUsage LoggingLevelsCustomSinks BridgeRobot BridgeHuman)
     add_custom_command(TARGET ${EXAMPLE} POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
               "${LIVEKIT_LIB_DIR}/${FFI_SHARED_LIB}"

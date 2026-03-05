@@ -20,7 +20,7 @@
 #include <string>
 #include <vector>
 
-namespace simple_robot {
+namespace simple_joystick {
 
 bool parseArgs(int argc, char *argv[], std::string &url, std::string &token) {
   for (int i = 1; i < argc; ++i) {
@@ -84,4 +84,4 @@ bool parseArgs(int argc, char *argv[], std::string &url, std::string &token) {
   return !(url.empty() || token.empty());
 }
 
-} // namespace simple_robot
+} // namespace simple_joystick

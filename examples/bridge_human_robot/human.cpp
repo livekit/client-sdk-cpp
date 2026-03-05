@@ -43,11 +43,11 @@
  * Run alongside the "robot" example (which publishes with identity "robot").
  */
 
-#include "lk_log.h"
 #include "livekit/audio_frame.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
 #include "livekit_bridge/livekit_bridge.h"
+#include "lk_log.h"
 #include "sdl_media.h"
 
 #include <SDL3/SDL.h>
@@ -115,9 +115,25 @@ int main(int argc, char *argv[]) {
   }
 
   std::string url, token;
+  auto is_ws_url = [](const std::string &s) {
+    return (s.size() >= 5 && s.compare(0, 5, "ws://") == 0) ||
+           (s.size() >= 6 && s.compare(0, 6, "wss://") == 0);
+  };
   if (positional.size() >= 2) {
-    url = positional[0];
-    token = positional[1];
+    for (const auto &arg : positional) {
+      if (is_ws_url(arg)) {
+        url = arg;
+        break;
+      }
+    }
+    for (const auto &arg : positional) {
+      if (arg != url) {
+        token = arg;
+        break;
+      }
+    }
+    if (url.empty())
+      url = positional[0], token = positional[1]; // fallback by position
   } else {
     const char *e = std::getenv("LIVEKIT_URL");
     if (e)
