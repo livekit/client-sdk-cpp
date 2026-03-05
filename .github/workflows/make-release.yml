@@ -33,6 +33,9 @@ jobs:
           - os: macos-latest
             name: macos-arm64
             generator: Ninja
+          - os: macos-latest
+            name: macos-x64
+            generator: Ninja
           - os: windows-latest
             name: windows-x64
             generator: "Visual Studio 17 2022"
@@ -125,6 +128,10 @@ jobs:
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install Rust cross-compilation target
+        if: matrix.name == 'macos-x64'
+        run: rustup target add x86_64-apple-darwin
+
       # ---------- Cache Cargo ----------
       - name: Cache Cargo registry
         uses: actions/cache@v4
@@ -162,7 +169,11 @@ jobs:
             exit 1
           fi
 
-          ./build.sh release-examples --version "$version" --bundle --prefix "$bundleDir"
+          if [[ "${{ matrix.name }}" == "macos-x64" ]]; then
+            ./build.sh release-examples --version "$version" --bundle --prefix "$bundleDir" --macos-arch x86_64
+          else
+            ./build.sh release-examples --version "$version" --bundle --prefix "$bundleDir"
+          fi
 
           # List bundle contents
           echo "Bundle contents:"
@@ -258,7 +269,7 @@ jobs:
           ls -la
           
           # Create tar.gz for Linux and macOS
-          for platform in linux-x64 linux-arm64 macos-arm64; do
+          for platform in linux-x64 linux-arm64 macos-arm64 macos-x64; do
             dirName="livekit-sdk-${platform}-${VERSION}"
             if [[ -d "${dirName}" ]]; then
               echo "Creating archive for ${platform}..."

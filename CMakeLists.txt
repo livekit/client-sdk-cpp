@@ -163,6 +163,22 @@ find_program(CARGO_EXECUTABLE NAMES cargo REQUIRED)
 
 set(RUST_ROOT ${LIVEKIT_ROOT_DIR}/client-sdk-rust)
 
+# Determine Rust target triple for cross-compilation on macOS
+set(RUST_TARGET_TRIPLE "")
+if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+  if(CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64")
+    set(RUST_TARGET_TRIPLE "x86_64-apple-darwin")
+  elseif(CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
+    set(RUST_TARGET_TRIPLE "aarch64-apple-darwin")
+  endif()
+endif()
+
+if(RUST_TARGET_TRIPLE)
+  set(RUST_TARGET_DIR "${RUST_ROOT}/target/${RUST_TARGET_TRIPLE}")
+else()
+  set(RUST_TARGET_DIR "${RUST_ROOT}/target")
+endif()
+
 set(RUN_CARGO_SCRIPT ${LIVEKIT_BINARY_DIR}/run_cargo.cmake)
 file(WRITE ${RUN_CARGO_SCRIPT}
 "if(NOT DEFINED CFG)
@@ -178,6 +194,11 @@ endif()
 set(ARGS build)
 if(NOT CFG STREQUAL \"Debug\")
   list(APPEND ARGS --release)
+endif()
+
+if(DEFINED RUST_TARGET AND NOT RUST_TARGET STREQUAL \"\")
+  list(APPEND ARGS --target \"\${RUST_TARGET}\")
+  message(STATUS \"[run_cargo.cmake] Cross-compiling for target: \${RUST_TARGET}\")
 endif()
 
 message(STATUS \"[run_cargo.cmake] CFG=\${CFG}  CARGO=\${CARGO}  PROTOC=\${PROTOC_PATH}\")
@@ -223,8 +244,8 @@ if(WIN32)
 elseif(APPLE)
   # macOS: use dynamic library (.dylib) to isolate Debug/Release ABI differences
   add_library(livekit_ffi SHARED IMPORTED GLOBAL)
-  set(RUST_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.dylib")
-  set(RUST_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.dylib")
+  set(RUST_LIB_DEBUG   "${RUST_TARGET_DIR}/debug/liblivekit_ffi.dylib")
+  set(RUST_LIB_RELEASE "${RUST_TARGET_DIR}/release/liblivekit_ffi.dylib")
   
   set_target_properties(livekit_ffi PROPERTIES
     IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
@@ -238,8 +259,8 @@ elseif(APPLE)
 else()
   # Linux: use dynamic library (.so) to isolate Debug/Release ABI differences
   add_library(livekit_ffi SHARED IMPORTED GLOBAL)
-  set(RUST_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.so")
-  set(RUST_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.so")
+  set(RUST_LIB_DEBUG   "${RUST_TARGET_DIR}/debug/liblivekit_ffi.so")
+  set(RUST_LIB_RELEASE "${RUST_TARGET_DIR}/release/liblivekit_ffi.so")
   
   set_target_properties(livekit_ffi PROPERTIES
     IMPORTED_CONFIGURATIONS "Debug;Release;RelWithDebInfo;MinSizeRel"
@@ -264,6 +285,7 @@ add_custom_command(
           -DRUST_ROOT=${RUST_ROOT}
           -DCARGO=${CARGO_EXECUTABLE}
           -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
+          -DRUST_TARGET=${RUST_TARGET_TRIPLE}
           -P "${RUN_CARGO_SCRIPT}"
   WORKING_DIRECTORY "${RUST_ROOT}"
   DEPENDS ${RUST_SOURCES}
@@ -381,8 +403,8 @@ if(LIVEKIT_IS_TOPLEVEL)
     )
   elseif(APPLE)
     # macOS: copy .dylib
-    set(FFI_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.dylib")
-    set(FFI_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.dylib")
+    set(FFI_LIB_DEBUG   "${RUST_TARGET_DIR}/debug/liblivekit_ffi.dylib")
+    set(FFI_LIB_RELEASE "${RUST_TARGET_DIR}/release/liblivekit_ffi.dylib")
     add_custom_command(
       TARGET livekit POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy
@@ -404,9 +426,9 @@ if(LIVEKIT_IS_TOPLEVEL)
     add_custom_command(
       TARGET livekit POST_BUILD
       COMMAND /usr/bin/install_name_tool
-              -change "${RUST_ROOT}/target/release/deps/liblivekit_ffi.dylib"
+              -change "${RUST_TARGET_DIR}/release/deps/liblivekit_ffi.dylib"
                       "@rpath/liblivekit_ffi.dylib"
-              -change "${RUST_ROOT}/target/debug/deps/liblivekit_ffi.dylib"
+              -change "${RUST_TARGET_DIR}/debug/deps/liblivekit_ffi.dylib"
                       "@rpath/liblivekit_ffi.dylib"
               "$<TARGET_FILE:livekit>"
       COMMENT "Fix dependency path in liblivekit.dylib -> liblivekit_ffi.dylib"
@@ -414,8 +436,8 @@ if(LIVEKIT_IS_TOPLEVEL)
     )
   else()
     # Linux: copy .so
-    set(FFI_LIB_DEBUG   "${RUST_ROOT}/target/debug/liblivekit_ffi.so")
-    set(FFI_LIB_RELEASE "${RUST_ROOT}/target/release/liblivekit_ffi.so")
+    set(FFI_LIB_DEBUG   "${RUST_TARGET_DIR}/debug/liblivekit_ffi.so")
+    set(FFI_LIB_RELEASE "${RUST_TARGET_DIR}/release/liblivekit_ffi.so")
     add_custom_command(
       TARGET livekit POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy
