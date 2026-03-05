@@ -7,12 +7,14 @@ on:
       - src/**
       - include/**
       - examples/**
+      - bridge/**
       - client-sdk-rust/**
       - CMakeLists.txt
       - build.sh
       - build.cmd
       - vcpkg.json
       - CMakePresets.json
+      - docker/Dockerfile
       - .github/workflows/**
   pull_request:
     branches: ["main"]
@@ -20,12 +22,14 @@ on:
       - src/**
       - include/**
       - examples/**
+      - bridge/**
       - client-sdk-rust/**
       - CMakeLists.txt
       - build.sh
       - build.cmd
       - vcpkg.json
       - CMakePresets.json
+      - docker/Dockerfile
       - .github/workflows/**
   workflow_dispatch:
 
@@ -246,3 +250,25 @@ jobs:
           else
             ./build.sh clean-all || true
           fi
+
+  docker-build:
+    name: Build (docker-linux-x64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        run: docker build -t livekit-cpp-sdk:${{ github.sha }} . -f docker/Dockerfile
+
+      - name: Build SDK inside Docker
+        run: |
+          docker run --rm livekit-cpp-sdk:${{ github.sha }} bash -c \
+            'cd /client-sdk-cpp && chmod +x build.sh && ./build.sh release-examples'
