@@ -18,21 +18,14 @@
 
 #include <string>
 
-namespace simple_robot {
+namespace simple_joystick {
 
-/// Represents a joystick command with three axes.
-struct JoystickCommand {
-  double x = 0.0;
-  double y = 0.0;
-  double z = 0.0;
-};
+/// Parse command-line arguments for --url and --token.
+/// Supports:
+///   - Positional:  <url> <token>
+///   - Flags:       --url=<val> / --url <val>, --token=<val> / --token <val>
+///   - Env vars:    LIVEKIT_URL, LIVEKIT_TOKEN
+/// Returns true if both url and token were resolved, false otherwise.
+bool parseArgs(int argc, char *argv[], std::string &url, std::string &token);
 
-/// Serialize a JoystickCommand to a JSON string.
-/// Example output: {"x":1.0,"y":2.0,"z":3.0}
-std::string joystick_to_json(const JoystickCommand &cmd);
-
-/// Deserialize a JSON string into a JoystickCommand.
-/// Throws std::runtime_error if the JSON is invalid or missing fields.
-JoystickCommand json_to_joystick(const std::string &json);
-
-} // namespace simple_robot
+} // namespace simple_joystick

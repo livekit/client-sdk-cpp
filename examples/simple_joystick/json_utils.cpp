@@ -19,7 +19,7 @@
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 
-namespace simple_robot {
+namespace simple_joystick {
 
 std::string joystick_to_json(const JoystickCommand &cmd) {
   nlohmann::json j;
@@ -43,4 +43,4 @@ JoystickCommand json_to_joystick(const std::string &json) {
   }
 }
 
-} // namespace simple_robot
+} // namespace simple_joystick

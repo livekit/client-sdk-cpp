@@ -43,11 +43,11 @@
  * Run alongside the "robot" example (which publishes with identity "robot").
  */
 
-#include "lk_log.h"
 #include "livekit/audio_frame.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
 #include "livekit_bridge/livekit_bridge.h"
+#include "lk_log.h"
 #include "sdl_media.h"
 
 #include <SDL3/SDL.h>

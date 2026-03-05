@@ -374,9 +374,10 @@ int main(int argc, char *argv[]) {
   auto sim_cam =
       bridge.createVideoTrack("robot-sim-frame", kSimWidth, kSimHeight,
                               livekit::TrackSource::SOURCE_SCREENSHARE);
-  LK_LOG_INFO("[robot] Publishing {} sim audio ({} Hz, {} ch), cam + sim frame ({}x{} / {}x{}).",
-              use_mic ? "mic + " : "(no mic) ", kSampleRate, kChannels,
-              kWidth, kHeight, kSimWidth, kSimHeight);
+  LK_LOG_INFO("[robot] Publishing {} sim audio ({} Hz, {} ch), cam + sim frame "
+              "({}x{} / {}x{}).",
+              use_mic ? "mic + " : "(no mic) ", kSampleRate, kChannels, kWidth,
+              kHeight, kSimWidth, kSimHeight);
 
   // ----- SDL Mic capture (only when use_mic) -----
   // SDLMicSource pulls 10ms frames from the default recording device and
