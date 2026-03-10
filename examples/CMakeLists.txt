@@ -51,6 +51,8 @@ set(EXAMPLES_ALL
   MuteUnmuteReceiver
   RpcCaller
   RpcReceiver
+  SessionManagerBaseSdkProducer
+  SessionManagerBaseSdkViewer
 )
 
 # Examples that use SDL3 (need SDL3 lib copied on Linux; SimpleRoom is handled separately above)
@@ -59,12 +61,14 @@ set(EXAMPLES_NEED_SDL3
   HumanRobotHuman
   MuteUnmuteCaller
   MuteUnmuteReceiver
+  SessionManagerBaseSdkProducer
+  SessionManagerBaseSdkViewer
 )
 
 add_executable(SimpleRoom
   base_sdk/simple_room/main.cpp
-  base_sdk/simple_room/fallback_capture.cpp
-  base_sdk/simple_room/fallback_capture.h
+  ${EXAMPLES_COMMON_DIR}/fallback_capture.cpp
+  ${EXAMPLES_COMMON_DIR}/fallback_capture.h
   ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
   ${EXAMPLES_COMMON_DIR}/sdl_media.h
   ${EXAMPLES_COMMON_DIR}/sdl_media_manager.cpp
@@ -293,7 +297,45 @@ target_include_directories(MuteUnmuteReceiver PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-ßtarget_link_libraries(MuteUnmuteReceiver PRIVATE livekit spdlog::spdlog SDL3::SDL3)
+target_link_libraries(MuteUnmuteReceiver PRIVATE livekit spdlog::spdlog SDL3::SDL3)
+
+# --- session_manager_base_sdk (SessionManager connect + getRoom(); Room for all else) ---
+add_executable(SessionManagerBaseSdkProducer
+  session_manager_base_sdk/video_producer.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.h
+)
+target_include_directories(SessionManagerBaseSdkProducer PRIVATE
+  ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
+  ${EXAMPLES_COMMON_DIR}
+)
+target_link_libraries(SessionManagerBaseSdkProducer PRIVATE livekit spdlog::spdlog SDL3::SDL3)
+
+add_executable(SessionManagerBaseSdkViewer
+  session_manager_base_sdk/video_viewer.cpp
+  ${EXAMPLES_COMMON_DIR}/fallback_capture.cpp
+  ${EXAMPLES_COMMON_DIR}/fallback_capture.h
+  ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media.h
+  ${EXAMPLES_COMMON_DIR}/sdl_media_manager.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_media_manager.h
+  ${EXAMPLES_COMMON_DIR}/sdl_video_renderer.cpp
+  ${EXAMPLES_COMMON_DIR}/sdl_video_renderer.h
+  ${EXAMPLES_COMMON_DIR}/wav_audio_source.cpp
+  ${EXAMPLES_COMMON_DIR}/wav_audio_source.h
+)
+target_include_directories(SessionManagerBaseSdkViewer PRIVATE
+  ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
+  ${EXAMPLES_COMMON_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}/base_sdk/simple_room
+)
+target_link_libraries(SessionManagerBaseSdkViewer PRIVATE livekit spdlog::spdlog SDL3::SDL3)
+
+add_custom_command(TARGET SessionManagerBaseSdkViewer POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+          ${LIVEKIT_ROOT_DIR}/data
+          $<TARGET_FILE_DIR:SessionManagerBaseSdkViewer>/data
+)
 
 # Copy SDL3 shared library to examples output directories
 if(UNIX AND NOT APPLE)

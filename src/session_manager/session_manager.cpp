@@ -220,6 +220,11 @@ bool SessionManager::isConnected() const {
   return connected_;
 }
 
+livekit::Room *SessionManager::getRoom() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return (connected_ && room_) ? room_.get() : nullptr;
+}
+
 // ---------------------------------------------------------------
 // Track creation (publishing)
 // ---------------------------------------------------------------

@@ -155,6 +155,27 @@ public:
   /// Whether the SessionManager is currently connected to a room.
   bool isConnected() const;
 
+  /**
+   * Get the underlying Room for direct base SDK access.
+   *
+   * Use this to access room_info(), remoteParticipants(),
+   * registerTextStreamHandler, registerByteStreamHandler, e2eeManager(), etc.
+   *
+   * @return Non-null pointer to the Room while connected; nullptr otherwise.
+   *
+   * @note The pointer is valid only while isConnected() is true. Do not store
+   *       the pointer across disconnect/reconnect cycles.
+   *
+   * @warning Do NOT call setDelegate() on the returned Room — SessionManager
+   *          manages the delegate for room lifecycle and track events.
+   *
+   * @note For publishing audio/video tracks, prefer createAudioTrack() and
+   *       createVideoTrack() so SessionManager can manage track lifecycle on
+   *       disconnect. Direct publishTrack() via localParticipant() bypasses
+   *       that management.
+   */
+  livekit::Room *getRoom() const;
+
   // ---------------------------------------------------------------
   // Track creation (publishing)
   // ---------------------------------------------------------------

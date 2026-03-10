@@ -60,6 +60,27 @@ cam.reset();       // unpublishes the video track
 sm.disconnect();
 ```
 
+### Accessing the Base SDK via getRoom()
+
+The SessionManager owns the underlying `livekit::Room` internally. Use `getRoom()` to access base SDK features while the SessionManager manages the connection lifecycle:
+
+```cpp
+if (auto* room = sm.getRoom()) {
+  auto info = room->room_info();
+  // ... use info.sid, info.name, info.num_participants, etc.
+
+  for (const auto& rp : room->remoteParticipants()) {
+    // ... enumerate remote participants
+  }
+
+  room->registerTextStreamHandler("topic", [](auto reader, auto identity) {
+    // ... handle incoming text streams
+  });
+}
+```
+
+The returned pointer is valid only while `isConnected()` is true. Do not call `setDelegate()` on the returned Room — SessionManager manages the delegate. For publishing audio/video tracks, prefer `createAudioTrack()` and `createVideoTrack()` so SessionManager can manage track lifecycle on disconnect.
+
 ## Architecture
 
 ### Data Flow Overview
@@ -133,6 +154,7 @@ sm.connect(url, token, options);
 | `connect(url, token, options)` | Connect to a LiveKit room. Initializes the SDK, creates a Room, and connects with auto-subscribe enabled. |
 | `disconnect()` | Disconnect and release all resources. Joins all reader threads. Safe to call multiple times. |
 | `isConnected()` | Returns whether the SessionManager is currently connected. |
+| `getRoom()` | Returns a raw pointer to the underlying `livekit::Room` for direct base SDK access (e.g. `room_info()`, `remoteParticipants()`, `registerTextStreamHandler`). Returns `nullptr` when disconnected. Do not call `setDelegate()` on the returned Room. |
 | `createAudioTrack(name, sample_rate, num_channels, source)` | Create and publish a local audio track with the given `TrackSource` (e.g. `SOURCE_MICROPHONE`, `SOURCE_SCREENSHARE_AUDIO`). Returns an RAII `shared_ptr<ManagedAudioTrack>`. |
 | `createVideoTrack(name, width, height, source)` | Create and publish a local video track with the given `TrackSource` (e.g. `SOURCE_CAMERA`, `SOURCE_SCREENSHARE`). Returns an RAII `shared_ptr<ManagedVideoTrack>`. |
 | `setOnAudioFrameCallback(identity, source, callback)` | Register a callback for audio frames from a specific remote participant + track source. |
@@ -164,11 +186,17 @@ sm.connect(url, token, options);
 | `name()` / `width()` / `height()` | Accessors for track configuration. |
 
 ## Examples
-- examples/robot.cpp: publishes video and audio from a webcam and microphone. This requires a webcam and microphone to be available.
-- examples/human.cpp: receives and renders video to the screen, receives and plays audio through the speaker.
 
-### Running the examples:
-Note: the following workflow works for both `human` and `robot`.
+
+
+### Running the examples
+
+```
+export LIVEKIT_URL="wss://your-server.livekit.cloud"
+export LIVEKIT_TOKEN=<token>
+./build-release/bin/<executables>
+```
+(Or pass `<ws-url> <token>` as positional arguments.)
 
 1. create a `robo_room`
 ```
@@ -199,7 +227,7 @@ export LIVEKIT_TOKEN=<token>
 ```
 export LIVEKIT_URL="wss://your-server.livekit.cloud"
 export LIVEKIT_TOKEN=<token>
-./build-release/bin/human
+./build-release/bin/HumanRobotHuman
 ```
 
 The human will print periodic summaries like:
