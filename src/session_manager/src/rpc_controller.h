@@ -38,7 +38,7 @@ class RpcControllerTest;
 } // namespace test
 
 /**
- * Owns all RPC concerns for the LiveKitBridge: built-in handler registration
+ * Owns all RPC concerns for the SessionManager: built-in handler registration
  * and dispatch, user-registered custom handlers, and outgoing RPC calls.
  *
  * The controller is bound to a LocalParticipant via enable() and unbound via
@@ -49,7 +49,7 @@ class RpcControllerTest;
  * enable() and unregistered on disable(). User-registered handlers are
  * forwarded directly to the underlying LocalParticipant.
  *
- * Not part of the public API; lives in bridge/src/.
+ * Not part of the public API; lives in session_manager/src/.
  */
 class RpcController {
 public:

@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-/// @file test_livekit_bridge.cpp
-/// @brief Unit tests for LiveKitBridge.
+/// @file test_session_manager.cpp
+/// @brief Unit tests for SessionManager.
 
 #include <gtest/gtest.h>
-#include <livekit_bridge/livekit_bridge.h>
+#include <livekit_bridge/session_manager.h>
 
 #include <livekit/track.h>
 
@@ -27,7 +27,7 @@
 namespace livekit_bridge {
 namespace test {
 
-class LiveKitBridgeTest : public ::testing::Test {
+class SessionManagerTest : public ::testing::Test {
 protected:
   // No SetUp/TearDown needed -- we test the bridge without initializing
   // the LiveKit SDK, since we only exercise pre-connection behaviour.
@@ -37,15 +37,15 @@ protected:
 // Initial state
 // ============================================================================
 
-TEST_F(LiveKitBridgeTest, InitiallyNotConnected) {
-  LiveKitBridge bridge;
+TEST_F(SessionManagerTest, InitiallyNotConnected) {
+  SessionManager bridge;
 
   EXPECT_FALSE(bridge.isConnected())
       << "Bridge should not be connected immediately after construction";
 }
 
-TEST_F(LiveKitBridgeTest, DisconnectBeforeConnectIsNoOp) {
-  LiveKitBridge bridge;
+TEST_F(SessionManagerTest, DisconnectBeforeConnectIsNoOp) {
+  SessionManager bridge;
 
   EXPECT_NO_THROW(bridge.disconnect())
       << "disconnect() on an unconnected bridge should be a safe no-op";
@@ -53,8 +53,8 @@ TEST_F(LiveKitBridgeTest, DisconnectBeforeConnectIsNoOp) {
   EXPECT_FALSE(bridge.isConnected());
 }
 
-TEST_F(LiveKitBridgeTest, MultipleDisconnectsAreIdempotent) {
-  LiveKitBridge bridge;
+TEST_F(SessionManagerTest, MultipleDisconnectsAreIdempotent) {
+  SessionManager bridge;
 
   EXPECT_NO_THROW({
     bridge.disconnect();
@@ -63,10 +63,10 @@ TEST_F(LiveKitBridgeTest, MultipleDisconnectsAreIdempotent) {
   }) << "Multiple disconnect() calls should be safe";
 }
 
-TEST_F(LiveKitBridgeTest, DestructorOnUnconnectedBridgeIsSafe) {
+TEST_F(SessionManagerTest, DestructorOnUnconnectedBridgeIsSafe) {
   // Just verify no crash when the bridge is destroyed without connecting.
   EXPECT_NO_THROW({
-    LiveKitBridge bridge;
+    SessionManager bridge;
     // bridge goes out of scope here
   });
 }
@@ -75,8 +75,8 @@ TEST_F(LiveKitBridgeTest, DestructorOnUnconnectedBridgeIsSafe) {
 // Track creation before connection
 // ============================================================================
 
-TEST_F(LiveKitBridgeTest, CreateAudioTrackBeforeConnectThrows) {
-  LiveKitBridge bridge;
+TEST_F(SessionManagerTest, CreateAudioTrackBeforeConnectThrows) {
+  SessionManager bridge;
 
   EXPECT_THROW(bridge.createAudioTrack("mic", 48000, 2,
                                        livekit::TrackSource::SOURCE_MICROPHONE),
@@ -84,8 +84,8 @@ TEST_F(LiveKitBridgeTest, CreateAudioTrackBeforeConnectThrows) {
       << "createAudioTrack should throw when not connected";
 }
 
-TEST_F(LiveKitBridgeTest, CreateVideoTrackBeforeConnectThrows) {
-  LiveKitBridge bridge;
+TEST_F(SessionManagerTest, CreateVideoTrackBeforeConnectThrows) {
+  SessionManager bridge;
 
   EXPECT_THROW(bridge.createVideoTrack("cam", 1280, 720,
                                        livekit::TrackSource::SOURCE_CAMERA),
@@ -97,8 +97,8 @@ TEST_F(LiveKitBridgeTest, CreateVideoTrackBeforeConnectThrows) {
 // Callback registration (pre-connection, pure map operations)
 // ============================================================================
 
-TEST_F(LiveKitBridgeTest, RegisterAndUnregisterAudioCallbackDoesNotCrash) {
-  LiveKitBridge bridge;
+TEST_F(SessionManagerTest, RegisterAndUnregisterAudioCallbackDoesNotCrash) {
+  SessionManager bridge;
 
   EXPECT_NO_THROW({
     bridge.setOnAudioFrameCallback("remote-participant",
@@ -111,8 +111,8 @@ TEST_F(LiveKitBridgeTest, RegisterAndUnregisterAudioCallbackDoesNotCrash) {
         "even without a connection";
 }
 
-TEST_F(LiveKitBridgeTest, RegisterAndUnregisterVideoCallbackDoesNotCrash) {
-  LiveKitBridge bridge;
+TEST_F(SessionManagerTest, RegisterAndUnregisterVideoCallbackDoesNotCrash) {
+  SessionManager bridge;
 
   EXPECT_NO_THROW({
     bridge.setOnVideoFrameCallback(
@@ -125,8 +125,8 @@ TEST_F(LiveKitBridgeTest, RegisterAndUnregisterVideoCallbackDoesNotCrash) {
         "even without a connection";
 }
 
-TEST_F(LiveKitBridgeTest, UnregisterNonExistentCallbackIsNoOp) {
-  LiveKitBridge bridge;
+TEST_F(SessionManagerTest, UnregisterNonExistentCallbackIsNoOp) {
+  SessionManager bridge;
 
   EXPECT_NO_THROW({
     bridge.clearOnAudioFrameCallback("nonexistent",
@@ -136,8 +136,8 @@ TEST_F(LiveKitBridgeTest, UnregisterNonExistentCallbackIsNoOp) {
   }) << "Unregistering a callback that was never registered should be a no-op";
 }
 
-TEST_F(LiveKitBridgeTest, MultipleRegistrationsSameKeyOverwrites) {
-  LiveKitBridge bridge;
+TEST_F(SessionManagerTest, MultipleRegistrationsSameKeyOverwrites) {
+  SessionManager bridge;
 
   int call_count = 0;
 
@@ -156,8 +156,8 @@ TEST_F(LiveKitBridgeTest, MultipleRegistrationsSameKeyOverwrites) {
       "alice", livekit::TrackSource::SOURCE_MICROPHONE));
 }
 
-TEST_F(LiveKitBridgeTest, RegisterCallbacksForMultipleParticipants) {
-  LiveKitBridge bridge;
+TEST_F(SessionManagerTest, RegisterCallbacksForMultipleParticipants) {
+  SessionManager bridge;
 
   EXPECT_NO_THROW({
     bridge.setOnAudioFrameCallback("alice",

@@ -14,13 +14,13 @@
  * limitations under the License.
  */
 
-/// @file livekit_bridge.h
+/// @file session_manager.h
 /// @brief High-level bridge API for the LiveKit C++ SDK.
 
 #pragma once
 
-#include "livekit_bridge/bridge_audio_track.h"
-#include "livekit_bridge/bridge_video_track.h"
+#include "livekit_bridge/managed_audio_track.h"
+#include "livekit_bridge/managed_video_track.h"
 #include "livekit_bridge/rpc_constants.h"
 
 #include "livekit/local_participant.h"
@@ -53,7 +53,7 @@ class RpcController;
 
 namespace test {
 class CallbackKeyTest;
-class LiveKitBridgeTest;
+class SessionManagerTest;
 } // namespace test
 
 /// Callback type for incoming audio frames.
@@ -81,24 +81,24 @@ using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
  *
  * Example:
  *
- *   LiveKitBridge bridge;
+ *   SessionManager manager;
  *   livekit::RoomOptions options;
  *   options.auto_subscribe = true;
- *   bridge.connect("wss://my-server.livekit.cloud", my_token, options);
+ *   manager.connect("wss://my-server.livekit.cloud", my_token, options);
  *
- *   auto mic = bridge.createAudioTrack("mic", 48000, 2,
+ *   auto mic = manager.createAudioTrack("mic", 48000, 2,
  *       livekit::TrackSource::SOURCE_MICROPHONE);
- *   auto cam = bridge.createVideoTrack("cam", 1280, 720,
+ *   auto cam = manager.createVideoTrack("cam", 1280, 720,
  *       livekit::TrackSource::SOURCE_CAMERA);
  *
  *   mic->pushFrame(pcm_data, samples_per_channel);
  *   cam->pushFrame(rgba_data, timestamp_us);
  *
- *   bridge.setOnAudioFrameCallback("remote-participant",
+ *   manager.setOnAudioFrameCallback("remote-participant",
  *       livekit::TrackSource::SOURCE_MICROPHONE,
  *       [](const livekit::AudioFrame& f) { process(f); });
  *
- *   bridge.setOnVideoFrameCallback("remote-participant",
+ *   manager.setOnVideoFrameCallback("remote-participant",
  *       livekit::TrackSource::SOURCE_CAMERA,
  *       [](const livekit::VideoFrame& f, int64_t ts) { render(f); });
  *
@@ -106,18 +106,18 @@ using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
  *   mic->release();
  *
  *   // Disconnect releases all remaining tracks and tears down the room:
- *   bridge.disconnect();
+ *   manager.disconnect();
  */
-class LiveKitBridge {
+class SessionManager {
 public:
-  LiveKitBridge();
-  ~LiveKitBridge();
+  SessionManager();
+  ~SessionManager();
 
   // Non-copyable, non-movable (owns threads, callbacks, room)
-  LiveKitBridge(const LiveKitBridge &) = delete;
-  LiveKitBridge &operator=(const LiveKitBridge &) = delete;
-  LiveKitBridge(LiveKitBridge &&) = delete;
-  LiveKitBridge &operator=(LiveKitBridge &&) = delete;
+  SessionManager(const SessionManager &) = delete;
+  SessionManager &operator=(const SessionManager &) = delete;
+  SessionManager(SessionManager &&) = delete;
+  SessionManager &operator=(SessionManager &&) = delete;
 
   // ---------------------------------------------------------------
   // Connection
@@ -179,7 +179,7 @@ public:
    * @return Shared pointer to the published audio track handle (never null).
    * @throws std::runtime_error if the bridge is not connected.
    */
-  std::shared_ptr<BridgeAudioTrack>
+  std::shared_ptr<ManagedAudioTrack>
   createAudioTrack(const std::string &name, int sample_rate, int num_channels,
                    livekit::TrackSource source);
 
@@ -203,7 +203,7 @@ public:
    * @return Shared pointer to the published video track handle (never null).
    * @throws std::runtime_error if the bridge is not connected.
    */
-  std::shared_ptr<BridgeVideoTrack>
+  std::shared_ptr<ManagedVideoTrack>
   createVideoTrack(const std::string &name, int width, int height,
                    livekit::TrackSource source);
 
@@ -329,7 +329,7 @@ public:
   /**
    * Request a remote participant to mute a published track.
    *
-   * The remote participant must be a LiveKitBridge instance (which
+   * The remote participant must be a SessionManager instance (which
    * automatically registers the built-in track-control RPC handler).
    *
    * @param destination_identity  Identity of the remote participant.
@@ -342,7 +342,7 @@ public:
   /**
    * Request a remote participant to unmute a published track.
    *
-   * The remote participant must be a LiveKitBridge instance (which
+   * The remote participant must be a SessionManager instance (which
    * automatically registers the built-in track-control RPC handler).
    *
    * @param destination_identity  Identity of the remote participant.
@@ -355,7 +355,7 @@ public:
 private:
   friend class BridgeRoomDelegate;
   friend class test::CallbackKeyTest;
-  friend class test::LiveKitBridgeTest;
+  friend class test::SessionManagerTest;
 
   /// Composite key for the callback map: (participant_identity, source).
   /// Only one callback can exist per key -- re-registering overwrites.
@@ -434,9 +434,9 @@ private:
   /// All tracks created by this bridge. The bridge retains a shared_ptr so
   /// it can force-release every track on disconnect() before the room is
   /// destroyed, preventing dangling @c participant_ pointers.
-  std::vector<std::shared_ptr<BridgeAudioTrack>> published_audio_tracks_;
+  std::vector<std::shared_ptr<ManagedAudioTrack>> published_audio_tracks_;
   /// @copydoc published_audio_tracks_
-  std::vector<std::shared_ptr<BridgeVideoTrack>> published_video_tracks_;
+  std::vector<std::shared_ptr<ManagedVideoTrack>> published_video_tracks_;
 };
 
 } // namespace livekit_bridge

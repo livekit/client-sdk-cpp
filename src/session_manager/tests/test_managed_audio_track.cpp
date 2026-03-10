@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-/// @file test_bridge_audio_track.cpp
-/// @brief Unit tests for BridgeAudioTrack.
+/// @file test_managed_audio_track.cpp
+/// @brief Unit tests for ManagedAudioTrack.
 
 #include <gtest/gtest.h>
-#include <livekit_bridge/bridge_audio_track.h>
+#include <livekit_bridge/managed_audio_track.h>
 
 #include <cstdint>
 #include <memory>
@@ -27,25 +27,25 @@
 namespace livekit_bridge {
 namespace test {
 
-class BridgeAudioTrackTest : public ::testing::Test {
+class ManagedAudioTrackTest : public ::testing::Test {
 protected:
-  /// Create a BridgeAudioTrack with null SDK objects for pure-logic testing.
+  /// Create a ManagedAudioTrack with null SDK objects for pure-logic testing.
   /// The track is usable for accessor and state management tests but will
   /// crash if pushFrame / mute / unmute try to dereference SDK pointers
   /// on a non-released track.
-  static BridgeAudioTrack createNullTrack(const std::string &name = "mic",
-                                          int sample_rate = 48000,
-                                          int num_channels = 2) {
-    return BridgeAudioTrack(name, sample_rate, num_channels,
-                            nullptr, // source
-                            nullptr, // track
-                            nullptr, // publication
-                            nullptr  // participant
+  static ManagedAudioTrack createNullTrack(const std::string &name = "mic",
+                                           int sample_rate = 48000,
+                                           int num_channels = 2) {
+    return ManagedAudioTrack(name, sample_rate, num_channels,
+                             nullptr, // source
+                             nullptr, // track
+                             nullptr, // publication
+                             nullptr  // participant
     );
   }
 };
 
-TEST_F(BridgeAudioTrackTest, AccessorsReturnConstructionValues) {
+TEST_F(ManagedAudioTrackTest, AccessorsReturnConstructionValues) {
   auto track = createNullTrack("test-mic", 16000, 1);
 
   EXPECT_EQ(track.name(), "test-mic") << "Name should match construction value";
@@ -53,14 +53,14 @@ TEST_F(BridgeAudioTrackTest, AccessorsReturnConstructionValues) {
   EXPECT_EQ(track.numChannels(), 1) << "Channel count should match";
 }
 
-TEST_F(BridgeAudioTrackTest, InitiallyNotReleased) {
+TEST_F(ManagedAudioTrackTest, InitiallyNotReleased) {
   auto track = createNullTrack();
 
   EXPECT_FALSE(track.isReleased())
       << "Track should not be released immediately after construction";
 }
 
-TEST_F(BridgeAudioTrackTest, ReleaseMarksTrackAsReleased) {
+TEST_F(ManagedAudioTrackTest, ReleaseMarksTrackAsReleased) {
   auto track = createNullTrack();
 
   track.release();
@@ -69,7 +69,7 @@ TEST_F(BridgeAudioTrackTest, ReleaseMarksTrackAsReleased) {
       << "Track should be released after calling release()";
 }
 
-TEST_F(BridgeAudioTrackTest, DoubleReleaseIsIdempotent) {
+TEST_F(ManagedAudioTrackTest, DoubleReleaseIsIdempotent) {
   auto track = createNullTrack();
 
   track.release();
@@ -78,7 +78,7 @@ TEST_F(BridgeAudioTrackTest, DoubleReleaseIsIdempotent) {
   EXPECT_TRUE(track.isReleased());
 }
 
-TEST_F(BridgeAudioTrackTest, PushFrameAfterReleaseReturnsFalse) {
+TEST_F(ManagedAudioTrackTest, PushFrameAfterReleaseReturnsFalse) {
   auto track = createNullTrack();
   track.release();
 
@@ -88,7 +88,7 @@ TEST_F(BridgeAudioTrackTest, PushFrameAfterReleaseReturnsFalse) {
       << "pushFrame (vector) on a released track should return false";
 }
 
-TEST_F(BridgeAudioTrackTest, PushFrameRawPointerAfterReleaseReturnsFalse) {
+TEST_F(ManagedAudioTrackTest, PushFrameRawPointerAfterReleaseReturnsFalse) {
   auto track = createNullTrack();
   track.release();
 
@@ -98,7 +98,7 @@ TEST_F(BridgeAudioTrackTest, PushFrameRawPointerAfterReleaseReturnsFalse) {
       << "pushFrame (raw pointer) on a released track should return false";
 }
 
-TEST_F(BridgeAudioTrackTest, MuteOnReleasedTrackDoesNotCrash) {
+TEST_F(ManagedAudioTrackTest, MuteOnReleasedTrackDoesNotCrash) {
   auto track = createNullTrack();
   track.release();
 
@@ -106,7 +106,7 @@ TEST_F(BridgeAudioTrackTest, MuteOnReleasedTrackDoesNotCrash) {
       << "mute() on a released track should be a no-op";
 }
 
-TEST_F(BridgeAudioTrackTest, UnmuteOnReleasedTrackDoesNotCrash) {
+TEST_F(ManagedAudioTrackTest, UnmuteOnReleasedTrackDoesNotCrash) {
   auto track = createNullTrack();
   track.release();
 

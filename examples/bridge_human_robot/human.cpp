@@ -46,7 +46,7 @@
 #include "livekit/audio_frame.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
-#include "livekit_bridge/livekit_bridge.h"
+#include "livekit_bridge/session_manager.h"
 #include "lk_log.h"
 #include "sdl_media.h"
 
@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
   std::mutex speaker_mutex;
 
   // ----- Connect to LiveKit -----
-  livekit_bridge::LiveKitBridge bridge;
+  livekit_bridge::SessionManager bridge;
   std::cout << "[human] Connecting to " << url << " ...\n";
   livekit::RoomOptions options;
   options.auto_subscribe = true;

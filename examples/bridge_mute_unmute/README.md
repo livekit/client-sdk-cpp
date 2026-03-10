@@ -1,6 +1,6 @@
 # Bridge Mute/Unmute Example
 
-Demonstrates remote track control using the `LiveKitBridge` built-in
+Demonstrates remote track control using the `SessionManager` built-in
 track-control RPC. A **receiver** publishes audio and video tracks, and a
 **caller** subscribes to them and toggles mute/unmute every few seconds.
 

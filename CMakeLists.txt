@@ -680,7 +680,7 @@ install(FILES
 # ------------------------------------------------------------------------
 
 # Build the LiveKit C++ bridge before examples (human_robot depends on it)
-add_subdirectory(bridge)
+add_subdirectory(src/session_manager)
 
 # ---- Examples ----
 # add_subdirectory(examples)

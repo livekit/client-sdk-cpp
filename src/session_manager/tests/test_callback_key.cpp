@@ -15,10 +15,10 @@
  */
 
 /// @file test_callback_key.cpp
-/// @brief Unit tests for LiveKitBridge::CallbackKey hash and equality.
+/// @brief Unit tests for SessionManager::CallbackKey hash and equality.
 
 #include <gtest/gtest.h>
-#include <livekit_bridge/livekit_bridge.h>
+#include <livekit_bridge/session_manager.h>
 
 #include <livekit/track.h>
 
@@ -29,10 +29,10 @@ namespace test {
 
 class CallbackKeyTest : public ::testing::Test {
 protected:
-  // Type aliases for convenience -- these are private types in LiveKitBridge,
+  // Type aliases for convenience -- these are private types in SessionManager,
   // accessible via the friend declaration.
-  using CallbackKey = LiveKitBridge::CallbackKey;
-  using CallbackKeyHash = LiveKitBridge::CallbackKeyHash;
+  using CallbackKey = SessionManager::CallbackKey;
+  using CallbackKeyHash = SessionManager::CallbackKeyHash;
 };
 
 TEST_F(CallbackKeyTest, EqualKeysCompareEqual) {

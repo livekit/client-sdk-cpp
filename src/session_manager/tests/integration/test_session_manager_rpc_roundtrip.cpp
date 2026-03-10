@@ -33,8 +33,8 @@ TEST_F(BridgeRpcRoundtripTest, BasicRpcRoundTrip) {
 
   std::cout << "\n=== Bridge RPC Round-Trip Test ===" << std::endl;
 
-  LiveKitBridge caller;
-  LiveKitBridge receiver;
+  SessionManager caller;
+  SessionManager receiver;
 
   ASSERT_TRUE(connectPair(caller, receiver));
 
@@ -88,8 +88,8 @@ TEST_F(BridgeRpcRoundtripTest, RpcErrorPropagation) {
 
   std::cout << "\n=== Bridge RPC Error Propagation Test ===" << std::endl;
 
-  LiveKitBridge caller;
-  LiveKitBridge receiver;
+  SessionManager caller;
+  SessionManager receiver;
 
   ASSERT_TRUE(connectPair(caller, receiver));
 
@@ -129,8 +129,8 @@ TEST_F(BridgeRpcRoundtripTest, UnregisteredMethod) {
 
   std::cout << "\n=== Bridge RPC Unsupported Method Test ===" << std::endl;
 
-  LiveKitBridge caller;
-  LiveKitBridge receiver;
+  SessionManager caller;
+  SessionManager receiver;
 
   ASSERT_TRUE(connectPair(caller, receiver));
 
@@ -167,8 +167,8 @@ TEST_F(BridgeRemoteTrackControlTest, RemoteMuteAudioTrack) {
 
   std::cout << "\n=== Bridge Remote Mute Audio Track Test ===" << std::endl;
 
-  LiveKitBridge publisher;
-  LiveKitBridge controller;
+  SessionManager publisher;
+  SessionManager controller;
 
   ASSERT_TRUE(connectPair(controller, publisher));
 
@@ -206,8 +206,8 @@ TEST_F(BridgeRemoteTrackControlTest, RemoteMuteVideoTrack) {
 
   std::cout << "\n=== Bridge Remote Mute Video Track Test ===" << std::endl;
 
-  LiveKitBridge publisher;
-  LiveKitBridge controller;
+  SessionManager publisher;
+  SessionManager controller;
 
   ASSERT_TRUE(connectPair(controller, publisher));
 
@@ -243,8 +243,8 @@ TEST_F(BridgeRemoteTrackControlTest, RemoteMuteNonexistentTrack) {
   std::cout << "\n=== Bridge Remote Mute Nonexistent Track Test ==="
             << std::endl;
 
-  LiveKitBridge publisher;
-  LiveKitBridge controller;
+  SessionManager publisher;
+  SessionManager controller;
 
   ASSERT_TRUE(connectPair(controller, publisher));
 

@@ -11,13 +11,13 @@ Since this is an extention of the LiveKit C++ SDK, go through the LiveKit C++ SD
 ## Usage Overview
 
 ```cpp
-#include "livekit_bridge/livekit_bridge.h"
+#include "livekit_bridge/session_manager.h"
 #include "livekit/audio_frame.h"
 #include "livekit/video_frame.h"
 #include "livekit/track.h"
 
 // 1. Connect
-livekit_bridge::LiveKitBridge bridge;
+livekit_bridge::SessionManager bridge;
 livekit::RoomOptions options;
 options.auto_subscribe = true; // automatically subscribe to all remote tracks
 options.dynacast = false;
@@ -80,12 +80,12 @@ TODO(sderosa): add instructions on how to use the bridge in your own CMake proje
 ```
 Your Application
     |                                       |
-    |  pushFrame() -----> BridgeAudioTrack  |  (sending to remote participants)
-    |  pushFrame() -----> BridgeVideoTrack  |
+    |  pushFrame() -----> ManagedAudioTrack |  (sending to remote participants)
+    |  pushFrame() -----> ManagedVideoTrack |
     |                                       |
     |  callback() <------ Reader Thread     |  (receiving from remote participants)
     |                                       |
-    +------- LiveKitBridge -----------------+
+    +------- SessionManager ----------------+
                     |
               LiveKit Room
                     |
@@ -94,9 +94,9 @@ Your Application
 
 ### Core Components
 
-**`LiveKitBridge`** -- The main entry point. Owns the full room lifecycle: SDK initialization, room connection, track publishing, and frame callback management.
+**`SessionManager`** -- The main entry point. Owns the full room lifecycle: SDK initialization, room connection, track publishing, and frame callback management.
 
-**`BridgeAudioTrack` / `BridgeVideoTrack`** -- RAII handles for published local tracks. Created via `createAudioTrack()` / `createVideoTrack()`. When the `shared_ptr` is dropped, the track is automatically unpublished and all underlying SDK resources are freed. Call `pushFrame()` to send audio/video data to remote participants.
+**`ManagedAudioTrack` / `ManagedVideoTrack`** -- RAII handles for published local tracks. Created via `createAudioTrack()` / `createVideoTrack()`. When the `shared_ptr` is dropped, the track is automatically unpublished and all underlying SDK resources are freed. Call `pushFrame()` to send audio/video data to remote participants.
 
 **`BridgeRoomDelegate`** -- Internal (not part of the public API; lives in `src/`). Listens for `onTrackSubscribed` / `onTrackUnsubscribed` events from the LiveKit SDK and wires up reader threads automatically.
 
@@ -108,7 +108,7 @@ When a remote participant publishes an audio or video track and the bridge subsc
 
 In short:
 
-- **Sending** (you -> remote): `BridgeAudioTrack::pushFrame()` / `BridgeVideoTrack::pushFrame()`
+- **Sending** (you -> remote): `ManagedAudioTrack::pushFrame()` / `ManagedVideoTrack::pushFrame()`
 - **Receiving** (remote -> you): reader threads invoke your registered callbacks
 
 Reader threads are managed entirely by the bridge. They are created when a matching remote track is subscribed, and torn down (stream closed, thread joined) when the track is unsubscribed, the callback is unregistered, or `disconnect()` is called.
@@ -133,21 +133,21 @@ bridge.connect(url, token, options);
 
 ### Thread Safety
 
-- `LiveKitBridge` uses a mutex to protect the callback map and active reader state.
+- `SessionManager` uses a mutex to protect the callback map and active reader state.
 - Frame callbacks fire on background reader threads. If your callback accesses shared application state, you are responsible for synchronization.
 - `disconnect()` closes all streams and joins all reader threads before returning -- it is safe to destroy the bridge immediately after.
 
 ## API Reference
 
-### `LiveKitBridge`
+### `SessionManager`
 
 | Method | Description |
 |---|---|
 | `connect(url, token, options)` | Connect to a LiveKit room. Initializes the SDK, creates a Room, and connects with auto-subscribe enabled. |
 | `disconnect()` | Disconnect and release all resources. Joins all reader threads. Safe to call multiple times. |
 | `isConnected()` | Returns whether the bridge is currently connected. |
-| `createAudioTrack(name, sample_rate, num_channels, source)` | Create and publish a local audio track with the given `TrackSource` (e.g. `SOURCE_MICROPHONE`, `SOURCE_SCREENSHARE_AUDIO`). Returns an RAII `shared_ptr<BridgeAudioTrack>`. |
-| `createVideoTrack(name, width, height, source)` | Create and publish a local video track with the given `TrackSource` (e.g. `SOURCE_CAMERA`, `SOURCE_SCREENSHARE`). Returns an RAII `shared_ptr<BridgeVideoTrack>`. |
+| `createAudioTrack(name, sample_rate, num_channels, source)` | Create and publish a local audio track with the given `TrackSource` (e.g. `SOURCE_MICROPHONE`, `SOURCE_SCREENSHARE_AUDIO`). Returns an RAII `shared_ptr<ManagedAudioTrack>`. |
+| `createVideoTrack(name, width, height, source)` | Create and publish a local video track with the given `TrackSource` (e.g. `SOURCE_CAMERA`, `SOURCE_SCREENSHARE`). Returns an RAII `shared_ptr<ManagedVideoTrack>`. |
 | `setOnAudioFrameCallback(identity, source, callback)` | Register a callback for audio frames from a specific remote participant + track source. |
 | `setOnVideoFrameCallback(identity, source, callback)` | Register a callback for video frames from a specific remote participant + track source. |
 | `clearOnAudioFrameCallback(identity, source)` | Clear the audio callback for a specific remote participant + track source. Stops and joins the reader thread if active. |
@@ -158,7 +158,7 @@ bridge.connect(url, token, options);
 | `requestRemoteTrackMute(identity, track_name)` | Ask a remote participant to mute a track by name. Throws `livekit::RpcError` on failure. |
 | `requestRemoteTrackUnmute(identity, track_name)` | Ask a remote participant to unmute a track by name. Throws `livekit::RpcError` on failure. |
 
-### `BridgeAudioTrack`
+### `ManagedAudioTrack`
 
 | Method | Description |
 |---|---|
@@ -167,7 +167,7 @@ bridge.connect(url, token, options);
 | `release()` | Explicitly unpublish and free resources. Called automatically by the destructor. |
 | `name()` / `sampleRate()` / `numChannels()` | Accessors for track configuration. |
 
-### `BridgeVideoTrack`
+### `ManagedVideoTrack`
 
 | Method | Description |
 |---|---|
@@ -227,8 +227,8 @@ The human will print periodic summaries like:
 
 The bridge includes a unit test suite built with [Google Test](https://github.com/google/googletest). Tests cover
 1. `CallbackKey` hashing/equality,
-2. `BridgeAudioTrack`/`BridgeVideoTrack` state management, and
-3. `LiveKitBridge` pre-connection behaviour (callback registration, error handling).
+2. `ManagedAudioTrack`/`ManagedVideoTrack` state management, and
+3. `SessionManager` pre-connection behaviour (callback registration, error handling).
 
 ### Building and running tests
 

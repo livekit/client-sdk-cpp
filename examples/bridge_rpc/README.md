@@ -1,7 +1,7 @@
 # Bridge RPC Example
 
 A minimal example of custom user-registered RPC methods using the
-`LiveKitBridge` high-level API.
+`SessionManager` high-level API.
 
 Two headless executables — **BridgeRpcReceiver** and **BridgeRpcCaller** —
 connect to the same LiveKit room. The receiver registers a `"print"` RPC

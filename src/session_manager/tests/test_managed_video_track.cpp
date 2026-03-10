@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-/// @file test_bridge_video_track.cpp
-/// @brief Unit tests for BridgeVideoTrack.
+/// @file test_managed_video_track.cpp
+/// @brief Unit tests for ManagedVideoTrack.
 
 #include <gtest/gtest.h>
-#include <livekit_bridge/bridge_video_track.h>
+#include <livekit_bridge/managed_video_track.h>
 
 #include <cstdint>
 #include <memory>
@@ -27,21 +27,21 @@
 namespace livekit_bridge {
 namespace test {
 
-class BridgeVideoTrackTest : public ::testing::Test {
+class ManagedVideoTrackTest : public ::testing::Test {
 protected:
-  /// Create a BridgeVideoTrack with null SDK objects for pure-logic testing.
-  static BridgeVideoTrack createNullTrack(const std::string &name = "cam",
-                                          int width = 1280, int height = 720) {
-    return BridgeVideoTrack(name, width, height,
-                            nullptr, // source
-                            nullptr, // track
-                            nullptr, // publication
-                            nullptr  // participant
+  /// Create a ManagedVideoTrack with null SDK objects for pure-logic testing.
+  static ManagedVideoTrack createNullTrack(const std::string &name = "cam",
+                                           int width = 1280, int height = 720) {
+    return ManagedVideoTrack(name, width, height,
+                             nullptr, // source
+                             nullptr, // track
+                             nullptr, // publication
+                             nullptr  // participant
     );
   }
 };
 
-TEST_F(BridgeVideoTrackTest, AccessorsReturnConstructionValues) {
+TEST_F(ManagedVideoTrackTest, AccessorsReturnConstructionValues) {
   auto track = createNullTrack("test-cam", 640, 480);
 
   EXPECT_EQ(track.name(), "test-cam") << "Name should match construction value";
@@ -49,14 +49,14 @@ TEST_F(BridgeVideoTrackTest, AccessorsReturnConstructionValues) {
   EXPECT_EQ(track.height(), 480) << "Height should match";
 }
 
-TEST_F(BridgeVideoTrackTest, InitiallyNotReleased) {
+TEST_F(ManagedVideoTrackTest, InitiallyNotReleased) {
   auto track = createNullTrack();
 
   EXPECT_FALSE(track.isReleased())
       << "Track should not be released immediately after construction";
 }
 
-TEST_F(BridgeVideoTrackTest, ReleaseMarksTrackAsReleased) {
+TEST_F(ManagedVideoTrackTest, ReleaseMarksTrackAsReleased) {
   auto track = createNullTrack();
 
   track.release();
@@ -65,7 +65,7 @@ TEST_F(BridgeVideoTrackTest, ReleaseMarksTrackAsReleased) {
       << "Track should be released after calling release()";
 }
 
-TEST_F(BridgeVideoTrackTest, DoubleReleaseIsIdempotent) {
+TEST_F(ManagedVideoTrackTest, DoubleReleaseIsIdempotent) {
   auto track = createNullTrack();
 
   track.release();
@@ -74,7 +74,7 @@ TEST_F(BridgeVideoTrackTest, DoubleReleaseIsIdempotent) {
   EXPECT_TRUE(track.isReleased());
 }
 
-TEST_F(BridgeVideoTrackTest, PushFrameAfterReleaseReturnsFalse) {
+TEST_F(ManagedVideoTrackTest, PushFrameAfterReleaseReturnsFalse) {
   auto track = createNullTrack();
   track.release();
 
@@ -84,7 +84,7 @@ TEST_F(BridgeVideoTrackTest, PushFrameAfterReleaseReturnsFalse) {
       << "pushFrame (vector) on a released track should return false";
 }
 
-TEST_F(BridgeVideoTrackTest, PushFrameRawPointerAfterReleaseReturnsFalse) {
+TEST_F(ManagedVideoTrackTest, PushFrameRawPointerAfterReleaseReturnsFalse) {
   auto track = createNullTrack();
   track.release();
 
@@ -94,7 +94,7 @@ TEST_F(BridgeVideoTrackTest, PushFrameRawPointerAfterReleaseReturnsFalse) {
       << "pushFrame (raw pointer) on a released track should return false";
 }
 
-TEST_F(BridgeVideoTrackTest, MuteOnReleasedTrackDoesNotCrash) {
+TEST_F(ManagedVideoTrackTest, MuteOnReleasedTrackDoesNotCrash) {
   auto track = createNullTrack();
   track.release();
 
@@ -102,7 +102,7 @@ TEST_F(BridgeVideoTrackTest, MuteOnReleasedTrackDoesNotCrash) {
       << "mute() on a released track should be a no-op";
 }
 
-TEST_F(BridgeVideoTrackTest, UnmuteOnReleasedTrackDoesNotCrash) {
+TEST_F(ManagedVideoTrackTest, UnmuteOnReleasedTrackDoesNotCrash) {
   auto track = createNullTrack();
   track.release();
 

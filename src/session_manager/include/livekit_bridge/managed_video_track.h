@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-/// @file bridge_video_track.h
+/// @file managed_video_track.h
 /// @brief Handle for a published local video track.
 
 #pragma once
@@ -35,13 +35,13 @@ class LocalParticipant;
 namespace livekit_bridge {
 
 namespace test {
-class BridgeVideoTrackTest;
+class ManagedVideoTrackTest;
 } // namespace test
 
 /**
  * Handle to a published local video track.
  *
- * Created via LiveKitBridge::createVideoTrack(). The bridge retains a
+ * Created via SessionManager::createVideoTrack(). The manager retains a
  * reference to every track it creates and will automatically release all
  * tracks when disconnect() is called. To unpublish a track mid-session,
  * call release() explicitly; dropping the shared_ptr alone is not
@@ -62,13 +62,13 @@ class BridgeVideoTrackTest;
  *   cam->mute();
  *   cam->release();  // unpublishes the track mid-session
  */
-class BridgeVideoTrack {
+class ManagedVideoTrack {
 public:
-  ~BridgeVideoTrack();
+  ~ManagedVideoTrack();
 
   // Non-copyable
-  BridgeVideoTrack(const BridgeVideoTrack &) = delete;
-  BridgeVideoTrack &operator=(const BridgeVideoTrack &) = delete;
+  ManagedVideoTrack(const ManagedVideoTrack &) = delete;
+  ManagedVideoTrack &operator=(const ManagedVideoTrack &) = delete;
 
   /**
    * Push an RGBA video frame to the track.
@@ -116,19 +116,19 @@ public:
    *
    * After this call, pushFrame() returns false and mute()/unmute() are
    * no-ops. Called automatically by the destructor and by
-   * LiveKitBridge::disconnect(). Safe to call multiple times (idempotent).
+   * SessionManager::disconnect(). Safe to call multiple times (idempotent).
    */
   void release();
 
 private:
-  friend class LiveKitBridge;
-  friend class test::BridgeVideoTrackTest;
+  friend class SessionManager;
+  friend class test::ManagedVideoTrackTest;
 
-  BridgeVideoTrack(std::string name, int width, int height,
-                   std::shared_ptr<livekit::VideoSource> source,
-                   std::shared_ptr<livekit::LocalVideoTrack> track,
-                   std::shared_ptr<livekit::LocalTrackPublication> publication,
-                   livekit::LocalParticipant *participant);
+  ManagedVideoTrack(std::string name, int width, int height,
+                    std::shared_ptr<livekit::VideoSource> source,
+                    std::shared_ptr<livekit::LocalVideoTrack> track,
+                    std::shared_ptr<livekit::LocalTrackPublication> publication,
+                    livekit::LocalParticipant *participant);
 
   mutable std::mutex mutex_;
   std::string name_;

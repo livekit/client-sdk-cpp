@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(livekit_bridge LANGUAGES CXX)
+project(session_manager LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_library(livekit_bridge SHARED
-  src/livekit_bridge.cpp
-  src/bridge_audio_track.cpp
-  src/bridge_video_track.cpp
+add_library(session_manager SHARED
+  src/session_manager.cpp
+  src/managed_audio_track.cpp
+  src/managed_video_track.cpp
   src/bridge_room_delegate.cpp
   src/bridge_room_delegate.h
   src/rpc_controller.cpp
@@ -16,10 +16,10 @@ add_library(livekit_bridge SHARED
 )
 
 if(WIN32)
-  set_target_properties(livekit_bridge PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+  set_target_properties(session_manager PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
 
-target_include_directories(livekit_bridge
+target_include_directories(session_manager
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -30,22 +30,22 @@ target_include_directories(livekit_bridge
 
 # Link against the main livekit SDK library (which transitively provides
 # include paths for livekit/*.h and links livekit_ffi).
-target_link_libraries(livekit_bridge
+target_link_libraries(session_manager
   PUBLIC
     livekit
   PRIVATE
     spdlog::spdlog
 )
 
-target_compile_definitions(livekit_bridge
+target_compile_definitions(session_manager
   PRIVATE
     SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
 )
 
 if(MSVC)
-  target_compile_options(livekit_bridge PRIVATE /permissive- /Zc:__cplusplus /W4)
+  target_compile_options(session_manager PRIVATE /permissive- /Zc:__cplusplus /W4)
 else()
-  target_compile_options(livekit_bridge PRIVATE -Wall -Wextra -Wpedantic)
+  target_compile_options(session_manager PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
 # --- Tests ---

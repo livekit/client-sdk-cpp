@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-/// @file bridge_audio_track.h
+/// @file managed_audio_track.h
 /// @brief Handle for a published local audio track.
 
 #pragma once
@@ -35,13 +35,13 @@ class LocalParticipant;
 namespace livekit_bridge {
 
 namespace test {
-class BridgeAudioTrackTest;
+class ManagedAudioTrackTest;
 } // namespace test
 
 /**
  * Handle to a published local audio track.
  *
- * Created via LiveKitBridge::createAudioTrack(). The bridge retains a
+ * Created via SessionManager::createAudioTrack(). The manager retains a
  * reference to every track it creates and will automatically release all
  * tracks when disconnect() is called. To unpublish a track mid-session,
  * call release() explicitly; dropping the shared_ptr alone is not
@@ -62,13 +62,13 @@ class BridgeAudioTrackTest;
  *   mic->mute();
  *   mic->release();  // unpublishes the track mid-session
  */
-class BridgeAudioTrack {
+class ManagedAudioTrack {
 public:
-  ~BridgeAudioTrack();
+  ~ManagedAudioTrack();
 
   // Non-copyable
-  BridgeAudioTrack(const BridgeAudioTrack &) = delete;
-  BridgeAudioTrack &operator=(const BridgeAudioTrack &) = delete;
+  ManagedAudioTrack(const ManagedAudioTrack &) = delete;
+  ManagedAudioTrack &operator=(const ManagedAudioTrack &) = delete;
 
   /**
    * Push a PCM audio frame to the track.
@@ -118,19 +118,19 @@ public:
    *
    * After this call, pushFrame() returns false and mute()/unmute() are
    * no-ops. Called automatically by the destructor and by
-   * LiveKitBridge::disconnect(). Safe to call multiple times (idempotent).
+   * SessionManager::disconnect(). Safe to call multiple times (idempotent).
    */
   void release();
 
 private:
-  friend class LiveKitBridge;
-  friend class test::BridgeAudioTrackTest;
+  friend class SessionManager;
+  friend class test::ManagedAudioTrackTest;
 
-  BridgeAudioTrack(std::string name, int sample_rate, int num_channels,
-                   std::shared_ptr<livekit::AudioSource> source,
-                   std::shared_ptr<livekit::LocalAudioTrack> track,
-                   std::shared_ptr<livekit::LocalTrackPublication> publication,
-                   livekit::LocalParticipant *participant);
+  ManagedAudioTrack(std::string name, int sample_rate, int num_channels,
+                    std::shared_ptr<livekit::AudioSource> source,
+                    std::shared_ptr<livekit::LocalAudioTrack> track,
+                    std::shared_ptr<livekit::LocalTrackPublication> publication,
+                    livekit::LocalParticipant *participant);
 
   mutable std::mutex mutex_;
   std::string name_;

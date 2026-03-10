@@ -22,7 +22,7 @@
 #include "livekit/remote_participant.h"
 #include "livekit/remote_track_publication.h"
 #include "livekit/track.h"
-#include "livekit_bridge/livekit_bridge.h"
+#include "livekit_bridge/session_manager.h"
 
 namespace livekit_bridge {
 

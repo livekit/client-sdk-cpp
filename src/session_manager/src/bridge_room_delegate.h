@@ -15,7 +15,7 @@
  */
 
 /// @file bridge_room_delegate.h
-/// @brief Internal RoomDelegate forwarding SDK events to LiveKitBridge.
+/// @brief Internal RoomDelegate forwarding SDK events to SessionManager.
 
 #pragma once
 
@@ -23,29 +23,29 @@
 
 namespace livekit_bridge {
 
-class LiveKitBridge;
+class SessionManager;
 
 /**
- * Internal RoomDelegate that forwards SDK room events to the LiveKitBridge.
+ * Internal RoomDelegate that forwards SDK room events to the SessionManager.
  *
  * Handles track subscribe/unsubscribe lifecycle. Not part of the public API,
  * so its in src/ instead of include/.
  */
 class BridgeRoomDelegate : public livekit::RoomDelegate {
 public:
-  explicit BridgeRoomDelegate(LiveKitBridge &bridge) : bridge_(bridge) {}
+  explicit BridgeRoomDelegate(SessionManager &bridge) : bridge_(bridge) {}
 
-  /// Forwards a track-subscribed event to LiveKitBridge::onTrackSubscribed().
+  /// Forwards a track-subscribed event to SessionManager::onTrackSubscribed().
   void onTrackSubscribed(livekit::Room &room,
                          const livekit::TrackSubscribedEvent &ev) override;
 
   /// Forwards a track-unsubscribed event to
-  /// LiveKitBridge::onTrackUnsubscribed().
+  /// SessionManager::onTrackUnsubscribed().
   void onTrackUnsubscribed(livekit::Room &room,
                            const livekit::TrackUnsubscribedEvent &ev) override;
 
 private:
-  LiveKitBridge &bridge_;
+  SessionManager &bridge_;
 };
 
 } // namespace livekit_bridge

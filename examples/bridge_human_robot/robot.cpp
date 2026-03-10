@@ -36,7 +36,7 @@
 #include "livekit/audio_frame.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
-#include "livekit_bridge/livekit_bridge.h"
+#include "livekit_bridge/session_manager.h"
 #include "lk_log.h"
 #include "sdl_media.h"
 
@@ -357,7 +357,7 @@ int main(int argc, char *argv[]) {
   }
 
   // ----- Connect to LiveKit -----
-  livekit_bridge::LiveKitBridge bridge;
+  livekit_bridge::SessionManager bridge;
   LK_LOG_INFO("[robot] Connecting to {} ...", url);
   livekit::RoomOptions options;
   options.auto_subscribe = true;
@@ -377,7 +377,7 @@ int main(int argc, char *argv[]) {
   constexpr int kSimWidth = 480;
   constexpr int kSimHeight = 320;
 
-  std::shared_ptr<livekit_bridge::BridgeAudioTrack> mic;
+  std::shared_ptr<livekit_bridge::ManagedAudioTrack> mic;
   if (use_mic) {
     mic = bridge.createAudioTrack("robot-mic", kSampleRate, kChannels,
                                   livekit::TrackSource::SOURCE_MICROPHONE);

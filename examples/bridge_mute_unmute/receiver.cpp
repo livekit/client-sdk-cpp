@@ -34,7 +34,7 @@
  */
 
 #include "livekit/track.h"
-#include "livekit_bridge/livekit_bridge.h"
+#include "livekit_bridge/session_manager.h"
 #include "sdl_media.h"
 
 #include <SDL3/SDL.h>
@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
   }
 
   // ----- Connect to LiveKit -----
-  livekit_bridge::LiveKitBridge bridge;
+  livekit_bridge::SessionManager bridge;
   std::cout << "[receiver] Connecting to " << url << " ...\n";
 
   livekit::RoomOptions options;
