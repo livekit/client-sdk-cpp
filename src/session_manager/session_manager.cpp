@@ -17,9 +17,9 @@
 /// @file session_manager.cpp
 /// @brief Implementation of the SessionManager high-level API.
 
-#include "session_manager/session_manager.h"
+#include "livekit/session_manager/session_manager.h"
+#include "livekit/session_manager/rpc_constants.h"
 #include "rpc_controller.h"
-#include "session_manager/rpc_constants.h"
 #include "session_manager_room_delegate.h"
 
 #include "livekit/audio_frame.h"

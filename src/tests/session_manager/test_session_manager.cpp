@@ -18,7 +18,7 @@
 /// @brief Unit tests for SessionManager.
 
 #include <gtest/gtest.h>
-#include <session_manager/session_manager.h>
+#include <livekit/session_manager/session_manager.h>
 
 #include <livekit/track.h>
 

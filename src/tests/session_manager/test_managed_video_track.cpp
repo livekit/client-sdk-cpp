@@ -18,7 +18,7 @@
 /// @brief Unit tests for ManagedVideoTrack.
 
 #include <gtest/gtest.h>
-#include <session_manager/managed_video_track.h>
+#include <livekit/session_manager/managed_video_track.h>
 
 #include <cstdint>
 #include <memory>

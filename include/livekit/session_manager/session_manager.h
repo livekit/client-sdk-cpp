@@ -19,9 +19,9 @@
 
 #pragma once
 
-#include "session_manager/managed_audio_track.h"
-#include "session_manager/managed_video_track.h"
-#include "session_manager/rpc_constants.h"
+#include "livekit/session_manager/managed_audio_track.h"
+#include "livekit/session_manager/managed_video_track.h"
+#include "livekit/session_manager/rpc_constants.h"
 
 #include "livekit/local_participant.h"
 #include "livekit/room.h"

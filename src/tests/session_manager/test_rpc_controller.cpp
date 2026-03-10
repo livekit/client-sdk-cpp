@@ -19,8 +19,8 @@
 
 #include <gtest/gtest.h>
 
+#include "livekit/session_manager/rpc_constants.h"
 #include "rpc_controller.h"
-#include "session_manager/rpc_constants.h"
 
 #include "livekit/local_participant.h"
 #include "livekit/rpc_error.h"

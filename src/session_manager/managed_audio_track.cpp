@@ -17,7 +17,7 @@
 /// @file managed_audio_track.cpp
 /// @brief Implementation of ManagedAudioTrack.
 
-#include "session_manager/managed_audio_track.h"
+#include "livekit/session_manager/managed_audio_track.h"
 
 #include "livekit/audio_frame.h"
 #include "livekit/audio_source.h"

@@ -21,7 +21,7 @@
 #pragma once
 
 #include "livekit/local_participant.h"
-#include "session_manager/rpc_constants.h"
+#include "livekit/session_manager/rpc_constants.h"
 
 #include <cassert>
 #include <functional>

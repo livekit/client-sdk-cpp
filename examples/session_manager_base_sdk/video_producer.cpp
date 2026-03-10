@@ -31,9 +31,9 @@
  */
 
 #include "livekit/livekit.h"
+#include "livekit/session_manager/session_manager.h"
 #include "lk_log.h"
 #include "sdl_media.h"
-#include "session_manager/session_manager.h"
 
 #include <SDL3/SDL.h>
 

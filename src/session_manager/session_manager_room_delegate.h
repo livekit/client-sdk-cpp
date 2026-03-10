@@ -33,7 +33,8 @@ class SessionManager;
  */
 class SessionManagerRoomDelegate : public livekit::RoomDelegate {
 public:
-  explicit SessionManagerRoomDelegate(SessionManager &manager) : manager_(manager) {}
+  explicit SessionManagerRoomDelegate(SessionManager &manager)
+      : manager_(manager) {}
 
   /// Forwards a track-subscribed event to SessionManager::onTrackSubscribed().
   void onTrackSubscribed(livekit::Room &room,

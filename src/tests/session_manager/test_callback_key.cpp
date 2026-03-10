@@ -18,7 +18,7 @@
 /// @brief Unit tests for SessionManager::CallbackKey hash and equality.
 
 #include <gtest/gtest.h>
-#include <session_manager/session_manager.h>
+#include <livekit/session_manager/session_manager.h>
 
 #include <livekit/track.h>
 

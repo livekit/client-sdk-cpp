@@ -21,8 +21,8 @@
 
 #include "livekit/remote_participant.h"
 #include "livekit/remote_track_publication.h"
+#include "livekit/session_manager/session_manager.h"
 #include "livekit/track.h"
-#include "session_manager/session_manager.h"
 
 namespace session_manager {
 

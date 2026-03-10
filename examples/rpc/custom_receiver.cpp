@@ -28,7 +28,7 @@
  *   lk token create --join --room <room> --identity receiver --valid-for 24h
  */
 
-#include "session_manager/session_manager.h"
+#include "livekit/session_manager/session_manager.h"
 
 #include <atomic>
 #include <chrono>

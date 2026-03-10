@@ -33,10 +33,10 @@
 
 #include "livekit/audio_frame.h"
 #include "livekit/rpc_error.h"
+#include "livekit/session_manager/session_manager.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
 #include "sdl_media.h"
-#include "session_manager/session_manager.h"
 
 #include <SDL3/SDL.h>
 

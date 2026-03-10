@@ -6,7 +6,7 @@ The SessionManager abstracts away room lifecycle management, track creation, pub
 ## Usage Overview
 
 ```cpp
-#include "session_manager/session_manager.h"
+#include "livekit/session_manager/session_manager.h"
 #include "livekit/audio_frame.h"
 #include "livekit/video_frame.h"
 #include "livekit/track.h"

@@ -31,7 +31,7 @@
  */
 
 #include "livekit/rpc_error.h"
-#include "session_manager/session_manager.h"
+#include "livekit/session_manager/session_manager.h"
 
 #include <atomic>
 #include <chrono>
