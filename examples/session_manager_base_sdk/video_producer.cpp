@@ -32,8 +32,8 @@
 
 #include "livekit/livekit.h"
 #include "lk_log.h"
-#include "session_manager/session_manager.h"
 #include "sdl_media.h"
+#include "session_manager/session_manager.h"
 
 #include <SDL3/SDL.h>
 
@@ -109,8 +109,7 @@ int main(int argc, char *argv[]) {
   constexpr int kHeight = 720;
 
   auto videoSource = std::make_shared<VideoSource>(kWidth, kHeight);
-  auto videoTrack =
-      LocalVideoTrack::createLocalVideoTrack("cam", videoSource);
+  auto videoTrack = LocalVideoTrack::createLocalVideoTrack("cam", videoSource);
 
   TrackPublishOptions videoOpts;
   videoOpts.source = TrackSource::SOURCE_CAMERA;
@@ -120,8 +119,8 @@ int main(int argc, char *argv[]) {
   std::shared_ptr<LocalTrackPublication> videoPub;
   try {
     videoPub = room->localParticipant()->publishTrack(videoTrack, videoOpts);
-    LK_LOG_INFO("[video_producer] Published cam track {}x{} (SID: {}).",
-                kWidth, kHeight, videoPub->sid());
+    LK_LOG_INFO("[video_producer] Published cam track {}x{} (SID: {}).", kWidth,
+                kHeight, videoPub->sid());
   } catch (const std::exception &e) {
     LK_LOG_ERROR("[video_producer] Failed to publish track: {}", e.what());
     sm.disconnect();
@@ -181,9 +180,8 @@ int main(int argc, char *argv[]) {
     if (!cam_using_sdl) {
       LK_LOG_INFO("[video_producer] No camera found; sending solid blue "
                   "frames.");
-      cam_thread = std::thread([videoSource, &cam_running]() {
-        auto frame =
-            VideoFrame::create(kWidth, kHeight, VideoBufferType::RGBA);
+      cam_thread = std::thread([videoSource, &cam_running, kWidth, kHeight]() {
+        auto frame = VideoFrame::create(kWidth, kHeight, VideoBufferType::RGBA);
         uint8_t *dst = frame.data();
         for (int i = 0; i < kWidth * kHeight; ++i) {
           dst[i * 4 + 0] = 0;
@@ -195,7 +193,7 @@ int main(int argc, char *argv[]) {
         while (cam_running.load()) {
           try {
             videoSource->captureFrame(frame, ts,
-                                     VideoRotation::VIDEO_ROTATION_0);
+                                      VideoRotation::VIDEO_ROTATION_0);
           } catch (...) {
             break;
           }

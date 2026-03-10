@@ -1,8 +1,7 @@
 # LiveKit SessionManager
 
 A simplified, high-level C++ wrapper around the [LiveKit C++ SDK](../README.md).
-The SessionManager abstracts away room lifecycle management, track creation, publishing, and subscription boilerplate so that external codebases can interface with LiveKit in just a few lines.
-It is intended that this library will be used to integrate the LiveKit C++ SDK into other SDKs such as, but not limited to, Foxglove, ROS, and Rerun.
+The SessionManager abstracts away room lifecycle management, track creation, publishing, and subscription boilerplate so interfacing with LiveKit is just a few lines of code.
 
 ## Usage Overview
 
@@ -185,11 +184,7 @@ sm.connect(url, token, options);
 | `release()` | Explicitly unpublish and free resources. Called automatically by the destructor. |
 | `name()` / `width()` / `height()` | Accessors for track configuration. |
 
-## Examples
-
-
-
-### Running the examples
+## Running the examples
 
 ```
 export LIVEKIT_URL="wss://your-server.livekit.cloud"
