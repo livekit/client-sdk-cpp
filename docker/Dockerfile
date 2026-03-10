@@ -104,7 +104,6 @@ WORKDIR /client-sdk-cpp
 RUN mkdir -p /client-sdk-cpp
 COPY src /client-sdk-cpp/src
 COPY include /client-sdk-cpp/include
-COPY bridge /client-sdk-cpp/bridge
 COPY build.sh /client-sdk-cpp/build.sh
 COPY CMakePresets.json /client-sdk-cpp/CMakePresets.json
 COPY build.cmd /client-sdk-cpp/build.cmd

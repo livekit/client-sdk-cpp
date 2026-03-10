@@ -45,36 +45,26 @@ set(EXAMPLES_ALL
   SimpleDataStream
   LoggingLevelsBasicUsage
   LoggingLevelsCustomSinks
-  BridgeRobot
-  BridgeHuman
-  BridgeMuteCaller
-  BridgeMuteReceiver
-  BridgeRpcCaller
-  BridgeRpcReceiver
-)
-
-# Bridge examples (need livekit_bridge DLL/shared lib in addition to livekit_ffi)
-set(EXAMPLES_BRIDGE
-  BridgeRobot
-  BridgeHuman
-  BridgeMuteCaller
-  BridgeMuteReceiver
-  BridgeRpcCaller
-  BridgeRpcReceiver
+  HumanRobotRobot
+  HumanRobotHuman
+  MuteUnmuteCaller
+  MuteUnmuteReceiver
+  RpcCaller
+  RpcReceiver
 )
 
 # Examples that use SDL3 (need SDL3 lib copied on Linux; SimpleRoom is handled separately above)
 set(EXAMPLES_NEED_SDL3
-  BridgeRobot
-  BridgeHuman
-  BridgeMuteCaller
-  BridgeMuteReceiver
+  HumanRobotRobot
+  HumanRobotHuman
+  MuteUnmuteCaller
+  MuteUnmuteReceiver
 )
 
 add_executable(SimpleRoom
-  simple_room/main.cpp
-  simple_room/fallback_capture.cpp
-  simple_room/fallback_capture.h
+  base_sdk/simple_room/main.cpp
+  base_sdk/simple_room/fallback_capture.cpp
+  base_sdk/simple_room/fallback_capture.h
   ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
   ${EXAMPLES_COMMON_DIR}/sdl_media.h
   ${EXAMPLES_COMMON_DIR}/sdl_media_manager.cpp
@@ -88,7 +78,7 @@ add_executable(SimpleRoom
 target_include_directories(SimpleRoom PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/simple_room
+  ${CMAKE_CURRENT_SOURCE_DIR}/base_sdk/simple_room
 )
 
 target_link_libraries(SimpleRoom
@@ -140,7 +130,7 @@ if(NOT nlohmann_json_FOUND)
 endif()
 
 add_executable(SimpleRpc
-  simple_rpc/main.cpp
+  base_sdk/simple_rpc/main.cpp
 )
 
 target_include_directories(SimpleRpc PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
@@ -155,14 +145,14 @@ target_link_libraries(SimpleRpc
 # --- SimpleJoystick example (sender + receiver executables with shared json_utils) ---
 
 add_library(simple_joystick_json_utils STATIC
-  simple_joystick/json_utils.cpp
-  simple_joystick/json_utils.h
-  simple_joystick/utils.cpp
-  simple_joystick/utils.h
+  base_sdk/simple_joystick/json_utils.cpp
+  base_sdk/simple_joystick/json_utils.h
+  base_sdk/simple_joystick/utils.cpp
+  base_sdk/simple_joystick/utils.h
 )
 
 target_include_directories(simple_joystick_json_utils PUBLIC
-  ${CMAKE_CURRENT_SOURCE_DIR}/simple_joystick
+  ${CMAKE_CURRENT_SOURCE_DIR}/base_sdk/simple_joystick
 )
 
 target_link_libraries(simple_joystick_json_utils
@@ -171,7 +161,7 @@ target_link_libraries(simple_joystick_json_utils
 )
 
 add_executable(SimpleJoystickReceiver
-  simple_joystick/receiver.cpp
+  base_sdk/simple_joystick/receiver.cpp
 )
 
 target_include_directories(SimpleJoystickReceiver PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
@@ -184,7 +174,7 @@ target_link_libraries(SimpleJoystickReceiver
 )
 
 add_executable(SimpleJoystickSender
-  simple_joystick/sender.cpp
+  base_sdk/simple_joystick/sender.cpp
 )
 
 target_include_directories(SimpleJoystickSender PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
@@ -199,7 +189,7 @@ target_link_libraries(SimpleJoystickSender
 # --- LoggingLevelsBasicUsage example ---
 
 add_executable(LoggingLevelsBasicUsage
-  logging_levels/basic_usage.cpp
+  base_sdk/logging_levels/basic_usage.cpp
 )
 
 target_include_directories(LoggingLevelsBasicUsage PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
@@ -213,7 +203,7 @@ target_link_libraries(LoggingLevelsBasicUsage
 # --- LoggingLevelsCustomSinks example ---
 
 add_executable(LoggingLevelsCustomSinks
-  logging_levels/custom_sinks.cpp
+  base_sdk/logging_levels/custom_sinks.cpp
 )
 
 target_link_libraries(LoggingLevelsCustomSinks
@@ -224,7 +214,7 @@ target_link_libraries(LoggingLevelsCustomSinks
 # --- SimpleDataStream example ---
 
 add_executable(SimpleDataStream
-  simple_data_stream/main.cpp
+  base_sdk/simple_data_stream/main.cpp
 )
 
 target_include_directories(SimpleDataStream PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
@@ -243,67 +233,69 @@ add_custom_command(
           $<TARGET_FILE_DIR:SimpleDataStream>/data
 )
 
-# --- bridge_human_robot examples (robot + human; use livekit_bridge and SDL3) ---
+# --- human_robot examples (robot + human; use session_manager and SDL3) ---
 
-add_executable(BridgeRobot
-  bridge_human_robot/robot.cpp
+add_executable(HumanRobotRobot
+  human_robot/robot.cpp
   ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
   ${EXAMPLES_COMMON_DIR}/sdl_media.h
 )
-target_include_directories(BridgeRobot PRIVATE
+target_include_directories(HumanRobotRobot PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(BridgeRobot PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
+target_link_libraries(HumanRobotRobot PRIVATE livekit spdlog::spdlog SDL3::SDL3)
 
-add_executable(BridgeHuman
-  bridge_human_robot/human.cpp
+add_executable(HumanRobotHuman
+  human_robot/human.cpp
   ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
   ${EXAMPLES_COMMON_DIR}/sdl_media.h
 )
-target_include_directories(BridgeHuman PRIVATE
+target_include_directories(HumanRobotHuman PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(BridgeHuman PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
+target_link_libraries(HumanRobotHuman PRIVATE livekit spdlog::spdlog SDL3::SDL3)
 
-# --- bridge_rpc examples (headless custom RPC caller + receiver) ---
+# --- rpc examples (headless custom RPC caller + receiver) ---
 
-add_executable(BridgeRpcCaller
-  bridge_rpc/custom_caller.cpp
+add_executable(RpcCaller
+  rpc/custom_caller.cpp
 )
-target_link_libraries(BridgeRpcCaller PRIVATE livekit_bridge)
+target_include_directories(RpcCaller PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+target_link_libraries(RpcCaller PRIVATE livekit)
 
-add_executable(BridgeRpcReceiver
-  bridge_rpc/custom_receiver.cpp
+add_executable(RpcReceiver
+  rpc/custom_receiver.cpp
 )
-target_link_libraries(BridgeRpcReceiver PRIVATE livekit_bridge)
+target_include_directories(RpcReceiver PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+target_link_libraries(RpcReceiver PRIVATE livekit)
 
-# --- bridge_mute_unmute examples (caller uses SDL3 for A/V playback; receiver is headless) ---
+# --- mute_unmute examples (caller uses SDL3 for A/V playback; receiver is headless) ---
 
-add_executable(BridgeMuteCaller
-  bridge_mute_unmute/caller.cpp
+add_executable(MuteUnmuteCaller
+  mute_unmute/caller.cpp
   ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
   ${EXAMPLES_COMMON_DIR}/sdl_media.h
 )
-target_include_directories(BridgeMuteCaller PRIVATE
+target_include_directories(MuteUnmuteCaller PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(BridgeMuteCaller PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
+target_link_libraries(MuteUnmuteCaller PRIVATE livekit spdlog::spdlog SDL3::SDL3)
 
-add_executable(BridgeMuteReceiver
-  bridge_mute_unmute/receiver.cpp
+add_executable(MuteUnmuteReceiver
+  mute_unmute/receiver.cpp
   ${EXAMPLES_COMMON_DIR}/sdl_media.cpp
   ${EXAMPLES_COMMON_DIR}/sdl_media.h
 )
-target_include_directories(BridgeMuteReceiver PRIVATE
+target_include_directories(MuteUnmuteReceiver PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(BridgeMuteReceiver PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
+ßtarget_link_libraries(MuteUnmuteReceiver PRIVATE livekit spdlog::spdlog SDL3::SDL3)
 
-# Copy SDL3 shared library to bridge example output directories
+# Copy SDL3 shared library to examples output directories
 if(UNIX AND NOT APPLE)
   foreach(_target ${EXAMPLES_NEED_SDL3})
     add_custom_command(TARGET ${_target} POST_BUILD
@@ -346,19 +338,6 @@ if(WIN32)
     add_dependencies(${EXAMPLE} copy_ffi_dll_to_bin)
   endforeach()
 
-  # Bridge examples also need livekit_bridge.dll (single copy to bin/)
-  set(BRIDGE_DLL "livekit_bridge.dll")
-  add_custom_command(OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_DLL}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:livekit_bridge>
-            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_DLL}
-    DEPENDS livekit_bridge
-    COMMENT "Copying livekit_bridge DLL to examples output directory"
-  )
-  add_custom_target(copy_bridge_dll_to_bin ALL DEPENDS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_DLL})
-  foreach(EXAMPLE ${EXAMPLES_BRIDGE})
-    add_dependencies(${EXAMPLE} copy_bridge_dll_to_bin)
-  endforeach()
 endif()
 
 # Linux/macOS: Copy shared library to examples output directory (single copy to avoid parallel POST_BUILD races)
@@ -382,21 +361,4 @@ if(UNIX)
     add_dependencies(${EXAMPLE} copy_ffi_to_bin)
   endforeach()
 
-  # Bridge examples also need livekit_bridge shared library (single copy to bin/)
-  if(APPLE)
-    set(BRIDGE_SHARED_LIB "liblivekit_bridge.dylib")
-  else()
-    set(BRIDGE_SHARED_LIB "liblivekit_bridge.so")
-  endif()
-  add_custom_command(OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_SHARED_LIB}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:livekit_bridge>
-            ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_SHARED_LIB}
-    DEPENDS livekit_bridge
-    COMMENT "Copying livekit_bridge to examples output directory"
-  )
-  add_custom_target(copy_bridge_to_bin ALL DEPENDS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${BRIDGE_SHARED_LIB})
-  foreach(EXAMPLE ${EXAMPLES_BRIDGE})
-    add_dependencies(${EXAMPLE} copy_bridge_to_bin)
-  endforeach()
 endif()

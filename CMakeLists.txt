@@ -12,7 +12,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 option(LIVEKIT_BUILD_TESTS "Build LiveKit tests" OFF)
-option(LIVEKIT_BUILD_BRIDGE "Build LiveKit Bridge (simplified high-level API)" OFF)
+
 
 # vcpkg is only used on Windows; Linux/macOS use system package managers
 if(WIN32)
@@ -353,6 +353,13 @@ add_library(livekit SHARED
   src/remote_video_track.cpp
   src/video_utils.cpp
   src/video_utils.h
+  src/session_manager/session_manager.cpp
+  src/session_manager/managed_audio_track.cpp
+  src/session_manager/managed_video_track.cpp
+  src/session_manager/session_manager_room_delegate.cpp
+  src/session_manager/session_manager_room_delegate.h
+  src/session_manager/rpc_controller.cpp
+  src/session_manager/rpc_controller.h
 )
 if(WIN32)
   set_target_properties(livekit PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -367,6 +374,7 @@ target_include_directories(livekit
     $<INSTALL_INTERFACE:include>
   PRIVATE
     ${LIVEKIT_ROOT_DIR}/src
+    ${LIVEKIT_ROOT_DIR}/src/session_manager
     ${RUST_ROOT}/livekit-ffi/include
     ${PROTO_BINARY_DIR}
 )
@@ -679,19 +687,13 @@ install(FILES
 
 # ------------------------------------------------------------------------
 
-# Build the LiveKit C++ bridge before examples (human_robot depends on it)
-add_subdirectory(src/session_manager)
-
-# ---- Examples ----
-# add_subdirectory(examples)
-
-
 if(LIVEKIT_BUILD_EXAMPLES)
   add_subdirectory(examples)
 endif()
 
 if(LIVEKIT_BUILD_TESTS)
   add_subdirectory(src/tests)
+  add_subdirectory(src/tests/session_manager)
 endif()
 
 add_custom_target(clean_generated
