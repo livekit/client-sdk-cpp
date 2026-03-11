@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include "livekit/session_manager/managed_audio_track.h"
-#include "livekit/session_manager/managed_video_track.h"
+#include "livekit/session_manager/managed_local_audio_track.h"
+#include "livekit/session_manager/managed_local_video_track.h"
 #include "livekit/session_manager/rpc_constants.h"
 
 #include "livekit/local_participant.h"
@@ -198,7 +198,7 @@ public:
    * @return Shared pointer to the published audio track handle (never null).
    * @throws std::runtime_error if the SessionManager is not connected.
    */
-  std::shared_ptr<ManagedAudioTrack>
+  std::shared_ptr<ManagedLocalAudioTrack>
   createAudioTrack(const std::string &name, int sample_rate, int num_channels,
                    livekit::TrackSource source);
 
@@ -222,7 +222,7 @@ public:
    * @return Shared pointer to the published video track handle (never null).
    * @throws std::runtime_error if the SessionManager is not connected.
    */
-  std::shared_ptr<ManagedVideoTrack>
+  std::shared_ptr<ManagedLocalVideoTrack>
   createVideoTrack(const std::string &name, int width, int height,
                    livekit::TrackSource source);
 
@@ -453,9 +453,9 @@ private:
   /// All tracks created by this SessionManager. The SessionManager retains a
   /// shared_ptr so it can force-release every track on disconnect() before the
   /// room is destroyed, preventing dangling @c participant_ pointers.
-  std::vector<std::shared_ptr<ManagedAudioTrack>> published_audio_tracks_;
+  std::vector<std::shared_ptr<ManagedLocalAudioTrack>> published_audio_tracks_;
   /// @copydoc published_audio_tracks_
-  std::vector<std::shared_ptr<ManagedVideoTrack>> published_video_tracks_;
+  std::vector<std::shared_ptr<ManagedLocalVideoTrack>> published_video_tracks_;
 };
 
 } // namespace livekit

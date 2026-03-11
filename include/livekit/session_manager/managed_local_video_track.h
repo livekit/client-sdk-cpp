@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-/// @file managed_video_track.h
+/// @file managed_local_video_track.h
 /// @brief Handle for a published local video track.
 
 #pragma once
@@ -35,7 +35,7 @@ class LocalParticipant;
 namespace livekit {
 
 namespace test {
-class ManagedVideoTrackTest;
+class ManagedLocalVideoTrackTest;
 } // namespace test
 
 /**
@@ -62,13 +62,13 @@ class ManagedVideoTrackTest;
  *   cam->mute();
  *   cam->release();  // unpublishes the track mid-session
  */
-class ManagedVideoTrack {
+class ManagedLocalVideoTrack {
 public:
-  ~ManagedVideoTrack();
+  ~ManagedLocalVideoTrack();
 
   // Non-copyable
-  ManagedVideoTrack(const ManagedVideoTrack &) = delete;
-  ManagedVideoTrack &operator=(const ManagedVideoTrack &) = delete;
+  ManagedLocalVideoTrack(const ManagedLocalVideoTrack &) = delete;
+  ManagedLocalVideoTrack &operator=(const ManagedLocalVideoTrack &) = delete;
 
   /**
    * Push an RGBA video frame to the track.
@@ -122,9 +122,9 @@ public:
 
 private:
   friend class SessionManager;
-  friend class test::ManagedVideoTrackTest;
+  friend class test::ManagedLocalVideoTrackTest;
 
-  ManagedVideoTrack(std::string name, int width, int height,
+  ManagedLocalVideoTrack(std::string name, int width, int height,
                     std::shared_ptr<livekit::VideoSource> source,
                     std::shared_ptr<livekit::LocalVideoTrack> track,
                     std::shared_ptr<livekit::LocalTrackPublication> publication,

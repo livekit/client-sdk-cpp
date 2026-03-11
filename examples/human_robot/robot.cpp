@@ -377,7 +377,7 @@ int main(int argc, char *argv[]) {
   constexpr int kSimWidth = 480;
   constexpr int kSimHeight = 320;
 
-  std::shared_ptr<livekit::ManagedAudioTrack> mic;
+  std::shared_ptr<livekit::ManagedLocalAudioTrack> mic;
   if (use_mic) {
     mic = sm.createAudioTrack("robot-mic", kSampleRate, kChannels,
                               livekit::TrackSource::SOURCE_MICROPHONE);

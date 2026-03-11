@@ -229,7 +229,7 @@ livekit::Room *SessionManager::getRoom() const {
 // Track creation (publishing)
 // ---------------------------------------------------------------
 
-std::shared_ptr<ManagedAudioTrack>
+std::shared_ptr<ManagedLocalAudioTrack>
 SessionManager::createAudioTrack(const std::string &name, int sample_rate,
                                  int num_channels,
                                  livekit::TrackSource source) {
@@ -258,15 +258,15 @@ SessionManager::createAudioTrack(const std::string &name, int sample_rate,
   auto publication = lp->publishTrack(track, opts);
 
   // 4. Wrap in handle and retain a reference
-  auto managed_audio_track =
-      std::shared_ptr<ManagedAudioTrack>(new ManagedAudioTrack(
+  auto managed =
+      std::shared_ptr<ManagedLocalAudioTrack>(new ManagedLocalAudioTrack(
           name, sample_rate, num_channels, std::move(audio_source),
           std::move(track), std::move(publication), lp));
-  published_audio_tracks_.emplace_back(managed_audio_track);
-  return managed_audio_track;
+  published_audio_tracks_.emplace_back(managed);
+  return managed;
 }
 
-std::shared_ptr<ManagedVideoTrack>
+std::shared_ptr<ManagedLocalVideoTrack>
 SessionManager::createVideoTrack(const std::string &name, int width, int height,
                                  livekit::TrackSource source) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -293,11 +293,11 @@ SessionManager::createVideoTrack(const std::string &name, int width, int height,
   auto publication = lp->publishTrack(track, opts);
 
   // 4. Wrap in handle and retain a reference
-  auto managed_video_track = std::shared_ptr<ManagedVideoTrack>(
-      new ManagedVideoTrack(name, width, height, std::move(video_source),
-                            std::move(track), std::move(publication), lp));
-  published_video_tracks_.emplace_back(managed_video_track);
-  return managed_video_track;
+  auto managed = std::shared_ptr<ManagedLocalVideoTrack>(
+      new ManagedLocalVideoTrack(name, width, height, std::move(video_source),
+                                 std::move(track), std::move(publication), lp));
+  published_video_tracks_.emplace_back(managed);
+  return managed;
 }
 
 // ---------------------------------------------------------------

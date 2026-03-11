@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-/// @file managed_video_track.cpp
-/// @brief Implementation of ManagedVideoTrack.
+/// @file managed_local_audio_track.cpp
+/// @brief Implementation of ManagedLocalAudioTrack.
 
-#include "livekit/session_manager/managed_video_track.h"
+#include "livekit/session_manager/managed_local_audio_track.h"
 
+#include "livekit/audio_frame.h"
+#include "livekit/audio_source.h"
+#include "livekit/local_audio_track.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
-#include "livekit/local_video_track.h"
-#include "livekit/video_frame.h"
-#include "livekit/video_source.h"
 
 #include <stdexcept>
 
@@ -31,43 +31,23 @@
 
 namespace livekit {
 
-ManagedVideoTrack::ManagedVideoTrack(
-    std::string name, int width, int height,
-    std::shared_ptr<livekit::VideoSource> source,
-    std::shared_ptr<livekit::LocalVideoTrack> track,
+ManagedLocalAudioTrack::ManagedLocalAudioTrack(
+    std::string name, int sample_rate, int num_channels,
+    std::shared_ptr<livekit::AudioSource> source,
+    std::shared_ptr<livekit::LocalAudioTrack> track,
     std::shared_ptr<livekit::LocalTrackPublication> publication,
     livekit::LocalParticipant *participant)
-    : name_(std::move(name)), width_(width), height_(height),
-      source_(std::move(source)), track_(std::move(track)),
-      publication_(std::move(publication)), participant_(participant) {}
+    : name_(std::move(name)), sample_rate_(sample_rate),
+      num_channels_(num_channels), source_(std::move(source)),
+      track_(std::move(track)), publication_(std::move(publication)),
+      participant_(participant) {}
 
-ManagedVideoTrack::~ManagedVideoTrack() { release(); }
+ManagedLocalAudioTrack::~ManagedLocalAudioTrack() { release(); }
 
-bool ManagedVideoTrack::pushFrame(const std::vector<std::uint8_t> &rgba,
-                                  std::int64_t timestamp_us) {
-  livekit::VideoFrame frame(
-      width_, height_, livekit::VideoBufferType::RGBA,
-      std::vector<std::uint8_t>(rgba.begin(), rgba.end()));
-
-  std::lock_guard<std::mutex> lock(mutex_);
-  if (released_) {
-    return false;
-  }
-
-  try {
-    source_->captureFrame(frame, timestamp_us);
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("ManagedVideoTrack captureFrame error: {}", e.what());
-    return false;
-  }
-  return true;
-}
-
-bool ManagedVideoTrack::pushFrame(const std::uint8_t *rgba,
-                                  std::size_t rgba_size,
-                                  std::int64_t timestamp_us) {
-  livekit::VideoFrame frame(width_, height_, livekit::VideoBufferType::RGBA,
-                            std::vector<std::uint8_t>(rgba, rgba + rgba_size));
+bool ManagedLocalAudioTrack::pushFrame(const std::vector<std::int16_t> &data,
+                                  int samples_per_channel, int timeout_ms) {
+  livekit::AudioFrame frame(std::vector<std::int16_t>(data.begin(), data.end()),
+                            sample_rate_, num_channels_, samples_per_channel);
 
   std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
@@ -75,34 +55,55 @@ bool ManagedVideoTrack::pushFrame(const std::uint8_t *rgba,
   }
 
   try {
-    source_->captureFrame(frame, timestamp_us);
+    source_->captureFrame(frame, timeout_ms);
   } catch (const std::exception &e) {
-    LK_LOG_ERROR("ManagedVideoTrack captureFrame error: {}", e.what());
+    LK_LOG_ERROR("ManagedLocalAudioTrack captureFrame error: {}", e.what());
     return false;
   }
   return true;
 }
 
-void ManagedVideoTrack::mute() {
+bool ManagedLocalAudioTrack::pushFrame(const std::int16_t *data,
+                                  int samples_per_channel, int timeout_ms) {
+  const int total_samples = samples_per_channel * num_channels_;
+  livekit::AudioFrame frame(
+      std::vector<std::int16_t>(data, data + total_samples), sample_rate_,
+      num_channels_, samples_per_channel);
+
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (released_) {
+    return false;
+  }
+
+  try {
+    source_->captureFrame(frame, timeout_ms);
+  } catch (const std::exception &e) {
+    LK_LOG_ERROR("ManagedLocalAudioTrack captureFrame error: {}", e.what());
+    return false;
+  }
+  return true;
+}
+
+void ManagedLocalAudioTrack::mute() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!released_ && track_) {
     track_->mute();
   }
 }
 
-void ManagedVideoTrack::unmute() {
+void ManagedLocalAudioTrack::unmute() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!released_ && track_) {
     track_->unmute();
   }
 }
 
-bool ManagedVideoTrack::isReleased() const noexcept {
+bool ManagedLocalAudioTrack::isReleased() const noexcept {
   std::lock_guard<std::mutex> lock(mutex_);
   return released_;
 }
 
-void ManagedVideoTrack::release() {
+void ManagedLocalAudioTrack::release() {
   std::lock_guard<std::mutex> lock(mutex_);
   if (released_) {
     return;
@@ -115,7 +116,7 @@ void ManagedVideoTrack::release() {
       participant_->unpublishTrack(publication_->sid());
     } catch (...) {
       // Best-effort cleanup; ignore errors during teardown
-      LK_LOG_WARN("ManagedVideoTrack unpublishTrack error, continuing with "
+      LK_LOG_WARN("ManagedLocalAudioTrack unpublishTrack error, continuing with "
                   "cleanup");
     }
   }

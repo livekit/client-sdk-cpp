@@ -16,6 +16,7 @@ received_green.avif
 docs/*.bak
 docs/html/
 docs/latex/
+web/
 .vs/
 .vscode/
 .cursor/

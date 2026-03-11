@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-/// @file managed_audio_track.h
+/// @file managed_local_audio_track.h
 /// @brief Handle for a published local audio track.
 
 #pragma once
@@ -35,7 +35,7 @@ class LocalParticipant;
 namespace livekit {
 
 namespace test {
-class ManagedAudioTrackTest;
+class ManagedLocalAudioTrackTest;
 } // namespace test
 
 /**
@@ -62,13 +62,13 @@ class ManagedAudioTrackTest;
  *   mic->mute();
  *   mic->release();  // unpublishes the track mid-session
  */
-class ManagedAudioTrack {
+class ManagedLocalAudioTrack {
 public:
-  ~ManagedAudioTrack();
+  ~ManagedLocalAudioTrack();
 
   // Non-copyable
-  ManagedAudioTrack(const ManagedAudioTrack &) = delete;
-  ManagedAudioTrack &operator=(const ManagedAudioTrack &) = delete;
+  ManagedLocalAudioTrack(const ManagedLocalAudioTrack &) = delete;
+  ManagedLocalAudioTrack &operator=(const ManagedLocalAudioTrack &) = delete;
 
   /**
    * Push a PCM audio frame to the track.
@@ -124,13 +124,14 @@ public:
 
 private:
   friend class SessionManager;
-  friend class test::ManagedAudioTrackTest;
+  friend class test::ManagedLocalAudioTrackTest;
 
-  ManagedAudioTrack(std::string name, int sample_rate, int num_channels,
-                    std::shared_ptr<livekit::AudioSource> source,
-                    std::shared_ptr<livekit::LocalAudioTrack> track,
-                    std::shared_ptr<livekit::LocalTrackPublication> publication,
-                    livekit::LocalParticipant *participant);
+  ManagedLocalAudioTrack(
+      std::string name, int sample_rate, int num_channels,
+      std::shared_ptr<livekit::AudioSource> source,
+      std::shared_ptr<livekit::LocalAudioTrack> track,
+      std::shared_ptr<livekit::LocalTrackPublication> publication,
+      livekit::LocalParticipant *participant);
 
   mutable std::mutex mutex_;
   std::string name_;

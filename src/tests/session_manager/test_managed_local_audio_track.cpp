@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-/// @file test_managed_video_track.cpp
-/// @brief Unit tests for ManagedVideoTrack.
+/// @file test_managed_local_audio_track.cpp
+/// @brief Unit tests for ManagedLocalAudioTrack.
 
 #include <gtest/gtest.h>
-#include <livekit/session_manager/managed_video_track.h>
+#include <livekit/session_manager/managed_local_audio_track.h>
 
 #include <cstdint>
 #include <memory>
@@ -27,12 +27,16 @@
 namespace livekit {
 namespace test {
 
-class ManagedVideoTrackTest : public ::testing::Test {
+class ManagedLocalAudioTrackTest : public ::testing::Test {
 protected:
-  /// Create a ManagedVideoTrack with null SDK objects for pure-logic testing.
-  static ManagedVideoTrack createNullTrack(const std::string &name = "cam",
-                                           int width = 1280, int height = 720) {
-    return ManagedVideoTrack(name, width, height,
+  /// Create a ManagedLocalAudioTrack with null SDK objects for pure-logic testing.
+  /// The track is usable for accessor and state management tests but will
+  /// crash if pushFrame / mute / unmute try to dereference SDK pointers
+  /// on a non-released track.
+  static ManagedLocalAudioTrack createNullTrack(const std::string &name = "mic",
+                                           int sample_rate = 48000,
+                                           int num_channels = 2) {
+    return ManagedLocalAudioTrack(name, sample_rate, num_channels,
                              nullptr, // source
                              nullptr, // track
                              nullptr, // publication
@@ -41,22 +45,22 @@ protected:
   }
 };
 
-TEST_F(ManagedVideoTrackTest, AccessorsReturnConstructionValues) {
-  auto track = createNullTrack("test-cam", 640, 480);
+TEST_F(ManagedLocalAudioTrackTest, AccessorsReturnConstructionValues) {
+  auto track = createNullTrack("test-mic", 16000, 1);
 
-  EXPECT_EQ(track.name(), "test-cam") << "Name should match construction value";
-  EXPECT_EQ(track.width(), 640) << "Width should match";
-  EXPECT_EQ(track.height(), 480) << "Height should match";
+  EXPECT_EQ(track.name(), "test-mic") << "Name should match construction value";
+  EXPECT_EQ(track.sampleRate(), 16000) << "Sample rate should match";
+  EXPECT_EQ(track.numChannels(), 1) << "Channel count should match";
 }
 
-TEST_F(ManagedVideoTrackTest, InitiallyNotReleased) {
+TEST_F(ManagedLocalAudioTrackTest, InitiallyNotReleased) {
   auto track = createNullTrack();
 
   EXPECT_FALSE(track.isReleased())
       << "Track should not be released immediately after construction";
 }
 
-TEST_F(ManagedVideoTrackTest, ReleaseMarksTrackAsReleased) {
+TEST_F(ManagedLocalAudioTrackTest, ReleaseMarksTrackAsReleased) {
   auto track = createNullTrack();
 
   track.release();
@@ -65,7 +69,7 @@ TEST_F(ManagedVideoTrackTest, ReleaseMarksTrackAsReleased) {
       << "Track should be released after calling release()";
 }
 
-TEST_F(ManagedVideoTrackTest, DoubleReleaseIsIdempotent) {
+TEST_F(ManagedLocalAudioTrackTest, DoubleReleaseIsIdempotent) {
   auto track = createNullTrack();
 
   track.release();
@@ -74,27 +78,27 @@ TEST_F(ManagedVideoTrackTest, DoubleReleaseIsIdempotent) {
   EXPECT_TRUE(track.isReleased());
 }
 
-TEST_F(ManagedVideoTrackTest, PushFrameAfterReleaseReturnsFalse) {
+TEST_F(ManagedLocalAudioTrackTest, PushFrameAfterReleaseReturnsFalse) {
   auto track = createNullTrack();
   track.release();
 
-  std::vector<std::uint8_t> data(1280 * 720 * 4, 0);
+  std::vector<std::int16_t> data(960, 0);
 
-  EXPECT_FALSE(track.pushFrame(data))
+  EXPECT_FALSE(track.pushFrame(data, 480))
       << "pushFrame (vector) on a released track should return false";
 }
 
-TEST_F(ManagedVideoTrackTest, PushFrameRawPointerAfterReleaseReturnsFalse) {
+TEST_F(ManagedLocalAudioTrackTest, PushFrameRawPointerAfterReleaseReturnsFalse) {
   auto track = createNullTrack();
   track.release();
 
-  std::vector<std::uint8_t> data(1280 * 720 * 4, 0);
+  std::vector<std::int16_t> data(960, 0);
 
-  EXPECT_FALSE(track.pushFrame(data.data(), data.size()))
+  EXPECT_FALSE(track.pushFrame(data.data(), 480))
       << "pushFrame (raw pointer) on a released track should return false";
 }
 
-TEST_F(ManagedVideoTrackTest, MuteOnReleasedTrackDoesNotCrash) {
+TEST_F(ManagedLocalAudioTrackTest, MuteOnReleasedTrackDoesNotCrash) {
   auto track = createNullTrack();
   track.release();
 
@@ -102,7 +106,7 @@ TEST_F(ManagedVideoTrackTest, MuteOnReleasedTrackDoesNotCrash) {
       << "mute() on a released track should be a no-op";
 }
 
-TEST_F(ManagedVideoTrackTest, UnmuteOnReleasedTrackDoesNotCrash) {
+TEST_F(ManagedLocalAudioTrackTest, UnmuteOnReleasedTrackDoesNotCrash) {
   auto track = createNullTrack();
   track.release();
 

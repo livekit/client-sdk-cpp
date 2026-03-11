@@ -87,8 +87,8 @@ The returned pointer is valid only while `isConnected()` is true. Do not call `s
 ```
 Your Application
     |                                       |
-    |  pushFrame() -----> ManagedAudioTrack |  (sending to remote participants)
-    |  pushFrame() -----> ManagedVideoTrack |
+    |  pushFrame() -----> ManagedLocalAudioTrack |  (sending to remote participants)
+    |  pushFrame() -----> ManagedLocalVideoTrack |
     |                                       |
     |  callback() <------ Reader Thread     |  (receiving from remote participants)
     |                                       |
@@ -103,7 +103,7 @@ Your Application
 
 **`SessionManager`** -- The main entry point. Owns the full room lifecycle: SDK initialization, room connection, track publishing, and frame callback management.
 
-**`ManagedAudioTrack` / `ManagedVideoTrack`** -- RAII handles for published local tracks. Created via `createAudioTrack()` / `createVideoTrack()`. When the `shared_ptr` is dropped, the track is automatically unpublished and all underlying SDK resources are freed. Call `pushFrame()` to send audio/video data to remote participants.
+**`ManagedLocalAudioTrack` / `ManagedLocalVideoTrack`** -- RAII handles for published local tracks. Created via `createAudioTrack()` / `createVideoTrack()`. When the `shared_ptr` is dropped, the track is automatically unpublished and all underlying SDK resources are freed. Call `pushFrame()` to send audio/video data to remote participants.
 
 **`SessionManagerRoomDelegate`** -- Internal (not part of the public API; lives in `src/`). Listens for `onTrackSubscribed` / `onTrackUnsubscribed` events from the LiveKit SDK and wires up reader threads automatically.
 
@@ -115,7 +115,7 @@ When a remote participant publishes an audio or video track and the SessionManag
 
 In short:
 
-- **Sending** (you -> remote): `ManagedAudioTrack::pushFrame()` / `ManagedVideoTrack::pushFrame()`
+- **Sending** (you -> remote): `ManagedLocalAudioTrack::pushFrame()` / `ManagedLocalVideoTrack::pushFrame()`
 - **Receiving** (remote -> you): reader threads invoke your registered callbacks
 
 Reader threads are managed entirely by the SessionManager. They are created when a matching remote track is subscribed, and torn down (stream closed, thread joined) when the track is unsubscribed, the callback is unregistered, or `disconnect()` is called.
@@ -154,8 +154,8 @@ sm.connect(url, token, options);
 | `disconnect()` | Disconnect and release all resources. Joins all reader threads. Safe to call multiple times. |
 | `isConnected()` | Returns whether the SessionManager is currently connected. |
 | `getRoom()` | Returns a raw pointer to the underlying `livekit::Room` for direct base SDK access (e.g. `room_info()`, `remoteParticipants()`, `registerTextStreamHandler`). Returns `nullptr` when disconnected. Do not call `setDelegate()` on the returned Room. |
-| `createAudioTrack(name, sample_rate, num_channels, source)` | Create and publish a local audio track with the given `TrackSource` (e.g. `SOURCE_MICROPHONE`, `SOURCE_SCREENSHARE_AUDIO`). Returns an RAII `shared_ptr<ManagedAudioTrack>`. |
-| `createVideoTrack(name, width, height, source)` | Create and publish a local video track with the given `TrackSource` (e.g. `SOURCE_CAMERA`, `SOURCE_SCREENSHARE`). Returns an RAII `shared_ptr<ManagedVideoTrack>`. |
+| `createAudioTrack(name, sample_rate, num_channels, source)` | Create and publish a local audio track with the given `TrackSource` (e.g. `SOURCE_MICROPHONE`, `SOURCE_SCREENSHARE_AUDIO`). Returns an RAII `shared_ptr<ManagedLocalAudioTrack>`. |
+| `createVideoTrack(name, width, height, source)` | Create and publish a local video track with the given `TrackSource` (e.g. `SOURCE_CAMERA`, `SOURCE_SCREENSHARE`). Returns an RAII `shared_ptr<ManagedLocalVideoTrack>`. |
 | `setOnAudioFrameCallback(identity, source, callback)` | Register a callback for audio frames from a specific remote participant + track source. |
 | `setOnVideoFrameCallback(identity, source, callback)` | Register a callback for video frames from a specific remote participant + track source. |
 | `clearOnAudioFrameCallback(identity, source)` | Clear the audio callback for a specific remote participant + track source. Stops and joins the reader thread if active. |
@@ -166,7 +166,7 @@ sm.connect(url, token, options);
 | `requestRemoteTrackMute(identity, track_name)` | Ask a remote participant to mute a track by name. Throws `livekit::RpcError` on failure. |
 | `requestRemoteTrackUnmute(identity, track_name)` | Ask a remote participant to unmute a track by name. Throws `livekit::RpcError` on failure. |
 
-### `ManagedAudioTrack`
+### `ManagedLocalAudioTrack`
 
 | Method | Description |
 |---|---|
@@ -175,7 +175,7 @@ sm.connect(url, token, options);
 | `release()` | Explicitly unpublish and free resources. Called automatically by the destructor. |
 | `name()` / `sampleRate()` / `numChannels()` | Accessors for track configuration. |
 
-### `ManagedVideoTrack`
+### `ManagedLocalVideoTrack`
 
 | Method | Description |
 |---|---|
@@ -237,7 +237,7 @@ The human will print periodic summaries like:
 
 The SessionManager includes a unit test suite built with [Google Test](https://github.com/google/googletest). Tests cover
 1. `CallbackKey` hashing/equality,
-2. `ManagedAudioTrack`/`ManagedVideoTrack` state management, and
+2. `ManagedLocalAudioTrack`/`ManagedLocalVideoTrack` state management, and
 3. `SessionManager` pre-connection behaviour (callback registration, error handling).
 
 ### Building and running tests
