@@ -26,6 +26,7 @@
 #include "local_participant.h"
 #include "local_track_publication.h"
 #include "local_video_track.h"
+#include "lk_log.h"
 #include "logging.h"
 #include "participant.h"
 #include "remote_participant.h"

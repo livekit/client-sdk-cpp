@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "livekit/lk_log.h"
 #include "livekit/session_manager/managed_local_audio_track.h"
 #include "livekit/session_manager/managed_local_video_track.h"
 #include "livekit/session_manager/rpc_constants.h"

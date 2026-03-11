@@ -37,7 +37,6 @@
 #include "livekit/session_manager/session_manager.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
-#include "lk_log.h"
 #include "sdl_media.h"
 
 #include <SDL3/SDL.h>

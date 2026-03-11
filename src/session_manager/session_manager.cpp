@@ -39,7 +39,7 @@
 #include <cassert>
 #include <stdexcept>
 
-#include "lk_log.h"
+#include "livekit/lk_log.h"
 
 namespace livekit {
 

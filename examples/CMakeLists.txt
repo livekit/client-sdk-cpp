@@ -88,7 +88,6 @@ target_include_directories(SimpleRoom PRIVATE
 target_link_libraries(SimpleRoom
     PRIVATE
         livekit
-        spdlog::spdlog
         SDL3::SDL3
 )
 
@@ -143,7 +142,6 @@ target_link_libraries(SimpleRpc
   PRIVATE
     nlohmann_json::nlohmann_json
     livekit
-    spdlog::spdlog
 )
 
 # --- SimpleJoystick example (sender + receiver executables with shared json_utils) ---
@@ -174,7 +172,6 @@ target_link_libraries(SimpleJoystickReceiver
   PRIVATE
     simple_joystick_json_utils
     livekit
-    spdlog::spdlog
 )
 
 add_executable(SimpleJoystickSender
@@ -187,7 +184,6 @@ target_link_libraries(SimpleJoystickSender
   PRIVATE
     simple_joystick_json_utils
     livekit
-    spdlog::spdlog
 )
 
 # --- LoggingLevelsBasicUsage example ---
@@ -201,7 +197,6 @@ target_include_directories(LoggingLevelsBasicUsage PRIVATE ${EXAMPLES_PRIVATE_IN
 target_link_libraries(LoggingLevelsBasicUsage
   PRIVATE
     livekit
-    spdlog::spdlog
 )
 
 # --- LoggingLevelsCustomSinks example ---
@@ -226,7 +221,6 @@ target_include_directories(SimpleDataStream PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_D
 target_link_libraries(SimpleDataStream
   PRIVATE
     livekit
-    spdlog::spdlog
 )
 
 add_custom_command(
@@ -248,7 +242,7 @@ target_include_directories(HumanRobotRobot PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(HumanRobotRobot PRIVATE livekit spdlog::spdlog SDL3::SDL3)
+target_link_libraries(HumanRobotRobot PRIVATE livekit SDL3::SDL3)
 
 add_executable(HumanRobotHuman
   human_robot/human.cpp
@@ -259,7 +253,7 @@ target_include_directories(HumanRobotHuman PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(HumanRobotHuman PRIVATE livekit spdlog::spdlog SDL3::SDL3)
+target_link_libraries(HumanRobotHuman PRIVATE livekit SDL3::SDL3)
 
 # --- rpc examples (headless custom RPC caller + receiver) ---
 
@@ -286,7 +280,7 @@ target_include_directories(MuteUnmuteCaller PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(MuteUnmuteCaller PRIVATE livekit spdlog::spdlog SDL3::SDL3)
+target_link_libraries(MuteUnmuteCaller PRIVATE livekit SDL3::SDL3)
 
 add_executable(MuteUnmuteReceiver
   mute_unmute/receiver.cpp
@@ -297,7 +291,7 @@ target_include_directories(MuteUnmuteReceiver PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(MuteUnmuteReceiver PRIVATE livekit spdlog::spdlog SDL3::SDL3)
+target_link_libraries(MuteUnmuteReceiver PRIVATE livekit SDL3::SDL3)
 
 # --- session_manager_base_sdk (SessionManager connect + getRoom(); Room for all else) ---
 add_executable(SessionManagerBaseSdkProducer
@@ -309,7 +303,7 @@ target_include_directories(SessionManagerBaseSdkProducer PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(SessionManagerBaseSdkProducer PRIVATE livekit spdlog::spdlog SDL3::SDL3)
+target_link_libraries(SessionManagerBaseSdkProducer PRIVATE livekit SDL3::SDL3)
 
 add_executable(SessionManagerBaseSdkViewer
   session_manager_base_sdk/video_viewer.cpp
@@ -329,7 +323,7 @@ target_include_directories(SessionManagerBaseSdkViewer PRIVATE
   ${EXAMPLES_COMMON_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/base_sdk/simple_room
 )
-target_link_libraries(SessionManagerBaseSdkViewer PRIVATE livekit spdlog::spdlog SDL3::SDL3)
+target_link_libraries(SessionManagerBaseSdkViewer PRIVATE livekit SDL3::SDL3)
 
 add_custom_command(TARGET SessionManagerBaseSdkViewer POST_BUILD
   COMMAND ${CMAKE_COMMAND} -E copy_directory
