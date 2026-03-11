@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  session_manager::SessionManager sm;
+  livekit::SessionManager sm;
   LK_LOG_INFO("[video_producer] Connecting to {} ...", url);
   livekit::RoomOptions options;
   options.auto_subscribe = true;

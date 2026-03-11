@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
   }
 
   // ----- Connect to LiveKit -----
-  session_manager::SessionManager sm;
+  livekit::SessionManager sm;
   std::cout << "[receiver] Connecting to " << url << " ...\n";
 
   livekit::RoomOptions options;

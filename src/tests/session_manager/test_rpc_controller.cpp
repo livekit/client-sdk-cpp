@@ -28,7 +28,7 @@
 #include <string>
 #include <vector>
 
-namespace session_manager {
+namespace livekit {
 namespace test {
 
 // Records (action, track_name) pairs passed to the TrackActionFn callback.
@@ -270,4 +270,4 @@ TEST_F(RpcControllerTest, FormatPayloadRoundTrip) {
 }
 
 } // namespace test
-} // namespace session_manager
+} // namespace livekit

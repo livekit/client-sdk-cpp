@@ -16,7 +16,7 @@
 
 #include <livekit/rpc_error.h>
 
-namespace session_manager {
+namespace livekit {
 namespace test {
 
 class SessionManagerRpcRoundtripTest : public SessionManagerTestBase {};
@@ -271,4 +271,4 @@ TEST_F(SessionManagerRemoteTrackControlTest, RemoteMuteNonexistentTrack) {
 }
 
 } // namespace test
-} // namespace session_manager
+} // namespace livekit

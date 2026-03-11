@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
 
   std::signal(SIGINT, handleSignal);
 
-  session_manager::SessionManager sm;
+  livekit::SessionManager sm;
   std::cout << "[caller] Connecting to " << url << " ...\n";
 
   livekit::RoomOptions options;

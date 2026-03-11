@@ -29,10 +29,8 @@
 #include <string>
 
 namespace livekit {
-struct RpcInvocationData;
-} // namespace livekit
 
-namespace session_manager {
+struct RpcInvocationData;
 
 namespace test {
 class RpcControllerTest;
@@ -143,4 +141,4 @@ private:
   livekit::LocalParticipant *lp_;
 };
 
-} // namespace session_manager
+} // namespace livekit

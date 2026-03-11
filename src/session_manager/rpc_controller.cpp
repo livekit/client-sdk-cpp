@@ -26,7 +26,7 @@
 #include <cassert>
 #include <iostream>
 
-namespace session_manager {
+namespace livekit {
 
 RpcController::RpcController(TrackActionFn track_action_fn)
     : track_action_fn_(std::move(track_action_fn)), lp_(nullptr) {}
@@ -141,4 +141,4 @@ RpcController::handleTrackControlRpc(const livekit::RpcInvocationData &data) {
   return tc::kResponseOk;
 }
 
-} // namespace session_manager
+} // namespace livekit

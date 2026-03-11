@@ -29,7 +29,7 @@
 
 #include "lk_log.h"
 
-namespace session_manager {
+namespace livekit {
 
 ManagedVideoTrack::ManagedVideoTrack(
     std::string name, int width, int height,
@@ -127,4 +127,4 @@ void ManagedVideoTrack::release() {
   participant_ = nullptr;
 }
 
-} // namespace session_manager
+} // namespace livekit

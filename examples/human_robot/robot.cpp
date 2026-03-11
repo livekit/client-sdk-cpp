@@ -357,7 +357,7 @@ int main(int argc, char *argv[]) {
   }
 
   // ----- Connect to LiveKit -----
-  session_manager::SessionManager sm;
+  livekit::SessionManager sm;
   LK_LOG_INFO("[robot] Connecting to {} ...", url);
   livekit::RoomOptions options;
   options.auto_subscribe = true;
@@ -377,7 +377,7 @@ int main(int argc, char *argv[]) {
   constexpr int kSimWidth = 480;
   constexpr int kSimHeight = 320;
 
-  std::shared_ptr<session_manager::ManagedAudioTrack> mic;
+  std::shared_ptr<livekit::ManagedAudioTrack> mic;
   if (use_mic) {
     mic = sm.createAudioTrack("robot-mic", kSampleRate, kChannels,
                               livekit::TrackSource::SOURCE_MICROPHONE);

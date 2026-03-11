@@ -24,7 +24,7 @@
 
 #include <stdexcept>
 
-namespace session_manager {
+namespace livekit {
 namespace test {
 
 class SessionManagerTest : public ::testing::Test {
@@ -184,4 +184,4 @@ TEST_F(SessionManagerTest, RegisterCallbacksForMultipleParticipants) {
 }
 
 } // namespace test
-} // namespace session_manager
+} // namespace livekit

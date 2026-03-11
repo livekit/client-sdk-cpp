@@ -24,7 +24,7 @@
 
 #include <unordered_map>
 
-namespace session_manager {
+namespace livekit {
 namespace test {
 
 class CallbackKeyTest : public ::testing::Test {
@@ -121,4 +121,4 @@ TEST_F(CallbackKeyTest, EmptyIdentityWorks) {
 }
 
 } // namespace test
-} // namespace session_manager
+} // namespace livekit

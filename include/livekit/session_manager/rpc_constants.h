@@ -21,7 +21,7 @@
 
 #include <string>
 
-namespace session_manager {
+namespace livekit {
 namespace rpc {
 
 /// Built-in RPC method name used by remote track control.
@@ -60,4 +60,4 @@ inline std::string formatPayload(const char *action,
 
 } // namespace track_control
 } // namespace rpc
-} // namespace session_manager
+} // namespace livekit

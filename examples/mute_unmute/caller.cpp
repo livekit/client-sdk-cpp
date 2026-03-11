@@ -146,7 +146,7 @@ int main(int argc, char *argv[]) {
   std::mutex speaker_mutex;
 
   // ----- Connect to LiveKit -----
-  session_manager::SessionManager sm;
+  livekit::SessionManager sm;
   std::cout << "[caller] Connecting to " << url << " ...\n";
 
   livekit::RoomOptions options;

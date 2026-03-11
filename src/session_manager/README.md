@@ -12,7 +12,7 @@ The SessionManager abstracts away room lifecycle management, track creation, pub
 #include "livekit/track.h"
 
 // 1. Connect
-session_manager::SessionManager sm;
+livekit::SessionManager sm;
 livekit::RoomOptions options;
 options.auto_subscribe = true; // automatically subscribe to all remote tracks
 options.dynacast = false;

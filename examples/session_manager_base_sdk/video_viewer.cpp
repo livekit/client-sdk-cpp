@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
 
   SDLMediaManager media;
 
-  session_manager::SessionManager sm;
+  livekit::SessionManager sm;
   LK_LOG_INFO("[video_viewer] Connecting to {} ...", url);
   livekit::RoomOptions options;
   options.auto_subscribe = true;

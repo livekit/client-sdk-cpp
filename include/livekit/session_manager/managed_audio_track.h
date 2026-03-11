@@ -32,7 +32,7 @@ class LocalTrackPublication;
 class LocalParticipant;
 } // namespace livekit
 
-namespace session_manager {
+namespace livekit {
 
 namespace test {
 class ManagedAudioTrackTest;
@@ -144,4 +144,4 @@ private:
   livekit::LocalParticipant *participant_ = nullptr; // not owned
 };
 
-} // namespace session_manager
+} // namespace livekit

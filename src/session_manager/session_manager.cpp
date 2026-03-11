@@ -41,7 +41,7 @@
 
 #include "lk_log.h"
 
-namespace session_manager {
+namespace livekit {
 
 // ---------------------------------------------------------------
 // CallbackKey
@@ -658,4 +658,4 @@ SessionManager::startVideoReader(const CallbackKey &key,
   return old_thread;
 }
 
-} // namespace session_manager
+} // namespace livekit

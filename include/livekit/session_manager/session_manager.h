@@ -37,6 +37,7 @@
 #include <vector>
 
 namespace livekit {
+
 class Room;
 class AudioFrame;
 class VideoFrame;
@@ -44,9 +45,6 @@ class AudioStream;
 class VideoStream;
 class Track;
 enum class TrackSource;
-} // namespace livekit
-
-namespace session_manager {
 
 class SessionManagerRoomDelegate;
 class RpcController;
@@ -460,4 +458,4 @@ private:
   std::vector<std::shared_ptr<ManagedVideoTrack>> published_video_tracks_;
 };
 
-} // namespace session_manager
+} // namespace livekit

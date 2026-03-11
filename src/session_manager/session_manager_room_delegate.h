@@ -21,7 +21,7 @@
 
 #include "livekit/room_delegate.h"
 
-namespace session_manager {
+namespace livekit {
 
 class SessionManager;
 
@@ -49,4 +49,4 @@ private:
   SessionManager &manager_;
 };
 
-} // namespace session_manager
+} // namespace livekit

@@ -24,7 +24,7 @@
 #include <memory>
 #include <vector>
 
-namespace session_manager {
+namespace livekit {
 namespace test {
 
 class ManagedAudioTrackTest : public ::testing::Test {
@@ -115,4 +115,4 @@ TEST_F(ManagedAudioTrackTest, UnmuteOnReleasedTrackDoesNotCrash) {
 }
 
 } // namespace test
-} // namespace session_manager
+} // namespace livekit

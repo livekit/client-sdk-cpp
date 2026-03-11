@@ -24,7 +24,7 @@
 #include "livekit/session_manager/session_manager.h"
 #include "livekit/track.h"
 
-namespace session_manager {
+namespace livekit {
 
 void SessionManagerRoomDelegate::onTrackSubscribed(
     livekit::Room & /*room*/, const livekit::TrackSubscribedEvent &ev) {
@@ -50,4 +50,4 @@ void SessionManagerRoomDelegate::onTrackUnsubscribed(
   manager_.onTrackUnsubscribed(identity, source);
 }
 
-} // namespace session_manager
+} // namespace livekit

@@ -29,7 +29,7 @@
 
 #include "lk_log.h"
 
-namespace session_manager {
+namespace livekit {
 
 ManagedAudioTrack::ManagedAudioTrack(
     std::string name, int sample_rate, int num_channels,
@@ -128,4 +128,4 @@ void ManagedAudioTrack::release() {
   participant_ = nullptr;
 }
 
-} // namespace session_manager
+} // namespace livekit
