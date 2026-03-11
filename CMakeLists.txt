@@ -358,6 +358,7 @@ add_library(livekit SHARED
   src/session_manager/managed_local_video_track.cpp
   src/session_manager/session_manager_room_delegate.cpp
   src/session_manager/session_manager_room_delegate.h
+  src/session_manager/rpc_constants.cpp
   src/session_manager/rpc_controller.cpp
   src/session_manager/rpc_controller.h
 )
