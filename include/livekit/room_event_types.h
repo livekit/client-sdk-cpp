@@ -728,13 +728,13 @@ struct E2eeStateChangedEvent {
 };
 
 /**
- * Fired when a remote participant publishes a data track.
+ * Fired when a participant publishes a data track.
  *
  * Data tracks are independent of the audio/video track hierarchy.
  * The application must call RemoteDataTrack::subscribe() to start
  * receiving frames.
  */
-struct RemoteDataTrackPublishedEvent {
+struct DataTrackPublishedEvent {
   /** The newly published remote data track. */
   std::shared_ptr<RemoteDataTrack> track;
 };
