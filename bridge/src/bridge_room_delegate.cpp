@@ -53,19 +53,18 @@ void BridgeRoomDelegate::onTrackUnsubscribed(
   bridge_.onTrackUnsubscribed(identity, source);
 }
 
-void BridgeRoomDelegate::onRemoteDataTrackPublished(
-    livekit::Room & /*room*/,
-    const livekit::RemoteDataTrackPublishedEvent &ev) {
+void BridgeRoomDelegate::onDataTrackPublished(
+    livekit::Room & /*room*/, const livekit::DataTrackPublishedEvent &ev) {
   if (!ev.track) {
-    LK_LOG_ERROR("[BridgeRoomDelegate] onRemoteDataTrackPublished called "
+    LK_LOG_ERROR("[BridgeRoomDelegate] onDataTrackPublished called "
                  "with null track.");
     return;
   }
 
-  LK_LOG_INFO("[BridgeRoomDelegate] onRemoteDataTrackPublished: \"{}\" from "
+  LK_LOG_INFO("[BridgeRoomDelegate] onDataTrackPublished: \"{}\" from "
               "\"{}\"",
               ev.track->info().name, ev.track->publisherIdentity());
-  bridge_.onRemoteDataTrackPublished(ev.track);
+  bridge_.onDataTrackPublished(ev.track);
 }
 
 } // namespace livekit_bridge

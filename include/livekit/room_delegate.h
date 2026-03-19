@@ -297,8 +297,7 @@ public:
    * Data tracks are independent of the audio/video track hierarchy and
    * require an explicit subscribe() call to start receiving frames.
    */
-  virtual void
-  onRemoteDataTrackPublished(Room &, const RemoteDataTrackPublishedEvent &) {}
+  virtual void onDataTrackPublished(Room &, const DataTrackPublishedEvent &) {}
 
   // ------------------------------------------------------------------
   // Participants snapshot

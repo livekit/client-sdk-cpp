@@ -32,13 +32,13 @@ class OwnedRemoteDataTrack;
 /**
  * Represents a data track published by a remote participant.
  *
- * Discovered via the RemoteDataTrackPublishedEvent room event. Unlike
+ * Discovered via the DataTrackPublishedEvent room event. Unlike
  * audio/video tracks, remote data tracks require an explicit subscribe()
  * call to begin receiving frames.
  *
  * Typical usage:
  *
- *   // In RoomDelegate::onRemoteDataTrackPublished callback:
+ *   // In RoomDelegate::onDataTrackPublished callback:
  *   auto sub = remoteDataTrack->subscribe();
  *   DataFrame frame;
  *   while (sub->read(frame)) {

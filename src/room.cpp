@@ -658,20 +658,20 @@ void Room::OnEvent(const FfiEvent &event) {
       }
       break;
     }
-    case proto::RoomEvent::kRemoteDataTrackPublished: {
-      const auto &rdtp = re.remote_data_track_published();
+    case proto::RoomEvent::kDataTrackPublished: {
+      const auto &rdtp = re.data_track_published();
       auto remote_track =
           std::shared_ptr<RemoteDataTrack>(new RemoteDataTrack(rdtp.track()));
-      LK_LOG_INFO("[Room] RoomEvent::kRemoteDataTrackPublished: \"{}\" from "
+      LK_LOG_INFO("[Room] RoomEvent::kDataTrackPublished: \"{}\" from "
                   "\"{}\" (sid={})",
                   remote_track->info().name, remote_track->publisherIdentity(),
                   remote_track->info().sid);
-      RemoteDataTrackPublishedEvent ev;
+      DataTrackPublishedEvent ev;
       ev.track = remote_track;
       if (delegate_snapshot) {
-        delegate_snapshot->onRemoteDataTrackPublished(*this, ev);
+        delegate_snapshot->onDataTrackPublished(*this, ev);
       } else {
-        LK_LOG_ERROR("[Room] No delegate set; RemoteDataTrackPublished "
+        LK_LOG_ERROR("[Room] No delegate set; DataTrackPublished "
                      "event dropped.");
       }
       break;
