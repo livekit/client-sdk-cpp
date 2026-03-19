@@ -34,29 +34,20 @@ namespace track_control {
 enum class Action { kActionMute, kActionUnmute };
 
 /// RPC method name registered by the bridge for remote track control.
-constexpr const char *kMethod = "lk.bridge.track-control";
+extern const char *const kMethod;
 
 /// Payload action strings.
-constexpr const char *kActionMute = "mute";
-constexpr const char *kActionUnmute = "unmute";
+extern const char *const kActionMute;
+extern const char *const kActionUnmute;
 
 /// Delimiter between action and track name in the payload (e.g. "mute:cam").
-constexpr char kDelimiter = ':';
+extern const char kDelimiter;
 
 /// Response payload returned on success.
-constexpr const char *kResponseOk = "ok";
+extern const char *const kResponseOk;
 
 /// Build a track-control RPC payload: "<action>:<track_name>".
-inline std::string formatPayload(const char *action,
-                                 const std::string &track_name) {
-  std::string payload;
-  payload.reserve(std::char_traits<char>::length(action) + 1 +
-                  track_name.size());
-  payload += action;
-  payload += kDelimiter;
-  payload += track_name;
-  return payload;
-}
+std::string formatPayload(const char *action, const std::string &track_name);
 
 } // namespace track_control
 } // namespace rpc

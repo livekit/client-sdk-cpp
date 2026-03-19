@@ -24,7 +24,6 @@
 #include <thread>
 
 #include "livekit/livekit.h"
-#include "lk_log.h"
 #include "wav_audio_source.h"
 
 using namespace livekit;

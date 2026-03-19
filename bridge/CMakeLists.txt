@@ -11,6 +11,7 @@ add_library(livekit_bridge SHARED
   src/bridge_video_track.cpp
   src/bridge_room_delegate.cpp
   src/bridge_room_delegate.h
+  src/rpc_constants.cpp
   src/rpc_controller.cpp
   src/rpc_controller.h
 )

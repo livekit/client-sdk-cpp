@@ -37,6 +37,7 @@ Commands:
   release           Configure + build Release version (build-release/)
   release-examples  Configure + build Release version with examples
   release-tests     Configure + build Release version with tests
+  build-all         Configure + build all of the above (debug/release + examples + tests)
   clean             Clean both Debug and Release build directories
   clean-all         Full clean (build dirs + Rust targets)
   help              Show this help message
@@ -60,6 +61,7 @@ Examples:
   ./build.sh debug
   ./build.sh debug-tests
   ./build.sh release-tests
+  ./build.sh build-all
   ./build.sh clean
   ./build.sh clean-all
 EOF
@@ -400,6 +402,26 @@ case "${cmd}" in
         archive_bundle
       fi
     fi
+    ;;
+  build-all)
+    echo "==> Build-all: debug, debug-examples, debug-tests, release, release-examples, release-tests"
+    BUILD_TYPE="Debug"
+    BUILD_DIR="${PROJECT_ROOT}/build-debug"
+    PRESET="${OS_TYPE}-debug"
+    configure && build
+    PRESET="${OS_TYPE}-debug-examples"
+    configure && build
+    PRESET="${OS_TYPE}-debug-tests"
+    configure && build
+    BUILD_TYPE="Release"
+    BUILD_DIR="${PROJECT_ROOT}/build-release"
+    PRESET="${OS_TYPE}-release"
+    configure && build
+    PRESET="${OS_TYPE}-release-examples"
+    configure && build
+    PRESET="${OS_TYPE}-release-tests"
+    configure && build
+    echo "==> Build-all complete."
     ;;
   clean)
     clean

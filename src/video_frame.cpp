@@ -6,7 +6,7 @@
 #include <vector>
 
 #include "livekit/ffi_handle.h"
-#include "lk_log.h"
+#include "livekit/lk_log.h"
 #include "video_utils.h"
 
 namespace livekit {

@@ -22,11 +22,11 @@
 #include "livekit/build.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
+#include "livekit/lk_log.h"
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"
 #include "livekit/track.h"
 #include "livekit_ffi.h"
-#include "lk_log.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
 

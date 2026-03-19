@@ -39,8 +39,6 @@
 #include <cassert>
 #include <stdexcept>
 
-#include "lk_log.h"
-
 namespace livekit_bridge {
 
 // ---------------------------------------------------------------

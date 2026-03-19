@@ -16,7 +16,7 @@
 
 #include "sdl_media.h"
 
-#include "lk_log.h"
+#include "livekit/lk_log.h"
 
 // ---------------------- SDLMicSource -----------------------------
 

@@ -17,7 +17,7 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
-#include "lk_log.h"
+#include "livekit/lk_log.h"
 
 #include <atomic>
 #include <mutex>
