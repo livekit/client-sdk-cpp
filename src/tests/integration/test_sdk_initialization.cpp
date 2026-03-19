@@ -34,7 +34,8 @@ TEST_F(SDKInitializationTest, InitializeDefault) {
 
 TEST_F(SDKInitializationTest, InitializeWithLogLevel) {
   bool result = livekit::initialize(livekit::LogLevel::Debug);
-  EXPECT_TRUE(result) << "Initialization with explicit log level should succeed";
+  EXPECT_TRUE(result)
+      << "Initialization with explicit log level should succeed";
   EXPECT_EQ(livekit::getLogLevel(), livekit::LogLevel::Debug);
 }
 

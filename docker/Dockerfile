@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libclang-dev \
     libdrm-dev \
     libglib2.0-dev \
+    libspdlog-dev \
     libssl-dev \
     libunwind-dev \
     libusb-1.0-0-dev \

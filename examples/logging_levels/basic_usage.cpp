@@ -34,8 +34,8 @@
 /// If no argument is given, the example cycles through every level so you can
 /// see which messages are filtered at each setting.
 
-#include "lk_log.h"
 #include "livekit/livekit.h"
+#include "lk_log.h"
 
 #include <cstring>
 #include <iostream>
@@ -79,8 +79,7 @@ livekit::LogLevel parseLevel(const char *arg) {
     return livekit::LogLevel::Critical;
   if (std::strcmp(arg, "off") == 0)
     return livekit::LogLevel::Off;
-  std::cerr << "Unknown level '" << arg
-            << "', defaulting to Info.\n"
+  std::cerr << "Unknown level '" << arg << "', defaulting to Info.\n"
             << "Valid: trace, debug, info, warn, error, critical, off\n";
   return livekit::LogLevel::Info;
 }
@@ -123,12 +122,12 @@ void runCallbackDemo() {
 
   // Install a user-defined callback that captures all log output.
   // In a real ROS2 node you would replace this with RCLCPP_* macros.
-  livekit::setLogCallback(
-      [](livekit::LogLevel level, const std::string &logger_name,
-         const std::string &message) {
-        std::cout << "[CALLBACK] [" << levelName(level) << "] [" << logger_name
-                  << "] " << message << "\n";
-      });
+  livekit::setLogCallback([](livekit::LogLevel level,
+                             const std::string &logger_name,
+                             const std::string &message) {
+    std::cout << "[CALLBACK] [" << levelName(level) << "] [" << logger_name
+              << "] " << message << "\n";
+  });
 
   LK_LOG_INFO("This message is routed through the custom callback");
   LK_LOG_WARN("Warnings also go through the callback");

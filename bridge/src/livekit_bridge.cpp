@@ -19,6 +19,8 @@
 
 #include "livekit_bridge/livekit_bridge.h"
 #include "bridge_room_delegate.h"
+#include "livekit_bridge/rpc_constants.h"
+#include "rpc_controller.h"
 
 #include "livekit/audio_frame.h"
 #include "livekit/audio_source.h"
@@ -61,7 +63,12 @@ LiveKitBridge::CallbackKeyHash::operator()(const CallbackKey &k) const {
 // ---------------------------------------------------------------
 
 LiveKitBridge::LiveKitBridge()
-    : connected_(false), connecting_(false), sdk_initialized_(false) {}
+    : connected_(false), connecting_(false), sdk_initialized_(false),
+      rpc_controller_(std::make_unique<RpcController>(
+          [this](const rpc::track_control::Action &action,
+                 const std::string &track_name) {
+            executeTrackAction(action, track_name);
+          })) {}
 
 LiveKitBridge::~LiveKitBridge() { disconnect(); }
 
@@ -114,17 +121,29 @@ bool LiveKitBridge::connect(const std::string &url, const std::string &token,
   auto delegate = std::make_unique<BridgeRoomDelegate>(*this);
   assert(delegate != nullptr);
   room->setDelegate(delegate.get());
+  livekit::LocalParticipant *lp = nullptr;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     room_ = std::move(room);
     delegate_ = std::move(delegate);
     connected_ = true;
     connecting_ = false;
+
+    lp = room_->localParticipant();
+    assert(lp != nullptr);
   }
+
+  rpc_controller_->enable(lp);
   return true;
 }
 
 void LiveKitBridge::disconnect() {
+  // Disable the RPC controller before tearing down the room. This unregisters
+  // built-in handlers while the LocalParticipant is still alive.
+  if (rpc_controller_ && rpc_controller_->isEnabled()) {
+    rpc_controller_->disable();
+  }
+
   // Collect threads to join outside the lock to avoid deadlock.
   std::vector<std::thread> threads_to_join;
   bool should_shutdown_sdk = false;
@@ -211,7 +230,7 @@ LiveKitBridge::createAudioTrack(const std::string &name, int sample_rate,
 
   if (!connected_ || !room_) {
     throw std::runtime_error(
-        "LiveKitBridge::createAudioTrack: not connected to a room");
+        "createAudioTrack requires an active connection; call connect() first");
   }
 
   // 1. Create audio source (real-time mode, queue_size_ms=0)
@@ -226,12 +245,15 @@ LiveKitBridge::createAudioTrack(const std::string &name, int sample_rate,
   livekit::TrackPublishOptions opts;
   opts.source = source;
 
-  auto publication = room_->localParticipant()->publishTrack(track, opts);
+  auto lp = room_->localParticipant();
+  assert(lp != nullptr);
+
+  auto publication = lp->publishTrack(track, opts);
 
   // 4. Wrap in handle and retain a reference
   auto bridge_track = std::shared_ptr<BridgeAudioTrack>(new BridgeAudioTrack(
       name, sample_rate, num_channels, std::move(audio_source),
-      std::move(track), std::move(publication), room_->localParticipant()));
+      std::move(track), std::move(publication), lp));
   published_audio_tracks_.emplace_back(bridge_track);
   return bridge_track;
 }
@@ -243,7 +265,7 @@ LiveKitBridge::createVideoTrack(const std::string &name, int width, int height,
 
   if (!connected_ || !room_) {
     throw std::runtime_error(
-        "LiveKitBridge::createVideoTrack: not connected to a room");
+        "createVideoTrack requires an active connection; call connect() first");
   }
 
   // 1. Create video source
@@ -257,12 +279,15 @@ LiveKitBridge::createVideoTrack(const std::string &name, int width, int height,
   livekit::TrackPublishOptions opts;
   opts.source = source;
 
-  auto publication = room_->localParticipant()->publishTrack(track, opts);
+  auto lp = room_->localParticipant();
+  assert(lp != nullptr);
+
+  auto publication = lp->publishTrack(track, opts);
 
   // 4. Wrap in handle and retain a reference
-  auto bridge_track = std::shared_ptr<BridgeVideoTrack>(new BridgeVideoTrack(
-      name, width, height, std::move(video_source), std::move(track),
-      std::move(publication), room_->localParticipant()));
+  auto bridge_track = std::shared_ptr<BridgeVideoTrack>(
+      new BridgeVideoTrack(name, width, height, std::move(video_source),
+                           std::move(track), std::move(publication), lp));
   published_video_tracks_.emplace_back(bridge_track);
   return bridge_track;
 }
@@ -326,6 +351,149 @@ void LiveKitBridge::clearOnVideoFrameCallback(
   if (thread_to_join.joinable()) {
     thread_to_join.join();
   }
+}
+
+// ---------------------------------------------------------------
+// RPC (delegates to RpcController)
+// ---------------------------------------------------------------
+
+std::optional<std::string>
+LiveKitBridge::performRpc(const std::string &destination_identity,
+                          const std::string &method, const std::string &payload,
+                          const std::optional<double> &response_timeout) {
+
+  if (!isConnected()) {
+    return std::nullopt;
+  }
+
+  try {
+    return rpc_controller_->performRpc(destination_identity, method, payload,
+                                       response_timeout);
+  } catch (const std::exception &e) {
+    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
+    return std::nullopt;
+  } catch (const std::runtime_error &e) {
+    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
+    return std::nullopt;
+  } catch (const livekit::RpcError &e) {
+    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
+    return std::nullopt;
+  }
+}
+
+bool LiveKitBridge::registerRpcMethod(
+    const std::string &method_name,
+    livekit::LocalParticipant::RpcHandler handler) {
+
+  if (!isConnected()) {
+    return false;
+  }
+  try {
+    rpc_controller_->registerRpcMethod(method_name, std::move(handler));
+    return true;
+  } catch (const std::exception &e) {
+    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
+    return false;
+  } catch (const std::runtime_error &e) {
+    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
+    return false;
+  } catch (const livekit::RpcError &e) {
+    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
+    return false;
+  }
+}
+
+bool LiveKitBridge::unregisterRpcMethod(const std::string &method_name) {
+  if (!isConnected()) {
+    return false;
+  }
+  try {
+    rpc_controller_->unregisterRpcMethod(method_name);
+    return true;
+  } catch (const std::exception &e) {
+    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
+    return false;
+  } catch (const std::runtime_error &e) {
+    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
+    return false;
+  } catch (const livekit::RpcError &e) {
+    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
+    return false;
+  }
+}
+
+bool LiveKitBridge::requestRemoteTrackMute(
+    const std::string &destination_identity, const std::string &track_name) {
+  if (!isConnected()) {
+    return false;
+  }
+  try {
+    rpc_controller_->requestRemoteTrackMute(destination_identity, track_name);
+    return true;
+  } catch (const std::exception &e) {
+    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
+    return false;
+  } catch (const std::runtime_error &e) {
+    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
+    return false;
+  } catch (const livekit::RpcError &e) {
+    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
+    return false;
+  }
+}
+
+bool LiveKitBridge::requestRemoteTrackUnmute(
+    const std::string &destination_identity, const std::string &track_name) {
+  if (!isConnected()) {
+    return false;
+  }
+  try {
+    rpc_controller_->requestRemoteTrackUnmute(destination_identity, track_name);
+    return true;
+  } catch (const std::exception &e) {
+    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
+    return false;
+  } catch (const std::runtime_error &e) {
+    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
+    return false;
+  } catch (const livekit::RpcError &e) {
+    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------
+// Track action callback for RpcController
+// ---------------------------------------------------------------
+
+void LiveKitBridge::executeTrackAction(const rpc::track_control::Action &action,
+                                       const std::string &track_name) {
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  for (auto &track : published_audio_tracks_) {
+    if (track->name() == track_name && !track->isReleased()) {
+      if (action == rpc::track_control::Action::kActionMute) {
+        track->mute();
+      } else {
+        track->unmute();
+      }
+      return;
+    }
+  }
+
+  for (auto &track : published_video_tracks_) {
+    if (track->name() == track_name && !track->isReleased()) {
+      if (action == rpc::track_control::Action::kActionMute) {
+        track->mute();
+      } else {
+        track->unmute();
+      }
+      return;
+    }
+  }
+
+  throw livekit::RpcError(livekit::RpcError::ErrorCode::APPLICATION_ERROR,
+                          "track not found: " + track_name);
 }
 
 // ---------------------------------------------------------------

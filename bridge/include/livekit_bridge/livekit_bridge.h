@@ -21,8 +21,11 @@
 
 #include "livekit_bridge/bridge_audio_track.h"
 #include "livekit_bridge/bridge_video_track.h"
+#include "livekit_bridge/rpc_constants.h"
 
+#include "livekit/local_participant.h"
 #include "livekit/room.h"
+#include "livekit/rpc_error.h"
 
 #include <cstdint>
 #include <functional>
@@ -46,6 +49,7 @@ enum class TrackSource;
 namespace livekit_bridge {
 
 class BridgeRoomDelegate;
+class RpcController;
 
 namespace test {
 class CallbackKeyTest;
@@ -264,6 +268,90 @@ public:
   void clearOnVideoFrameCallback(const std::string &participant_identity,
                                  livekit::TrackSource source);
 
+  // ---------------------------------------------------------------
+  // RPC (Remote Procedure Call)
+  // ---------------------------------------------------------------
+
+  /**
+   * Initiate a blocking RPC call to a remote participant.
+   *
+   * Sends a request to the participant identified by
+   * @p destination_identity and blocks until a response is received
+   * or the call times out.
+   *
+   * @param destination_identity  Identity of the remote participant.
+   * @param method                Name of the RPC method to invoke.
+   * @param payload               Request payload string.
+   * @param response_timeout      Optional timeout in seconds. If not set,
+   *                              the server default (15 s) is used.
+   * @return The response payload returned by the remote handler. nullptr if the
+   * RPC call fails, or the bridge is not connected.
+   */
+  std::optional<std::string>
+  performRpc(const std::string &destination_identity, const std::string &method,
+             const std::string &payload,
+             const std::optional<double> &response_timeout = std::nullopt);
+
+  /**
+   * Register a handler for incoming RPC method invocations.
+   *
+   * When a remote participant calls the given @p method_name on this
+   * participant, the bridge invokes @p handler. The handler may return
+   * an optional response payload or throw a @c livekit::RpcError to
+   * signal failure to the caller.
+   *
+   * If a handler is already registered for @p method_name, it is
+   * silently replaced.
+   *
+   * @param method_name  Name of the RPC method to handle.
+   * @param handler      Callback invoked on each incoming invocation.
+   * @return true if the RPC method was registered successfully.
+   */
+  bool registerRpcMethod(const std::string &method_name,
+                         livekit::LocalParticipant::RpcHandler handler);
+
+  /**
+   * Unregister a previously registered RPC method handler.
+   *
+   * After this call, invocations for @p method_name result in an
+   * "unsupported method" error being returned to the remote caller.
+   * If no handler is registered for this name, the call is a no-op.
+   *
+   * @param method_name  Name of the RPC method to unregister.
+   * @return true if the RPC method was unregistered successfully.
+   */
+  bool unregisterRpcMethod(const std::string &method_name);
+
+  // ---------------------------------------------------------------
+  // Remote Track Control (via RPC)
+  // ---------------------------------------------------------------
+
+  /**
+   * Request a remote participant to mute a published track.
+   *
+   * The remote participant must be a LiveKitBridge instance (which
+   * automatically registers the built-in track-control RPC handler).
+   *
+   * @param destination_identity  Identity of the remote participant.
+   * @param track_name            Name of the track to mute.
+   * @return true if the track was muted successfully.
+   */
+  bool requestRemoteTrackMute(const std::string &destination_identity,
+                              const std::string &track_name);
+
+  /**
+   * Request a remote participant to unmute a published track.
+   *
+   * The remote participant must be a LiveKitBridge instance (which
+   * automatically registers the built-in track-control RPC handler).
+   *
+   * @param destination_identity  Identity of the remote participant.
+   * @param track_name            Name of the track to unmute.
+   * @return true if the track was unmuted successfully.
+   */
+  bool requestRemoteTrackUnmute(const std::string &destination_identity,
+                                const std::string &track_name);
+
 private:
   friend class BridgeRoomDelegate;
   friend class test::CallbackKeyTest;
@@ -314,6 +402,13 @@ private:
                                const std::shared_ptr<livekit::Track> &track,
                                VideoFrameCallback cb);
 
+  /// Execute a track action (mute/unmute) by track name.
+  /// Used as the TrackActionFn callback for RpcController.
+  /// Throws livekit::RpcError if the track is not found.
+  /// @pre Caller does NOT hold mutex_ (acquires it internally).
+  void executeTrackAction(const rpc::track_control::Action &action,
+                          const std::string &track_name);
+
   mutable std::mutex mutex_;
   bool connected_;
   bool connecting_; // guards against concurrent connect() calls
@@ -323,6 +418,7 @@ private:
 
   std::unique_ptr<livekit::Room> room_;
   std::unique_ptr<BridgeRoomDelegate> delegate_;
+  std::unique_ptr<RpcController> rpc_controller_;
 
   /// Registered callbacks (may be registered before tracks are subscribed).
   std::unordered_map<CallbackKey, AudioFrameCallback, CallbackKeyHash>

@@ -225,7 +225,7 @@ void LocalParticipant::unpublishTrack(const std::string &track_sid) {
 
 std::string LocalParticipant::performRpc(
     const std::string &destination_identity, const std::string &method,
-    const std::string &payload, std::optional<double> response_timeout) {
+    const std::string &payload, const std::optional<double> &response_timeout) {
   auto handle_id = ffiHandleId();
   if (handle_id == 0) {
     throw std::runtime_error(
