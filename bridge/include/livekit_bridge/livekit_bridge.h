@@ -23,6 +23,7 @@
 #include "livekit_bridge/bridge_video_track.h"
 #include "livekit_bridge/rpc_constants.h"
 
+#include "livekit/lk_log.h"
 #include "livekit/local_participant.h"
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"

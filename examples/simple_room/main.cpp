@@ -27,7 +27,6 @@
 #include <vector>
 
 #include "livekit/livekit.h"
-#include "lk_log.h"
 #include "sdl_media_manager.h"
 #include "wav_audio_source.h"
 

@@ -18,7 +18,7 @@
 
 #include "fallback_capture.h"
 #include "livekit/livekit.h"
-#include "lk_log.h"
+#include "livekit/lk_log.h"
 #include "sdl_media.h"
 #include "sdl_video_renderer.h"
 #include <cstring>
