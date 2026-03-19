@@ -24,6 +24,7 @@
 #include <deque>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 namespace livekit {
 
@@ -51,8 +52,8 @@ class FfiEvent;
 class DataTrackSubscription {
 public:
   struct Options {
-    /// Maximum frames buffered on the Rust side. 0 = unbounded.
-    std::size_t buffer_size{0};
+    /// Maximum frames buffered on the Rust side. Rust defaults to 16.
+    std::optional<std::uint32_t> buffer_size{std::nullopt};
   };
 
   virtual ~DataTrackSubscription();
