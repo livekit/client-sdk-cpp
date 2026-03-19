@@ -676,6 +676,16 @@ void Room::OnEvent(const FfiEvent &event) {
       }
       break;
     }
+    case proto::RoomEvent::kDataTrackUnpublished: {
+      const auto &dtu = re.data_track_unpublished();
+      LK_LOG_INFO("[Room] RoomEvent::kDataTrackUnpublished: sid={}", dtu.sid());
+      DataTrackUnpublishedEvent ev;
+      ev.sid = dtu.sid();
+      if (delegate_snapshot) {
+        delegate_snapshot->onDataTrackUnpublished(*this, ev);
+      }
+      break;
+    }
     case proto::RoomEvent::kTrackMuted: {
       TrackMutedEvent ev;
       bool success = false;

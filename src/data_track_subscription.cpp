@@ -19,6 +19,7 @@
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
+#include "livekit/lk_log.h"
 
 #include <utility>
 
@@ -32,7 +33,6 @@ DataTrackSubscription::DataTrackSubscription(
     DataTrackSubscription &&other) noexcept {
   std::lock_guard<std::mutex> lock(other.mutex_);
   queue_ = std::move(other.queue_);
-  capacity_ = other.capacity_;
   eof_ = other.eof_;
   closed_ = other.closed_;
   subscription_handle_ = std::move(other.subscription_handle_);
@@ -55,7 +55,6 @@ DataTrackSubscription::operator=(DataTrackSubscription &&other) noexcept {
     std::lock_guard<std::mutex> lock_other(other.mutex_);
 
     queue_ = std::move(other.queue_);
-    capacity_ = other.capacity_;
     eof_ = other.eof_;
     closed_ = other.closed_;
     subscription_handle_ = std::move(other.subscription_handle_);
@@ -68,10 +67,8 @@ DataTrackSubscription::operator=(DataTrackSubscription &&other) noexcept {
   return *this;
 }
 
-void DataTrackSubscription::init(FfiHandle subscription_handle,
-                                 const Options &options) {
+void DataTrackSubscription::init(FfiHandle subscription_handle) {
   subscription_handle_ = std::move(subscription_handle);
-  capacity_ = options.capacity;
 
   listener_id_ = FfiClient::instance().AddListener(
       [this](const FfiEvent &e) { this->onFfiEvent(e); });
@@ -141,19 +138,31 @@ void DataTrackSubscription::onFfiEvent(const FfiEvent &event) {
 }
 
 void DataTrackSubscription::pushFrame(DataFrame &&frame) {
-  {
-    std::lock_guard<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
 
-    if (closed_ || eof_) {
-      return;
-    }
+  if (closed_ || eof_) {
+    return;
+  }
 
-    if (capacity_ > 0 && queue_.size() >= capacity_) {
-      queue_.pop_front();
-    }
+  // rust side handles buffering, so we should only really ever have one item
+  if (queue_.size() >= 2) {
+    LK_LOG_ERROR("[DataTrackSubscription] Queue size is greater than 1, this "
+                 "should not happen");
 
+    // notify to try to catch up
+    cv_.notify_one();
+  } else if (queue_.size() >= 1) {
+    LK_LOG_WARN("[DataTrackSubscription] Queue size is 1, are we able to "
+                "keep up with rust pushing data?");
+
+    // we expect this to happen, but rarely.
+    queue_.push_back(std::move(frame));
+  } else {
+    // things are nominal
     queue_.push_back(std::move(frame));
   }
+
+  // notify no matter what since we got a new frame
   cv_.notify_one();
 }
 

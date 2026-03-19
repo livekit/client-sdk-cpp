@@ -669,7 +669,8 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
 }
 
 std::future<proto::OwnedDataTrackSubscription>
-FfiClient::subscribeDataTrackAsync(std::uint64_t track_handle) {
+FfiClient::subscribeDataTrackAsync(std::uint64_t track_handle,
+                                   std::optional<std::uint32_t> buffer_size) {
   const AsyncId async_id = generateAsyncId();
 
   auto fut = registerAsync<proto::OwnedDataTrackSubscription>(
@@ -698,7 +699,10 @@ FfiClient::subscribeDataTrackAsync(std::uint64_t track_handle) {
   proto::FfiRequest req;
   auto *msg = req.mutable_subscribe_data_track();
   msg->set_track_handle(track_handle);
-  msg->mutable_options();
+  auto *opts = msg->mutable_options();
+  if (buffer_size.has_value()) {
+    opts->set_buffer_size(buffer_size.value());
+  }
   msg->set_request_async_id(async_id);
 
   try {

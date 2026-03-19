@@ -739,4 +739,12 @@ struct DataTrackPublishedEvent {
   std::shared_ptr<RemoteDataTrack> track;
 };
 
+/**
+ * Fired when a remote participant unpublishes a data track.
+ */
+struct DataTrackUnpublishedEvent {
+  /** SID of the track that was unpublished. */
+  std::string sid;
+};
+
 } // namespace livekit
