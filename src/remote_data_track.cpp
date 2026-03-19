@@ -20,7 +20,6 @@
 #include "ffi.pb.h"
 #include "ffi_client.h"
 
-#include <optional>
 #include <stdexcept>
 
 namespace livekit {
@@ -53,13 +52,8 @@ RemoteDataTrack::subscribe(const DataTrackSubscription::Options &options) {
     throw std::runtime_error("RemoteDataTrack::subscribe: invalid FFI handle");
   }
 
-  std::optional<std::uint32_t> buffer_size;
-  if (options.buffer_size > 0) {
-    buffer_size = static_cast<std::uint32_t>(options.buffer_size);
-  }
-
   auto fut = FfiClient::instance().subscribeDataTrackAsync(
-      static_cast<std::uint64_t>(handle_.get()), buffer_size);
+      static_cast<std::uint64_t>(handle_.get()), options.buffer_size);
 
   proto::OwnedDataTrackSubscription owned_sub = fut.get();
 
