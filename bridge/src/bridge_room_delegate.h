@@ -48,6 +48,10 @@ public:
   onDataTrackPublished(livekit::Room &room,
                        const livekit::DataTrackPublishedEvent &ev) override;
 
+  void
+  onDataTrackUnpublished(livekit::Room &room,
+                         const livekit::DataTrackUnpublishedEvent &ev) override;
+
 private:
   LiveKitBridge &bridge_;
 };

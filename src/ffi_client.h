@@ -18,11 +18,13 @@
 #define LIVEKIT_FFI_CLIENT_H
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <future>
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <unordered_map>
 
@@ -129,8 +131,9 @@ public:
   std::future<proto::OwnedLocalDataTrack>
   publishDataTrackAsync(std::uint64_t local_participant_handle,
                         const std::string &track_name);
-  std::future<proto::OwnedDataTrackSubscription>
-  subscribeDataTrackAsync(std::uint64_t track_handle);
+  std::future<proto::OwnedDataTrackSubscription> subscribeDataTrackAsync(
+      std::uint64_t track_handle,
+      std::optional<std::uint32_t> buffer_size = std::nullopt);
 
   // Data stream functionalities
   std::future<void>

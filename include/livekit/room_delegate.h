@@ -299,6 +299,12 @@ public:
    */
   virtual void onDataTrackPublished(Room &, const DataTrackPublishedEvent &) {}
 
+  /**
+   * Called when a remote participant unpublishes a data track.
+   */
+  virtual void onDataTrackUnpublished(Room &,
+                                      const DataTrackUnpublishedEvent &) {}
+
   // ------------------------------------------------------------------
   // Participants snapshot
   // ------------------------------------------------------------------

@@ -51,9 +51,8 @@ class FfiEvent;
 class DataTrackSubscription {
 public:
   struct Options {
-    /// Maximum buffered frames (count). 0 = unbounded.
-    /// When non-zero, behaves as a ring buffer (oldest dropped on overflow).
-    std::size_t capacity{0};
+    /// Maximum frames buffered on the Rust side. 0 = unbounded.
+    std::size_t buffer_size{0};
   };
 
   virtual ~DataTrackSubscription();
@@ -85,7 +84,7 @@ private:
 
   DataTrackSubscription() = default;
   /// Internal init helper, called by RemoteDataTrack.
-  void init(FfiHandle subscription_handle, const Options &options);
+  void init(FfiHandle subscription_handle);
 
   /// FFI event handler, called by FfiClient.
   void onFfiEvent(const proto::FfiEvent &event);
@@ -104,9 +103,6 @@ private:
 
   /** FIFO of received frames awaiting read(). */
   std::deque<DataFrame> queue_;
-
-  /** Max buffered frames (0 = unbounded). Oldest dropped on overflow. */
-  std::size_t capacity_{0};
 
   /** True once the remote side signals end-of-stream. */
   bool eof_{false};

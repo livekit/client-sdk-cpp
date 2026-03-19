@@ -67,4 +67,9 @@ void BridgeRoomDelegate::onDataTrackPublished(
   bridge_.onDataTrackPublished(ev.track);
 }
 
+void BridgeRoomDelegate::onDataTrackUnpublished(
+    livekit::Room & /*room*/, const livekit::DataTrackUnpublishedEvent &ev) {
+  bridge_.onDataTrackUnpublished(ev.sid);
+}
+
 } // namespace livekit_bridge
