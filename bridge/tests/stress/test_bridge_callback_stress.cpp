@@ -157,7 +157,7 @@ TEST_F(BridgeCallbackStressTest, MixedCallbackChurn) {
   std::thread data_pusher([&]() {
     while (running.load()) {
       auto payload = cbPayload(256);
-      data->pushFrame(payload);
+      data->tryPush(payload);
       std::this_thread::sleep_for(20ms);
     }
   });

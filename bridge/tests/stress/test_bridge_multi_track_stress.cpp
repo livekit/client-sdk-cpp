@@ -131,7 +131,7 @@ TEST_F(BridgeMultiTrackStressTest, ConcurrentMultiTrackPush) {
   std::thread data1_thread([&]() {
     while (running.load()) {
       auto payload = mtPayload(512);
-      bool ok = data1->pushFrame(payload);
+      bool ok = data1->tryPush(payload);
       data1_stats.pushes++;
       if (ok)
         data1_stats.successes++;
@@ -144,7 +144,7 @@ TEST_F(BridgeMultiTrackStressTest, ConcurrentMultiTrackPush) {
   std::thread data2_thread([&]() {
     while (running.load()) {
       auto payload = mtPayload(2048);
-      bool ok = data2->pushFrame(payload);
+      bool ok = data2->tryPush(payload);
       data2_stats.pushes++;
       if (ok)
         data2_stats.successes++;
@@ -267,11 +267,11 @@ TEST_F(BridgeMultiTrackStressTest, ConcurrentCreateRelease) {
 
         for (int i = 0; i < 5; ++i) {
           auto payload = mtPayload(128);
-          track->pushFrame(payload);
+          track->tryPush(payload);
           std::this_thread::sleep_for(20ms);
         }
 
-        track->release();
+        track->unpublishDataTrack();
         data_cycles++;
       } catch (const std::exception &e) {
         errors++;
@@ -374,10 +374,10 @@ TEST_F(BridgeMultiTrackStressTest, FullDuplexMultiTrack) {
       };
 
   auto data_push_fn =
-      [&](std::shared_ptr<BridgeDataTrack> track) {
+      [&](std::shared_ptr<livekit::LocalDataTrack> track) {
         while (running.load()) {
           auto payload = mtPayload(256);
-          track->pushFrame(payload);
+          track->tryPush(payload);
           std::this_thread::sleep_for(20ms);
         }
       };

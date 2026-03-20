@@ -397,7 +397,7 @@ int main(int argc, char *argv[]) {
   LK_LOG_INFO("[robot] Publishing {} sim audio ({} Hz, {} ch), cam + sim frame "
               "({}x{} / {}x{}), data track.",
               use_mic ? "mic + " : "(no mic) ", kSampleRate, kChannels, kWidth,
-              kHeight, kSimWidth, kSimHeight, data_track->name());
+              kHeight, kSimWidth, kSimHeight, data_track->info().name);
 
   // ----- SDL Mic capture (only when use_mic) -----
   // SDLMicSource pulls 10ms frames from the default recording device and
@@ -635,7 +635,7 @@ int main(int argc, char *argv[]) {
       std::string msg = "robot status #" + std::to_string(seq) +
                         " uptime=" + std::to_string(elapsed_ms) + "ms";
       std::vector<std::uint8_t> payload(msg.begin(), msg.end());
-      if (!data_track->pushFrame(payload)) {
+      if (!data_track->tryPush(payload)) {
         break;
       }
       ++seq;

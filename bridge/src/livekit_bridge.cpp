@@ -294,14 +294,14 @@ LiveKitBridge::performRpc(const std::string &destination_identity,
   try {
     return rpc_controller_->performRpc(destination_identity, method, payload,
                                        response_timeout);
-  } catch (const livekit::RpcError &e) {
-    LK_LOG_WARN("[LiveKitBridge] RPC error: {}", e.what());
+  } catch (const std::exception &e) {
+    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
     return std::nullopt;
   } catch (const std::runtime_error &e) {
-    LK_LOG_ERROR("[LiveKitBridge] Runtime error: {}", e.what());
+    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
     return std::nullopt;
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("[LiveKitBridge] Exception: {}", e.what());
+  } catch (const livekit::RpcError &e) {
+    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
     return std::nullopt;
   }
 }
@@ -316,14 +316,14 @@ bool LiveKitBridge::registerRpcMethod(
   try {
     rpc_controller_->registerRpcMethod(method_name, std::move(handler));
     return true;
-  } catch (const livekit::RpcError &e) {
-    LK_LOG_WARN("[LiveKitBridge] RPC error: {}", e.what());
+  } catch (const std::exception &e) {
+    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
     return false;
   } catch (const std::runtime_error &e) {
-    LK_LOG_ERROR("[LiveKitBridge] Runtime error: {}", e.what());
+    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
     return false;
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("[LiveKitBridge] Exception: {}", e.what());
+  } catch (const livekit::RpcError &e) {
+    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
     return false;
   }
 }
@@ -335,14 +335,14 @@ bool LiveKitBridge::unregisterRpcMethod(const std::string &method_name) {
   try {
     rpc_controller_->unregisterRpcMethod(method_name);
     return true;
-  } catch (const livekit::RpcError &e) {
-    LK_LOG_WARN("[LiveKitBridge] RPC error: {}", e.what());
+  } catch (const std::exception &e) {
+    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
     return false;
   } catch (const std::runtime_error &e) {
-    LK_LOG_ERROR("[LiveKitBridge] Runtime error: {}", e.what());
+    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
     return false;
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("[LiveKitBridge] Exception: {}", e.what());
+  } catch (const livekit::RpcError &e) {
+    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
     return false;
   }
 }
@@ -355,14 +355,14 @@ bool LiveKitBridge::requestRemoteTrackMute(
   try {
     rpc_controller_->requestRemoteTrackMute(destination_identity, track_name);
     return true;
-  } catch (const livekit::RpcError &e) {
-    LK_LOG_WARN("[LiveKitBridge] RPC error: {}", e.what());
+  } catch (const std::exception &e) {
+    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
     return false;
   } catch (const std::runtime_error &e) {
-    LK_LOG_ERROR("[LiveKitBridge] Runtime error: {}", e.what());
+    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
     return false;
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("[LiveKitBridge] Exception: {}", e.what());
+  } catch (const livekit::RpcError &e) {
+    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
     return false;
   }
 }
@@ -375,14 +375,14 @@ bool LiveKitBridge::requestRemoteTrackUnmute(
   try {
     rpc_controller_->requestRemoteTrackUnmute(destination_identity, track_name);
     return true;
-  } catch (const livekit::RpcError &e) {
-    LK_LOG_WARN("[LiveKitBridge] RPC error: {}", e.what());
+  } catch (const std::exception &e) {
+    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
     return false;
   } catch (const std::runtime_error &e) {
-    LK_LOG_ERROR("[LiveKitBridge] Runtime error: {}", e.what());
+    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
     return false;
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("[LiveKitBridge] Exception: {}", e.what());
+  } catch (const livekit::RpcError &e) {
+    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
     return false;
   }
 }

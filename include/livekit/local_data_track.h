@@ -20,8 +20,11 @@
 #include "livekit/data_track_info.h"
 #include "livekit/ffi_handle.h"
 
+#include <cstddef>
 #include <memory>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace livekit {
 
@@ -45,7 +48,7 @@ class OwnedLocalDataTrack;
  *   DataFrame frame;
  *   frame.payload = {0x01, 0x02, 0x03};
  *   dt->tryPush(frame);
- *   lp->unpublishDataTrack(dt);
+ *   dt->unpublishDataTrack();
  */
 class LocalDataTrack {
 public:
@@ -65,8 +68,32 @@ public:
    */
   bool tryPush(const DataFrame &frame);
 
+  /**
+   * Try to push a frame to all subscribers of this track.
+   *
+   * @return true on success, false if the push failed (e.g. back-pressure
+   *         or the track has been unpublished).
+   */
+  bool tryPush(const std::vector<std::uint8_t> &payload,
+               std::optional<std::uint64_t> user_timestamp = std::nullopt);
+  /**
+   * Try to push a frame to all subscribers of this track.
+   *
+   * @return true on success, false if the push failed (e.g. back-pressure
+   *         or the track has been unpublished).
+   */
+  bool tryPush(const std::uint8_t *data, std::size_t size,
+               std::optional<std::uint64_t> user_timestamp = std::nullopt);
+
   /// Whether the track is still published in the room.
   bool isPublished() const;
+
+  /**
+   * Unpublish this data track from the room.
+   *
+   * After this call, tryPush() fails and the track cannot be re-published.
+   */
+  void unpublishDataTrack();
 
 private:
   friend class LocalParticipant;

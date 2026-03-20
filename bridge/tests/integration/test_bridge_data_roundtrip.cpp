@@ -88,8 +88,8 @@ TEST_F(BridgeDataRoundtripTest, DataFrameRoundTrip) {
     sent_payloads.push_back(payload);
     sent_timestamps.push_back(ts);
 
-    bool pushed = data_track->pushFrame(payload, ts);
-    EXPECT_TRUE(pushed) << "pushFrame failed for frame " << i;
+    bool pushed = data_track->tryPush(payload, ts);
+    EXPECT_TRUE(pushed) << "tryPush failed for frame " << i;
 
     std::this_thread::sleep_for(100ms);
   }
@@ -168,7 +168,7 @@ TEST_F(BridgeDataRoundtripTest, LateCallbackRegistration) {
   const int num_frames = 5;
   for (int i = 0; i < num_frames; ++i) {
     auto payload = generatePayload(128);
-    data_track->pushFrame(payload);
+    data_track->tryPush(payload);
     std::this_thread::sleep_for(100ms);
   }
 
@@ -231,8 +231,8 @@ TEST_F(BridgeDataRoundtripTest, VaryingPayloadSizes) {
 
   for (size_t sz : test_sizes) {
     auto payload = generatePayload(sz);
-    bool pushed = data_track->pushFrame(payload);
-    EXPECT_TRUE(pushed) << "pushFrame failed for size " << sz;
+    bool pushed = data_track->tryPush(payload);
+    EXPECT_TRUE(pushed) << "tryPush failed for size " << sz;
     std::this_thread::sleep_for(200ms);
   }
 
@@ -282,7 +282,7 @@ TEST_F(BridgeDataRoundtripTest, ConnectPublishDisconnectCycle) {
 
       for (int f = 0; f < 5; ++f) {
         auto payload = generatePayload(256);
-        track->pushFrame(payload);
+        track->tryPush(payload);
       }
     } // bridge destroyed here → disconnect + shutdown
 
