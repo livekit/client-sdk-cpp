@@ -365,7 +365,7 @@ void Room::OnEvent(const FfiEvent &event) {
         }
         const auto &ltp = re.local_track_published();
         const std::string &sid = ltp.track_sid();
-        auto &pubs = local_participant_->trackPublications();
+        const auto pubs = local_participant_->trackPublications();
         auto it = pubs.find(sid);
         if (it == pubs.end()) {
           LK_LOG_WARN("local_track_published for unknown sid: {}", sid);
@@ -389,7 +389,7 @@ void Room::OnEvent(const FfiEvent &event) {
         }
         const auto &ltu = re.local_track_unpublished();
         const std::string &pub_sid = ltu.publication_sid();
-        auto &pubs = local_participant_->trackPublications();
+        const auto pubs = local_participant_->trackPublications();
         auto it = pubs.find(pub_sid);
         if (it == pubs.end()) {
           LK_LOG_WARN("local_track_unpublished for unknown publication sid: {}",
@@ -412,7 +412,7 @@ void Room::OnEvent(const FfiEvent &event) {
         }
         const auto &lts = re.local_track_subscribed();
         const std::string &sid = lts.track_sid();
-        auto &pubs = local_participant_->trackPublications();
+        const auto pubs = local_participant_->trackPublications();
         auto it = pubs.find(sid);
         if (it == pubs.end()) {
           LK_LOG_WARN("local_track_subscribed for unknown sid: {}", sid);

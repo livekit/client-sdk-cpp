@@ -163,7 +163,6 @@ void LiveKitBridge::disconnect() {
           if (auto pub = track->publication()) {
             try {
               lp->unpublishTrack(pub->sid());
-              track->setPublication(nullptr);
             } catch (...) {
               LK_LOG_WARN("LiveKitBridge: unpublishTrack (audio) failed during "
                           "disconnect");
@@ -177,7 +176,6 @@ void LiveKitBridge::disconnect() {
           if (auto pub = track->publication()) {
             try {
               lp->unpublishTrack(pub->sid());
-              track->setPublication(nullptr);
             } catch (...) {
               LK_LOG_WARN("LiveKitBridge: unpublishTrack (video) failed during "
                           "disconnect");

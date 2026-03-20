@@ -344,7 +344,6 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
 
   // Clean up
   sender_room->localParticipant()->unpublishTrack(publication->sid());
-  audio_track->setPublication(nullptr);
 
   EXPECT_GT(stats.count(), 0)
       << "At least one audio latency measurement should be recorded";

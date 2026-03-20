@@ -34,6 +34,24 @@
 #include <chrono>
 #include <stdexcept>
 
+namespace {
+
+std::shared_ptr<livekit::LocalTrackPublication>
+localTrackPublication(const std::shared_ptr<livekit::Track> &t) {
+  if (!t) {
+    return nullptr;
+  }
+  if (auto v = std::dynamic_pointer_cast<livekit::LocalVideoTrack>(t)) {
+    return v->publication();
+  }
+  if (auto a = std::dynamic_pointer_cast<livekit::LocalAudioTrack>(t)) {
+    return a->publication();
+  }
+  return nullptr;
+}
+
+} // namespace
+
 namespace livekit {
 
 using proto::FfiRequest;
@@ -197,9 +215,8 @@ void LocalParticipant::publishTrack(const std::shared_ptr<Track> &track,
   // Construct a LocalTrackPublication from the proto publication.
   auto publication = std::make_shared<LocalTrackPublication>(owned_pub);
 
-  // Cache in local map by track SID.
   const std::string sid = publication->sid();
-  track_publications_[sid] = publication;
+  published_tracks_by_sid_[sid] = std::weak_ptr<Track>(track);
 
   track->setPublication(publication);
 }
@@ -207,8 +224,8 @@ void LocalParticipant::publishTrack(const std::shared_ptr<Track> &track,
 std::shared_ptr<LocalVideoTrack>
 LocalParticipant::publishVideoTrack(const std::string &name, int width,
                                     int height, TrackSource source) {
-  auto track = LocalVideoTrack::createLocalVideoTrack(name, width, height,
-                                                      source);
+  auto track =
+      LocalVideoTrack::createLocalVideoTrack(name, width, height, source);
   TrackPublishOptions opts;
   opts.source = source;
   publishTrack(track, opts);
@@ -217,9 +234,9 @@ LocalParticipant::publishVideoTrack(const std::string &name, int width,
 
 std::shared_ptr<LocalAudioTrack>
 LocalParticipant::publishAudioTrack(const std::string &name, int sample_rate,
-                                      int num_channels, TrackSource source) {
-  auto track = LocalAudioTrack::createLocalAudioTrack(
-      name, sample_rate, num_channels, source);
+                                    int num_channels, TrackSource source) {
+  auto track = LocalAudioTrack::createLocalAudioTrack(name, sample_rate,
+                                                      num_channels, source);
   TrackPublishOptions opts;
   opts.source = source;
   publishTrack(track, opts);
@@ -243,7 +260,30 @@ void LocalParticipant::unpublishTrack(const std::string &track_sid) {
 
   fut.get();
 
-  track_publications_.erase(track_sid);
+  if (auto it = published_tracks_by_sid_.find(track_sid);
+      it != published_tracks_by_sid_.end()) {
+    if (auto t = it->second.lock()) {
+      t->setPublication(nullptr);
+    }
+    published_tracks_by_sid_.erase(it);
+  }
+}
+
+LocalParticipant::PublicationMap LocalParticipant::trackPublications() const {
+  PublicationMap out;
+  for (auto it = published_tracks_by_sid_.begin();
+       it != published_tracks_by_sid_.end();) {
+    auto t = it->second.lock();
+    if (!t) {
+      it = published_tracks_by_sid_.erase(it);
+      continue;
+    }
+    if (auto pub = localTrackPublication(t)) {
+      out.emplace(it->first, std::move(pub));
+    }
+    ++it;
+  }
+  return out;
 }
 
 std::string LocalParticipant::performRpc(
@@ -412,11 +452,20 @@ void LocalParticipant::handleRpcMethodInvocation(
 
 std::shared_ptr<TrackPublication>
 LocalParticipant::findTrackPublication(const std::string &sid) const {
-  auto it = track_publications_.find(sid);
-  if (it == track_publications_.end()) {
+  auto it = published_tracks_by_sid_.find(sid);
+  if (it == published_tracks_by_sid_.end()) {
     return nullptr;
   }
-  return std::static_pointer_cast<TrackPublication>(it->second);
+  auto t = it->second.lock();
+  if (!t) {
+    published_tracks_by_sid_.erase(it);
+    return nullptr;
+  }
+  auto pub = localTrackPublication(t);
+  if (!pub) {
+    return nullptr;
+  }
+  return std::static_pointer_cast<TrackPublication>(pub);
 }
 
 } // namespace livekit

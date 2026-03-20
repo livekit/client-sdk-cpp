@@ -57,6 +57,7 @@ class LocalParticipant : public Participant {
 public:
   using PublicationMap =
       std::unordered_map<std::string, std::shared_ptr<LocalTrackPublication>>;
+  using TrackMap = std::unordered_map<std::string, std::weak_ptr<Track>>;
 
   /**
    * Type of callback used to handle incoming RPC method invocations.
@@ -76,10 +77,13 @@ public:
                    std::unordered_map<std::string, std::string> attributes,
                    ParticipantKind kind, DisconnectReason reason);
 
-  /// Track publications associated with this participant, keyed by track SID.
-  const PublicationMap &trackPublications() const noexcept {
-    return track_publications_;
-  }
+  /**
+   * Track publications for this participant, keyed by publication SID.
+   *
+   * Built on each call from published local tracks (see \ref publishTrack).
+   * Expired track handles are removed from the internal map while building.
+   */
+  PublicationMap trackPublications() const;
 
   /**
    * Publish arbitrary data to the room.
@@ -134,18 +138,19 @@ public:
    * \p width × \p height, publish it with \p source as the track source, and
    * return the track.
    */
-  std::shared_ptr<LocalVideoTrack>
-  publishVideoTrack(const std::string &name, int width, int height,
-                    TrackSource source);
+  std::shared_ptr<LocalVideoTrack> publishVideoTrack(const std::string &name,
+                                                     int width, int height,
+                                                     TrackSource source);
 
   /**
    * Create a \ref LocalAudioTrack with an internal \ref AudioSource for
    * \p sample_rate / \p num_channels, publish it with \p source as the track
    * source, and return the track.
    */
-  std::shared_ptr<LocalAudioTrack>
-  publishAudioTrack(const std::string &name, int sample_rate, int num_channels,
-                     TrackSource source);
+  std::shared_ptr<LocalAudioTrack> publishAudioTrack(const std::string &name,
+                                                     int sample_rate,
+                                                     int num_channels,
+                                                     TrackSource source);
 
   /**
    * Unpublish a track from the room by SID.
@@ -230,7 +235,10 @@ protected:
   friend class Room;
 
 private:
-  PublicationMap track_publications_;
+  /// Publication SID → local track (\ref unpublishTrack clears the track’s
+  /// cached publication). \c mutable so \ref trackPublications() const can
+  /// prune expired \c weak_ptr entries.
+  mutable TrackMap published_tracks_by_sid_;
   std::unordered_map<std::string, RpcHandler> rpc_handlers_;
 
   // Shared state for RPC invocation tracking. Using shared_ptr so the state

@@ -400,15 +400,14 @@ int main(int argc, char *argv[]) {
   // Must be cleaned up before FfiClient::instance().shutdown();
   room->setDelegate(nullptr);
 
-  // Clean up the audio track publishment
-  room->localParticipant()->unpublishTrack(audioTrack->publication()->sid());
-  audioTrack->setPublication(nullptr);
-  videoTrack.reset();
-
-  // Clean up the video track publishment
-  room->localParticipant()->unpublishTrack(videoTrack->publication()->sid());
-  videoTrack->setPublication(nullptr);
+  if (audioTrack->publication()) {
+    room->localParticipant()->unpublishTrack(audioTrack->publication()->sid());
+  }
+  if (videoTrack->publication()) {
+    room->localParticipant()->unpublishTrack(videoTrack->publication()->sid());
+  }
   audioTrack.reset();
+  videoTrack.reset();
 
   room.reset();
 
