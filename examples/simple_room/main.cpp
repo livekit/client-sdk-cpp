@@ -332,11 +332,11 @@ int main(int argc, char *argv[]) {
   audioOpts.source = TrackSource::SOURCE_MICROPHONE;
   audioOpts.dtx = false;
   audioOpts.simulcast = false;
-  std::shared_ptr<LocalTrackPublication> audioPub;
   try {
     // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
     // Track
-    audioPub = room->localParticipant()->publishTrack(audioTrack, audioOpts);
+    room->localParticipant()->publishTrack(audioTrack, audioOpts);
+    const auto audioPub = audioTrack->publication();
 
     std::cout << "Published track:\n"
               << "  SID: " << audioPub->sid() << "\n"
@@ -353,18 +353,18 @@ int main(int argc, char *argv[]) {
   media.startMic(audioSource);
 
   // Setup Video Source / Track
-  auto videoSource = std::make_shared<VideoSource>(1280, 720);
   std::shared_ptr<LocalVideoTrack> videoTrack =
-      LocalVideoTrack::createLocalVideoTrack("cam", videoSource);
+      LocalVideoTrack::createLocalVideoTrack("cam", 1280, 720,
+                                             TrackSource::SOURCE_CAMERA);
   TrackPublishOptions videoOpts;
   videoOpts.source = TrackSource::SOURCE_CAMERA;
   videoOpts.dtx = false;
   videoOpts.simulcast = true;
-  std::shared_ptr<LocalTrackPublication> videoPub;
   try {
     // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
     // Track
-    videoPub = room->localParticipant()->publishTrack(videoTrack, videoOpts);
+    room->localParticipant()->publishTrack(videoTrack, videoOpts);
+    const auto videoPub = videoTrack->publication();
 
     std::cout << "Published track:\n"
               << "  SID: " << videoPub->sid() << "\n"
@@ -377,7 +377,7 @@ int main(int argc, char *argv[]) {
   } catch (const std::exception &e) {
     LK_LOG_ERROR("Failed to publish track: {}", e.what());
   }
-  media.startCamera(videoSource);
+  media.startCamera(videoTrack->videoSource());
 
   // Keep the app alive until Ctrl-C so we continue receiving events,
   // similar to asyncio.run(main()) keeping the loop running.
@@ -401,10 +401,14 @@ int main(int argc, char *argv[]) {
   room->setDelegate(nullptr);
 
   // Clean up the audio track publishment
-  room->localParticipant()->unpublishTrack(audioPub->sid());
+  room->localParticipant()->unpublishTrack(audioTrack->publication()->sid());
+  audioTrack->setPublication(nullptr);
+  videoTrack.reset();
 
   // Clean up the video track publishment
-  room->localParticipant()->unpublishTrack(videoPub->sid());
+  room->localParticipant()->unpublishTrack(videoTrack->publication()->sid());
+  videoTrack->setPublication(nullptr);
+  audioTrack.reset();
 
   room.reset();
 

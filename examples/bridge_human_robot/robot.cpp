@@ -36,6 +36,7 @@
 #include "livekit/audio_frame.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
+#include "livekit/video_source.h"
 #include "livekit_bridge/livekit_bridge.h"
 #include "sdl_media.h"
 
@@ -376,7 +377,7 @@ int main(int argc, char *argv[]) {
   constexpr int kSimWidth = 480;
   constexpr int kSimHeight = 320;
 
-  std::shared_ptr<livekit_bridge::BridgeAudioTrack> mic;
+  std::shared_ptr<livekit::LocalAudioTrack> mic;
   if (use_mic) {
     mic = bridge.createAudioTrack("robot-mic", kSampleRate, kChannels,
                                   livekit::TrackSource::SOURCE_MICROPHONE);
@@ -412,11 +413,17 @@ int main(int argc, char *argv[]) {
     if (has_mic) {
       sdl_mic = std::make_unique<SDLMicSource>(
           kSampleRate, kChannels, kSampleRate / 100, // 10ms frames
-          [&mic](const int16_t *samples, int num_samples_per_channel,
-                 int /*sample_rate*/, int /*num_channels*/) {
-            if (mic && !mic->pushFrame(samples, num_samples_per_channel)) {
-              LK_LOG_WARN("[robot] Mic track released.");
+          [&mic, kSampleRate, kChannels](
+              const int16_t *samples, int num_samples_per_channel,
+              int /*sample_rate*/, int /*num_channels*/) {
+            if (!mic) {
+              return;
             }
+            const int total = num_samples_per_channel * kChannels;
+            livekit::AudioFrame frame(
+                std::vector<std::int16_t>(samples, samples + total),
+                kSampleRate, kChannels, num_samples_per_channel);
+            mic->captureFrame(frame);
           });
 
       if (sdl_mic->init()) {
@@ -441,8 +448,10 @@ int main(int argc, char *argv[]) {
         std::vector<std::int16_t> silence(kSamplesPerFrame * kChannels, 0);
         auto next = std::chrono::steady_clock::now();
         while (mic_running.load()) {
-          if (mic && !mic->pushFrame(silence, kSamplesPerFrame)) {
-            break;
+          if (mic) {
+            livekit::AudioFrame frame(std::vector<std::int16_t>(silence),
+                                      kSampleRate, kChannels, kSamplesPerFrame);
+            mic->captureFrame(frame);
           }
           next += std::chrono::milliseconds(10);
           std::this_thread::sleep_until(next);
@@ -476,11 +485,11 @@ int main(int argc, char *argv[]) {
               std::memcpy(buf.data() + y * dstPitch, pixels + y * pitch,
                           dstPitch);
             }
-            if (!cam->pushFrame(
-                    buf.data(), buf.size(),
-                    static_cast<std::int64_t>(timestampNS / 1000))) {
-              LK_LOG_WARN("[robot] Cam track released.");
-            }
+            livekit::VideoFrame vf(
+                width, height, livekit::VideoBufferType::RGBA, std::move(buf));
+            cam->captureFrame(
+                vf, static_cast<std::int64_t>(timestampNS / 1000),
+                livekit::VideoRotation::VIDEO_ROTATION_0);
           });
 
       if (sdl_cam->init()) {
@@ -510,9 +519,11 @@ int main(int argc, char *argv[]) {
         }
         std::int64_t ts = 0;
         while (cam_running.load()) {
-          if (!cam->pushFrame(green, ts)) {
-            break;
-          }
+          livekit::VideoFrame vf(
+              kWidth, kHeight, livekit::VideoBufferType::RGBA,
+              std::vector<std::uint8_t>(green));
+          cam->captureFrame(vf, ts,
+                            livekit::VideoRotation::VIDEO_ROTATION_0);
           ts += 33333;
           std::this_thread::sleep_for(std::chrono::milliseconds(33));
         }
@@ -568,9 +579,11 @@ int main(int argc, char *argv[]) {
                               line2, kScale, 255, 255, 255);
 
       std::int64_t ts = static_cast<std::int64_t>(elapsed_ms) * 1000;
-      if (!sim_cam->pushFrame(frame, ts)) {
-        break;
-      }
+      livekit::VideoFrame vf(
+          kSimWidth, kSimHeight, livekit::VideoBufferType::RGBA,
+          std::vector<std::uint8_t>(frame));
+      sim_cam->captureFrame(vf, ts,
+                            livekit::VideoRotation::VIDEO_ROTATION_0);
       ++frame_num;
       std::this_thread::sleep_for(std::chrono::milliseconds(33));
     }
@@ -609,9 +622,9 @@ int main(int argc, char *argv[]) {
           buf[i * kChannels + ch] = sample;
         ++sample_idx;
       }
-      if (!sim_audio->pushFrame(buf, kFrameSamples)) {
-        break;
-      }
+      livekit::AudioFrame frame(std::vector<std::int16_t>(buf.begin(), buf.end()),
+                                kSampleRate, kChannels, kFrameSamples);
+      sim_audio->captureFrame(frame);
       next += std::chrono::milliseconds(10);
       std::this_thread::sleep_until(next);
     }

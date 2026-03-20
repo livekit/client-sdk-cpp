@@ -19,12 +19,12 @@
 
 #pragma once
 
-#include "livekit_bridge/bridge_audio_track.h"
-#include "livekit_bridge/bridge_video_track.h"
 #include "livekit_bridge/rpc_constants.h"
 
 #include "livekit/lk_log.h"
+#include "livekit/local_audio_track.h"
 #include "livekit/local_participant.h"
+#include "livekit/local_video_track.h"
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"
 
@@ -92,8 +92,10 @@ using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
  *   auto cam = bridge.createVideoTrack("cam", 1280, 720,
  *       livekit::TrackSource::SOURCE_CAMERA);
  *
- *   mic->pushFrame(pcm_data, samples_per_channel);
- *   cam->pushFrame(rgba_data, timestamp_us);
+ *   livekit::AudioFrame af(std::move(pcm), sample_rate, channels,
+ * samples_per_ch); mic->captureFrame(af); livekit::VideoFrame vf(w, h,
+ * livekit::VideoBufferType::RGBA, pixels); cam->captureFrame(vf, timestamp_us,
+ * livekit::VideoRotation::VIDEO_ROTATION_0);
  *
  *   bridge.setOnAudioFrameCallback("remote-participant",
  *       livekit::TrackSource::SOURCE_MICROPHONE,
@@ -103,8 +105,9 @@ using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
  *       livekit::TrackSource::SOURCE_CAMERA,
  *       [](const livekit::VideoFrame& f, int64_t ts) { render(f); });
  *
- *   // Unpublish a single track mid-session:
- *   mic->release();
+ *   // Drop your handle; the bridge still retains the track until disconnect(),
+ *   // or unpublish via room->localParticipant()->unpublishTrack(...).
+ *   mic.reset();
  *
  *   // Disconnect releases all remaining tracks and tears down the room:
  *   bridge.disconnect();
@@ -163,9 +166,7 @@ public:
   /**
    * Create and publish a local audio track.
    *
-   * The bridge retains a reference to the track internally. To unpublish
-   * mid-session, call release() on the returned track. All surviving
-   * tracks are automatically released on disconnect().
+   * The bridge retains a reference to the track until \ref disconnect().
    *
    * @pre The bridge must be connected (via connect()). Calling this on a
    *      disconnected bridge is a programming error.
@@ -177,19 +178,18 @@ public:
    *                     different source (e.g. SOURCE_SCREENSHARE_AUDIO) to
    *                     publish multiple audio tracks from the same
    *                     participant that can be independently subscribed to.
-   * @return Shared pointer to the published audio track handle (never null).
+   * @return Shared pointer to the published \ref livekit::LocalAudioTrack
+   *         (never null).
    * @throws std::runtime_error if the bridge is not connected.
    */
-  std::shared_ptr<BridgeAudioTrack>
+  std::shared_ptr<livekit::LocalAudioTrack>
   createAudioTrack(const std::string &name, int sample_rate, int num_channels,
                    livekit::TrackSource source);
 
   /**
    * Create and publish a local video track.
    *
-   * The bridge retains a reference to the track internally. To unpublish
-   * mid-session, call release() on the returned track. All surviving
-   * tracks are automatically released on disconnect().
+   * The bridge retains a reference to the track until \ref disconnect().
    *
    * @pre The bridge must be connected (via connect()). Calling this on a
    *      disconnected bridge is a programming error.
@@ -204,7 +204,7 @@ public:
    * @return Shared pointer to the published video track handle (never null).
    * @throws std::runtime_error if the bridge is not connected.
    */
-  std::shared_ptr<BridgeVideoTrack>
+  std::shared_ptr<livekit::LocalVideoTrack>
   createVideoTrack(const std::string &name, int width, int height,
                    livekit::TrackSource source);
 
@@ -435,9 +435,11 @@ private:
   /// All tracks created by this bridge. The bridge retains a shared_ptr so
   /// it can force-release every track on disconnect() before the room is
   /// destroyed, preventing dangling @c participant_ pointers.
-  std::vector<std::shared_ptr<BridgeAudioTrack>> published_audio_tracks_;
+  std::vector<std::shared_ptr<livekit::LocalAudioTrack>>
+      published_audio_tracks_;
   /// @copydoc published_audio_tracks_
-  std::vector<std::shared_ptr<BridgeVideoTrack>> published_video_tracks_;
+  std::vector<std::shared_ptr<livekit::LocalVideoTrack>>
+      published_video_tracks_;
 };
 
 } // namespace livekit_bridge

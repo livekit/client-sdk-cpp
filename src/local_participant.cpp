@@ -17,7 +17,9 @@
 #include "livekit/local_participant.h"
 
 #include "livekit/ffi_handle.h"
+#include "livekit/local_audio_track.h"
 #include "livekit/local_track_publication.h"
+#include "livekit/local_video_track.h"
 #include "livekit/room_delegate.h"
 #include "livekit/track.h"
 
@@ -167,9 +169,8 @@ void LocalParticipant::setTrackSubscriptionPermissions(
 // Track publish / unpublish
 // ----------------------------------------------------------------------------
 
-std::shared_ptr<LocalTrackPublication>
-LocalParticipant::publishTrack(const std::shared_ptr<Track> &track,
-                               const TrackPublishOptions &options) {
+void LocalParticipant::publishTrack(const std::shared_ptr<Track> &track,
+                                    const TrackPublishOptions &options) {
   if (!track) {
     throw std::invalid_argument(
         "LocalParticipant::publishTrack: track is null");
@@ -200,7 +201,29 @@ LocalParticipant::publishTrack(const std::shared_ptr<Track> &track,
   const std::string sid = publication->sid();
   track_publications_[sid] = publication;
 
-  return publication;
+  track->setPublication(publication);
+}
+
+std::shared_ptr<LocalVideoTrack>
+LocalParticipant::publishVideoTrack(const std::string &name, int width,
+                                    int height, TrackSource source) {
+  auto track = LocalVideoTrack::createLocalVideoTrack(name, width, height,
+                                                      source);
+  TrackPublishOptions opts;
+  opts.source = source;
+  publishTrack(track, opts);
+  return track;
+}
+
+std::shared_ptr<LocalAudioTrack>
+LocalParticipant::publishAudioTrack(const std::string &name, int sample_rate,
+                                      int num_channels, TrackSource source) {
+  auto track = LocalAudioTrack::createLocalAudioTrack(
+      name, sample_rate, num_channels, source);
+  TrackPublishOptions opts;
+  opts.source = source;
+  publishTrack(track, opts);
+  return track;
 }
 
 void LocalParticipant::unpublishTrack(const std::string &track_sid) {

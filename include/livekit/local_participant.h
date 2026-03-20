@@ -17,6 +17,8 @@
 #pragma once
 
 #include "livekit/ffi_handle.h"
+#include "livekit/local_audio_track.h"
+#include "livekit/local_video_track.h"
 #include "livekit/participant.h"
 #include "livekit/room_event_types.h"
 #include "livekit/rpc_error.h"
@@ -124,9 +126,26 @@ public:
    *
    * Throws std::runtime_error on error (e.g. publish failure).
    */
-  std::shared_ptr<LocalTrackPublication>
-  publishTrack(const std::shared_ptr<Track> &track,
-               const TrackPublishOptions &options);
+  void publishTrack(const std::shared_ptr<Track> &track,
+                    const TrackPublishOptions &options);
+
+  /**
+   * Create a \ref LocalVideoTrack with an internal \ref VideoSource at
+   * \p width × \p height, publish it with \p source as the track source, and
+   * return the track.
+   */
+  std::shared_ptr<LocalVideoTrack>
+  publishVideoTrack(const std::string &name, int width, int height,
+                    TrackSource source);
+
+  /**
+   * Create a \ref LocalAudioTrack with an internal \ref AudioSource for
+   * \p sample_rate / \p num_channels, publish it with \p source as the track
+   * source, and return the track.
+   */
+  std::shared_ptr<LocalAudioTrack>
+  publishAudioTrack(const std::string &name, int sample_rate, int num_channels,
+                     TrackSource source);
 
   /**
    * Unpublish a track from the room by SID.

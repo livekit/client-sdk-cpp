@@ -15,7 +15,10 @@
  */
 
 #include "../common/bridge_test_common.h"
+#include <livekit/audio_frame.h>
 #include <livekit/rpc_error.h>
+#include <livekit/video_frame.h>
+#include <livekit/video_source.h>
 
 namespace livekit_bridge {
 namespace test {
@@ -184,18 +187,19 @@ TEST_F(BridgeRemoteTrackControlTest, RemoteMuteAudioTrack) {
   EXPECT_NO_THROW(controller.requestRemoteTrackMute(publisher_identity, "mic"));
 
   std::vector<std::int16_t> silence(480, 0);
-  bool pushed_while_muted = audio_track->pushFrame(silence, 480);
-  std::cout << "pushFrame while muted: " << pushed_while_muted << std::endl;
+  livekit::AudioFrame silent_frame(std::vector<std::int16_t>(silence), 48000,
+                                   1, 480);
+  EXPECT_NO_THROW(audio_track->captureFrame(silent_frame));
+  std::cout << "captureFrame while muted: ok" << std::endl;
 
   std::cout << "Requesting unmute..." << std::endl;
   EXPECT_NO_THROW(
       controller.requestRemoteTrackUnmute(publisher_identity, "mic"));
 
-  bool pushed_after_unmute = audio_track->pushFrame(silence, 480);
-  EXPECT_TRUE(pushed_after_unmute);
-  std::cout << "pushFrame after unmute: " << pushed_after_unmute << std::endl;
+  EXPECT_NO_THROW(audio_track->captureFrame(silent_frame));
+  std::cout << "captureFrame after unmute: ok" << std::endl;
 
-  audio_track->release();
+  audio_track.reset();
 }
 
 // ---------------------------------------------------------------------------
@@ -226,12 +230,14 @@ TEST_F(BridgeRemoteTrackControlTest, RemoteMuteVideoTrack) {
   EXPECT_NO_THROW(
       controller.requestRemoteTrackUnmute(publisher_identity, "cam"));
 
-  std::vector<std::uint8_t> frame(320 * 240 * 4, 128);
-  bool pushed_after_unmute = video_track->pushFrame(frame);
-  EXPECT_TRUE(pushed_after_unmute);
-  std::cout << "pushFrame after unmute: " << pushed_after_unmute << std::endl;
+  std::vector<std::uint8_t> pixels(320 * 240 * 4, 128);
+  livekit::VideoFrame video_frame(320, 240, livekit::VideoBufferType::RGBA,
+                                  std::move(pixels));
+  EXPECT_NO_THROW(video_track->captureFrame(
+      video_frame, 0, livekit::VideoRotation::VIDEO_ROTATION_0));
+  std::cout << "captureFrame after unmute: ok" << std::endl;
 
-  video_track->release();
+  video_track.reset();
 }
 
 // ---------------------------------------------------------------------------

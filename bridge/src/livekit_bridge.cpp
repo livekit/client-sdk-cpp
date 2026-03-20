@@ -23,17 +23,15 @@
 #include "rpc_controller.h"
 
 #include "livekit/audio_frame.h"
-#include "livekit/audio_source.h"
 #include "livekit/audio_stream.h"
 #include "livekit/livekit.h"
+#include "livekit/lk_log.h"
 #include "livekit/local_audio_track.h"
 #include "livekit/local_participant.h"
-#include "livekit/local_track_publication.h"
 #include "livekit/local_video_track.h"
 #include "livekit/room.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
-#include "livekit/video_source.h"
 #include "livekit/video_stream.h"
 
 #include <cassert>
@@ -157,13 +155,44 @@ void LiveKitBridge::disconnect() {
     connected_ = false;
     connecting_ = false;
 
-    // Release all published tracks while the room/participant are still alive.
-    // This calls unpublishTrack() on each, ensuring participant_ is valid.
-    for (auto &track : published_audio_tracks_) {
-      track->release();
-    }
-    for (auto &track : published_video_tracks_) {
-      track->release();
+    // Unpublish all local tracks while the room/participant are still alive.
+    if (room_) {
+      auto lp = room_->localParticipant();
+      for (auto &track : published_audio_tracks_) {
+        if (track && lp) {
+          if (auto pub = track->publication()) {
+            try {
+              lp->unpublishTrack(pub->sid());
+              track->setPublication(nullptr);
+            } catch (...) {
+              LK_LOG_WARN("LiveKitBridge: unpublishTrack (audio) failed during "
+                          "disconnect");
+            }
+          }
+        }
+        track.reset();
+      }
+      for (auto &track : published_video_tracks_) {
+        if (track && lp) {
+          if (auto pub = track->publication()) {
+            try {
+              lp->unpublishTrack(pub->sid());
+              track->setPublication(nullptr);
+            } catch (...) {
+              LK_LOG_WARN("LiveKitBridge: unpublishTrack (video) failed during "
+                          "disconnect");
+            }
+          }
+        }
+        track.reset();
+      }
+    } else {
+      for (auto &track : published_audio_tracks_) {
+        track.reset();
+      }
+      for (auto &track : published_video_tracks_) {
+        track.reset();
+      }
     }
     published_audio_tracks_.clear();
     published_video_tracks_.clear();
@@ -221,7 +250,7 @@ bool LiveKitBridge::isConnected() const {
 // Track creation (publishing)
 // ---------------------------------------------------------------
 
-std::shared_ptr<BridgeAudioTrack>
+std::shared_ptr<livekit::LocalAudioTrack>
 LiveKitBridge::createAudioTrack(const std::string &name, int sample_rate,
                                 int num_channels, livekit::TrackSource source) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -231,32 +260,16 @@ LiveKitBridge::createAudioTrack(const std::string &name, int sample_rate,
         "createAudioTrack requires an active connection; call connect() first");
   }
 
-  // 1. Create audio source (real-time mode, queue_size_ms=0)
-  auto audio_source =
-      std::make_shared<livekit::AudioSource>(sample_rate, num_channels, 0);
-
-  // 2. Create local audio track
-  auto track =
-      livekit::LocalAudioTrack::createLocalAudioTrack(name, audio_source);
-
-  // 3. Publish with the caller-specified source
-  livekit::TrackPublishOptions opts;
-  opts.source = source;
-
   auto lp = room_->localParticipant();
   assert(lp != nullptr);
 
-  auto publication = lp->publishTrack(track, opts);
+  auto track = lp->publishAudioTrack(name, sample_rate, num_channels, source);
 
-  // 4. Wrap in handle and retain a reference
-  auto bridge_track = std::shared_ptr<BridgeAudioTrack>(new BridgeAudioTrack(
-      name, sample_rate, num_channels, std::move(audio_source),
-      std::move(track), std::move(publication), lp));
-  published_audio_tracks_.emplace_back(bridge_track);
-  return bridge_track;
+  published_audio_tracks_.emplace_back(track);
+  return track;
 }
 
-std::shared_ptr<BridgeVideoTrack>
+std::shared_ptr<livekit::LocalVideoTrack>
 LiveKitBridge::createVideoTrack(const std::string &name, int width, int height,
                                 livekit::TrackSource source) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -266,28 +279,13 @@ LiveKitBridge::createVideoTrack(const std::string &name, int width, int height,
         "createVideoTrack requires an active connection; call connect() first");
   }
 
-  // 1. Create video source
-  auto video_source = std::make_shared<livekit::VideoSource>(width, height);
-
-  // 2. Create local video track
-  auto track =
-      livekit::LocalVideoTrack::createLocalVideoTrack(name, video_source);
-
-  // 3. Publish with the caller-specified source
-  livekit::TrackPublishOptions opts;
-  opts.source = source;
-
   auto lp = room_->localParticipant();
   assert(lp != nullptr);
 
-  auto publication = lp->publishTrack(track, opts);
+  auto track = lp->publishVideoTrack(name, width, height, source);
 
-  // 4. Wrap in handle and retain a reference
-  auto bridge_track = std::shared_ptr<BridgeVideoTrack>(
-      new BridgeVideoTrack(name, width, height, std::move(video_source),
-                           std::move(track), std::move(publication), lp));
-  published_video_tracks_.emplace_back(bridge_track);
-  return bridge_track;
+  published_video_tracks_.emplace_back(track);
+  return track;
 }
 
 // ---------------------------------------------------------------
@@ -469,7 +467,10 @@ void LiveKitBridge::executeTrackAction(const rpc::track_control::Action &action,
   std::lock_guard<std::mutex> lock(mutex_);
 
   for (auto &track : published_audio_tracks_) {
-    if (track->name() == track_name && !track->isReleased()) {
+    if (!track || !track->publication()) {
+      continue;
+    }
+    if (track->name() == track_name) {
       if (action == rpc::track_control::Action::kActionMute) {
         track->mute();
       } else {
@@ -480,7 +481,10 @@ void LiveKitBridge::executeTrackAction(const rpc::track_control::Action &action,
   }
 
   for (auto &track : published_video_tracks_) {
-    if (track->name() == track_name && !track->isReleased()) {
+    if (!track || !track->publication()) {
+      continue;
+    }
+    if (track->name() == track_name) {
       if (action == rpc::track_control::Action::kActionMute) {
         track->mute();
       } else {

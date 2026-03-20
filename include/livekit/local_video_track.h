@@ -16,7 +16,11 @@
 
 #pragma once
 
+#include "local_track_publication.h"
 #include "track.h"
+#include "video_frame.h"
+#include "video_source.h"
+
 #include <memory>
 #include <string>
 
@@ -61,6 +65,37 @@ public:
   createLocalVideoTrack(const std::string &name,
                         const std::shared_ptr<VideoSource> &source);
 
+  /// Creates a local video track with a new \ref VideoSource at the given
+  /// resolution. The \ref VideoSource is owned by this track (see \ref
+  /// videoSource).
+  ///
+  /// @param name          Track name visible to remotes and in logs.
+  /// @param width         Source width in pixels.
+  /// @param height        Source height in pixels.
+  /// @param track_source  Semantic source (camera, screen share, etc.) for
+  ///                      publication metadata; use \ref TrackPublishOptions
+  ///                      when publishing to match.
+  ///
+  /// @return A shared pointer to the newly constructed `LocalVideoTrack`.
+  static std::shared_ptr<LocalVideoTrack>
+  createLocalVideoTrack(const std::string &name, const int width,
+                        const int height, const TrackSource track_source);
+
+  /// Returns the \ref VideoSource created by \ref
+  /// createLocalVideoTrack(name, width, height, track_source), or null if
+  /// the track was created with an externally supplied source.
+  std::shared_ptr<VideoSource> videoSource() const noexcept {
+    return owned_video_source_;
+  }
+
+  /// A wrapper around \ref VideoSource::captureFrame.
+  ///
+  /// @param frame         Video frame to send.
+  /// @param timestamp_us  Optional timestamp in microseconds.
+  /// @param rotation      Video rotation enum.
+  void captureFrame(const VideoFrame &frame, std::int64_t timestamp_us,
+                    VideoRotation rotation);
+
   /// Mutes the video track.
   ///
   /// A muted track stops sending video to the room, but the track remains
@@ -74,8 +109,30 @@ public:
   /// including its SID and name. Useful for debugging and logging.
   std::string to_string() const;
 
+  /// Returns the publication that owns this track, or nullptr if the track is
+  /// not published.
+  std::shared_ptr<LocalTrackPublication> publication() const noexcept {
+    return local_publication_;
+  }
+
+  /// Sets the publication that owns this track.
+  void setPublication(const std::shared_ptr<LocalTrackPublication>
+                          &publication) noexcept override {
+    local_publication_ = std::move(publication);
+  }
+
 private:
-  explicit LocalVideoTrack(FfiHandle handle, const proto::OwnedTrack &track);
+  explicit LocalVideoTrack(FfiHandle handle, const proto::OwnedTrack &track,
+                           std::shared_ptr<VideoSource> owned_source = {});
+
+  /// The video source that produces video frames for this track.
+  /// This is owned by the track and will be released when the track is
+  /// destroyed.
+  std::shared_ptr<VideoSource> owned_video_source_;
+
+  /// The publication that owns this track. This is a nullptr until the track
+  /// is published, and then points to the publication that owns this track.
+  std::shared_ptr<LocalTrackPublication> local_publication_;
 };
 
 } // namespace livekit

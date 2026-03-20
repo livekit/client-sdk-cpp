@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "audio_frame.h"
+#include "local_track_publication.h"
 #include "track.h"
 #include <memory>
 #include <string>
@@ -61,6 +63,22 @@ public:
   createLocalAudioTrack(const std::string &name,
                         const std::shared_ptr<AudioSource> &source);
 
+  /// Creates a local audio track with a new \ref AudioSource for the given
+  /// sample rate and channel count (see \ref audioSource).
+  static std::shared_ptr<LocalAudioTrack>
+  createLocalAudioTrack(const std::string &name, int sample_rate,
+                        int num_channels, TrackSource track_source);
+
+  /// Returns the audio source that produces PCM frames for this track.
+  /// This is owned by the track and will be released when the track is
+  /// destroyed.
+  std::shared_ptr<AudioSource> audioSource() const noexcept {
+    return owned_audio_source_;
+  }
+
+  /// A wrapper around \ref AudioSource::captureFrame.
+  void captureFrame(const AudioFrame &frame, int timeout_ms = 0);
+
   /// Mutes the audio track.
   ///
   /// A muted track stops sending audio to the room, but the track remains
@@ -74,8 +92,30 @@ public:
   /// including its SID and name. Useful for debugging and logging.
   std::string to_string() const;
 
+  /// Returns the publication that owns this track, or nullptr if the track is
+  /// not published.
+  std::shared_ptr<LocalTrackPublication> publication() const noexcept {
+    return local_publication_;
+  }
+
+  /// Sets the publication that owns this track.
+  void setPublication(const std::shared_ptr<LocalTrackPublication>
+                          &publication) noexcept override {
+    local_publication_ = std::move(publication);
+  }
+
 private:
-  explicit LocalAudioTrack(FfiHandle handle, const proto::OwnedTrack &track);
+  explicit LocalAudioTrack(FfiHandle handle, const proto::OwnedTrack &track,
+                           std::shared_ptr<AudioSource> owned_source = {});
+
+  /// The audio source that produces PCM frames for this track.
+  /// This is owned by the track and will be released when the track is
+  /// destroyed.
+  std::shared_ptr<AudioSource> owned_audio_source_;
+
+  /// The publication that owns this track. This is a nullptr until the track
+  /// is published, and then points to the publication that owns this track.
+  std::shared_ptr<LocalTrackPublication> local_publication_;
 };
 
 } // namespace livekit
