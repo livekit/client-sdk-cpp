@@ -297,6 +297,8 @@ public:
                                  TrackSource source);
 
 private:
+  friend class RoomCallbackTest;
+
   mutable std::mutex lock_;
   ConnectionState connection_state_ = ConnectionState::Disconnected;
   RoomDelegate *delegate_ = nullptr; // Not owned

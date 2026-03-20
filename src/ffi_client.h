@@ -38,6 +38,8 @@ class FfiEvent;
 class FfiResponse;
 class FfiRequest;
 class OwnedTrackPublication;
+class OwnedLocalDataTrack;
+class OwnedDataTrackSubscription;
 class DataStream;
 
 } // namespace proto
@@ -122,6 +124,13 @@ public:
       const std::string &destination_identity, const std::string &method,
       const std::string &payload,
       std::optional<std::uint32_t> response_timeout_ms = std::nullopt);
+
+  // Data Track APIs
+  std::future<proto::OwnedLocalDataTrack>
+  publishDataTrackAsync(std::uint64_t local_participant_handle,
+                        const std::string &track_name);
+  std::future<proto::OwnedDataTrackSubscription>
+  subscribeDataTrackAsync(std::uint64_t track_handle);
 
   // Data stream functionalities
   std::future<void>

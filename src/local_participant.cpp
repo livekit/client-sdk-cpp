@@ -18,11 +18,13 @@
 
 #include "livekit/ffi_handle.h"
 #include "livekit/local_audio_track.h"
+#include "livekit/local_data_track.h"
 #include "livekit/local_track_publication.h"
 #include "livekit/local_video_track.h"
 #include "livekit/room_delegate.h"
 #include "livekit/track.h"
 
+#include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "participant.pb.h"
@@ -284,6 +286,39 @@ LocalParticipant::PublicationMap LocalParticipant::trackPublications() const {
     ++it;
   }
   return out;
+}
+
+std::shared_ptr<LocalDataTrack>
+LocalParticipant::publishDataTrack(const std::string &name) {
+  auto handle_id = ffiHandleId();
+  if (handle_id == 0) {
+    throw std::runtime_error(
+        "LocalParticipant::publishDataTrack: invalid FFI handle");
+  }
+
+  auto fut = FfiClient::instance().publishDataTrackAsync(
+      static_cast<std::uint64_t>(handle_id), name);
+
+  proto::OwnedLocalDataTrack owned = fut.get();
+  return std::shared_ptr<LocalDataTrack>(new LocalDataTrack(owned));
+}
+
+void LocalParticipant::unpublishDataTrack(
+    const std::shared_ptr<LocalDataTrack> &track) {
+  if (!track) {
+    return;
+  }
+
+  auto handle_id = track->ffi_handle_id();
+  if (handle_id == 0) {
+    return;
+  }
+
+  proto::FfiRequest req;
+  auto *msg = req.mutable_local_data_track_unpublish();
+  msg->set_track_handle(static_cast<uint64_t>(handle_id));
+
+  (void)FfiClient::instance().sendRequest(req);
 }
 
 std::string LocalParticipant::performRpc(
