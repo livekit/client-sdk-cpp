@@ -1,0 +1,111 @@
+name: Docker Validate
+
+on:
+  workflow_run:
+    workflows: ["Docker Images"]
+    types: [completed]
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  # Pinned commit for cpp-example-collection smoke build (https://github.com/livekit-examples/cpp-example-collection)
+  CPP_EXAMPLE_COLLECTION_REF: f231c0c75028d1dcf13edcecd369d030d2c7c8d4
+
+jobs:
+  validate-x64:
+    name: Validate Docker image (linux-x64)
+    runs-on: ubuntu-latest
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+
+    steps:
+      - name: Resolve image name
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp:sha-${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Pull SDK image
+        shell: bash
+        run: |
+          set -euxo pipefail
+          time docker pull "${{ steps.refs.outputs.sdk_image }}"
+
+      - name: Verify installed SDK inside image
+        run: |
+          docker run --rm "${{ steps.refs.outputs.sdk_image }}" bash -c \
+            'test -f /opt/livekit-sdk/lib/cmake/LiveKit/LiveKitConfig.cmake'
+
+      - name: Build cpp-example-collection against installed SDK
+        run: |
+          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm "${{ steps.refs.outputs.sdk_image }}" bash -lc '
+            set -euxo pipefail
+            git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
+            cd /tmp/cpp-example-collection
+            git fetch --depth 1 origin "$CPP_EX_REF"
+            git checkout "$CPP_EX_REF"
+            cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
+            cmake --build build --parallel
+          '
+
+  validate-arm64:
+    name: Validate Docker image (linux-arm64)
+    runs-on: ubuntu-24.04-arm
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+
+    steps:
+      - name: Resolve image name
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp:sha-${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Pull SDK image
+        shell: bash
+        run: |
+          set -euxo pipefail
+          time docker pull "${{ steps.refs.outputs.sdk_image }}"
+
+      - name: Verify installed SDK inside image
+        run: |
+          docker run --rm "${{ steps.refs.outputs.sdk_image }}" bash -c \
+            'test -f /opt/livekit-sdk/lib/cmake/LiveKit/LiveKitConfig.cmake'
+
+      - name: Build cpp-example-collection against installed SDK
+        run: |
+          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm "${{ steps.refs.outputs.sdk_image }}" bash -lc '
+            set -euxo pipefail
+            git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
+            cd /tmp/cpp-example-collection
+            git fetch --depth 1 origin "$CPP_EX_REF"
+            git checkout "$CPP_EX_REF"
+            cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
+            cmake --build build --parallel
+          '

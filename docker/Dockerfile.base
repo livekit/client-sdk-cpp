@@ -13,16 +13,15 @@
 # limitations under the License.
 #
 # Build with:
-# docker build -t livekit-cpp-sdk . -f docker/Dockerfile
+# docker build -t livekit-cpp-sdk-base . -f docker/Dockerfile.base
 # From repo root.
 # Run with:
-# docker run -it --network host livekit-cpp-sdk:latest bash
+# docker run -it --network host livekit-cpp-sdk-base:latest bash
 
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV HOME=/root
-ENV SDK_INSTALL_PREFIX=/opt/livekit-sdk
 
 # Install make, pkg-config, and base build deps (pkg-config + libglib2.0-dev for Rust glib-sys, libasound2-dev for alsa-sys)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -106,34 +105,3 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxi-dev \
         libxrandr-dev \
     && rm -rf /var/lib/apt/lists/*
-
-# Copy project source (build context = repo root)
-WORKDIR /client-sdk-cpp
-RUN mkdir -p /client-sdk-cpp
-COPY src /client-sdk-cpp/src
-COPY include /client-sdk-cpp/include
-COPY bridge /client-sdk-cpp/bridge
-COPY build.sh /client-sdk-cpp/build.sh
-COPY CMakePresets.json /client-sdk-cpp/CMakePresets.json
-COPY build.cmd /client-sdk-cpp/build.cmd
-COPY client-sdk-rust /client-sdk-cpp/client-sdk-rust
-COPY data /client-sdk-cpp/data
-COPY cmake /client-sdk-cpp/cmake
-COPY CMakeLists.txt /client-sdk-cpp/CMakeLists.txt
-COPY build.h.in /client-sdk-cpp/build.h.in
-
-# Configure Rust linker: use full GCC path so liblto_plugin.so is found (not /home/installs/ which has no plugin)
-RUN mkdir -p /client-sdk-cpp/client-sdk-rust/.cargo \
-    && printf '%s\n' '[target.x86_64-unknown-linux-gnu]' 'linker = "/root/gcc-14/bin/g++"' \
-        '[target.aarch64-unknown-linux-gnu]' 'linker = "/root/gcc-14/bin/g++"' > /client-sdk-cpp/client-sdk-rust/.cargo/config.toml
-
-# Build and install the SDK into a fixed prefix so downstream projects can
-# consume the image as a prebuilt LiveKit SDK environment.
-RUN LLVM_VERSION="$(llvm-config --version | cut -d. -f1)" \
-    && export LIBCLANG_PATH="/usr/lib/llvm-${LLVM_VERSION}/lib" \
-    && export CXXFLAGS="-Wno-deprecated-declarations" \
-    && export CFLAGS="-Wno-deprecated-declarations" \
-    && chmod +x /client-sdk-cpp/build.sh \
-    && cd /client-sdk-cpp \
-    && ./build.sh release --bundle --prefix "${SDK_INSTALL_PREFIX}" \
-    && test -f "${SDK_INSTALL_PREFIX}/lib/cmake/LiveKit/LiveKitConfig.cmake"

@@ -124,14 +124,15 @@ cmake --build --preset macos-release
 📖 **For complete build instructions, troubleshooting, and platform-specific notes, see [README_BUILD.md](README_BUILD.md)**
 
 ### Building with Docker
-The Dockerfile COPYs folders/files required to build the CPP SDK into the image. 
+The Docker setup is split into a reusable base image and an SDK image layered on top of it.
  **NOTE:** this has only been tested on Linux
 ```bash
-docker build -t livekit-cpp-sdk . -f docker/Dockerfile
+docker build -t livekit-cpp-sdk-base . -f docker/Dockerfile.base
+docker build --build-arg BASE_IMAGE=livekit-cpp-sdk-base -t livekit-cpp-sdk . -f docker/Dockerfile.sdk
 docker run -it --network host livekit-cpp-sdk:latest bash
 ```
 
-__NOTE:__ if you are building your own Dockerfile, you will likely need to set the same `ENV` variables as in `docker/Dockerfile`, but to the relevant directories:
+__NOTE:__ if you are building your own Dockerfile, you will likely need to set the same `ENV` variables as in `docker/Dockerfile.base`, but to the relevant directories:
 ```bash
 export CC=$HOME/gcc-14/bin/gcc
 export CXX=$HOME/gcc-14/bin/g++
