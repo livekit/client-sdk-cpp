@@ -176,7 +176,8 @@ public:
    *
    * Data tracks carry arbitrary binary frames and are independent of the
    * audio/video track hierarchy. The returned LocalDataTrack can push
-   * frames via tryPush() and be unpublished via unpublishDataTrack().
+   * frames via tryPush() and be unpublished via LocalDataTrack::unpublishDataTrack()
+   * or LocalParticipant::unpublishDataTrack().
    *
    * @param name  Unique track name visible to other participants.
    * @return Shared pointer to the published data track.
@@ -187,10 +188,10 @@ public:
   /**
    * Unpublish a data track from the room.
    *
-   * After this call, tryPush() on the track will fail and the track
-   * cannot be re-published.
+   * Delegates to LocalDataTrack::unpublishDataTrack(). After this call,
+   * tryPush() on the track will fail and the track cannot be re-published.
    *
-   * @param track  The data track to unpublish. Must not be null.
+   * @param track  The data track to unpublish. Null is ignored.
    */
   void unpublishDataTrack(const std::shared_ptr<LocalDataTrack> &track);
 

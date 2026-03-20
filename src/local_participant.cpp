@@ -309,16 +309,7 @@ void LocalParticipant::unpublishDataTrack(
     return;
   }
 
-  auto handle_id = track->ffi_handle_id();
-  if (handle_id == 0) {
-    return;
-  }
-
-  proto::FfiRequest req;
-  auto *msg = req.mutable_local_data_track_unpublish();
-  msg->set_track_handle(static_cast<uint64_t>(handle_id));
-
-  (void)FfiClient::instance().sendRequest(req);
+  track->unpublishDataTrack();
 }
 
 std::string LocalParticipant::performRpc(

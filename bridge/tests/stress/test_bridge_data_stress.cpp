@@ -80,7 +80,7 @@ TEST_F(BridgeDataStressTest, HighThroughput) {
       auto payload = randomPayload(kPayloadSize);
 
       auto t0 = std::chrono::high_resolution_clock::now();
-      bool ok = data_track->pushFrame(payload);
+      bool ok = data_track->tryPush(payload);
       auto t1 = std::chrono::high_resolution_clock::now();
 
       double latency_ms =
@@ -201,7 +201,7 @@ TEST_F(BridgeDataStressTest, LargePayloadStress) {
       auto payload = randomPayload(kLargePayloadSize);
 
       auto t0 = std::chrono::high_resolution_clock::now();
-      bool ok = data_track->pushFrame(payload);
+      bool ok = data_track->tryPush(payload);
       auto t1 = std::chrono::high_resolution_clock::now();
 
       double latency_ms =
@@ -297,7 +297,7 @@ TEST_F(BridgeDataStressTest, CallbackChurn) {
   std::thread sender([&]() {
     while (running.load()) {
       auto payload = randomPayload(256);
-      data_track->pushFrame(payload);
+      data_track->tryPush(payload);
       std::this_thread::sleep_for(10ms);
     }
   });

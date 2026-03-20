@@ -29,8 +29,8 @@
  * to receive and record to MCAP.
  */
 
-#include "livekit_bridge/bridge_data_track.h"
 #include "livekit_bridge/livekit_bridge.h"
+#include "livekit/local_data_track.h"
 #include "livekit/track.h"
 
 #include "BuildFileDescriptorSet.h"
@@ -275,9 +275,9 @@ int main(int argc, char* argv[]) {
   }
 
   std::shared_ptr<livekit_bridge::BridgeVideoTrack> video_track;
-  std::shared_ptr<livekit_bridge::BridgeDataTrack> depth_track;
-  std::shared_ptr<livekit_bridge::BridgeDataTrack> pose_track;
-  std::shared_ptr<livekit_bridge::BridgeDataTrack> hello_track;
+  std::shared_ptr<livekit::LocalDataTrack> depth_track;
+  std::shared_ptr<livekit::LocalDataTrack> pose_track;
+  std::shared_ptr<livekit::LocalDataTrack> hello_track;
 
   try {
     video_track = bridge.createVideoTrack("camera/color", kWidth, kHeight,
@@ -326,7 +326,7 @@ int main(int argc, char* argv[]) {
       ++hello_seq;
       std::string text = "hello viewer #" + std::to_string(hello_seq);
       uint64_t ts_us = static_cast<uint64_t>(nowNs() / 1000);
-      bool ok = hello_track->pushFrame(
+      bool ok = hello_track->tryPush(
           reinterpret_cast<const std::uint8_t*>(text.data()), text.size(),
           ts_us);
       std::cout << "[" << nowStr() << "] [realsense_rgbd] Sent hello #"
@@ -392,13 +392,13 @@ int main(int argc, char* argv[]) {
       auto push_start = std::chrono::steady_clock::now();
       bool ok = false;
       if (zrc == Z_OK) {
-        ok = depth_track->pushFrame(
+        ok = depth_track->tryPush(
             compressed.data(), static_cast<std::size_t>(comp_size),
             static_cast<std::uint64_t>(timestamp_us));
       } else {
         std::cerr << "[realsense_rgbd] zlib compress failed (" << zrc
                   << "), sending uncompressed\n";
-        ok = depth_track->pushFrame(
+        ok = depth_track->tryPush(
             reinterpret_cast<const std::uint8_t*>(serialized.data()),
             serialized.size(), static_cast<std::uint64_t>(timestamp_us));
       }
@@ -461,7 +461,7 @@ int main(int argc, char* argv[]) {
       orient->set_w(orientation.w);
 
       std::string pose_serialized = pose_msg.SerializeAsString();
-      bool pose_ok = pose_track->pushFrame(
+      bool pose_ok = pose_track->tryPush(
           reinterpret_cast<const std::uint8_t*>(pose_serialized.data()),
           pose_serialized.size(), static_cast<std::uint64_t>(timestamp_us));
       ++pose_pushed;

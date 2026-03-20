@@ -100,7 +100,7 @@ TEST_F(BridgeLifecycleStressTest, DisconnectUnderLoad) {
       std::thread data_pusher([&]() {
         while (running.load()) {
           auto payload = makePayload(512);
-          data->pushFrame(payload);
+          data->tryPush(payload);
           std::this_thread::sleep_for(20ms);
         }
       });
@@ -184,10 +184,10 @@ TEST_F(BridgeLifecycleStressTest, TrackReleaseWhileReceiving) {
 
       std::thread data_pusher([&]() {
         while (running.load()) {
-          if (data->isReleased())
+          if (!data->isPublished())
             break;
           auto payload = makePayload(256);
-          data->pushFrame(payload);
+          data->tryPush(payload);
           std::this_thread::sleep_for(20ms);
         }
       });
@@ -200,19 +200,19 @@ TEST_F(BridgeLifecycleStressTest, TrackReleaseWhileReceiving) {
 
       std::this_thread::sleep_for(200ms);
 
-      data->release();
-      EXPECT_TRUE(data->isReleased());
+      data->unpublishDataTrack();
+      EXPECT_FALSE(data->isPublished());
 
       running.store(false);
       audio_pusher.join();
       data_pusher.join();
 
-      // pushFrame must return false on released tracks
+      // pushFrame / tryPush must return false on released / unpublished tracks
       auto silence = makeSilent(kLifecycleSamplesPerFrame);
       EXPECT_FALSE(audio->pushFrame(silence, kLifecycleSamplesPerFrame));
 
       auto payload = makePayload(64);
-      EXPECT_FALSE(data->pushFrame(payload));
+      EXPECT_FALSE(data->tryPush(payload));
 
       receiver.clearOnAudioFrameCallback(
           caller_identity, livekit::TrackSource::SOURCE_MICROPHONE);
@@ -270,19 +270,20 @@ TEST_F(BridgeLifecycleStressTest, FullLifecycleSoak) {
         video->pushFrame(rgba);
 
         auto payload = makePayload(256);
-        data->pushFrame(payload);
+        data->tryPush(payload);
 
         std::this_thread::sleep_for(
             std::chrono::milliseconds(kLifecycleFrameDurationMs));
       }
 
-      // Explicit release in various orders to exercise different teardown paths
+      // Explicit release / unpublish in various orders to exercise different
+      // teardown paths
       if (i % 3 == 0) {
         audio->release();
         video->release();
-        data->release();
+        data->unpublishDataTrack();
       } else if (i % 3 == 1) {
-        data->release();
+        data->unpublishDataTrack();
         audio->release();
         video->release();
       }
