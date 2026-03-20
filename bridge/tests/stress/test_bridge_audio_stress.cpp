@@ -27,13 +27,13 @@ constexpr int kStressSamplesPerFrame =
     kStressAudioSampleRate * kStressFrameDurationMs / 1000;
 
 static std::vector<std::int16_t> makeSineFrame(int samples, double freq,
-                                                int &phase) {
+                                               int &phase) {
   std::vector<std::int16_t> data(samples * kStressAudioChannels);
   const double amplitude = 16000.0;
   for (int i = 0; i < samples; ++i) {
     double t = static_cast<double>(phase++) / kStressAudioSampleRate;
-    auto sample = static_cast<std::int16_t>(
-        amplitude * std::sin(2.0 * M_PI * freq * t));
+    auto sample =
+        static_cast<std::int16_t>(amplitude * std::sin(2.0 * M_PI * freq * t));
     for (int ch = 0; ch < kStressAudioChannels; ++ch) {
       data[i * kStressAudioChannels + ch] = sample;
     }
@@ -59,7 +59,7 @@ TEST_F(BridgeAudioStressTest, SustainedAudioPush) {
 
   ASSERT_TRUE(connectPair(caller, receiver));
 
-  auto audio_track = caller.createAudioTrack(
+  auto audio_track = caller.publishAudioTrack(
       "stress-mic", kStressAudioSampleRate, kStressAudioChannels,
       livekit::TrackSource::SOURCE_MICROPHONE);
   ASSERT_NE(audio_track, nullptr);
@@ -159,8 +159,8 @@ TEST_F(BridgeAudioStressTest, SustainedAudioPush) {
   EXPECT_EQ(push_failures.load(), 0) << "No push failures expected";
   EXPECT_GT(delivery_rate, 50.0) << "Delivery rate below 50%";
 
-  receiver.clearOnAudioFrameCallback(
-      caller_identity, livekit::TrackSource::SOURCE_MICROPHONE);
+  receiver.clearOnAudioFrameCallback(caller_identity,
+                                     livekit::TrackSource::SOURCE_MICROPHONE);
 }
 
 // ---------------------------------------------------------------------------
@@ -186,7 +186,7 @@ TEST_F(BridgeAudioStressTest, ReleaseUnderActivePush) {
           bridge.connect(config_.url, config_.caller_token, options);
       ASSERT_TRUE(connected) << "Iteration " << iter << ": connect failed";
 
-      auto track = bridge.createAudioTrack(
+      auto track = bridge.publishAudioTrack(
           "release-stress-mic", kStressAudioSampleRate, kStressAudioChannels,
           livekit::TrackSource::SOURCE_MICROPHONE);
 
@@ -243,7 +243,7 @@ TEST_F(BridgeAudioStressTest, RapidConnectDisconnectWithCallback) {
       ASSERT_TRUE(connectPair(caller, receiver))
           << "Cycle " << i << ": connect failed";
 
-      auto track = caller.createAudioTrack(
+      auto track = caller.publishAudioTrack(
           "rapid-mic", kStressAudioSampleRate, kStressAudioChannels,
           livekit::TrackSource::SOURCE_MICROPHONE);
 

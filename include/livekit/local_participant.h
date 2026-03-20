@@ -176,8 +176,9 @@ public:
    *
    * Data tracks carry arbitrary binary frames and are independent of the
    * audio/video track hierarchy. The returned LocalDataTrack can push
-   * frames via tryPush() and be unpublished via LocalDataTrack::unpublishDataTrack()
-   * or LocalParticipant::unpublishDataTrack().
+   * frames via tryPush() and be unpublished via
+   * LocalDataTrack::unpublishDataTrack() or
+   * LocalParticipant::unpublishDataTrack().
    *
    * @param name  Unique track name visible to other participants.
    * @return Shared pointer to the published data track.

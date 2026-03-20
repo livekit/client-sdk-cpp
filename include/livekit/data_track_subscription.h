@@ -36,7 +36,7 @@ class FfiEvent;
  * An active subscription to a remote data track.
  *
  * Provides a blocking read() interface similar to AudioStream / VideoStream.
- * Frames are delivered via FfiEvent callbacks and queued internally.
+ * Frames are delivered via FfiEvent callbacks and stored internally.
  *
  * Dropping (destroying) the subscription automatically unsubscribes from the
  * remote track by releasing the underlying FFI handle.
@@ -90,7 +90,7 @@ private:
   /// FFI event handler, called by FfiClient.
   void onFfiEvent(const proto::FfiEvent &event);
 
-  /// Push a received DataFrame to the internal queue.
+  /// Push a received DataFrame to the internal storage.
   void pushFrame(DataFrame &&frame);
 
   /// Push an end-of-stream signal (EOS).
@@ -102,8 +102,10 @@ private:
   /** Signalled when a frame is pushed or the subscription ends. */
   std::condition_variable cv_;
 
-  /** FIFO of received frames awaiting read(). */
-  std::deque<DataFrame> queue_;
+  /** Received frame awaiting read().
+  NOTE: the rust side handles buffering, so we should only really ever have one
+  item*/
+  std::optional<DataFrame> frame_;
 
   /** True once the remote side signals end-of-stream. */
   bool eof_{false};

@@ -32,7 +32,7 @@ DataTrackSubscription::~DataTrackSubscription() { close(); }
 DataTrackSubscription::DataTrackSubscription(
     DataTrackSubscription &&other) noexcept {
   std::lock_guard<std::mutex> lock(other.mutex_);
-  queue_ = std::move(other.queue_);
+  frame_ = std::move(other.frame_);
   eof_ = other.eof_;
   closed_ = other.closed_;
   subscription_handle_ = std::move(other.subscription_handle_);
@@ -54,7 +54,7 @@ DataTrackSubscription::operator=(DataTrackSubscription &&other) noexcept {
     std::lock_guard<std::mutex> lock_this(mutex_);
     std::lock_guard<std::mutex> lock_other(other.mutex_);
 
-    queue_ = std::move(other.queue_);
+    frame_ = std::move(other.frame_);
     eof_ = other.eof_;
     closed_ = other.closed_;
     subscription_handle_ = std::move(other.subscription_handle_);
@@ -77,14 +77,14 @@ void DataTrackSubscription::init(FfiHandle subscription_handle) {
 bool DataTrackSubscription::read(DataFrame &out) {
   std::unique_lock<std::mutex> lock(mutex_);
 
-  cv_.wait(lock, [this] { return !queue_.empty() || eof_ || closed_; });
+  cv_.wait(lock, [this] { return frame_.has_value() || eof_ || closed_; });
 
-  if (closed_ || (queue_.empty() && eof_)) {
+  if (closed_ || (!frame_.has_value() && eof_)) {
     return false;
   }
 
-  out = std::move(queue_.front());
-  queue_.pop_front();
+  out = std::move(frame_.value());
+  frame_.reset();
   return true;
 }
 
@@ -145,22 +145,13 @@ void DataTrackSubscription::pushFrame(DataFrame &&frame) {
   }
 
   // rust side handles buffering, so we should only really ever have one item
-  if (queue_.size() >= 2) {
-    LK_LOG_ERROR("[DataTrackSubscription] Queue size is greater than 1, this "
-                 "should not happen");
-
-    // notify to try to catch up
-    cv_.notify_one();
-  } else if (queue_.size() >= 1) {
-    LK_LOG_WARN("[DataTrackSubscription] Queue size is 1, are we able to "
-                "keep up with rust pushing data?");
-
-    // we expect this to happen, but rarely.
-    queue_.push_back(std::move(frame));
-  } else {
-    // things are nominal
-    queue_.push_back(std::move(frame));
+  if (frame_.has_value()) {
+    LK_LOG_ERROR("[DataTrackSubscription] Frame is already set, the "
+                 "application cannot keep up with the data rate");
+    return;
   }
+
+  frame_ = std::move(frame);
 
   // notify no matter what since we got a new frame
   cv_.notify_one();

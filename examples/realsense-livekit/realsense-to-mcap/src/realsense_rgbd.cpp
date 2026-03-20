@@ -29,9 +29,9 @@
  * to receive and record to MCAP.
  */
 
-#include "livekit_bridge/livekit_bridge.h"
 #include "livekit/local_data_track.h"
 #include "livekit/track.h"
+#include "livekit_bridge/livekit_bridge.h"
 
 #include "BuildFileDescriptorSet.h"
 #include "foxglove/PoseInFrame.pb.h"
@@ -67,7 +67,8 @@ static uint64_t nowNs() {
 static std::string nowStr() {
   auto now = std::chrono::system_clock::now();
   auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                now.time_since_epoch()) % 1000;
+                now.time_since_epoch()) %
+            1000;
   std::time_t t = std::chrono::system_clock::to_time_t(now);
   std::tm tm{};
   localtime_r(&t, &tm);
@@ -114,9 +115,9 @@ public:
   }
 
   void process_accel(rs2_vector accel_data) {
-    float accel_angle_x = std::atan2(accel_data.x,
-        std::sqrt(accel_data.y * accel_data.y +
-                  accel_data.z * accel_data.z));
+    float accel_angle_x =
+        std::atan2(accel_data.x, std::sqrt(accel_data.y * accel_data.y +
+                                           accel_data.z * accel_data.z));
     float accel_angle_z = std::atan2(accel_data.y, accel_data.z);
 
     std::lock_guard<std::mutex> lock(mtx_);
@@ -133,10 +134,9 @@ public:
 
   OrientationQuat get_orientation() const {
     std::lock_guard<std::mutex> lock(mtx_);
-    return eulerToQuaternion(
-        static_cast<double>(theta_x_),
-        static_cast<double>(theta_y_),
-        static_cast<double>(theta_z_));
+    return eulerToQuaternion(static_cast<double>(theta_x_),
+                             static_cast<double>(theta_y_),
+                             static_cast<double>(theta_z_));
   }
 
 private:
@@ -149,13 +149,13 @@ private:
 };
 
 /// Convert RGB8 to RGBA (alpha = 0xFF). Assumes dst has size width*height*4.
-static void rgb8ToRgba(const std::uint8_t* rgb, std::uint8_t* rgba,
-                       int width, int height) {
+static void rgb8ToRgba(const std::uint8_t *rgb, std::uint8_t *rgba, int width,
+                       int height) {
   const int rgbStep = width * 3;
   const int rgbaStep = width * 4;
   for (int y = 0; y < height; ++y) {
-    const std::uint8_t* src = rgb + y * rgbStep;
-    std::uint8_t* dst = rgba + y * rgbaStep;
+    const std::uint8_t *src = rgb + y * rgbStep;
+    std::uint8_t *dst = rgba + y * rgbaStep;
     for (int x = 0; x < width; ++x) {
       *dst++ = *src++;
       *dst++ = *src++;
@@ -165,7 +165,7 @@ static void rgb8ToRgba(const std::uint8_t* rgb, std::uint8_t* rgba,
   }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   std::signal(SIGINT, signalHandler);
@@ -173,8 +173,8 @@ int main(int argc, char* argv[]) {
 
   std::string url;
   std::string token;
-  const char* env_url = std::getenv("LIVEKIT_URL");
-  const char* env_token = std::getenv("LIVEKIT_TOKEN");
+  const char *env_url = std::getenv("LIVEKIT_URL");
+  const char *env_token = std::getenv("LIVEKIT_TOKEN");
   if (argc >= 3) {
     url = argv[1];
     token = argv[2];
@@ -189,7 +189,8 @@ int main(int argc, char* argv[]) {
 
   const int kWidth = 640;
   const int kHeight = 480;
-  const int kDepthFps = 10;  // data track depth rate (Hz); limited by SCTP throughput
+  const int kDepthFps =
+      10; // data track depth rate (Hz); limited by SCTP throughput
   const int kPoseFps = 30;
 
   RotationEstimator rotation_est;
@@ -223,7 +224,7 @@ int main(int argc, char* argv[]) {
   cfg.enable_stream(RS2_STREAM_DEPTH, kWidth, kHeight, RS2_FORMAT_Z16, 30);
   try {
     pipe.start(cfg);
-  } catch (const rs2::error& e) {
+  } catch (const rs2::error &e) {
     std::cerr << "RealSense error: " << e.what() << "\n";
     return 1;
   }
@@ -240,23 +241,21 @@ int main(int argc, char* argv[]) {
     try {
       imu_pipe.start(imu_cfg, [&rotation_est](rs2::frame frame) {
         auto motion = frame.as<rs2::motion_frame>();
-        if (motion &&
-            motion.get_profile().stream_type() == RS2_STREAM_GYRO &&
+        if (motion && motion.get_profile().stream_type() == RS2_STREAM_GYRO &&
             motion.get_profile().format() == RS2_FORMAT_MOTION_XYZ32F) {
           rotation_est.process_gyro(motion.get_motion_data(),
                                     motion.get_timestamp());
         }
-        if (motion &&
-            motion.get_profile().stream_type() == RS2_STREAM_ACCEL &&
+        if (motion && motion.get_profile().stream_type() == RS2_STREAM_ACCEL &&
             motion.get_profile().format() == RS2_FORMAT_MOTION_XYZ32F) {
           rotation_est.process_accel(motion.get_motion_data());
         }
       });
       has_imu = true;
       std::cout << "[realsense_rgbd] IMU pipeline started.\n";
-    } catch (const rs2::error& e) {
-      std::cerr << "[realsense_rgbd] Could not start IMU pipeline: "
-                << e.what() << " — continuing without pose.\n";
+    } catch (const rs2::error &e) {
+      std::cerr << "[realsense_rgbd] Could not start IMU pipeline: " << e.what()
+                << " — continuing without pose.\n";
     }
   } else {
     std::cout << "[realsense_rgbd] IMU not available, continuing without "
@@ -280,14 +279,14 @@ int main(int argc, char* argv[]) {
   std::shared_ptr<livekit::LocalDataTrack> hello_track;
 
   try {
-    video_track = bridge.createVideoTrack("camera/color", kWidth, kHeight,
-                                          livekit::TrackSource::SOURCE_CAMERA);
-    depth_track = bridge.createDataTrack("camera/depth");
+    video_track = bridge.publishVideoTrack("camera/color", kWidth, kHeight,
+                                           livekit::TrackSource::SOURCE_CAMERA);
+    depth_track = bridge.publishDataTrack("camera/depth");
     if (has_imu) {
-      pose_track = bridge.createDataTrack("camera/pose");
+      pose_track = bridge.publishDataTrack("camera/pose");
     }
-    hello_track = bridge.createDataTrack("hello");
-  } catch (const std::exception& e) {
+    hello_track = bridge.publishDataTrack("hello");
+  } catch (const std::exception &e) {
     std::cerr << "[realsense_rgbd] Failed to create tracks: " << e.what()
               << "\n";
     bridge.disconnect();
@@ -300,7 +299,8 @@ int main(int argc, char* argv[]) {
             << (has_imu ? ", camera/pose (DataTrack)" : "")
             << ", and hello (DataTrack). Press Ctrl+C to stop.\n";
 
-  std::vector<std::uint8_t> rgbaBuf(static_cast<std::size_t>(kWidth * kHeight * 4));
+  std::vector<std::uint8_t> rgbaBuf(
+      static_cast<std::size_t>(kWidth * kHeight * 4));
 
   uint32_t hello_seq = 0;
   uint32_t depth_pushed = 0;
@@ -310,10 +310,8 @@ int main(int argc, char* argv[]) {
   auto last_depth = std::chrono::steady_clock::now();
   auto last_pose = std::chrono::steady_clock::now();
   auto last_depth_report = std::chrono::steady_clock::now();
-  const auto depth_interval =
-      std::chrono::microseconds(1000000 / kDepthFps);
-  const auto pose_interval =
-      std::chrono::microseconds(1000000 / kPoseFps);
+  const auto depth_interval = std::chrono::microseconds(1000000 / kDepthFps);
+  const auto pose_interval = std::chrono::microseconds(1000000 / kPoseFps);
 
   constexpr auto kMinLoopDuration = std::chrono::milliseconds(15);
 
@@ -327,7 +325,7 @@ int main(int argc, char* argv[]) {
       std::string text = "hello viewer #" + std::to_string(hello_seq);
       uint64_t ts_us = static_cast<uint64_t>(nowNs() / 1000);
       bool ok = hello_track->tryPush(
-          reinterpret_cast<const std::uint8_t*>(text.data()), text.size(),
+          reinterpret_cast<const std::uint8_t *>(text.data()), text.size(),
           ts_us);
       std::cout << "[" << nowStr() << "] [realsense_rgbd] Sent hello #"
                 << hello_seq << " (" << text.size() << " bytes) -> "
@@ -358,7 +356,7 @@ int main(int argc, char* argv[]) {
     const int32_t nsecs = static_cast<int32_t>(timestamp_ns % 1000000000ULL);
 
     // RGB → RGBA and push to video track
-    rgb8ToRgba(static_cast<const std::uint8_t*>(color.get_data()),
+    rgb8ToRgba(static_cast<const std::uint8_t *>(color.get_data()),
                rgbaBuf.data(), kWidth, kHeight);
     if (!video_track->pushFrame(rgbaBuf.data(), rgbaBuf.size(), timestamp_us)) {
       break;
@@ -369,7 +367,7 @@ int main(int argc, char* argv[]) {
       last_depth = loop_start;
 
       foxglove::RawImage msg;
-      auto* ts = msg.mutable_timestamp();
+      auto *ts = msg.mutable_timestamp();
       ts->set_seconds(secs);
       ts->set_nanos(nsecs);
       msg.set_frame_id("camera_depth");
@@ -384,28 +382,28 @@ int main(int argc, char* argv[]) {
       uLongf comp_bound = compressBound(static_cast<uLong>(serialized.size()));
       std::vector<std::uint8_t> compressed(comp_bound);
       uLongf comp_size = comp_bound;
-      int zrc = compress2(
-          compressed.data(), &comp_size,
-          reinterpret_cast<const Bytef*>(serialized.data()),
-          static_cast<uLong>(serialized.size()), Z_BEST_SPEED);
+      int zrc = compress2(compressed.data(), &comp_size,
+                          reinterpret_cast<const Bytef *>(serialized.data()),
+                          static_cast<uLong>(serialized.size()), Z_BEST_SPEED);
 
       auto push_start = std::chrono::steady_clock::now();
       bool ok = false;
       if (zrc == Z_OK) {
-        ok = depth_track->tryPush(
-            compressed.data(), static_cast<std::size_t>(comp_size),
-            static_cast<std::uint64_t>(timestamp_us));
+        ok = depth_track->tryPush(compressed.data(),
+                                  static_cast<std::size_t>(comp_size),
+                                  static_cast<std::uint64_t>(timestamp_us));
       } else {
         std::cerr << "[realsense_rgbd] zlib compress failed (" << zrc
                   << "), sending uncompressed\n";
         ok = depth_track->tryPush(
-            reinterpret_cast<const std::uint8_t*>(serialized.data()),
+            reinterpret_cast<const std::uint8_t *>(serialized.data()),
             serialized.size(), static_cast<std::uint64_t>(timestamp_us));
       }
       auto push_dur = std::chrono::steady_clock::now() - push_start;
       double push_ms =
           std::chrono::duration_cast<std::chrono::microseconds>(push_dur)
-              .count() / 1000.0;
+              .count() /
+          1000.0;
 
       ++depth_pushed;
       if (!ok) {
@@ -419,16 +417,17 @@ int main(int argc, char* argv[]) {
         double elapsed_sec =
             std::chrono::duration_cast<std::chrono::milliseconds>(
                 loop_start - last_depth_report)
-                .count() / 1000.0;
+                .count() /
+            1000.0;
         double actual_fps =
             (elapsed_sec > 0)
                 ? static_cast<double>(depth_pushed - last_depth_report_count) /
                       elapsed_sec
                 : 0;
-        std::cout << "[" << nowStr()
-                  << "] [realsense_rgbd] Depth #" << depth_pushed
-                  << " push=" << std::fixed << std::setprecision(1) << push_ms
-                  << "ms " << serialized.size() << "B->"
+        std::cout << "[" << nowStr() << "] [realsense_rgbd] Depth #"
+                  << depth_pushed << " push=" << std::fixed
+                  << std::setprecision(1) << push_ms << "ms "
+                  << serialized.size() << "B->"
                   << (zrc == Z_OK ? comp_size : serialized.size()) << "B"
                   << " actual=" << std::setprecision(1) << actual_fps
                   << "fps\n";
@@ -444,17 +443,17 @@ int main(int argc, char* argv[]) {
       auto orientation = rotation_est.get_orientation();
 
       foxglove::PoseInFrame pose_msg;
-      auto* pose_ts = pose_msg.mutable_timestamp();
+      auto *pose_ts = pose_msg.mutable_timestamp();
       pose_ts->set_seconds(secs);
       pose_ts->set_nanos(nsecs);
       pose_msg.set_frame_id("camera_imu");
 
-      auto* pose = pose_msg.mutable_pose();
-      auto* pos = pose->mutable_position();
+      auto *pose = pose_msg.mutable_pose();
+      auto *pos = pose->mutable_position();
       pos->set_x(0);
       pos->set_y(0);
       pos->set_z(0);
-      auto* orient = pose->mutable_orientation();
+      auto *orient = pose->mutable_orientation();
       orient->set_x(orientation.x);
       orient->set_y(orientation.y);
       orient->set_z(orientation.z);
@@ -462,7 +461,7 @@ int main(int argc, char* argv[]) {
 
       std::string pose_serialized = pose_msg.SerializeAsString();
       bool pose_ok = pose_track->tryPush(
-          reinterpret_cast<const std::uint8_t*>(pose_serialized.data()),
+          reinterpret_cast<const std::uint8_t *>(pose_serialized.data()),
           pose_serialized.size(), static_cast<std::uint64_t>(timestamp_us));
       ++pose_pushed;
       if (!pose_ok) {
@@ -471,9 +470,8 @@ int main(int argc, char* argv[]) {
                   << pose_pushed << "\n";
       }
       if (pose_pushed == 1 || pose_pushed % 100 == 0) {
-        std::cout << "[" << nowStr()
-                  << "] [realsense_rgbd] Pose #" << pose_pushed
-                  << " " << pose_serialized.size() << "B"
+        std::cout << "[" << nowStr() << "] [realsense_rgbd] Pose #"
+                  << pose_pushed << " " << pose_serialized.size() << "B"
                   << " q=(" << std::fixed << std::setprecision(3)
                   << orientation.x << ", " << orientation.y << ", "
                   << orientation.z << ", " << orientation.w << ")\n";
@@ -488,7 +486,8 @@ int main(int argc, char* argv[]) {
 
   std::cout << "[realsense_rgbd] Stopping...\n";
   bridge.disconnect();
-  if (has_imu) imu_pipe.stop();
+  if (has_imu)
+    imu_pipe.stop();
   pipe.stop();
   google::protobuf::ShutdownProtobufLibrary();
   return 0;
