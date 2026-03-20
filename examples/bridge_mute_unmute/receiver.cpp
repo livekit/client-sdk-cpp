@@ -101,10 +101,10 @@ int main(int argc, char *argv[]) {
   constexpr int kWidth = 1280;
   constexpr int kHeight = 720;
 
-  auto mic = bridge.createAudioTrack("mic", kSampleRate, kChannels,
-                                     livekit::TrackSource::SOURCE_MICROPHONE);
-  auto cam = bridge.createVideoTrack("cam", kWidth, kHeight,
-                                     livekit::TrackSource::SOURCE_CAMERA);
+  auto mic = bridge.publishAudioTrack("mic", kSampleRate, kChannels,
+                                      livekit::TrackSource::SOURCE_MICROPHONE);
+  auto cam = bridge.publishVideoTrack("cam", kWidth, kHeight,
+                                      livekit::TrackSource::SOURCE_CAMERA);
 
   std::cout << "[receiver] Published audio track \"mic\" and video track "
                "\"cam\".\n";

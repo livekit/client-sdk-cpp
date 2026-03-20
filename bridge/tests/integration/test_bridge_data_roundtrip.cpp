@@ -52,7 +52,7 @@ TEST_F(BridgeDataRoundtripTest, DataFrameRoundTrip) {
   const std::string track_name = "roundtrip-data";
   const std::string caller_identity = "rpc-caller";
 
-  auto data_track = caller.createDataTrack(track_name);
+  auto data_track = caller.publishDataTrack(track_name);
   ASSERT_NE(data_track, nullptr);
   ASSERT_TRUE(data_track->isPublished());
 
@@ -141,7 +141,7 @@ TEST_F(BridgeDataRoundtripTest, LateCallbackRegistration) {
   const std::string track_name = "late-callback-data";
   const std::string caller_identity = "rpc-caller";
 
-  auto data_track = caller.createDataTrack(track_name);
+  auto data_track = caller.publishDataTrack(track_name);
   ASSERT_NE(data_track, nullptr);
 
   std::cout << "Data track published, waiting before registering callback..."
@@ -155,8 +155,7 @@ TEST_F(BridgeDataRoundtripTest, LateCallbackRegistration) {
 
   receiver.setOnDataFrameCallback(
       caller_identity, track_name,
-      [&](const std::vector<std::uint8_t> &,
-          std::optional<std::uint64_t>) {
+      [&](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {
         frames_received++;
         rx_cv.notify_all();
       });
@@ -174,9 +173,8 @@ TEST_F(BridgeDataRoundtripTest, LateCallbackRegistration) {
 
   {
     std::unique_lock<std::mutex> lock(rx_mutex);
-    rx_cv.wait_for(lock, 10s, [&] {
-      return frames_received.load() >= num_frames;
-    });
+    rx_cv.wait_for(lock, 10s,
+                   [&] { return frames_received.load() >= num_frames; });
   }
 
   std::cout << "Frames received: " << frames_received.load() << std::endl;
@@ -206,21 +204,20 @@ TEST_F(BridgeDataRoundtripTest, VaryingPayloadSizes) {
   const std::string track_name = "size-test-data";
   const std::string caller_identity = "rpc-caller";
 
-  auto data_track = caller.createDataTrack(track_name);
+  auto data_track = caller.publishDataTrack(track_name);
   ASSERT_NE(data_track, nullptr);
 
   std::mutex rx_mutex;
   std::condition_variable rx_cv;
   std::vector<size_t> received_sizes;
 
-  receiver.setOnDataFrameCallback(
-      caller_identity, track_name,
-      [&](const std::vector<std::uint8_t> &payload,
-          std::optional<std::uint64_t>) {
-        std::lock_guard<std::mutex> lock(rx_mutex);
-        received_sizes.push_back(payload.size());
-        rx_cv.notify_all();
-      });
+  receiver.setOnDataFrameCallback(caller_identity, track_name,
+                                  [&](const std::vector<std::uint8_t> &payload,
+                                      std::optional<std::uint64_t>) {
+                                    std::lock_guard<std::mutex> lock(rx_mutex);
+                                    received_sizes.push_back(payload.size());
+                                    rx_cv.notify_all();
+                                  });
 
   std::this_thread::sleep_for(3s);
 
@@ -238,18 +235,17 @@ TEST_F(BridgeDataRoundtripTest, VaryingPayloadSizes) {
 
   {
     std::unique_lock<std::mutex> lock(rx_mutex);
-    rx_cv.wait_for(lock, 15s, [&] {
-      return received_sizes.size() >= test_sizes.size();
-    });
+    rx_cv.wait_for(lock, 15s,
+                   [&] { return received_sizes.size() >= test_sizes.size(); });
   }
 
-  std::cout << "Received " << received_sizes.size() << "/"
-            << test_sizes.size() << " frames." << std::endl;
+  std::cout << "Received " << received_sizes.size() << "/" << test_sizes.size()
+            << " frames." << std::endl;
 
   EXPECT_EQ(received_sizes.size(), test_sizes.size());
 
-  for (size_t i = 0;
-       i < std::min(received_sizes.size(), test_sizes.size()); ++i) {
+  for (size_t i = 0; i < std::min(received_sizes.size(), test_sizes.size());
+       ++i) {
     EXPECT_EQ(received_sizes[i], test_sizes[i])
         << "Size mismatch at index " << i;
   }
@@ -277,7 +273,7 @@ TEST_F(BridgeDataRoundtripTest, ConnectPublishDisconnectCycle) {
           bridge.connect(config_.url, config_.caller_token, options);
       ASSERT_TRUE(connected) << "Cycle " << i << ": connect failed";
 
-      auto track = bridge.createDataTrack("cycle-data");
+      auto track = bridge.publishDataTrack("cycle-data");
       ASSERT_NE(track, nullptr);
 
       for (int f = 0; f < 5; ++f) {

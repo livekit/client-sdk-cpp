@@ -24,8 +24,7 @@ namespace test {
 constexpr int kCbSampleRate = 48000;
 constexpr int kCbChannels = 1;
 constexpr int kCbFrameDurationMs = 10;
-constexpr int kCbSamplesPerFrame =
-    kCbSampleRate * kCbFrameDurationMs / 1000;
+constexpr int kCbSamplesPerFrame = kCbSampleRate * kCbFrameDurationMs / 1000;
 
 static std::vector<std::int16_t> cbSilentFrame() {
   return std::vector<std::int16_t>(kCbSamplesPerFrame * kCbChannels, 0);
@@ -61,9 +60,9 @@ TEST_F(BridgeCallbackStressTest, AudioCallbackChurn) {
 
   ASSERT_TRUE(connectPair(caller, receiver));
 
-  auto audio = caller.createAudioTrack(
-      "churn-mic", kCbSampleRate, kCbChannels,
-      livekit::TrackSource::SOURCE_MICROPHONE);
+  auto audio =
+      caller.publishAudioTrack("churn-mic", kCbSampleRate, kCbChannels,
+                               livekit::TrackSource::SOURCE_MICROPHONE);
   ASSERT_NE(audio, nullptr);
 
   const std::string caller_identity = "rpc-caller";
@@ -129,10 +128,10 @@ TEST_F(BridgeCallbackStressTest, MixedCallbackChurn) {
 
   ASSERT_TRUE(connectPair(caller, receiver));
 
-  auto audio = caller.createAudioTrack(
-      "mixed-mic", kCbSampleRate, kCbChannels,
-      livekit::TrackSource::SOURCE_MICROPHONE);
-  auto data = caller.createDataTrack("mixed-data");
+  auto audio =
+      caller.publishAudioTrack("mixed-mic", kCbSampleRate, kCbChannels,
+                               livekit::TrackSource::SOURCE_MICROPHONE);
+  auto data = caller.publishDataTrack("mixed-data");
   ASSERT_NE(audio, nullptr);
   ASSERT_NE(data, nullptr);
 
@@ -179,8 +178,9 @@ TEST_F(BridgeCallbackStressTest, MixedCallbackChurn) {
     while (running.load()) {
       receiver.setOnDataFrameCallback(
           caller_identity, "mixed-data",
-          [&](const std::vector<std::uint8_t> &,
-              std::optional<std::uint64_t>) { data_rx++; });
+          [&](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {
+            data_rx++;
+          });
       std::this_thread::sleep_for(350ms);
       receiver.clearOnDataFrameCallback(caller_identity, "mixed-data");
       std::this_thread::sleep_for(150ms);
@@ -225,9 +225,9 @@ TEST_F(BridgeCallbackStressTest, CallbackReplacement) {
 
   ASSERT_TRUE(connectPair(caller, receiver));
 
-  auto audio = caller.createAudioTrack(
-      "replace-mic", kCbSampleRate, kCbChannels,
-      livekit::TrackSource::SOURCE_MICROPHONE);
+  auto audio =
+      caller.publishAudioTrack("replace-mic", kCbSampleRate, kCbChannels,
+                               livekit::TrackSource::SOURCE_MICROPHONE);
   ASSERT_NE(audio, nullptr);
 
   const std::string caller_identity = "rpc-caller";
@@ -264,8 +264,8 @@ TEST_F(BridgeCallbackStressTest, CallbackReplacement) {
   replacer.join();
 
   // Final clear to join any lingering reader
-  receiver.clearOnAudioFrameCallback(
-      caller_identity, livekit::TrackSource::SOURCE_MICROPHONE);
+  receiver.clearOnAudioFrameCallback(caller_identity,
+                                     livekit::TrackSource::SOURCE_MICROPHONE);
 
   std::cout << "Replacements:   " << replacements.load() << std::endl;
   std::cout << "Total frames rx: " << total_rx.load() << std::endl;

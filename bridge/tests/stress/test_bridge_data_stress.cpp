@@ -55,20 +55,19 @@ TEST_F(BridgeDataStressTest, HighThroughput) {
   const std::string track_name = "throughput-data";
   const std::string caller_identity = "rpc-caller";
 
-  auto data_track = caller.createDataTrack(track_name);
+  auto data_track = caller.publishDataTrack(track_name);
   ASSERT_NE(data_track, nullptr);
 
   StressTestStats stats;
   std::atomic<int64_t> frames_received{0};
   std::atomic<bool> running{true};
 
-  receiver.setOnDataFrameCallback(
-      caller_identity, track_name,
-      [&](const std::vector<std::uint8_t> &payload,
-          std::optional<std::uint64_t>) {
-        frames_received++;
-        (void)payload;
-      });
+  receiver.setOnDataFrameCallback(caller_identity, track_name,
+                                  [&](const std::vector<std::uint8_t> &payload,
+                                      std::optional<std::uint64_t>) {
+                                    frames_received++;
+                                    (void)payload;
+                                  });
 
   std::this_thread::sleep_for(3s);
 
@@ -112,12 +111,11 @@ TEST_F(BridgeDataStressTest, HighThroughput) {
       last_total = cur_total;
 
       std::cout << "[" << elapsed_s << "s]"
-                << " sent=" << cur_total
-                << " recv=" << frames_received.load()
+                << " sent=" << cur_total << " recv=" << frames_received.load()
                 << " success=" << stats.successfulCalls()
-                << " failed=" << stats.failedCalls()
-                << " rate=" << std::fixed << std::setprecision(1)
-                << (rate / 30.0) << " pushes/s" << std::endl;
+                << " failed=" << stats.failedCalls() << " rate=" << std::fixed
+                << std::setprecision(1) << (rate / 30.0) << " pushes/s"
+                << std::endl;
     }
   });
 
@@ -175,7 +173,7 @@ TEST_F(BridgeDataStressTest, LargePayloadStress) {
   const std::string track_name = "large-data";
   const std::string caller_identity = "rpc-caller";
 
-  auto data_track = caller.createDataTrack(track_name);
+  auto data_track = caller.publishDataTrack(track_name);
   ASSERT_NE(data_track, nullptr);
 
   StressTestStats stats;
@@ -183,13 +181,12 @@ TEST_F(BridgeDataStressTest, LargePayloadStress) {
   std::atomic<int64_t> bytes_received{0};
   std::atomic<bool> running{true};
 
-  receiver.setOnDataFrameCallback(
-      caller_identity, track_name,
-      [&](const std::vector<std::uint8_t> &payload,
-          std::optional<std::uint64_t>) {
-        frames_received++;
-        bytes_received += payload.size();
-      });
+  receiver.setOnDataFrameCallback(caller_identity, track_name,
+                                  [&](const std::vector<std::uint8_t> &payload,
+                                      std::optional<std::uint64_t>) {
+                                    frames_received++;
+                                    bytes_received += payload.size();
+                                  });
 
   std::this_thread::sleep_for(3s);
 
@@ -231,8 +228,7 @@ TEST_F(BridgeDataStressTest, LargePayloadStress) {
       int cur_total = stats.totalCalls();
 
       std::cout << "[" << elapsed_s << "s]"
-                << " sent=" << cur_total
-                << " recv=" << frames_received.load()
+                << " sent=" << cur_total << " recv=" << frames_received.load()
                 << " bytes_rx=" << (bytes_received.load() / (1024.0 * 1024.0))
                 << " MB"
                 << " rate=" << std::fixed << std::setprecision(1)
@@ -287,7 +283,7 @@ TEST_F(BridgeDataStressTest, CallbackChurn) {
   const std::string track_name = "churn-data";
   const std::string caller_identity = "rpc-caller";
 
-  auto data_track = caller.createDataTrack(track_name);
+  auto data_track = caller.publishDataTrack(track_name);
   ASSERT_NE(data_track, nullptr);
 
   std::atomic<bool> running{true};
@@ -306,8 +302,9 @@ TEST_F(BridgeDataStressTest, CallbackChurn) {
     while (running.load()) {
       receiver.setOnDataFrameCallback(
           caller_identity, track_name,
-          [&](const std::vector<std::uint8_t> &,
-              std::optional<std::uint64_t>) { total_received++; });
+          [&](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {
+            total_received++;
+          });
 
       std::this_thread::sleep_for(500ms);
 
@@ -326,8 +323,7 @@ TEST_F(BridgeDataStressTest, CallbackChurn) {
   churner.join();
 
   std::cout << "Churn cycles completed: " << churn_cycles.load() << std::endl;
-  std::cout << "Total frames received:  " << total_received.load()
-            << std::endl;
+  std::cout << "Total frames received:  " << total_received.load() << std::endl;
 
   EXPECT_GT(churn_cycles.load(), 0)
       << "Should have completed at least one churn cycle";

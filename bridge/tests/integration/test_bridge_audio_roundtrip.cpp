@@ -81,7 +81,7 @@ TEST_F(BridgeAudioRoundtripTest, AudioFrameRoundTrip) {
 
   std::cout << "Both bridges connected." << std::endl;
 
-  auto audio_track = caller.createAudioTrack(
+  auto audio_track = caller.publishAudioTrack(
       "roundtrip-mic", kAudioSampleRate, kAudioChannels,
       livekit::TrackSource::SOURCE_MICROPHONE);
   ASSERT_NE(audio_track, nullptr);
@@ -149,8 +149,8 @@ TEST_F(BridgeAudioRoundtripTest, AudioFrameRoundTrip) {
 
   // Clear callback before bridges go out of scope so the reader thread
   // is joined while the atomic counters above are still alive.
-  receiver.clearOnAudioFrameCallback(
-      caller_identity, livekit::TrackSource::SOURCE_MICROPHONE);
+  receiver.clearOnAudioFrameCallback(caller_identity,
+                                     livekit::TrackSource::SOURCE_MICROPHONE);
 }
 
 // ---------------------------------------------------------------------------
@@ -170,9 +170,9 @@ TEST_F(BridgeAudioRoundtripTest, AudioLatencyMeasurement) {
 
   ASSERT_TRUE(connectPair(caller, receiver));
 
-  auto audio_track = caller.createAudioTrack(
-      "latency-mic", kAudioSampleRate, kAudioChannels,
-      livekit::TrackSource::SOURCE_MICROPHONE);
+  auto audio_track =
+      caller.publishAudioTrack("latency-mic", kAudioSampleRate, kAudioChannels,
+                               livekit::TrackSource::SOURCE_MICROPHONE);
   ASSERT_NE(audio_track, nullptr);
 
   LatencyStats stats;
@@ -221,10 +221,9 @@ TEST_F(BridgeAudioRoundtripTest, AudioLatencyMeasurement) {
     next_frame_time += frame_duration;
 
     if (waiting_for_echo.load() && pulse_send_time > 0) {
-      uint64_t now_us =
-          std::chrono::duration_cast<std::chrono::microseconds>(
-              std::chrono::steady_clock::now().time_since_epoch())
-              .count();
+      uint64_t now_us = std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
       if (now_us - pulse_send_time > kEchoTimeoutUs) {
         std::cout << "  Echo timeout for pulse " << pulses_sent << std::endl;
         waiting_for_echo.store(false);
@@ -239,16 +238,14 @@ TEST_F(BridgeAudioRoundtripTest, AudioLatencyMeasurement) {
     if (high_energy_remaining > 0) {
       frame_data = generateHighEnergyFrame(kSamplesPerFrame);
       high_energy_remaining--;
-    } else if (frame_count > 0 &&
-               frame_count % frames_between_pulses == 0 &&
+    } else if (frame_count > 0 && frame_count % frames_between_pulses == 0 &&
                !waiting_for_echo.load()) {
       frame_data = generateHighEnergyFrame(kSamplesPerFrame);
       high_energy_remaining = kHighEnergyFramesPerPulse - 1;
 
-      pulse_send_time =
-          std::chrono::duration_cast<std::chrono::microseconds>(
-              std::chrono::steady_clock::now().time_since_epoch())
-              .count();
+      pulse_send_time = std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch())
+                            .count();
       last_send_time_us.store(pulse_send_time);
       waiting_for_echo.store(true);
       pulses_sent++;
@@ -273,8 +270,8 @@ TEST_F(BridgeAudioRoundtripTest, AudioLatencyMeasurement) {
   EXPECT_GT(stats.count(), 0u)
       << "At least one audio latency measurement should be recorded";
 
-  receiver.clearOnAudioFrameCallback(
-      caller_identity, livekit::TrackSource::SOURCE_MICROPHONE);
+  receiver.clearOnAudioFrameCallback(caller_identity,
+                                     livekit::TrackSource::SOURCE_MICROPHONE);
 }
 
 // ---------------------------------------------------------------------------
@@ -301,7 +298,7 @@ TEST_F(BridgeAudioRoundtripTest, ConnectPublishDisconnectCycle) {
           bridge.connect(config_.url, config_.caller_token, options);
       ASSERT_TRUE(connected) << "Cycle " << i << ": connect failed";
 
-      auto track = bridge.createAudioTrack(
+      auto track = bridge.publishAudioTrack(
           "cycle-mic", kAudioSampleRate, kAudioChannels,
           livekit::TrackSource::SOURCE_MICROPHONE);
       ASSERT_NE(track, nullptr);

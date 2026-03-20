@@ -67,10 +67,10 @@ TEST_F(BridgeLifecycleStressTest, DisconnectUnderLoad) {
       ASSERT_TRUE(connectPair(caller, receiver))
           << "Cycle " << i << ": connect failed";
 
-      auto audio = caller.createAudioTrack(
+      auto audio = caller.publishAudioTrack(
           "load-mic", kLifecycleSampleRate, kLifecycleChannels,
           livekit::TrackSource::SOURCE_MICROPHONE);
-      auto data = caller.createDataTrack("load-data");
+      auto data = caller.publishDataTrack("load-data");
 
       std::atomic<int> audio_rx{0};
       std::atomic<int> data_rx{0};
@@ -81,8 +81,9 @@ TEST_F(BridgeLifecycleStressTest, DisconnectUnderLoad) {
 
       receiver.setOnDataFrameCallback(
           caller_identity, "load-data",
-          [&](const std::vector<std::uint8_t> &,
-              std::optional<std::uint64_t>) { data_rx++; });
+          [&](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {
+            data_rx++;
+          });
 
       std::this_thread::sleep_for(2s);
 
@@ -150,10 +151,10 @@ TEST_F(BridgeLifecycleStressTest, TrackReleaseWhileReceiving) {
       ASSERT_TRUE(connectPair(caller, receiver))
           << "Iteration " << iter << ": connect failed";
 
-      auto audio = caller.createAudioTrack(
+      auto audio = caller.publishAudioTrack(
           "release-rx-mic", kLifecycleSampleRate, kLifecycleChannels,
           livekit::TrackSource::SOURCE_MICROPHONE);
-      auto data = caller.createDataTrack("release-rx-data");
+      auto data = caller.publishDataTrack("release-rx-data");
 
       std::atomic<int> audio_rx{0};
       std::atomic<int> data_rx{0};
@@ -164,8 +165,9 @@ TEST_F(BridgeLifecycleStressTest, TrackReleaseWhileReceiving) {
 
       receiver.setOnDataFrameCallback(
           caller_identity, "release-rx-data",
-          [&](const std::vector<std::uint8_t> &,
-              std::optional<std::uint64_t>) { data_rx++; });
+          [&](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {
+            data_rx++;
+          });
 
       std::this_thread::sleep_for(2s);
 
@@ -249,17 +251,17 @@ TEST_F(BridgeLifecycleStressTest, FullLifecycleSoak) {
           bridge.connect(config_.url, config_.caller_token, options);
       ASSERT_TRUE(connected) << "Cycle " << i << ": connect failed";
 
-      auto audio = bridge.createAudioTrack(
+      auto audio = bridge.publishAudioTrack(
           "soak-mic", kLifecycleSampleRate, kLifecycleChannels,
           livekit::TrackSource::SOURCE_MICROPHONE);
 
       constexpr int kVideoWidth = 320;
       constexpr int kVideoHeight = 240;
-      auto video = bridge.createVideoTrack(
-          "soak-cam", kVideoWidth, kVideoHeight,
-          livekit::TrackSource::SOURCE_CAMERA);
+      auto video =
+          bridge.publishVideoTrack("soak-cam", kVideoWidth, kVideoHeight,
+                                   livekit::TrackSource::SOURCE_CAMERA);
 
-      auto data = bridge.createDataTrack("soak-data");
+      auto data = bridge.publishDataTrack("soak-data");
 
       // Push a handful of frames on each track type
       for (int f = 0; f < 10; ++f) {

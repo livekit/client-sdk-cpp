@@ -380,19 +380,19 @@ int main(int argc, char *argv[]) {
 
   std::shared_ptr<livekit_bridge::BridgeAudioTrack> mic;
   if (use_mic) {
-    mic = bridge.createAudioTrack("robot-mic", kSampleRate, kChannels,
-                                  livekit::TrackSource::SOURCE_MICROPHONE);
+    mic = bridge.publishAudioTrack("robot-mic", kSampleRate, kChannels,
+                                   livekit::TrackSource::SOURCE_MICROPHONE);
   }
   auto sim_audio =
-      bridge.createAudioTrack("robot-sim-audio", kSampleRate, kChannels,
-                              livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO);
-  auto cam = bridge.createVideoTrack("robot-cam", kWidth, kHeight,
-                                     livekit::TrackSource::SOURCE_CAMERA);
+      bridge.publishAudioTrack("robot-sim-audio", kSampleRate, kChannels,
+                               livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO);
+  auto cam = bridge.publishVideoTrack("robot-cam", kWidth, kHeight,
+                                      livekit::TrackSource::SOURCE_CAMERA);
   auto sim_cam =
-      bridge.createVideoTrack("robot-sim-frame", kSimWidth, kSimHeight,
-                              livekit::TrackSource::SOURCE_SCREENSHARE);
+      bridge.publishVideoTrack("robot-sim-frame", kSimWidth, kSimHeight,
+                               livekit::TrackSource::SOURCE_SCREENSHARE);
 
-  auto data_track = bridge.createDataTrack("robot-status");
+  auto data_track = bridge.publishDataTrack("robot-status");
 
   LK_LOG_INFO("[robot] Publishing {} sim audio ({} Hz, {} ch), cam + sim frame "
               "({}x{} / {}x{}), data track.",

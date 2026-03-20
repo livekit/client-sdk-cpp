@@ -71,16 +71,15 @@ TEST_F(BridgeMultiTrackStressTest, ConcurrentMultiTrackPush) {
   bool connected = bridge.connect(config_.url, config_.caller_token, options);
   ASSERT_TRUE(connected);
 
-  auto audio = bridge.createAudioTrack(
-      "mt-mic", kMtSampleRate, kMtChannels,
-      livekit::TrackSource::SOURCE_MICROPHONE);
+  auto audio =
+      bridge.publishAudioTrack("mt-mic", kMtSampleRate, kMtChannels,
+                               livekit::TrackSource::SOURCE_MICROPHONE);
 
-  auto video = bridge.createVideoTrack(
-      "mt-cam", kMtVideoWidth, kMtVideoHeight,
-      livekit::TrackSource::SOURCE_CAMERA);
+  auto video = bridge.publishVideoTrack("mt-cam", kMtVideoWidth, kMtVideoHeight,
+                                        livekit::TrackSource::SOURCE_CAMERA);
 
-  auto data1 = bridge.createDataTrack("mt-data-1");
-  auto data2 = bridge.createDataTrack("mt-data-2");
+  auto data1 = bridge.publishDataTrack("mt-data-1");
+  auto data2 = bridge.publishDataTrack("mt-data-2");
 
   ASSERT_NE(audio, nullptr);
   ASSERT_NE(video, nullptr);
@@ -187,9 +186,9 @@ TEST_F(BridgeMultiTrackStressTest, ConcurrentMultiTrackPush) {
                       ? (100.0 * s.successes.load() / s.pushes.load())
                       : 0.0;
     std::cout << "  " << name << ": pushes=" << s.pushes.load()
-              << " ok=" << s.successes.load()
-              << " fail=" << s.failures.load() << " (" << std::fixed
-              << std::setprecision(1) << rate << "%)" << std::endl;
+              << " ok=" << s.successes.load() << " fail=" << s.failures.load()
+              << " (" << std::fixed << std::setprecision(1) << rate << "%)"
+              << std::endl;
   };
 
   std::cout << "\n========================================" << std::endl;
@@ -237,7 +236,7 @@ TEST_F(BridgeMultiTrackStressTest, ConcurrentCreateRelease) {
   std::thread audio_thread([&]() {
     while (running.load()) {
       try {
-        auto track = bridge.createAudioTrack(
+        auto track = bridge.publishAudioTrack(
             "create-release-mic", kMtSampleRate, kMtChannels,
             livekit::TrackSource::SOURCE_MICROPHONE);
 
@@ -262,8 +261,8 @@ TEST_F(BridgeMultiTrackStressTest, ConcurrentCreateRelease) {
     int track_counter = 0;
     while (running.load()) {
       try {
-        auto track = bridge.createDataTrack(
-            "create-release-data-" + std::to_string(track_counter++));
+        auto track = bridge.publishDataTrack("create-release-data-" +
+                                             std::to_string(track_counter++));
 
         for (int i = 0; i < 5; ++i) {
           auto payload = mtPayload(128);
@@ -323,16 +322,16 @@ TEST_F(BridgeMultiTrackStressTest, FullDuplexMultiTrack) {
   const std::string receiver_identity = "rpc-receiver";
 
   // Caller publishes
-  auto caller_audio = caller.createAudioTrack(
-      "duplex-mic", kMtSampleRate, kMtChannels,
-      livekit::TrackSource::SOURCE_MICROPHONE);
-  auto caller_data = caller.createDataTrack("duplex-data-caller");
+  auto caller_audio =
+      caller.publishAudioTrack("duplex-mic", kMtSampleRate, kMtChannels,
+                               livekit::TrackSource::SOURCE_MICROPHONE);
+  auto caller_data = caller.publishDataTrack("duplex-data-caller");
 
   // Receiver publishes
-  auto receiver_audio = receiver.createAudioTrack(
-      "duplex-mic", kMtSampleRate, kMtChannels,
-      livekit::TrackSource::SOURCE_MICROPHONE);
-  auto receiver_data = receiver.createDataTrack("duplex-data-receiver");
+  auto receiver_audio =
+      receiver.publishAudioTrack("duplex-mic", kMtSampleRate, kMtChannels,
+                                 livekit::TrackSource::SOURCE_MICROPHONE);
+  auto receiver_data = receiver.publishDataTrack("duplex-data-receiver");
 
   // Cross-register callbacks
   std::atomic<int64_t> caller_audio_rx{0};
@@ -345,16 +344,18 @@ TEST_F(BridgeMultiTrackStressTest, FullDuplexMultiTrack) {
       [&](const livekit::AudioFrame &) { caller_audio_rx++; });
   caller.setOnDataFrameCallback(
       receiver_identity, "duplex-data-receiver",
-      [&](const std::vector<std::uint8_t> &,
-          std::optional<std::uint64_t>) { caller_data_rx++; });
+      [&](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {
+        caller_data_rx++;
+      });
 
   receiver.setOnAudioFrameCallback(
       caller_identity, livekit::TrackSource::SOURCE_MICROPHONE,
       [&](const livekit::AudioFrame &) { receiver_audio_rx++; });
   receiver.setOnDataFrameCallback(
       caller_identity, "duplex-data-caller",
-      [&](const std::vector<std::uint8_t> &,
-          std::optional<std::uint64_t>) { receiver_data_rx++; });
+      [&](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {
+        receiver_data_rx++;
+      });
 
   std::this_thread::sleep_for(3s);
 
@@ -362,25 +363,23 @@ TEST_F(BridgeMultiTrackStressTest, FullDuplexMultiTrack) {
   auto start_time = std::chrono::steady_clock::now();
   auto duration = std::chrono::seconds(config_.stress_duration_seconds);
 
-  auto audio_push_fn =
-      [&](std::shared_ptr<BridgeAudioTrack> track) {
-        auto next = std::chrono::steady_clock::now();
-        while (running.load()) {
-          std::this_thread::sleep_until(next);
-          next += std::chrono::milliseconds(kMtFrameDurationMs);
-          auto frame = mtSilentFrame();
-          track->pushFrame(frame, kMtSamplesPerFrame);
-        }
-      };
+  auto audio_push_fn = [&](std::shared_ptr<BridgeAudioTrack> track) {
+    auto next = std::chrono::steady_clock::now();
+    while (running.load()) {
+      std::this_thread::sleep_until(next);
+      next += std::chrono::milliseconds(kMtFrameDurationMs);
+      auto frame = mtSilentFrame();
+      track->pushFrame(frame, kMtSamplesPerFrame);
+    }
+  };
 
-  auto data_push_fn =
-      [&](std::shared_ptr<livekit::LocalDataTrack> track) {
-        while (running.load()) {
-          auto payload = mtPayload(256);
-          track->tryPush(payload);
-          std::this_thread::sleep_for(20ms);
-        }
-      };
+  auto data_push_fn = [&](std::shared_ptr<livekit::LocalDataTrack> track) {
+    while (running.load()) {
+      auto payload = mtPayload(256);
+      track->tryPush(payload);
+      std::this_thread::sleep_for(20ms);
+    }
+  };
 
   std::thread t1(audio_push_fn, caller_audio);
   std::thread t2(data_push_fn, caller_data);
@@ -399,8 +398,7 @@ TEST_F(BridgeMultiTrackStressTest, FullDuplexMultiTrack) {
                 << " caller_audio_rx=" << caller_audio_rx.load()
                 << " caller_data_rx=" << caller_data_rx.load()
                 << " receiver_audio_rx=" << receiver_audio_rx.load()
-                << " receiver_data_rx=" << receiver_data_rx.load()
-                << std::endl;
+                << " receiver_data_rx=" << receiver_data_rx.load() << std::endl;
     }
   });
 
@@ -428,11 +426,11 @@ TEST_F(BridgeMultiTrackStressTest, FullDuplexMultiTrack) {
   EXPECT_GT(receiver_data_rx.load(), 0);
 
   // Clear callbacks while atomics are alive
-  caller.clearOnAudioFrameCallback(
-      receiver_identity, livekit::TrackSource::SOURCE_MICROPHONE);
+  caller.clearOnAudioFrameCallback(receiver_identity,
+                                   livekit::TrackSource::SOURCE_MICROPHONE);
   caller.clearOnDataFrameCallback(receiver_identity, "duplex-data-receiver");
-  receiver.clearOnAudioFrameCallback(
-      caller_identity, livekit::TrackSource::SOURCE_MICROPHONE);
+  receiver.clearOnAudioFrameCallback(caller_identity,
+                                     livekit::TrackSource::SOURCE_MICROPHONE);
   receiver.clearOnDataFrameCallback(caller_identity, "duplex-data-caller");
 }
 
