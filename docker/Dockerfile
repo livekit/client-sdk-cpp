@@ -104,18 +104,14 @@ WORKDIR /client-sdk-cpp
 RUN mkdir -p /client-sdk-cpp
 COPY src /client-sdk-cpp/src
 COPY include /client-sdk-cpp/include
-COPY bridge /client-sdk-cpp/bridge
 COPY build.sh /client-sdk-cpp/build.sh
 COPY CMakePresets.json /client-sdk-cpp/CMakePresets.json
 COPY build.cmd /client-sdk-cpp/build.cmd
 COPY client-sdk-rust /client-sdk-cpp/client-sdk-rust
 COPY data /client-sdk-cpp/data
-COPY examples /client-sdk-cpp/examples
 COPY cmake /client-sdk-cpp/cmake
 COPY CMakeLists.txt /client-sdk-cpp/CMakeLists.txt
 COPY build.h.in /client-sdk-cpp/build.h.in
-COPY build.sh /client-sdk-cpp/build.sh
-COPY build.cmd /client-sdk-cpp/build.cmd
 
 # Configure Rust linker: use full GCC path so liblto_plugin.so is found (not /home/installs/ which has no plugin)
 RUN mkdir -p /client-sdk-cpp/client-sdk-rust/.cargo \

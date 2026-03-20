@@ -9,6 +9,7 @@ build.log
 build/
 build-debug/
 build-release/
+local-install/
 release/
 vcpkg_installed/
 # Generated header
