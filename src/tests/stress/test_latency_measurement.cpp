@@ -343,6 +343,9 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
   }
 
   // Clean up
+  ASSERT_NE(audio_track, nullptr) << "Audio track is null";
+  ASSERT_NE(audio_track->publication(), nullptr)
+      << "Audio track publication is null";
   sender_room->localParticipant()->unpublishTrack(
       audio_track->publication()->sid());
 

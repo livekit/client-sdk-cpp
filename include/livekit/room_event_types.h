@@ -29,6 +29,7 @@ namespace livekit {
 class Track;
 class Participant;
 class RemoteParticipant;
+class RemoteDataTrack;
 class LocalTrackPublication;
 class RemoteTrackPublication;
 class TrackPublication;
@@ -100,7 +101,7 @@ enum class DisconnectReason {
   RoomClosed,
   UserUnavailable,
   UserRejected,
-  SipTrunkFailure,
+  SipTrunkFailure, ///< SIP (telephony) trunk connection failed
   ConnectionTimeout,
   MediaFailure
 };
@@ -117,10 +118,17 @@ struct UserPacketData {
 };
 
 /**
- * SIP DTMF payload carried via data packets.
+ * SIP (Session Initiation Protocol) DTMF payload carried via data packets.
+ *
+ * SIP is a signalling protocol used in VoIP telephony. LiveKit supports
+ * SIP trunking, which bridges traditional phone calls into LiveKit rooms.
+ * DTMF (Dual-Tone Multi-Frequency) tones are the signals generated when
+ * phone keypad buttons are pressed (0-9, *, #). This struct surfaces
+ * those tones so that applications handling SIP-bridged calls can react
+ * to caller input (e.g. IVR menu selection).
  */
 struct SipDtmfData {
-  /** DTMF code value. */
+  /** Numeric DTMF code (0-15, mapping to 0-9, *, #, A-D). */
   std::uint32_t code = 0;
 
   /** Human-readable digit representation (e.g. "1", "#"). */
@@ -717,6 +725,18 @@ struct E2eeStateChangedEvent {
 
   /** New encryption state. */
   EncryptionState state = EncryptionState::New;
+};
+
+/**
+ * Fired when a remote participant publishes a data track.
+ *
+ * Data tracks are independent of the audio/video track hierarchy.
+ * The application must call RemoteDataTrack::subscribe() to start
+ * receiving frames.
+ */
+struct RemoteDataTrackPublishedEvent {
+  /** The newly published remote data track. */
+  std::shared_ptr<RemoteDataTrack> track;
 };
 
 } // namespace livekit

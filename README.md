@@ -447,6 +447,37 @@ CPP SDK is using clang C++ format
 brew install clang-format
 ```
 
+
+#### Memory Checks
+Run valgrind on various examples or tests to check for memory leaks and other issues.
+```bash
+valgrind --leak-check=full ./build-debug/bin/BridgeRobot
+valgrind --leak-check=full ./build-debug/bin/BridgeHuman
+valgrind --leak-check=full ./build-debug/bin/livekit_integration_tests
+valgrind --leak-check=full ./build-debug/bin/livekit_stress_tests
+```
+
+# Running locally
+1. Install the livekit-server
+https://docs.livekit.io/transport/self-hosting/local/
+
+Start the livekit-server with data tracks enabled:
+```bash
+LIVEKIT_CONFIG="enable_data_tracks: true" livekit-server --dev
+```
+
+```bash
+# generate tokens, do for all participants
+lk token create \
+  --api-key devkey \
+  --api-secret secret \
+  -i robot \
+  --join \
+  --valid-for 99999h \
+  --room robo_room \
+  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}'
+```
+
 <!--BEGIN_REPO_NAV-->
 <br/><table>
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
