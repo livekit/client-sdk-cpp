@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+LOCAL_INSTALL_DIR="${PROJECT_ROOT}/local-install"
 BUILD_TYPE="Release"
 PRESET=""
 
@@ -40,8 +41,8 @@ Commands:
   release-tests     Configure + build Release version with tests
   release-all       Configure + build Release version with tests + examples
   build-all         Configure + build all of the above (debug/release + examples + tests)
-  clean             Clean both Debug and Release build directories
-  clean-all         Full clean (build dirs + Rust targets)
+  clean             Clean both Debug and Release build directories + local-install
+  clean-all         Full clean (build dirs + local-install + Rust targets)
   help              Show this help message
 
 Options (for debug / release):
@@ -302,18 +303,24 @@ clean() {
   else
     echo "   (skipping) build-release does not exist."
   fi
+
+  echo "   Removing local-install..."
+  rm -rf "${LOCAL_INSTALL_DIR}" || true
   
   echo "==> Clean complete."
 }
 
 clean_all() {
-  echo "==> Running full clean-all (C++ + Rust)..."
+  echo "==> Running full clean-all (C++ + local-install + Rust)..."
 
   echo "Removing build-debug directory..."
   rm -rf "${PROJECT_ROOT}/build-debug" || true
 
   echo "Removing build-release directory..."
   rm -rf "${PROJECT_ROOT}/build-release" || true
+
+  echo "Removing local-install directory..."
+  rm -rf "${LOCAL_INSTALL_DIR}" || true
 
   echo "Removing Rust debug artifacts..."
   rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/debug" || true

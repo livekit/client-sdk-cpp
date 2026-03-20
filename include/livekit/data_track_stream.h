@@ -109,9 +109,11 @@ private:
   /** Signalled when a frame is pushed or the subscription ends. */
   std::condition_variable cv_;
 
-  /** Received frame awaiting read().
-  NOTE: the rust side handles buffering, so we should only really ever have one
-  item*/
+  /**
+   * Received frame awaiting read().
+   * NOTE: the Rust side handles buffering, so we should only really ever have
+   * one item.
+   */
   std::optional<DataTrackFrame> frame_;
 
   /** True once the remote side signals end-of-stream. */

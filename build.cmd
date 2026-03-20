@@ -3,6 +3,7 @@ setlocal enabledelayedexpansion
 
 set "PROJECT_ROOT=%~dp0"
 set "PROJECT_ROOT=%PROJECT_ROOT:~0,-1%"
+set "LOCAL_INSTALL_DIR=%PROJECT_ROOT%\local-install"
 set "BUILD_TYPE=Release"
 set "PRESET=windows-release"
 set "LIVEKIT_VERSION="
@@ -184,8 +185,8 @@ echo   release           Configure + build Release version (build-release/)
 echo   release-examples  Configure + build Release version with examples
 echo   release-tests     Configure + build Release version with tests
 echo   release-all       Configure + build Release version with tests + examples
-echo   clean             Clean both Debug and Release build directories
-echo   clean-all         Full clean (build dirs + Rust targets)
+echo   clean             Clean both Debug and Release build directories + local-install
+echo   clean-all         Full clean (build dirs + local-install + Rust targets)
 echo   help              Show this help
 echo.
 echo Examples:
@@ -241,11 +242,16 @@ if exist "%BUILD_DIR_RELEASE%\CMakeCache.txt" (
 ) else (
     echo    ^(skipping^) build-release does not exist or is not configured.
 )
+
+echo    Removing local-install...
+if exist "%LOCAL_INSTALL_DIR%" (
+    rmdir /s /q "%LOCAL_INSTALL_DIR%" 2>nul
+)
 echo ==^> Clean complete.
 goto :eof
 
 :clean_all
-echo ==^> Running full clean-all ^(C++ + Rust^)...
+echo ==^> Running full clean-all ^(C++ + local-install + Rust^)...
 
 echo Removing build-debug directory...
 if exist "%PROJECT_ROOT%\build-debug" (
@@ -255,6 +261,11 @@ if exist "%PROJECT_ROOT%\build-debug" (
 echo Removing build-release directory...
 if exist "%PROJECT_ROOT%\build-release" (
     rmdir /s /q "%PROJECT_ROOT%\build-release" 2>nul
+)
+
+echo Removing local-install directory...
+if exist "%LOCAL_INSTALL_DIR%" (
+    rmdir /s /q "%LOCAL_INSTALL_DIR%" 2>nul
 )
 
 echo Removing Rust debug artifacts...
