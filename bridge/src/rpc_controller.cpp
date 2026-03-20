@@ -20,11 +20,11 @@
 #include "rpc_controller.h"
 #include "livekit_bridge/rpc_constants.h"
 
+#include "livekit/lk_log.h"
 #include "livekit/local_participant.h"
 #include "livekit/rpc_error.h"
 
 #include <cassert>
-#include <iostream>
 
 namespace livekit_bridge {
 
@@ -117,8 +117,7 @@ std::optional<std::string>
 RpcController::handleTrackControlRpc(const livekit::RpcInvocationData &data) {
   namespace tc = rpc::track_control;
 
-  std::cout << "[RpcController] Handling track control RPC: " << data.payload
-            << "\n";
+  LK_LOG_DEBUG("[RpcController] Handling track control RPC: {}", data.payload);
   auto delim = data.payload.find(tc::kDelimiter);
   if (delim == std::string::npos || delim == 0) {
     throw livekit::RpcError(
