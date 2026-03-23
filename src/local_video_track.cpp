@@ -25,13 +25,11 @@
 namespace livekit {
 
 LocalVideoTrack::LocalVideoTrack(FfiHandle handle,
-                                 const proto::OwnedTrack &track,
-                                 std::shared_ptr<VideoSource> video_source)
+                                 const proto::OwnedTrack &track)
     : Track(std::move(handle), track.info().sid(), track.info().name(),
             fromProto(track.info().kind()),
             fromProto(track.info().stream_state()), track.info().muted(),
-            false),
-      video_source_(std::move(video_source)) {}
+            false) {}
 
 std::shared_ptr<LocalVideoTrack> LocalVideoTrack::createLocalVideoTrack(
     const std::string &name, const std::shared_ptr<VideoSource> &source) {
@@ -44,37 +42,7 @@ std::shared_ptr<LocalVideoTrack> LocalVideoTrack::createLocalVideoTrack(
   const proto::OwnedTrack &owned = resp.create_video_track().track();
   FfiHandle handle(static_cast<uintptr_t>(owned.handle().id()));
   return std::shared_ptr<LocalVideoTrack>(
-      new LocalVideoTrack(std::move(handle), owned, std::move(source)));
-}
-
-std::shared_ptr<LocalVideoTrack>
-LocalVideoTrack::createLocalVideoTrack(const std::string &name, const int width,
-                                       const int height,
-                                       const TrackSource track_source) {
-  auto video_source = std::make_shared<VideoSource>(width, height);
-  proto::FfiRequest req;
-  auto *msg = req.mutable_create_video_track();
-  msg->set_name(name);
-  msg->set_source_handle(static_cast<uint64_t>(video_source->ffi_handle_id()));
-
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-  const proto::OwnedTrack &owned_track = resp.create_video_track().track();
-  FfiHandle handle(static_cast<uintptr_t>(owned_track.handle().id()));
-  auto track = std::shared_ptr<LocalVideoTrack>(new LocalVideoTrack(
-      std::move(handle), owned_track, std::move(video_source)));
-  track->setPublicationFields(track_source, std::nullopt,
-                              static_cast<std::uint32_t>(width),
-                              static_cast<std::uint32_t>(height), std::nullopt);
-  return track;
-}
-
-void LocalVideoTrack::captureFrame(const VideoFrame &frame,
-                                   std::int64_t timestamp_us,
-                                   VideoRotation rotation) {
-  if (!video_source_) {
-    return;
-  }
-  video_source_->captureFrame(frame, timestamp_us, rotation);
+      new LocalVideoTrack(std::move(handle), owned));
 }
 
 void LocalVideoTrack::mute() {

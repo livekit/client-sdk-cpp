@@ -190,9 +190,9 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
       LocalAudioTrack::createLocalAudioTrack("latency-test", audio_source);
 
   TrackPublishOptions publish_options;
-  auto publication = sender_room->localParticipant()->publishTrack(
-      audio_track, publish_options);
-  ASSERT_NE(publication, nullptr) << "Failed to publish audio track";
+  sender_room->localParticipant()->publishTrack(audio_track, publish_options);
+  ASSERT_NE(audio_track->publication(), nullptr)
+      << "Failed to publish audio track";
 
   std::cout << "Audio track published, waiting for subscription..."
             << std::endl;

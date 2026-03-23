@@ -203,8 +203,10 @@ bool LiveKitBridge::isConnected() const {
 // ---------------------------------------------------------------
 
 std::shared_ptr<livekit::LocalAudioTrack>
-LiveKitBridge::createAudioTrack(const std::string &name, int sample_rate,
-                                int num_channels, livekit::TrackSource source) {
+LiveKitBridge::createAudioTrack(
+    const std::string &name,
+    const std::shared_ptr<livekit::AudioSource> &source,
+    livekit::TrackSource track_source) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!connected_ || !room_) {
@@ -215,15 +217,17 @@ LiveKitBridge::createAudioTrack(const std::string &name, int sample_rate,
   auto lp = room_->localParticipant();
   assert(lp != nullptr);
 
-  auto track = lp->publishAudioTrack(name, sample_rate, num_channels, source);
+  auto track = lp->publishAudioTrack(name, source, track_source);
 
   published_audio_tracks_.emplace_back(track);
   return track;
 }
 
 std::shared_ptr<livekit::LocalVideoTrack>
-LiveKitBridge::createVideoTrack(const std::string &name, int width, int height,
-                                livekit::TrackSource source) {
+LiveKitBridge::createVideoTrack(
+    const std::string &name,
+    const std::shared_ptr<livekit::VideoSource> &source,
+    livekit::TrackSource track_source) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (!connected_ || !room_) {
@@ -234,7 +238,7 @@ LiveKitBridge::createVideoTrack(const std::string &name, int width, int height,
   auto lp = room_->localParticipant();
   assert(lp != nullptr);
 
-  auto track = lp->publishVideoTrack(name, width, height, source);
+  auto track = lp->publishVideoTrack(name, source, track_source);
 
   published_video_tracks_.emplace_back(track);
   return track;

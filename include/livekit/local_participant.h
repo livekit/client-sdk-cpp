@@ -134,23 +134,28 @@ public:
                     const TrackPublishOptions &options);
 
   /**
-   * Create a \ref LocalVideoTrack with an internal \ref VideoSource at
-   * \p width × \p height, publish it with \p source as the track source, and
-   * return the track.
+   * Create a \ref LocalVideoTrack backed by the given \ref VideoSource,
+   * publish it, and return the track.
+   *
+   * The caller retains ownership of \p source and should use it directly
+   * for frame capture on the video thread.
    */
-  std::shared_ptr<LocalVideoTrack> publishVideoTrack(const std::string &name,
-                                                     int width, int height,
-                                                     TrackSource source);
+  std::shared_ptr<LocalVideoTrack>
+  publishVideoTrack(const std::string &name,
+                    const std::shared_ptr<VideoSource> &source,
+                    TrackSource track_source);
 
   /**
-   * Create a \ref LocalAudioTrack with an internal \ref AudioSource for
-   * \p sample_rate / \p num_channels, publish it with \p source as the track
-   * source, and return the track.
+   * Create a \ref LocalAudioTrack backed by the given \ref AudioSource,
+   * publish it, and return the track.
+   *
+   * The caller retains ownership of \p source and should use it directly
+   * for frame capture on the audio thread.
    */
-  std::shared_ptr<LocalAudioTrack> publishAudioTrack(const std::string &name,
-                                                     int sample_rate,
-                                                     int num_channels,
-                                                     TrackSource source);
+  std::shared_ptr<LocalAudioTrack>
+  publishAudioTrack(const std::string &name,
+                    const std::shared_ptr<AudioSource> &source,
+                    TrackSource track_source);
 
   /**
    * Unpublish a track from the room by SID.

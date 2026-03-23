@@ -18,8 +18,6 @@
 
 #include "local_track_publication.h"
 #include "track.h"
-#include "video_frame.h"
-#include "video_source.h"
 
 #include <memory>
 #include <string>
@@ -41,9 +39,10 @@ class VideoSource;
  *
  *  Typical usage:
  *
- *    auto source = VideoSource::create(...);
+ *    auto source = std::make_shared<VideoSource>(1280, 720);
  *    auto track = LocalVideoTrack::createLocalVideoTrack("cam", source);
  *    room->localParticipant()->publishTrack(track);
+ *    // Capture frames on the video thread via `source`, not via the track.
  *
  *  Muting a local video track stops transmitting video to the room, but
  *  the underlying source may continue capturing depending on platform
@@ -59,42 +58,13 @@ public:
   /// @param name   Human-readable name for the track. This may appear to
   ///               remote participants and in analytics/debug logs.
   /// @param source The video source that produces video frames for this track.
+  ///               The caller retains ownership and should use this source
+  ///               directly for frame capture.
   ///
   /// @return A shared pointer to the newly constructed `LocalVideoTrack`.
   static std::shared_ptr<LocalVideoTrack>
   createLocalVideoTrack(const std::string &name,
                         const std::shared_ptr<VideoSource> &source);
-
-  /// Creates a local video track with a new \ref VideoSource at the given
-  /// resolution. The track holds the only \c shared_ptr to that source (see
-  /// \ref videoSource).
-  ///
-  /// @param name          Track name visible to remotes and in logs.
-  /// @param width         Source width in pixels.
-  /// @param height        Source height in pixels.
-  /// @param track_source  Semantic source (camera, screen share, etc.) for
-  ///                      publication metadata; use \ref TrackPublishOptions
-  ///                      when publishing to match.
-  ///
-  /// @return A shared pointer to the newly constructed `LocalVideoTrack`.
-  static std::shared_ptr<LocalVideoTrack>
-  createLocalVideoTrack(const std::string &name, const int width,
-                        const int height, const TrackSource track_source);
-
-  /// Returns the video source that produces frames for this track.
-  /// The track holds a \c shared_ptr; it may be shared with the caller when
-  /// the source was passed to \ref createLocalVideoTrack.
-  std::shared_ptr<VideoSource> videoSource() const noexcept {
-    return video_source_;
-  }
-
-  /// A wrapper around \ref VideoSource::captureFrame.
-  ///
-  /// @param frame         Video frame to send.
-  /// @param timestamp_us  Optional timestamp in microseconds.
-  /// @param rotation      Video rotation enum.
-  void captureFrame(const VideoFrame &frame, std::int64_t timestamp_us,
-                    VideoRotation rotation);
 
   /// Mutes the video track.
   ///
@@ -122,11 +92,7 @@ public:
   }
 
 private:
-  explicit LocalVideoTrack(FfiHandle handle, const proto::OwnedTrack &track,
-                           std::shared_ptr<VideoSource> video_source = {});
-
-  /// The video source that produces video frames for this track.
-  std::shared_ptr<VideoSource> video_source_;
+  explicit LocalVideoTrack(FfiHandle handle, const proto::OwnedTrack &track);
 
   /// The publication that owns this track. This is a nullptr until the track
   /// is published, and then points to the publication that owns this track.

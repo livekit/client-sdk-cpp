@@ -21,12 +21,14 @@
 
 #include "livekit_bridge/rpc_constants.h"
 
+#include "livekit/audio_source.h"
 #include "livekit/lk_log.h"
 #include "livekit/local_audio_track.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_video_track.h"
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"
+#include "livekit/video_source.h"
 
 #include <cstdint>
 #include <functional>
@@ -87,15 +89,19 @@ using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
  *   options.auto_subscribe = true;
  *   bridge.connect("wss://my-server.livekit.cloud", my_token, options);
  *
- *   auto mic = bridge.createAudioTrack("mic", 48000, 2,
+ *   auto micSource = std::make_shared<livekit::AudioSource>(48000, 2, 0);
+ *   auto mic = bridge.createAudioTrack("mic", micSource,
  *       livekit::TrackSource::SOURCE_MICROPHONE);
- *   auto cam = bridge.createVideoTrack("cam", 1280, 720,
+ *   auto camSource = std::make_shared<livekit::VideoSource>(1280, 720);
+ *   auto cam = bridge.createVideoTrack("cam", camSource,
  *       livekit::TrackSource::SOURCE_CAMERA);
  *
  *   livekit::AudioFrame af(std::move(pcm), sample_rate, channels,
- * samples_per_ch); mic->captureFrame(af); livekit::VideoFrame vf(w, h,
- * livekit::VideoBufferType::RGBA, pixels); cam->captureFrame(vf, timestamp_us,
- * livekit::VideoRotation::VIDEO_ROTATION_0);
+ *       samples_per_ch);
+ *   micSource->captureFrame(af);
+ *   livekit::VideoFrame vf(w, h, livekit::VideoBufferType::RGBA, pixels);
+ *   camSource->captureFrame(vf, timestamp_us,
+ *       livekit::VideoRotation::VIDEO_ROTATION_0);
  *
  *   bridge.setOnAudioFrameCallback("remote-participant",
  *       livekit::TrackSource::SOURCE_MICROPHONE,
@@ -167,14 +173,16 @@ public:
    * Create and publish a local audio track.
    *
    * The bridge retains a reference to the track until \ref disconnect().
+   * The caller owns the AudioSource and should use it directly for frame
+   * capture on the audio thread.
    *
    * @pre The bridge must be connected (via connect()). Calling this on a
    *      disconnected bridge is a programming error.
    *
    * @param name         Human-readable track name.
-   * @param sample_rate  Sample rate in Hz (e.g. 48000).
-   * @param num_channels Number of audio channels (1 = mono, 2 = stereo).
-   * @param source       Track source type (e.g. SOURCE_MICROPHONE). Use a
+   * @param source       The AudioSource that produces PCM frames for this
+   *                     track. The caller retains ownership.
+   * @param track_source Track source type (e.g. SOURCE_MICROPHONE). Use a
    *                     different source (e.g. SOURCE_SCREENSHARE_AUDIO) to
    *                     publish multiple audio tracks from the same
    *                     participant that can be independently subscribed to.
@@ -183,30 +191,34 @@ public:
    * @throws std::runtime_error if the bridge is not connected.
    */
   std::shared_ptr<livekit::LocalAudioTrack>
-  createAudioTrack(const std::string &name, int sample_rate, int num_channels,
-                   livekit::TrackSource source);
+  createAudioTrack(const std::string &name,
+                   const std::shared_ptr<livekit::AudioSource> &source,
+                   livekit::TrackSource track_source);
 
   /**
    * Create and publish a local video track.
    *
    * The bridge retains a reference to the track until \ref disconnect().
+   * The caller owns the VideoSource and should use it directly for frame
+   * capture on the video thread.
    *
    * @pre The bridge must be connected (via connect()). Calling this on a
    *      disconnected bridge is a programming error.
    *
-   * @param name   Human-readable track name.
-   * @param width  Video width in pixels.
-   * @param height Video height in pixels.
-   * @param source Track source type (default: SOURCE_CAMERA). Use a
-   *               different source (e.g. SOURCE_SCREENSHARE) to publish
-   *               multiple video tracks from the same participant that
-   *               can be independently subscribed to.
+   * @param name         Human-readable track name.
+   * @param source       The VideoSource that produces frames for this track.
+   *                     The caller retains ownership.
+   * @param track_source Track source type (default: SOURCE_CAMERA). Use a
+   *                     different source (e.g. SOURCE_SCREENSHARE) to publish
+   *                     multiple video tracks from the same participant that
+   *                     can be independently subscribed to.
    * @return Shared pointer to the published video track handle (never null).
    * @throws std::runtime_error if the bridge is not connected.
    */
   std::shared_ptr<livekit::LocalVideoTrack>
-  createVideoTrack(const std::string &name, int width, int height,
-                   livekit::TrackSource source);
+  createVideoTrack(const std::string &name,
+                   const std::shared_ptr<livekit::VideoSource> &source,
+                   livekit::TrackSource track_source);
 
   // ---------------------------------------------------------------
   // Incoming frame callbacks

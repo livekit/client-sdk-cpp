@@ -78,7 +78,7 @@ TEST_F(LiveKitBridgeTest, DestructorOnUnconnectedBridgeIsSafe) {
 TEST_F(LiveKitBridgeTest, CreateAudioTrackBeforeConnectThrows) {
   LiveKitBridge bridge;
 
-  EXPECT_THROW(bridge.createAudioTrack("mic", 48000, 2,
+  EXPECT_THROW(bridge.createAudioTrack("mic", nullptr,
                                        livekit::TrackSource::SOURCE_MICROPHONE),
                std::runtime_error)
       << "createAudioTrack should throw when not connected";
@@ -87,7 +87,7 @@ TEST_F(LiveKitBridgeTest, CreateAudioTrackBeforeConnectThrows) {
 TEST_F(LiveKitBridgeTest, CreateVideoTrackBeforeConnectThrows) {
   LiveKitBridge bridge;
 
-  EXPECT_THROW(bridge.createVideoTrack("cam", 1280, 720,
+  EXPECT_THROW(bridge.createVideoTrack("cam", nullptr,
                                        livekit::TrackSource::SOURCE_CAMERA),
                std::runtime_error)
       << "createVideoTrack should throw when not connected";

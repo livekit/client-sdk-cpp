@@ -221,24 +221,22 @@ void LocalParticipant::publishTrack(const std::shared_ptr<Track> &track,
   track->setPublication(publication);
 }
 
-std::shared_ptr<LocalVideoTrack>
-LocalParticipant::publishVideoTrack(const std::string &name, int width,
-                                    int height, TrackSource source) {
-  auto track =
-      LocalVideoTrack::createLocalVideoTrack(name, width, height, source);
+std::shared_ptr<LocalVideoTrack> LocalParticipant::publishVideoTrack(
+    const std::string &name, const std::shared_ptr<VideoSource> &source,
+    TrackSource track_source) {
+  auto track = LocalVideoTrack::createLocalVideoTrack(name, source);
   TrackPublishOptions opts;
-  opts.source = source;
+  opts.source = track_source;
   publishTrack(track, opts);
   return track;
 }
 
-std::shared_ptr<LocalAudioTrack>
-LocalParticipant::publishAudioTrack(const std::string &name, int sample_rate,
-                                    int num_channels, TrackSource source) {
-  auto track = LocalAudioTrack::createLocalAudioTrack(name, sample_rate,
-                                                      num_channels, source);
+std::shared_ptr<LocalAudioTrack> LocalParticipant::publishAudioTrack(
+    const std::string &name, const std::shared_ptr<AudioSource> &source,
+    TrackSource track_source) {
+  auto track = LocalAudioTrack::createLocalAudioTrack(name, source);
   TrackPublishOptions opts;
-  opts.source = source;
+  opts.source = track_source;
   publishTrack(track, opts);
   return track;
 }

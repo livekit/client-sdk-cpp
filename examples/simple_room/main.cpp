@@ -333,8 +333,6 @@ int main(int argc, char *argv[]) {
   audioOpts.dtx = false;
   audioOpts.simulcast = false;
   try {
-    // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
-    // Track
     room->localParticipant()->publishTrack(audioTrack, audioOpts);
     const auto audioPub = audioTrack->publication();
 
@@ -353,16 +351,14 @@ int main(int argc, char *argv[]) {
   media.startMic(audioSource);
 
   // Setup Video Source / Track
-  std::shared_ptr<LocalVideoTrack> videoTrack =
-      LocalVideoTrack::createLocalVideoTrack("cam", 1280, 720,
-                                             TrackSource::SOURCE_CAMERA);
+  auto videoSource = std::make_shared<VideoSource>(1280, 720);
+  auto videoTrack = LocalVideoTrack::createLocalVideoTrack("cam", videoSource);
+
   TrackPublishOptions videoOpts;
   videoOpts.source = TrackSource::SOURCE_CAMERA;
   videoOpts.dtx = false;
   videoOpts.simulcast = true;
   try {
-    // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
-    // Track
     room->localParticipant()->publishTrack(videoTrack, videoOpts);
     const auto videoPub = videoTrack->publication();
 
@@ -377,7 +373,7 @@ int main(int argc, char *argv[]) {
   } catch (const std::exception &e) {
     LK_LOG_ERROR("Failed to publish track: {}", e.what());
   }
-  media.startCamera(videoTrack->videoSource());
+  media.startCamera(videoSource);
 
   // Keep the app alive until Ctrl-C so we continue receiving events,
   // similar to asyncio.run(main()) keeping the loop running.

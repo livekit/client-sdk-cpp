@@ -57,27 +57,13 @@ public:
   /// @param name   Human-readable name for the track. This may appear to
   ///               remote participants and in analytics/debug logs.
   /// @param source The audio source that produces PCM frames for this track.
+  ///               The caller retains ownership and should use this source
+  ///               directly for frame capture.
   ///
   /// @return A shared pointer to the newly constructed `LocalAudioTrack`.
   static std::shared_ptr<LocalAudioTrack>
   createLocalAudioTrack(const std::string &name,
                         const std::shared_ptr<AudioSource> &source);
-
-  /// Creates a local audio track with a new \ref AudioSource for the given
-  /// sample rate and channel count (see \ref audioSource).
-  static std::shared_ptr<LocalAudioTrack>
-  createLocalAudioTrack(const std::string &name, int sample_rate,
-                        int num_channels, TrackSource track_source);
-
-  /// Returns the audio source that produces PCM frames for this track.
-  /// The track holds a \c shared_ptr; it may be shared with the caller when
-  /// the source was passed to \ref createLocalAudioTrack.
-  std::shared_ptr<AudioSource> audioSource() const noexcept {
-    return audio_source_;
-  }
-
-  /// A wrapper around \ref AudioSource::captureFrame.
-  void captureFrame(const AudioFrame &frame, int timeout_ms = 0);
 
   /// Mutes the audio track.
   ///
@@ -105,11 +91,7 @@ public:
   }
 
 private:
-  explicit LocalAudioTrack(FfiHandle handle, const proto::OwnedTrack &track,
-                           std::shared_ptr<AudioSource> audio_source = {});
-
-  /// The audio source that produces PCM frames for this track.
-  std::shared_ptr<AudioSource> audio_source_;
+  explicit LocalAudioTrack(FfiHandle handle, const proto::OwnedTrack &track);
 
   /// The publication that owns this track. This is a nullptr until the track
   /// is published, and then points to the publication that owns this track.
