@@ -151,8 +151,8 @@ public:
   /**
    * Disconnect from the room and release all resources.
    *
-   * All published tracks are unpublished, all reader threads are joined,
-   * and the SDK is shut down. Safe to call multiple times.
+   * Clears all user set callbacks, then tears down the room and
+   * shuts down the SDK. Safe to call multiple times.
    */
   void disconnect();
 

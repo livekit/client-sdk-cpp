@@ -140,78 +140,39 @@ void LiveKitBridge::disconnect() {
     rpc_controller_->disable();
   }
 
-  // Collect threads to join outside the lock to avoid deadlock.
-  std::vector<std::thread> threads_to_join;
-  bool should_shutdown_sdk = false;
+  // Clear all user set callbacks
+  std::vector<CallbackKey> audio_keys;
+  std::vector<CallbackKey> video_keys;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    audio_keys.reserve(audio_callbacks_.size());
+    for (const auto &[key, _] : audio_callbacks_) {
+      audio_keys.push_back(key);
+    }
+    video_keys.reserve(video_callbacks_.size());
+    for (const auto &[key, _] : video_callbacks_) {
+      video_keys.push_back(key);
+    }
+  }
 
+  for (const auto &key : audio_keys) {
+    clearOnAudioFrameCallback(key.identity, key.source);
+  }
+  for (const auto &key : video_keys) {
+    clearOnVideoFrameCallback(key.identity, key.source);
+  }
+
+  bool should_shutdown_sdk = false;
   {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    if (!connected_) {
-      LK_LOG_WARN("Attempting to disconnect an already disconnected bridge. "
-                  "Things may not disconnect properly.");
+    if (!connected_ && !room_) {
+      LK_LOG_DEBUG("disconnect() called on an already disconnected bridge");
+      return;
     }
 
     connected_ = false;
     connecting_ = false;
-
-    // Unpublish all local tracks while the room/participant are still alive.
-    if (room_) {
-      auto lp = room_->localParticipant();
-      for (auto &track : published_audio_tracks_) {
-        if (track && lp) {
-          if (auto pub = track->publication()) {
-            try {
-              lp->unpublishTrack(pub->sid());
-            } catch (...) {
-              LK_LOG_WARN("LiveKitBridge: unpublishTrack (audio) failed during "
-                          "disconnect");
-            }
-          }
-        }
-        track.reset();
-      }
-      for (auto &track : published_video_tracks_) {
-        if (track && lp) {
-          if (auto pub = track->publication()) {
-            try {
-              lp->unpublishTrack(pub->sid());
-            } catch (...) {
-              LK_LOG_WARN("LiveKitBridge: unpublishTrack (video) failed during "
-                          "disconnect");
-            }
-          }
-        }
-        track.reset();
-      }
-    } else {
-      for (auto &track : published_audio_tracks_) {
-        track.reset();
-      }
-      for (auto &track : published_video_tracks_) {
-        track.reset();
-      }
-    }
-    published_audio_tracks_.clear();
-    published_video_tracks_.clear();
-
-    // Close all streams (unblocks read loops) and collect threads
-    for (auto &[key, reader] : active_readers_) {
-      if (reader.audio_stream) {
-        reader.audio_stream->close();
-      }
-      if (reader.video_stream) {
-        reader.video_stream->close();
-      }
-      if (reader.thread.joinable()) {
-        threads_to_join.emplace_back(std::move(reader.thread));
-      }
-    }
-    active_readers_.clear();
-
-    // Clear callback registrations
-    audio_callbacks_.clear();
-    video_callbacks_.clear();
 
     // Tear down the room
     if (room_) {
@@ -223,13 +184,6 @@ void LiveKitBridge::disconnect() {
     if (sdk_initialized_) {
       sdk_initialized_ = false;
       should_shutdown_sdk = true;
-    }
-  }
-
-  // Join threads outside the lock
-  for (auto &t : threads_to_join) {
-    if (t.joinable()) {
-      t.join();
     }
   }
 
