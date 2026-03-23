@@ -1,5 +1,7 @@
 # LiveKit Bridge
 
+# **WARNING: This library is deprecated, use the base sdk found in src/**
+
 A simplified, high-level C++ wrapper around the [LiveKit C++ SDK](../README.md). The bridge abstracts away room lifecycle management, track creation, publishing, and subscription boilerplate so that external codebases can interface with LiveKit in just a few lines. It is intended that this library will be used to bridge the LiveKit C++ SDK into other SDKs such as, but not limited to, Foxglove, ROS, and Rerun.
 
 It is intended that this library closely matches the style of the core LiveKit C++ SDK.
