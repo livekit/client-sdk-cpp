@@ -17,20 +17,37 @@
 #ifndef LIVEKIT_ROOM_H
 #define LIVEKIT_ROOM_H
 
+#include "livekit/audio_stream.h"
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
+#include "livekit/video_stream.h"
+
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
+#include <thread>
 
 namespace livekit {
 
+class AudioFrame;
+class VideoFrame;
 class RoomDelegate;
 struct RoomInfoData;
 namespace proto {
 class FfiEvent;
 }
+
+/// Callback type for incoming audio frames.
+/// Invoked on a dedicated reader thread per (participant, source) pair.
+using AudioFrameCallback = std::function<void(const AudioFrame &)>;
+
+/// Callback type for incoming video frames.
+/// Invoked on a dedicated reader thread per (participant, source) pair.
+using VideoFrameCallback =
+    std::function<void(const VideoFrame &frame, std::int64_t timestamp_us)>;
 
 struct E2EEOptions;
 class E2EEManager;
@@ -233,6 +250,66 @@ public:
    */
   E2EEManager *e2eeManager() const;
 
+  // ---------------------------------------------------------------
+  // Frame callbacks
+  // ---------------------------------------------------------------
+
+  /**
+   * Set a callback for audio frames from a specific remote participant and
+   * track source.
+   *
+   * A dedicated reader thread is spawned for each (participant, source) pair
+   * when the track is subscribed. If the track is already subscribed, the
+   * reader starts immediately. If not, it starts when the track arrives.
+   *
+   * Only one callback may exist per (participant, source) pair. Re-calling
+   * with the same pair replaces the previous callback.
+   *
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source (e.g. SOURCE_MICROPHONE).
+   * @param callback             Function invoked per audio frame.
+   * @param opts                 AudioStream options (capacity, noise
+   * cancellation).
+   */
+  void setOnAudioFrameCallback(const std::string &participant_identity,
+                               TrackSource source, AudioFrameCallback callback,
+                               AudioStream::Options opts = {});
+
+  /**
+   * Set a callback for video frames from a specific remote participant and
+   * track source.
+   *
+   * @see setOnAudioFrameCallback for threading and lifecycle semantics.
+   *
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source (e.g. SOURCE_CAMERA).
+   * @param callback             Function invoked per video frame.
+   * @param opts                 VideoStream options (capacity, pixel format).
+   */
+  void setOnVideoFrameCallback(const std::string &participant_identity,
+                               TrackSource source, VideoFrameCallback callback,
+                               VideoStream::Options opts = {});
+
+  /**
+   * Clear the audio frame callback for a specific (participant, source) pair.
+   * Stops and joins any active reader thread.
+   * No-op if no callback is registered for this key.
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source (e.g. SOURCE_MICROPHONE).
+   */
+  void clearOnAudioFrameCallback(const std::string &participant_identity,
+                                 TrackSource source);
+
+  /**
+   * Clear the video frame callback for a specific (participant, source) pair.
+   * Stops and joins any active reader thread.
+   * No-op if no callback is registered for this key.
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source (e.g. SOURCE_CAMERA).
+   */
+  void clearOnVideoFrameCallback(const std::string &participant_identity,
+                                 TrackSource source);
+
 private:
   mutable std::mutex lock_;
   ConnectionState connection_state_ = ConnectionState::Disconnected;
@@ -256,6 +333,68 @@ private:
   int listener_id_{0};
 
   void OnEvent(const proto::FfiEvent &event);
+
+  // -------------------------------------------------------------------
+  // Frame callback internals
+  // -------------------------------------------------------------------
+
+  struct CallbackKey {
+    std::string participant_identity;
+    TrackSource source;
+    bool operator==(const CallbackKey &o) const {
+      return participant_identity == o.participant_identity &&
+             source == o.source;
+    }
+  };
+
+  struct CallbackKeyHash {
+    std::size_t operator()(const CallbackKey &k) const {
+      auto h1 = std::hash<std::string>{}(k.participant_identity);
+      auto h2 = std::hash<int>{}(static_cast<int>(k.source));
+      return h1 ^ (h2 << 1);
+    }
+  };
+
+  struct ActiveReader {
+    std::shared_ptr<AudioStream> audio_stream;
+    std::shared_ptr<VideoStream> video_stream;
+    std::thread thread;
+  };
+
+  struct RegisteredAudioCallback {
+    AudioFrameCallback callback;
+    AudioStream::Options options;
+  };
+
+  struct RegisteredVideoCallback {
+    VideoFrameCallback callback;
+    VideoStream::Options options;
+  };
+
+  std::unordered_map<CallbackKey, RegisteredAudioCallback, CallbackKeyHash>
+      audio_callbacks_;
+  std::unordered_map<CallbackKey, RegisteredVideoCallback, CallbackKeyHash>
+      video_callbacks_;
+  std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash>
+      active_readers_;
+
+  // Must be called with lock_ held. Closes the stream for the given key and
+  // returns the old reader thread (which the caller must join outside the
+  // lock).
+  std::thread extractReaderThread(const CallbackKey &key);
+
+  // Must be called with lock_ held. Returns old reader thread if one existed.
+  std::thread startAudioReader(const CallbackKey &key,
+                               const std::shared_ptr<Track> &track,
+                               AudioFrameCallback cb,
+                               const AudioStream::Options &opts);
+  std::thread startVideoReader(const CallbackKey &key,
+                               const std::shared_ptr<Track> &track,
+                               VideoFrameCallback cb,
+                               const VideoStream::Options &opts);
+
+  // Stops all readers (closes streams, joins threads). Must NOT hold lock_.
+  void stopAllReaders();
 };
 } // namespace livekit
 

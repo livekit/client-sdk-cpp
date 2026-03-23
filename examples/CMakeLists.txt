@@ -56,7 +56,6 @@ set(EXAMPLES_ALL
 # Bridge examples (need livekit_bridge DLL/shared lib in addition to livekit_ffi)
 set(EXAMPLES_BRIDGE
   BridgeRobot
-  BridgeHuman
   BridgeMuteCaller
   BridgeMuteReceiver
   BridgeRpcCaller
@@ -265,7 +264,7 @@ target_include_directories(BridgeHuman PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(BridgeHuman PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
+target_link_libraries(BridgeHuman PRIVATE livekit spdlog::spdlog SDL3::SDL3)
 
 # --- bridge_rpc examples (headless custom RPC caller + receiver) ---
 

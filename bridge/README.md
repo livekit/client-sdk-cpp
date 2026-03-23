@@ -100,13 +100,11 @@ Your Application
 
 **`LocalVideoTrack`** -- From `createVideoTrack()`. Build a `livekit::VideoFrame` (dimensions, `VideoBufferType`, pixel bytes) and call `captureFrame(frame, timestamp_us, rotation)` to send video.
 
-**`BridgeRoomDelegate`** -- Internal (not part of the public API; lives in `src/`). Listens for `onTrackSubscribed` / `onTrackUnsubscribed` events from the LiveKit SDK and wires up reader threads automatically.
-
 ### What is a Reader?
 
 A **reader** is a background thread that receives decoded media frames from a remote participant.
 
-When a remote participant publishes an audio or video track and the bridge subscribes to it (auto-subscribe is enabled by default), the bridge creates an `AudioStream` or `VideoStream` from that track and spins up a dedicated thread. This thread loops on `stream->read()`, which blocks until a new frame arrives. Each received frame is forwarded to the user's registered callback.
+When a remote participant publishes an audio or video track and the Room subscribes to it (auto-subscribe is enabled by default), Room creates an `AudioStream` or `VideoStream` from that track and spins up a dedicated thread. This thread loops on `stream->read()`, which blocks until a new frame arrives. Each received frame is forwarded to the user's registered callback. Reader thread management is handled internally by Room.
 
 In short:
 

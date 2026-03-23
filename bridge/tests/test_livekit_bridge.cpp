@@ -94,10 +94,10 @@ TEST_F(LiveKitBridgeTest, CreateVideoTrackBeforeConnectThrows) {
 }
 
 // ============================================================================
-// Callback registration (pre-connection, pure map operations)
+// Callback registration (pre-connection -- no Room yet, should be safe no-ops)
 // ============================================================================
 
-TEST_F(LiveKitBridgeTest, RegisterAndUnregisterAudioCallbackDoesNotCrash) {
+TEST_F(LiveKitBridgeTest, SetAndClearAudioCallbackBeforeConnectIsSafe) {
   LiveKitBridge bridge;
 
   EXPECT_NO_THROW({
@@ -107,11 +107,11 @@ TEST_F(LiveKitBridgeTest, RegisterAndUnregisterAudioCallbackDoesNotCrash) {
 
     bridge.clearOnAudioFrameCallback("remote-participant",
                                      livekit::TrackSource::SOURCE_MICROPHONE);
-  }) << "Registering and unregistering an audio callback should be safe "
-        "even without a connection";
+  }) << "Setting and clearing an audio callback before connect() should be "
+        "safe (callbacks are silently dropped when no Room exists)";
 }
 
-TEST_F(LiveKitBridgeTest, RegisterAndUnregisterVideoCallbackDoesNotCrash) {
+TEST_F(LiveKitBridgeTest, SetAndClearVideoCallbackBeforeConnectIsSafe) {
   LiveKitBridge bridge;
 
   EXPECT_NO_THROW({
@@ -121,11 +121,11 @@ TEST_F(LiveKitBridgeTest, RegisterAndUnregisterVideoCallbackDoesNotCrash) {
 
     bridge.clearOnVideoFrameCallback("remote-participant",
                                      livekit::TrackSource::SOURCE_CAMERA);
-  }) << "Registering and unregistering a video callback should be safe "
-        "even without a connection";
+  }) << "Setting and clearing a video callback before connect() should be "
+        "safe (callbacks are silently dropped when no Room exists)";
 }
 
-TEST_F(LiveKitBridgeTest, UnregisterNonExistentCallbackIsNoOp) {
+TEST_F(LiveKitBridgeTest, ClearNonExistentCallbackIsNoOp) {
   LiveKitBridge bridge;
 
   EXPECT_NO_THROW({
@@ -133,52 +133,7 @@ TEST_F(LiveKitBridgeTest, UnregisterNonExistentCallbackIsNoOp) {
                                      livekit::TrackSource::SOURCE_MICROPHONE);
     bridge.clearOnVideoFrameCallback("nonexistent",
                                      livekit::TrackSource::SOURCE_CAMERA);
-  }) << "Unregistering a callback that was never registered should be a no-op";
-}
-
-TEST_F(LiveKitBridgeTest, MultipleRegistrationsSameKeyOverwrites) {
-  LiveKitBridge bridge;
-
-  int call_count = 0;
-
-  // Register a first callback
-  bridge.setOnAudioFrameCallback("alice",
-                                 livekit::TrackSource::SOURCE_MICROPHONE,
-                                 [](const livekit::AudioFrame &) {});
-
-  // Register a second callback for the same key -- should overwrite
-  bridge.setOnAudioFrameCallback(
-      "alice", livekit::TrackSource::SOURCE_MICROPHONE,
-      [&call_count](const livekit::AudioFrame &) { call_count++; });
-
-  // Unregister once should be enough (only one entry per key)
-  EXPECT_NO_THROW(bridge.clearOnAudioFrameCallback(
-      "alice", livekit::TrackSource::SOURCE_MICROPHONE));
-}
-
-TEST_F(LiveKitBridgeTest, RegisterCallbacksForMultipleParticipants) {
-  LiveKitBridge bridge;
-
-  EXPECT_NO_THROW({
-    bridge.setOnAudioFrameCallback("alice",
-                                   livekit::TrackSource::SOURCE_MICROPHONE,
-                                   [](const livekit::AudioFrame &) {});
-
-    bridge.setOnVideoFrameCallback(
-        "bob", livekit::TrackSource::SOURCE_CAMERA,
-        [](const livekit::VideoFrame &, std::int64_t) {});
-
-    bridge.setOnAudioFrameCallback(
-        "charlie", livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO,
-        [](const livekit::AudioFrame &) {});
-  }) << "Should be able to register callbacks for multiple participants";
-
-  // Cleanup
-  bridge.clearOnAudioFrameCallback("alice",
-                                   livekit::TrackSource::SOURCE_MICROPHONE);
-  bridge.clearOnVideoFrameCallback("bob", livekit::TrackSource::SOURCE_CAMERA);
-  bridge.clearOnAudioFrameCallback(
-      "charlie", livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO);
+  }) << "Clearing a callback that was never set should be a no-op";
 }
 
 } // namespace test
