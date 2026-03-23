@@ -311,6 +311,8 @@ public:
                                  TrackSource source);
 
 private:
+  friend class RoomCallbackTest;
+
   mutable std::mutex lock_;
   ConnectionState connection_state_ = ConnectionState::Disconnected;
   RoomDelegate *delegate_ = nullptr; // Not owned
@@ -377,6 +379,8 @@ private:
       video_callbacks_;
   std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash>
       active_readers_;
+
+  static constexpr int kMaxActiveReaders = 20;
 
   // Must be called with lock_ held. Closes the stream for the given key and
   // returns the old reader thread (which the caller must join outside the

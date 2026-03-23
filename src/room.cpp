@@ -331,6 +331,15 @@ std::thread Room::startAudioReader(const CallbackKey &key,
                                    const AudioStream::Options &opts) {
   auto old_thread = extractReaderThread(key);
 
+  if (static_cast<int>(active_readers_.size()) >= kMaxActiveReaders) {
+    LK_LOG_ERROR(
+        "Cannot start audio reader for {} source={}: active reader limit ({}) "
+        "reached",
+        key.participant_identity, static_cast<int>(key.source),
+        kMaxActiveReaders);
+    return old_thread;
+  }
+
   auto stream = AudioStream::fromTrack(track, opts);
   if (!stream) {
     LK_LOG_ERROR("Failed to create AudioStream for {} source={}",
@@ -360,6 +369,15 @@ std::thread Room::startVideoReader(const CallbackKey &key,
                                    VideoFrameCallback cb,
                                    const VideoStream::Options &opts) {
   auto old_thread = extractReaderThread(key);
+
+  if (static_cast<int>(active_readers_.size()) >= kMaxActiveReaders) {
+    LK_LOG_ERROR(
+        "Cannot start video reader for {} source={}: active reader limit ({}) "
+        "reached",
+        key.participant_identity, static_cast<int>(key.source),
+        kMaxActiveReaders);
+    return old_thread;
+  }
 
   auto stream = VideoStream::fromTrack(track, opts);
   if (!stream) {
