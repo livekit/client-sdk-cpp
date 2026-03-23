@@ -29,11 +29,9 @@ auto mic = bridge.createAudioTrack("mic", 48000, 2,
 auto cam = bridge.createVideoTrack("cam", 1280, 720,
     livekit::TrackSource::SOURCE_CAMERA);  // name, width, height, source
 
-// 3. Send frames to remote participants (core SDK track types)
-livekit::AudioFrame af(std::move(pcm_data), 48000, 2, samples_per_channel);
-mic->captureFrame(af);
-livekit::VideoFrame vf(1280, 720, livekit::VideoBufferType::RGBA, std::move(rgba_data));
-cam->captureFrame(vf, timestamp_us, livekit::VideoRotation::VIDEO_ROTATION_0);
+// 3. Push frames to remote participants
+mic->pushFrame(pcm_data, samples_per_channel);
+cam->pushFrame(rgba_data, timestamp_us);
 
 // 4. Receive frames from a remote participant
 bridge.setOnAudioFrameCallback("remote-peer", livekit::TrackSource::SOURCE_MICROPHONE,
@@ -60,7 +58,9 @@ bridge.unregisterRpcMethod("greet");
 controller_bridge.requestRemoteTrackMute("robot-1", "mic");    // mute audio track "mic"
 controller_bridge.requestRemoteTrackUnmute("robot-1", "mic");  // unmute it
 
-// 7. Cleanup: disconnect unpublishes tracks the bridge retained and tears down the room
+// 7. Cleanup is automatic (RAII), or explicit:
+mic.reset();       // unpublishes the audio track
+cam.reset();       // unpublishes the video track
 bridge.disconnect();
 ```
 
@@ -80,8 +80,8 @@ TODO(sderosa): add instructions on how to use the bridge in your own CMake proje
 ```
 Your Application
     |                                       |
-    |  captureFrame() --> LocalAudioTrack   |  (sending to remote participants)
-    |  captureFrame() --> LocalVideoTrack   |
+    |  pushFrame() -----> BridgeAudioTrack  |  (sending to remote participants)
+    |  pushFrame() -----> BridgeVideoTrack  |
     |                                       |
     |  callback() <------ Reader Thread     |  (receiving from remote participants)
     |                                       |
@@ -96,19 +96,19 @@ Your Application
 
 **`LiveKitBridge`** -- The main entry point. Owns the full room lifecycle: SDK initialization, room connection, track publishing, and frame callback management.
 
-**`LocalAudioTrack`** -- From `createAudioTrack()`. Build a `livekit::AudioFrame` (interleaved int16 PCM, sample rate, channels, samples per channel) and call `captureFrame(frame, timeout_ms)` to send audio.
+**`BridgeAudioTrack` / `BridgeVideoTrack`** -- RAII handles for published local tracks. Created via `createAudioTrack()` / `createVideoTrack()`. When the `shared_ptr` is dropped, the track is automatically unpublished and all underlying SDK resources are freed. Call `pushFrame()` to send audio/video data to remote participants.
 
-**`LocalVideoTrack`** -- From `createVideoTrack()`. Build a `livekit::VideoFrame` (dimensions, `VideoBufferType`, pixel bytes) and call `captureFrame(frame, timestamp_us, rotation)` to send video.
+**`BridgeRoomDelegate`** -- Internal (not part of the public API; lives in `src/`). Listens for `onTrackSubscribed` / `onTrackUnsubscribed` events from the LiveKit SDK and wires up reader threads automatically.
 
 ### What is a Reader?
 
 A **reader** is a background thread that receives decoded media frames from a remote participant.
 
-When a remote participant publishes an audio or video track and the Room subscribes to it (auto-subscribe is enabled by default), Room creates an `AudioStream` or `VideoStream` from that track and spins up a dedicated thread. This thread loops on `stream->read()`, which blocks until a new frame arrives. Each received frame is forwarded to the user's registered callback. Reader thread management is handled internally by Room.
+When a remote participant publishes an audio or video track and the bridge subscribes to it (auto-subscribe is enabled by default), the bridge creates an `AudioStream` or `VideoStream` from that track and spins up a dedicated thread. This thread loops on `stream->read()`, which blocks until a new frame arrives. Each received frame is forwarded to the user's registered callback.
 
 In short:
 
-- **Sending** (you -> remote): `LocalAudioTrack::captureFrame()` / `LocalVideoTrack::captureFrame()`
+- **Sending** (you -> remote): `BridgeAudioTrack::pushFrame()` / `BridgeVideoTrack::pushFrame()`
 - **Receiving** (remote -> you): reader threads invoke your registered callbacks
 
 Reader threads are managed entirely by the bridge. They are created when a matching remote track is subscribed, and torn down (stream closed, thread joined) when the track is unsubscribed, the callback is unregistered, or `disconnect()` is called.
@@ -147,7 +147,7 @@ bridge.connect(url, token, options);
 | `disconnect()` | Disconnect and release all resources. Joins all reader threads. Safe to call multiple times. |
 | `isConnected()` | Returns whether the bridge is currently connected. |
 | `createAudioTrack(name, sample_rate, num_channels, source)` | Create and publish a local audio track with the given `TrackSource` (e.g. `SOURCE_MICROPHONE`, `SOURCE_SCREENSHARE_AUDIO`). Returns an RAII `shared_ptr<BridgeAudioTrack>`. |
-| `createVideoTrack(name, width, height, source)` | Create and publish a local video track with the given `TrackSource` (e.g. `SOURCE_CAMERA`, `SOURCE_SCREENSHARE`). Returns `shared_ptr<livekit::LocalVideoTrack>`. |
+| `createVideoTrack(name, width, height, source)` | Create and publish a local video track with the given `TrackSource` (e.g. `SOURCE_CAMERA`, `SOURCE_SCREENSHARE`). Returns an RAII `shared_ptr<BridgeVideoTrack>`. |
 | `setOnAudioFrameCallback(identity, source, callback)` | Register a callback for audio frames from a specific remote participant + track source. |
 | `setOnVideoFrameCallback(identity, source, callback)` | Register a callback for video frames from a specific remote participant + track source. |
 | `clearOnAudioFrameCallback(identity, source)` | Clear the audio callback for a specific remote participant + track source. Stops and joins the reader thread if active. |
@@ -158,9 +158,23 @@ bridge.connect(url, token, options);
 | `requestRemoteTrackMute(identity, track_name)` | Ask a remote participant to mute a track by name. Throws `livekit::RpcError` on failure. |
 | `requestRemoteTrackUnmute(identity, track_name)` | Ask a remote participant to unmute a track by name. Throws `livekit::RpcError` on failure. |
 
-### `LocalAudioTrack` / `LocalVideoTrack` (outgoing)
+### `BridgeAudioTrack`
 
-Returned by `createAudioTrack()` / `createVideoTrack()`. These are the same types as the core LiveKit C++ SDK: send media with `captureFrame(...)`, control mute with `mute()` / `unmute()`, and read layout from `audioSource()` / `videoSource()` when building frames.
+| Method | Description |
+|---|---|
+| `pushFrame(data, samples_per_channel, timeout_ms)` | Push interleaved int16 PCM samples. Accepts `std::vector<int16_t>` or raw pointer. |
+| `mute()` / `unmute()` | Mute/unmute the track (stops/resumes sending audio). |
+| `release()` | Explicitly unpublish and free resources. Called automatically by the destructor. |
+| `name()` / `sampleRate()` / `numChannels()` | Accessors for track configuration. |
+
+### `BridgeVideoTrack`
+
+| Method | Description |
+|---|---|
+| `pushFrame(data, timestamp_us)` | Push RGBA pixel data. Accepts `std::vector<uint8_t>` or raw pointer + size. |
+| `mute()` / `unmute()` | Mute/unmute the track (stops/resumes sending video). |
+| `release()` | Explicitly unpublish and free resources. Called automatically by the destructor. |
+| `name()` / `width()` / `height()` | Accessors for track configuration. |
 
 ## Examples
 - examples/robot.cpp: publishes video and audio from a webcam and microphone. This requires a webcam and microphone to be available.
@@ -213,7 +227,7 @@ The human will print periodic summaries like:
 
 The bridge includes a unit test suite built with [Google Test](https://github.com/google/googletest). Tests cover
 1. `CallbackKey` hashing/equality,
-2. `LocalAudioTrack` / `LocalVideoTrack` retention until `disconnect()`, and
+2. `BridgeAudioTrack`/`BridgeVideoTrack` state management, and
 3. `LiveKitBridge` pre-connection behaviour (callback registration, error handling).
 
 ### Building and running tests

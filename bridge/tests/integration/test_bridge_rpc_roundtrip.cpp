@@ -15,11 +15,7 @@
  */
 
 #include "../common/bridge_test_common.h"
-#include <livekit/audio_frame.h>
-#include <livekit/audio_source.h>
 #include <livekit/rpc_error.h>
-#include <livekit/video_frame.h>
-#include <livekit/video_source.h>
 
 namespace livekit_bridge {
 namespace test {
@@ -178,10 +174,8 @@ TEST_F(BridgeRemoteTrackControlTest, RemoteMuteAudioTrack) {
 
   const std::string publisher_identity = "rpc-receiver";
 
-  auto audio_source =
-      std::make_shared<livekit::AudioSource>(48000, 1, 0);
   auto audio_track = publisher.createAudioTrack(
-      "mic", audio_source, livekit::TrackSource::SOURCE_MICROPHONE);
+      "mic", 48000, 1, livekit::TrackSource::SOURCE_MICROPHONE);
   ASSERT_NE(audio_track, nullptr);
 
   std::this_thread::sleep_for(2s);
@@ -190,20 +184,18 @@ TEST_F(BridgeRemoteTrackControlTest, RemoteMuteAudioTrack) {
   EXPECT_NO_THROW(controller.requestRemoteTrackMute(publisher_identity, "mic"));
 
   std::vector<std::int16_t> silence(480, 0);
-  livekit::AudioFrame silent_frame(std::vector<std::int16_t>(silence), 48000,
-                                   1, 480);
-  EXPECT_NO_THROW(audio_source->captureFrame(silent_frame));
-  std::cout << "captureFrame while muted: ok" << std::endl;
+  bool pushed_while_muted = audio_track->pushFrame(silence, 480);
+  std::cout << "pushFrame while muted: " << pushed_while_muted << std::endl;
 
   std::cout << "Requesting unmute..." << std::endl;
   EXPECT_NO_THROW(
       controller.requestRemoteTrackUnmute(publisher_identity, "mic"));
 
-  EXPECT_NO_THROW(audio_source->captureFrame(silent_frame));
-  std::cout << "captureFrame after unmute: ok" << std::endl;
+  bool pushed_after_unmute = audio_track->pushFrame(silence, 480);
+  EXPECT_TRUE(pushed_after_unmute);
+  std::cout << "pushFrame after unmute: " << pushed_after_unmute << std::endl;
 
-  audio_track.reset();
-  audio_source.reset();
+  audio_track->release();
 }
 
 // ---------------------------------------------------------------------------
@@ -221,10 +213,8 @@ TEST_F(BridgeRemoteTrackControlTest, RemoteMuteVideoTrack) {
 
   const std::string publisher_identity = "rpc-receiver";
 
-  auto video_source =
-      std::make_shared<livekit::VideoSource>(320, 240);
   auto video_track = publisher.createVideoTrack(
-      "cam", video_source, livekit::TrackSource::SOURCE_CAMERA);
+      "cam", 320, 240, livekit::TrackSource::SOURCE_CAMERA);
   ASSERT_NE(video_track, nullptr);
 
   std::this_thread::sleep_for(2s);
@@ -236,15 +226,12 @@ TEST_F(BridgeRemoteTrackControlTest, RemoteMuteVideoTrack) {
   EXPECT_NO_THROW(
       controller.requestRemoteTrackUnmute(publisher_identity, "cam"));
 
-  std::vector<std::uint8_t> pixels(320 * 240 * 4, 128);
-  livekit::VideoFrame video_frame(320, 240, livekit::VideoBufferType::RGBA,
-                                  std::move(pixels));
-  EXPECT_NO_THROW(video_source->captureFrame(
-      video_frame, 0, livekit::VideoRotation::VIDEO_ROTATION_0));
-  std::cout << "captureFrame after unmute: ok" << std::endl;
+  std::vector<std::uint8_t> frame(320 * 240 * 4, 128);
+  bool pushed_after_unmute = video_track->pushFrame(frame);
+  EXPECT_TRUE(pushed_after_unmute);
+  std::cout << "pushFrame after unmute: " << pushed_after_unmute << std::endl;
 
-  video_track.reset();
-  video_source.reset();
+  video_track->release();
 }
 
 // ---------------------------------------------------------------------------

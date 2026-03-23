@@ -78,7 +78,7 @@ TEST_F(LiveKitBridgeTest, DestructorOnUnconnectedBridgeIsSafe) {
 TEST_F(LiveKitBridgeTest, CreateAudioTrackBeforeConnectThrows) {
   LiveKitBridge bridge;
 
-  EXPECT_THROW(bridge.createAudioTrack("mic", nullptr,
+  EXPECT_THROW(bridge.createAudioTrack("mic", 48000, 2,
                                        livekit::TrackSource::SOURCE_MICROPHONE),
                std::runtime_error)
       << "createAudioTrack should throw when not connected";
@@ -87,17 +87,17 @@ TEST_F(LiveKitBridgeTest, CreateAudioTrackBeforeConnectThrows) {
 TEST_F(LiveKitBridgeTest, CreateVideoTrackBeforeConnectThrows) {
   LiveKitBridge bridge;
 
-  EXPECT_THROW(bridge.createVideoTrack("cam", nullptr,
+  EXPECT_THROW(bridge.createVideoTrack("cam", 1280, 720,
                                        livekit::TrackSource::SOURCE_CAMERA),
                std::runtime_error)
       << "createVideoTrack should throw when not connected";
 }
 
 // ============================================================================
-// Callback registration (pre-connection -- no Room yet, should be safe no-ops)
+// Callback registration (pre-connection, pure map operations)
 // ============================================================================
 
-TEST_F(LiveKitBridgeTest, SetAndClearAudioCallbackBeforeConnectIsSafe) {
+TEST_F(LiveKitBridgeTest, RegisterAndUnregisterAudioCallbackDoesNotCrash) {
   LiveKitBridge bridge;
 
   EXPECT_NO_THROW({
@@ -107,11 +107,11 @@ TEST_F(LiveKitBridgeTest, SetAndClearAudioCallbackBeforeConnectIsSafe) {
 
     bridge.clearOnAudioFrameCallback("remote-participant",
                                      livekit::TrackSource::SOURCE_MICROPHONE);
-  }) << "Setting and clearing an audio callback before connect() should be "
-        "safe (callbacks are silently dropped when no Room exists)";
+  }) << "Registering and unregistering an audio callback should be safe "
+        "even without a connection";
 }
 
-TEST_F(LiveKitBridgeTest, SetAndClearVideoCallbackBeforeConnectIsSafe) {
+TEST_F(LiveKitBridgeTest, RegisterAndUnregisterVideoCallbackDoesNotCrash) {
   LiveKitBridge bridge;
 
   EXPECT_NO_THROW({
@@ -121,11 +121,11 @@ TEST_F(LiveKitBridgeTest, SetAndClearVideoCallbackBeforeConnectIsSafe) {
 
     bridge.clearOnVideoFrameCallback("remote-participant",
                                      livekit::TrackSource::SOURCE_CAMERA);
-  }) << "Setting and clearing a video callback before connect() should be "
-        "safe (callbacks are silently dropped when no Room exists)";
+  }) << "Registering and unregistering a video callback should be safe "
+        "even without a connection";
 }
 
-TEST_F(LiveKitBridgeTest, ClearNonExistentCallbackIsNoOp) {
+TEST_F(LiveKitBridgeTest, UnregisterNonExistentCallbackIsNoOp) {
   LiveKitBridge bridge;
 
   EXPECT_NO_THROW({
@@ -133,7 +133,52 @@ TEST_F(LiveKitBridgeTest, ClearNonExistentCallbackIsNoOp) {
                                      livekit::TrackSource::SOURCE_MICROPHONE);
     bridge.clearOnVideoFrameCallback("nonexistent",
                                      livekit::TrackSource::SOURCE_CAMERA);
-  }) << "Clearing a callback that was never set should be a no-op";
+  }) << "Unregistering a callback that was never registered should be a no-op";
+}
+
+TEST_F(LiveKitBridgeTest, MultipleRegistrationsSameKeyOverwrites) {
+  LiveKitBridge bridge;
+
+  int call_count = 0;
+
+  // Register a first callback
+  bridge.setOnAudioFrameCallback("alice",
+                                 livekit::TrackSource::SOURCE_MICROPHONE,
+                                 [](const livekit::AudioFrame &) {});
+
+  // Register a second callback for the same key -- should overwrite
+  bridge.setOnAudioFrameCallback(
+      "alice", livekit::TrackSource::SOURCE_MICROPHONE,
+      [&call_count](const livekit::AudioFrame &) { call_count++; });
+
+  // Unregister once should be enough (only one entry per key)
+  EXPECT_NO_THROW(bridge.clearOnAudioFrameCallback(
+      "alice", livekit::TrackSource::SOURCE_MICROPHONE));
+}
+
+TEST_F(LiveKitBridgeTest, RegisterCallbacksForMultipleParticipants) {
+  LiveKitBridge bridge;
+
+  EXPECT_NO_THROW({
+    bridge.setOnAudioFrameCallback("alice",
+                                   livekit::TrackSource::SOURCE_MICROPHONE,
+                                   [](const livekit::AudioFrame &) {});
+
+    bridge.setOnVideoFrameCallback(
+        "bob", livekit::TrackSource::SOURCE_CAMERA,
+        [](const livekit::VideoFrame &, std::int64_t) {});
+
+    bridge.setOnAudioFrameCallback(
+        "charlie", livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO,
+        [](const livekit::AudioFrame &) {});
+  }) << "Should be able to register callbacks for multiple participants";
+
+  // Cleanup
+  bridge.clearOnAudioFrameCallback("alice",
+                                   livekit::TrackSource::SOURCE_MICROPHONE);
+  bridge.clearOnVideoFrameCallback("bob", livekit::TrackSource::SOURCE_CAMERA);
+  bridge.clearOnAudioFrameCallback(
+      "charlie", livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO);
 }
 
 } // namespace test
