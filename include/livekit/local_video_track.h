@@ -66,8 +66,8 @@ public:
                         const std::shared_ptr<VideoSource> &source);
 
   /// Creates a local video track with a new \ref VideoSource at the given
-  /// resolution. The \ref VideoSource is owned by this track (see \ref
-  /// videoSource).
+  /// resolution. The track holds the only \c shared_ptr to that source (see
+  /// \ref videoSource).
   ///
   /// @param name          Track name visible to remotes and in logs.
   /// @param width         Source width in pixels.
@@ -81,11 +81,11 @@ public:
   createLocalVideoTrack(const std::string &name, const int width,
                         const int height, const TrackSource track_source);
 
-  /// Returns the \ref VideoSource created by \ref
-  /// createLocalVideoTrack(name, width, height, track_source), or null if
-  /// the track was created with an externally supplied source.
+  /// Returns the video source that produces frames for this track.
+  /// The track holds a \c shared_ptr; it may be shared with the caller when
+  /// the source was passed to \ref createLocalVideoTrack.
   std::shared_ptr<VideoSource> videoSource() const noexcept {
-    return owned_video_source_;
+    return video_source_;
   }
 
   /// A wrapper around \ref VideoSource::captureFrame.
@@ -123,12 +123,10 @@ public:
 
 private:
   explicit LocalVideoTrack(FfiHandle handle, const proto::OwnedTrack &track,
-                           std::shared_ptr<VideoSource> owned_source = {});
+                           std::shared_ptr<VideoSource> video_source = {});
 
   /// The video source that produces video frames for this track.
-  /// This is owned by the track and will be released when the track is
-  /// destroyed.
-  std::shared_ptr<VideoSource> owned_video_source_;
+  std::shared_ptr<VideoSource> video_source_;
 
   /// The publication that owns this track. This is a nullptr until the track
   /// is published, and then points to the publication that owns this track.

@@ -70,10 +70,10 @@ public:
                         int num_channels, TrackSource track_source);
 
   /// Returns the audio source that produces PCM frames for this track.
-  /// This is owned by the track and will be released when the track is
-  /// destroyed.
+  /// The track holds a \c shared_ptr; it may be shared with the caller when
+  /// the source was passed to \ref createLocalAudioTrack.
   std::shared_ptr<AudioSource> audioSource() const noexcept {
-    return owned_audio_source_;
+    return audio_source_;
   }
 
   /// A wrapper around \ref AudioSource::captureFrame.
@@ -106,12 +106,10 @@ public:
 
 private:
   explicit LocalAudioTrack(FfiHandle handle, const proto::OwnedTrack &track,
-                           std::shared_ptr<AudioSource> owned_source = {});
+                           std::shared_ptr<AudioSource> audio_source = {});
 
   /// The audio source that produces PCM frames for this track.
-  /// This is owned by the track and will be released when the track is
-  /// destroyed.
-  std::shared_ptr<AudioSource> owned_audio_source_;
+  std::shared_ptr<AudioSource> audio_source_;
 
   /// The publication that owns this track. This is a nullptr until the track
   /// is published, and then points to the publication that owns this track.

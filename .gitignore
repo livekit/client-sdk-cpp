@@ -5,6 +5,7 @@ CMakeCache.txt
 Makefile
 cmake_install.cmake
 out
+build.log
 build/
 build-debug/
 build-release/
