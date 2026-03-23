@@ -23,7 +23,6 @@
 #include "livekit/audio_source.h"
 #include "livekit/local_audio_track.h"
 #include "livekit/local_participant.h"
-#include "livekit/local_track_publication.h"
 
 #include <stdexcept>
 
@@ -111,9 +110,9 @@ void BridgeAudioTrack::release() {
   released_ = true;
 
   // Unpublish the track from the room
-  if (participant_ && publication_) {
+  if (participant_ && track_) {
     try {
-      participant_->unpublishTrack(publication_->sid());
+      participant_->unpublishTrack(track_->publication()->sid());
     } catch (...) {
       // Best-effort cleanup; ignore errors during teardown
       LK_LOG_WARN("BridgeAudioTrack unpublishTrack error, continuing with "
@@ -122,7 +121,6 @@ void BridgeAudioTrack::release() {
   }
 
   // Release SDK objects in reverse order
-  publication_.reset();
   track_.reset();
   source_.reset();
   participant_ = nullptr;

@@ -29,50 +29,44 @@
 #include "livekit/rpc_error.h"
 
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <string>
-#include <thread>
-#include <unordered_map>
 #include <vector>
 
 namespace livekit {
 class Room;
 class AudioFrame;
 class VideoFrame;
-class AudioStream;
-class VideoStream;
-class Track;
 enum class TrackSource;
 } // namespace livekit
 
 namespace livekit_bridge {
 
-class BridgeRoomDelegate;
 class RpcController;
 
 namespace test {
-class CallbackKeyTest;
 class LiveKitBridgeTest;
 } // namespace test
 
 /// Callback type for incoming audio frames.
-/// Called on a background reader thread.
-using AudioFrameCallback = std::function<void(const livekit::AudioFrame &)>;
+/// Called on a background reader thread owned by Room.
+using AudioFrameCallback = livekit::AudioFrameCallback;
 
 /// Callback type for incoming video frames.
-/// Called on a background reader thread.
+/// Called on a background reader thread owned by Room.
 /// @param frame        The decoded video frame (RGBA by default).
 /// @param timestamp_us Presentation timestamp in microseconds.
-using VideoFrameCallback = std::function<void(const livekit::VideoFrame &frame,
-                                              std::int64_t timestamp_us)>;
+using VideoFrameCallback = livekit::VideoFrameCallback;
 
 /**
  * High-level bridge to the LiveKit C++ SDK.
  *
  * Owns the full room lifecycle: initialize SDK, create Room, connect,
  * publish tracks, and manage incoming frame callbacks.
+ *
+ * Frame callback reader threads are managed by Room internally via
+ * Room::setOnAudioFrameCallback / Room::setOnVideoFrameCallback.
  *
  * The bridge retains a shared_ptr to every track it creates. On
  * disconnect(), all tracks are released (unpublished) before the room
@@ -114,7 +108,7 @@ public:
   LiveKitBridge();
   ~LiveKitBridge();
 
-  // Non-copyable, non-movable (owns threads, callbacks, room)
+  // Non-copyable, non-movable (owns room, callbacks)
   LiveKitBridge(const LiveKitBridge &) = delete;
   LiveKitBridge &operator=(const LiveKitBridge &) = delete;
   LiveKitBridge(LiveKitBridge &&) = delete;
@@ -139,7 +133,6 @@ public:
    * @param url    WebSocket URL of the LiveKit server.
    * @param token  Access token for authentication.
    * @param options Room options.
-
    * @return true if connection succeeded (or was already connected).
    */
   bool connect(const std::string &url, const std::string &token,
@@ -148,8 +141,9 @@ public:
   /**
    * Disconnect from the room and release all resources.
    *
-   * All published tracks are unpublished, all reader threads are joined,
-   * and the SDK is shut down. Safe to call multiple times.
+   * All published tracks are unpublished, reader threads are stopped
+   * by Room's destructor, and the SDK is shut down. Safe to call
+   * multiple times.
    */
   void disconnect();
 
@@ -209,17 +203,16 @@ public:
                    livekit::TrackSource source);
 
   // ---------------------------------------------------------------
-  // Incoming frame callbacks
+  // Incoming frame callbacks (delegates to Room)
   // ---------------------------------------------------------------
 
   /**
    * Set the callback for audio frames from a specific remote participant
    * and track source.
    *
-   * The callback fires on a background thread whenever a new audio frame
-   * is received. If the remote participant has not yet connected, the
-   * callback is stored and auto-wired when the participant's track is
-   * subscribed.
+   * Delegates to Room::setOnAudioFrameCallback. The callback fires on a
+   * dedicated reader thread owned by Room whenever a new audio frame is
+   * received.
    *
    * @note Only **one** callback may be registered per (participant, source)
    *       pair. Calling this again with the same identity and source will
@@ -237,6 +230,8 @@ public:
    * Register a callback for video frames from a specific remote participant
    * and track source.
    *
+   * Delegates to Room::setOnVideoFrameCallback.
+   *
    * @note Only **one** callback may be registered per (participant, source)
    *       pair. Calling this again with the same identity and source will
    *       silently replace the previous callback.
@@ -253,8 +248,7 @@ public:
    * Clear the audio frame callback for a specific remote participant + track
    * source.
    *
-   * If a reader thread is active for this (identity, source), it is
-   * stopped and joined.
+   * Delegates to Room::clearOnAudioFrameCallback.
    */
   void clearOnAudioFrameCallback(const std::string &participant_identity,
                                  livekit::TrackSource source);
@@ -263,8 +257,7 @@ public:
    * Clear the video frame callback for a specific remote participant + track
    * source.
    *
-   * If a reader thread is active for this (identity, source), it is
-   * stopped and joined.
+   * Delegates to Room::clearOnVideoFrameCallback.
    */
   void clearOnVideoFrameCallback(const std::string &participant_identity,
                                  livekit::TrackSource source);
@@ -354,54 +347,7 @@ public:
                                 const std::string &track_name);
 
 private:
-  friend class BridgeRoomDelegate;
-  friend class test::CallbackKeyTest;
   friend class test::LiveKitBridgeTest;
-
-  /// Composite key for the callback map: (participant_identity, source).
-  /// Only one callback can exist per key -- re-registering overwrites.
-  struct CallbackKey {
-    std::string identity;
-    livekit::TrackSource source;
-
-    bool operator==(const CallbackKey &o) const;
-  };
-
-  struct CallbackKeyHash {
-    std::size_t operator()(const CallbackKey &k) const;
-  };
-
-  /// Active reader thread + stream for an incoming track.
-  struct ActiveReader {
-    std::shared_ptr<livekit::AudioStream> audio_stream;
-    std::shared_ptr<livekit::VideoStream> video_stream;
-    std::thread thread;
-    bool is_audio = false;
-  };
-
-  /// Called by BridgeRoomDelegate when a remote track is subscribed.
-  void onTrackSubscribed(const std::string &participant_identity,
-                         livekit::TrackSource source,
-                         const std::shared_ptr<livekit::Track> &track);
-
-  /// Called by BridgeRoomDelegate when a remote track is unsubscribed.
-  void onTrackUnsubscribed(const std::string &participant_identity,
-                           livekit::TrackSource source);
-
-  /// Extract the thread for the given callback key.
-  /// @pre Caller must hold @c mutex_.
-  std::thread extractReaderThread(const CallbackKey &key);
-
-  /// Start a reader thread for a subscribed track.
-  /// @return The reader thread for this track.
-  /// @pre Caller must hold @c mutex_.
-  std::thread startAudioReader(const CallbackKey &key,
-                               const std::shared_ptr<livekit::Track> &track,
-                               AudioFrameCallback cb);
-  /// @copydoc startAudioReader
-  std::thread startVideoReader(const CallbackKey &key,
-                               const std::shared_ptr<livekit::Track> &track,
-                               VideoFrameCallback cb);
 
   /// Execute a track action (mute/unmute) by track name.
   /// Used as the TrackActionFn callback for RpcController.
@@ -415,22 +361,8 @@ private:
   bool connecting_; // guards against concurrent connect() calls
   bool sdk_initialized_;
 
-  static constexpr int kMaxActiveReaders = 20;
-
   std::unique_ptr<livekit::Room> room_;
-  std::unique_ptr<BridgeRoomDelegate> delegate_;
   std::unique_ptr<RpcController> rpc_controller_;
-
-  /// Registered callbacks (may be registered before tracks are subscribed).
-  std::unordered_map<CallbackKey, AudioFrameCallback, CallbackKeyHash>
-      audio_callbacks_;
-  /// @copydoc audio_callbacks_
-  std::unordered_map<CallbackKey, VideoFrameCallback, CallbackKeyHash>
-      video_callbacks_;
-
-  /// Active reader threads for subscribed tracks.
-  std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash>
-      active_readers_;
 
   /// All tracks created by this bridge. The bridge retains a shared_ptr so
   /// it can force-release every track on disconnect() before the room is
