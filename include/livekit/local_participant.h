@@ -276,6 +276,7 @@ private:
   /// cached publication). \c mutable so \ref trackPublications() const can
   /// prune expired \c weak_ptr entries.
   mutable TrackMap published_tracks_by_sid_;
+
   std::unordered_map<std::string, RpcHandler> rpc_handlers_;
 
   // Shared state for RPC invocation tracking. Using shared_ptr so the state
