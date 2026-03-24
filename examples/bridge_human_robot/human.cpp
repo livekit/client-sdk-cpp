@@ -15,23 +15,21 @@
  */
 
 /*
- * Human example -- receives audio, video, and data frames from a robot in a
+ * Human example -- receives audio and video frames from a robot in a
  * LiveKit room and renders them using SDL3.
  *
  * This example demonstrates the base SDK's convenience frame callback API
- * (Room::setOnAudioFrameCallback / Room::setOnVideoFrameCallback /
- * Room::setOnDataFrameCallback) which eliminates the need for a
- * RoomDelegate subclass, manual AudioStream/VideoStream creation, and
- * reader threads.
+ * (Room::setOnAudioFrameCallback / Room::setOnVideoFrameCallback) which
+ * eliminates the need for a RoomDelegate subclass, manual AudioStream/
+ * VideoStream creation, and reader threads.
  *
- * The robot publishes two video tracks, two audio tracks, and one data track:
+ * The robot publishes two video tracks and two audio tracks:
  *   - "robot-cam"        (SOURCE_CAMERA)            -- webcam or placeholder
  *   - "robot-sim-frame"  (SOURCE_SCREENSHARE)        -- simulated diagnostic
  * frame
  *   - "robot-mic"        (SOURCE_MICROPHONE)          -- real microphone or
  * silence
  *   - "robot-sim-audio"  (SOURCE_SCREENSHARE_AUDIO)   -- simulated siren tone
- *   - "robot-status"     (DATA_TRACK)                 -- periodic status string
  *
  * Press 'w' to play the webcam feed + real mic, or 's' for sim frame + siren.
  * The selection controls both video and audio simultaneously.
@@ -65,7 +63,6 @@
 #include <cstring>
 #include <iostream>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -272,19 +269,6 @@ int main(int argc, char *argv[]) {
         if (g_selected_source.load(std::memory_order_relaxed) ==
             static_cast<int>(SelectedSource::SimFrame)) {
           renderFrame(frame);
-        }
-      });
-
-  // ----- Set data frame callback using Room::setOnDataFrameCallback -----
-  room->setOnDataFrameCallback(
-      "robot", "robot-status",
-      [](const std::vector<std::uint8_t> &payload,
-         std::optional<std::uint64_t> /*user_timestamp*/) {
-        try {
-          LK_LOG_INFO("[human] robot-status received.");
-          // LK_LOG_INFO("[human] robot-status: {}", payload);
-        } catch (const std::exception &e) {
-          // LK_LOG_ERROR("[human] Failed to process data track: {}", e.what());
         }
       });
 

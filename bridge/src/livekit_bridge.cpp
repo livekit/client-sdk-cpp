@@ -278,37 +278,6 @@ void LiveKitBridge::clearOnVideoFrameCallback(
   room_->clearOnVideoFrameCallback(participant_identity, source);
 }
 
-void LiveKitBridge::setOnDataFrameCallback(
-    const std::string &participant_identity, const std::string &track_name,
-    DataFrameCallback callback) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  if (!room_) {
-    LK_LOG_WARN("setOnDataFrameCallback called before connect(); ignored");
-    return;
-  }
-  room_->setOnDataFrameCallback(participant_identity, track_name,
-                                std::move(callback));
-}
-
-void LiveKitBridge::clearOnDataFrameCallback(
-    const std::string &participant_identity, const std::string &track_name) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  if (!room_) {
-    return;
-  }
-  room_->clearOnDataFrameCallback(participant_identity, track_name);
-}
-
-std::shared_ptr<livekit::LocalDataTrack>
-LiveKitBridge::publishDataTrack(const std::string &name) {
-  std::lock_guard<std::mutex> lock(mutex_);
-  if (!connected_ || !room_ || !room_->localParticipant()) {
-    throw std::runtime_error(
-        "publishDataTrack requires an active connection; call connect() first");
-  }
-  return room_->localParticipant()->publishDataTrack(name);
-}
-
 // ---------------------------------------------------------------
 // RPC (delegates to RpcController)
 // ---------------------------------------------------------------
