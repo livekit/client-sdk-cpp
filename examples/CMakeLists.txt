@@ -43,6 +43,8 @@ set(EXAMPLES_ALL
   SimpleJoystickSender
   SimpleJoystickReceiver
   SimpleDataStream
+  SimpleStatusProducer
+  SimpleStatusConsumer
   LoggingLevelsBasicUsage
   LoggingLevelsCustomSinks
   BridgeRobot
@@ -240,6 +242,32 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           ${LIVEKIT_ROOT_DIR}/data
           $<TARGET_FILE_DIR:SimpleDataStream>/data
+)
+
+# --- simple_status (producer + consumer text stream on producer-status) ---
+
+add_executable(SimpleStatusProducer
+  simple_status/producer.cpp
+)
+
+target_include_directories(SimpleStatusProducer PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(SimpleStatusProducer
+  PRIVATE
+    livekit
+    spdlog::spdlog
+)
+
+add_executable(SimpleStatusConsumer
+  simple_status/consumer.cpp
+)
+
+target_include_directories(SimpleStatusConsumer PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(SimpleStatusConsumer
+  PRIVATE
+    livekit
+    spdlog::spdlog
 )
 
 # --- bridge_human_robot examples (robot + human; use livekit_bridge and SDL3) ---
