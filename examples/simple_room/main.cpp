@@ -359,7 +359,10 @@ int main(int argc, char *argv[]) {
   videoOpts.dtx = false;
   videoOpts.simulcast = true;
   try {
+    // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
+    // Track
     room->localParticipant()->publishTrack(videoTrack, videoOpts);
+
     const auto videoPub = videoTrack->publication();
 
     std::cout << "Published track:\n"

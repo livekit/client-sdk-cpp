@@ -109,7 +109,7 @@ void BridgeVideoTrack::release() {
   released_ = true;
 
   // Unpublish the track from the room
-  if (participant_ && track_) {
+  if (participant_ && track_ && track_->publication()) {
     try {
       participant_->unpublishTrack(track_->publication()->sid());
     } catch (...) {
