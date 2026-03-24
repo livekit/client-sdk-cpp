@@ -17,7 +17,10 @@
 #include "livekit/room.h"
 
 #include "livekit/audio_stream.h"
+#include "livekit/data_frame.h"
+#include "livekit/data_track_subscription.h"
 #include "livekit/e2ee.h"
+#include "livekit/local_data_track.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
 #include "livekit/remote_audio_track.h"
@@ -666,19 +669,63 @@ void Room::OnEvent(const FfiEvent &event) {
                   "\"{}\" (sid={})",
                   remote_track->info().name, remote_track->publisherIdentity(),
                   remote_track->info().sid);
+
+      // Auto-wire data callback if one is registered
+      std::thread old_thread;
+      {
+        std::lock_guard<std::mutex> guard(lock_);
+        DataCallbackKey key{remote_track->publisherIdentity(),
+                            remote_track->info().name};
+        auto it = data_callbacks_.find(key);
+        if (it != data_callbacks_.end()) {
+          old_thread = startDataReader(key, remote_track, it->second);
+        } else {
+          pending_remote_data_tracks_[key] = remote_track;
+        }
+      }
+      if (old_thread.joinable()) {
+        old_thread.join();
+      }
+
       DataTrackPublishedEvent ev;
       ev.track = remote_track;
       if (delegate_snapshot) {
         delegate_snapshot->onDataTrackPublished(*this, ev);
-      } else {
-        LK_LOG_ERROR("[Room] No delegate set; DataTrackPublished "
-                     "event dropped.");
       }
       break;
     }
     case proto::RoomEvent::kDataTrackUnpublished: {
       const auto &dtu = re.data_track_unpublished();
       LK_LOG_INFO("[Room] RoomEvent::kDataTrackUnpublished: sid={}", dtu.sid());
+
+      // Tear down active data reader or remove pending track by SID
+      std::thread old_thread;
+      {
+        std::lock_guard<std::mutex> guard(lock_);
+        for (auto it = active_data_readers_.begin();
+             it != active_data_readers_.end(); ++it) {
+          if (it->second.remote_track &&
+              it->second.remote_track->info().sid == dtu.sid()) {
+            if (it->second.subscription) {
+              it->second.subscription->close();
+            }
+            old_thread = std::move(it->second.thread);
+            active_data_readers_.erase(it);
+            break;
+          }
+        }
+        for (auto it = pending_remote_data_tracks_.begin();
+             it != pending_remote_data_tracks_.end(); ++it) {
+          if (it->second && it->second->info().sid == dtu.sid()) {
+            pending_remote_data_tracks_.erase(it);
+            break;
+          }
+        }
+      }
+      if (old_thread.joinable()) {
+        old_thread.join();
+      }
+
       DataTrackUnpublishedEvent ev;
       ev.sid = dtu.sid();
       if (delegate_snapshot) {
