@@ -75,8 +75,23 @@ void DataTrackSubscription::init(FfiHandle subscription_handle) {
 }
 
 bool DataTrackSubscription::read(DataFrame &out) {
-  std::unique_lock<std::mutex> lock(mutex_);
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (closed_ || eof_) {
+      return false;
+    }
+  }
 
+  // Signal the Rust side that we're ready to receive the next frame.
+  // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
+  // from the underlying stream until notified via this request.
+  proto::FfiRequest req;
+  auto *msg = req.mutable_data_track_subscription_read();
+  msg->set_subscription_handle(
+      static_cast<uint64_t>(subscription_handle_.get()));
+  FfiClient::instance().sendRequest(req);
+
+  std::unique_lock<std::mutex> lock(mutex_);
   cv_.wait(lock, [this] { return frame_.has_value() || eof_ || closed_; });
 
   if (closed_ || (!frame_.has_value() && eof_)) {
@@ -119,6 +134,9 @@ void DataTrackSubscription::onFfiEvent(const FfiEvent &event) {
       static_cast<std::uint64_t>(subscription_handle_.get())) {
     return;
   }
+
+  LK_LOG_INFO("[DataTrackSubscription] Received event for handle {}",
+              static_cast<std::uint64_t>(subscription_handle_.get()));
 
   if (dts.has_frame_received()) {
     const auto &fr = dts.frame_received().frame();
