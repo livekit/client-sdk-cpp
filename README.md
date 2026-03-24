@@ -451,8 +451,6 @@ brew install clang-format
 #### Memory Checks
 Run valgrind on various examples or tests to check for memory leaks and other issues.
 ```bash
-valgrind --leak-check=full ./build-debug/bin/BridgeRobot
-valgrind --leak-check=full ./build-debug/bin/BridgeHuman
 valgrind --leak-check=full ./build-debug/bin/livekit_integration_tests
 valgrind --leak-check=full ./build-debug/bin/livekit_stress_tests
 ```
