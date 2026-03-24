@@ -304,38 +304,36 @@ void Room::clearOnVideoFrameCallback(const std::string &participant_identity,
   }
 }
 
-void Room::setOnDataFrameCallback(const std::string &participant_identity,
-                                  const std::string &track_name,
-                                  DataFrameCallback callback) {
+DataFrameCallbackId
+Room::addOnDataFrameCallback(const std::string &participant_identity,
+                             const std::string &track_name,
+                             DataFrameCallback callback) {
   std::thread old_thread;
+  DataFrameCallbackId id;
   {
     std::lock_guard<std::mutex> lock(lock_);
+    id = next_data_callback_id_++;
     DataCallbackKey key{participant_identity, track_name};
-    data_callbacks_[key] = std::move(callback);
+    data_callbacks_[id] = RegisteredDataCallback{key, std::move(callback)};
 
-    auto pending_it = pending_remote_data_tracks_.find(key);
-    if (pending_it != pending_remote_data_tracks_.end()) {
-      auto track = std::move(pending_it->second);
-      pending_remote_data_tracks_.erase(pending_it);
-      auto cb_it = data_callbacks_.find(key);
-      if (cb_it != data_callbacks_.end()) {
-        old_thread = startDataReader(key, track, cb_it->second);
-      }
+    auto track_it = remote_data_tracks_.find(key);
+    if (track_it != remote_data_tracks_.end()) {
+      old_thread = startDataReader(id, key, track_it->second,
+                                   data_callbacks_[id].callback);
     }
   }
   if (old_thread.joinable()) {
     old_thread.join();
   }
+  return id;
 }
 
-void Room::clearOnDataFrameCallback(const std::string &participant_identity,
-                                    const std::string &track_name) {
+void Room::removeOnDataFrameCallback(DataFrameCallbackId id) {
   std::thread old_thread;
   {
     std::lock_guard<std::mutex> lock(lock_);
-    DataCallbackKey key{participant_identity, track_name};
-    data_callbacks_.erase(key);
-    old_thread = extractDataReaderThread(key);
+    data_callbacks_.erase(id);
+    old_thread = extractDataReaderThread(id);
   }
   if (old_thread.joinable()) {
     old_thread.join();
@@ -375,10 +373,11 @@ std::thread Room::extractDataReaderThread(const DataCallbackKey &key) {
   return std::move(reader->thread);
 }
 
-std::thread Room::startDataReader(const DataCallbackKey &key,
+std::thread Room::startDataReader(DataFrameCallbackId id,
+                                  const DataCallbackKey &key,
                                   const std::shared_ptr<RemoteDataTrack> &track,
                                   DataFrameCallback cb) {
-  auto old_thread = extractDataReaderThread(key);
+  auto old_thread = extractDataReaderThread(id);
 
   if (static_cast<int>(active_readers_.size() + active_data_readers_.size()) >=
       kMaxActiveReaders) {
@@ -434,7 +433,7 @@ std::thread Room::startDataReader(const DataCallbackKey &key,
     LK_LOG_INFO("[Room] Data reader thread exiting for \"{}\" track=\"{}\"",
                 identity, track_name);
   });
-  active_data_readers_[key] = reader;
+  active_data_readers_[id] = reader;
   return old_thread;
 }
 
@@ -804,21 +803,24 @@ void Room::OnEvent(const FfiEvent &event) {
                   remote_track->info().name, remote_track->publisherIdentity(),
                   remote_track->info().sid);
 
-      // Auto-wire data callback if one is registered
-      std::thread old_thread;
+      std::vector<std::thread> old_threads;
       {
         std::lock_guard<std::mutex> guard(lock_);
         DataCallbackKey key{remote_track->publisherIdentity(),
                             remote_track->info().name};
-        auto it = data_callbacks_.find(key);
-        if (it != data_callbacks_.end()) {
-          old_thread = startDataReader(key, remote_track, it->second);
-        } else {
-          pending_remote_data_tracks_[key] = remote_track;
+        remote_data_tracks_[key] = remote_track;
+
+        for (auto &[id, reg] : data_callbacks_) {
+          if (reg.key == key) {
+            auto t = startDataReader(id, key, remote_track, reg.callback);
+            if (t.joinable()) {
+              old_threads.push_back(std::move(t));
+            }
+          }
         }
       }
-      if (old_thread.joinable()) {
-        old_thread.join();
+      for (auto &t : old_threads) {
+        t.join();
       }
 
       DataTrackPublishedEvent ev;
@@ -832,12 +834,11 @@ void Room::OnEvent(const FfiEvent &event) {
       const auto &dtu = re.data_track_unpublished();
       LK_LOG_INFO("[Room] RoomEvent::kDataTrackUnpublished: sid={}", dtu.sid());
 
-      // Tear down active data reader or remove pending track by SID
-      std::thread old_thread;
+      std::vector<std::thread> old_threads;
       {
         std::lock_guard<std::mutex> guard(lock_);
         for (auto it = active_data_readers_.begin();
-             it != active_data_readers_.end(); ++it) {
+             it != active_data_readers_.end();) {
           auto &reader = it->second;
           if (reader->remote_track &&
               reader->remote_track->info().sid == dtu.sid()) {
@@ -847,21 +848,24 @@ void Room::OnEvent(const FfiEvent &event) {
                 reader->subscription->close();
               }
             }
-            old_thread = std::move(reader->thread);
-            active_data_readers_.erase(it);
-            break;
+            if (reader->thread.joinable()) {
+              old_threads.push_back(std::move(reader->thread));
+            }
+            it = active_data_readers_.erase(it);
+          } else {
+            ++it;
           }
         }
-        for (auto it = pending_remote_data_tracks_.begin();
-             it != pending_remote_data_tracks_.end(); ++it) {
+        for (auto it = remote_data_tracks_.begin();
+             it != remote_data_tracks_.end(); ++it) {
           if (it->second && it->second->info().sid == dtu.sid()) {
-            pending_remote_data_tracks_.erase(it);
+            remote_data_tracks_.erase(it);
             break;
           }
         }
       }
-      if (old_thread.joinable()) {
-        old_thread.join();
+      for (auto &t : old_threads) {
+        t.join();
       }
 
       DataTrackUnpublishedEvent ev;
