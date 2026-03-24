@@ -59,12 +59,6 @@ using AudioFrameCallback = livekit::AudioFrameCallback;
 /// @param timestamp_us Presentation timestamp in microseconds.
 using VideoFrameCallback = livekit::VideoFrameCallback;
 
-/// Callback type for incoming data track frames.
-/// Called on a background reader thread owned by Room.
-/// @param payload        Raw binary data received.
-/// @param user_timestamp Optional application-defined timestamp from sender.
-using DataFrameCallback = livekit::DataFrameCallback;
-
 /**
  * High-level bridge to the LiveKit C++ SDK.
  *
@@ -267,42 +261,6 @@ public:
    */
   void clearOnVideoFrameCallback(const std::string &participant_identity,
                                  livekit::TrackSource source);
-
-  /**
-   * Set the callback for data frames from a specific remote participant's
-   * data track.
-   *
-   * Delegates to Room::setOnDataFrameCallback.
-   *
-   * @param participant_identity  Identity of the remote participant.
-   * @param track_name            Name of the remote data track.
-   * @param callback              Function to invoke per data frame.
-   */
-  void setOnDataFrameCallback(const std::string &participant_identity,
-                              const std::string &track_name,
-                              DataFrameCallback callback);
-
-  /**
-   * Clear the data frame callback for a specific remote participant + track
-   * name.
-   *
-   * Delegates to Room::clearOnDataFrameCallback.
-   */
-  void clearOnDataFrameCallback(const std::string &participant_identity,
-                                const std::string &track_name);
-
-  /**
-   * Create and publish a local data track.
-   *
-   * Delegates to Room::publishDataTrack (which delegates to
-   * LocalParticipant::publishDataTrack).
-   *
-   * @param name  Unique track name visible to other participants.
-   * @return Shared pointer to the published data track (never null).
-   * @throws std::runtime_error if the bridge is not connected.
-   */
-  std::shared_ptr<livekit::LocalDataTrack>
-  publishDataTrack(const std::string &name);
 
   // ---------------------------------------------------------------
   // RPC (Remote Procedure Call)
