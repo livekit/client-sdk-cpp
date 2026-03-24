@@ -300,38 +300,35 @@ public:
                                  TrackSource source);
 
   /**
-   * Set a callback for data frames from a specific remote participant's
+   * Add a callback for data frames from a specific remote participant's
    * data track.
    *
-   * The callback fires on a background thread whenever a new data frame is
-   * received. If the remote data track has not yet been published, the
-   * callback is stored and auto-wired when the track appears (via
-   * DataTrackPublished).
+   * Multiple callbacks may be registered for the same (participant,
+   * track_name) pair; each one creates an independent FFI subscription.
    *
-   * Data tracks are keyed by (participant_identity, track_name) rather
-   * than TrackSource, since data tracks don't have a TrackSource enum.
-   *
-   * Only one callback may exist per (participant, track_name) pair.
-   * Re-calling with the same pair replaces the previous callback.
+   * The callback fires on a dedicated background thread. If the remote
+   * data track has not yet been published, the callback is stored and
+   * auto-wired when the track appears (via DataTrackPublished).
    *
    * @param participant_identity  Identity of the remote participant.
    * @param track_name            Name of the remote data track.
    * @param callback              Function to invoke per data frame.
+   * @return An opaque ID that can later be passed to
+   *         removeOnDataFrameCallback() to tear down this subscription.
    */
-  void setOnDataFrameCallback(const std::string &participant_identity,
-                              const std::string &track_name,
-                              DataFrameCallback callback);
+  DataFrameCallbackId addOnDataFrameCallback(
+      const std::string &participant_identity,
+      const std::string &track_name, DataFrameCallback callback);
 
   /**
-   * Clear the data frame callback for a specific (participant, track_name)
-   * pair. Stops and joins any active reader thread.
-   * No-op if no callback is registered for this key.
+   * Remove a data frame callback previously registered via
+   * addOnDataFrameCallback(). Stops and joins the active reader thread
+   * for this subscription.
+   * No-op if the ID is not (or no longer) registered.
    *
-   * @param participant_identity  Identity of the remote participant.
-   * @param track_name            Name of the remote data track.
+   * @param id  The identifier returned by addOnDataFrameCallback().
    */
-  void clearOnDataFrameCallback(const std::string &participant_identity,
-                                const std::string &track_name);
+  void removeOnDataFrameCallback(DataFrameCallbackId id);
 
 private:
   friend class RoomCallbackTest;

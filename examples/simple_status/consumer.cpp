@@ -9,13 +9,14 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OF ANY KIND, either express or implied.
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
 
-/// Consumer participant: prints each incoming message on the `producer-status`
-/// text stream topic. Use a token whose identity is `consumer`.
+/// Consumer participant: creates 3 independent data track subscriptions to the
+/// producer's "status" data track and logs each frame with the subscriber
+/// index. Use a token whose identity is `consumer`.
 
 #include "livekit/livekit.h"
 #include "livekit/lk_log.h"
@@ -24,15 +25,17 @@
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
-#include <memory>
 #include <string>
 #include <thread>
+#include <vector>
 
 using namespace livekit;
 
 namespace {
 
-constexpr const char *kTopic = "producer-status";
+constexpr const char *kProducerIdentity = "producer";
+constexpr const char *kTrackName = "status";
+constexpr int kNumSubscribers = 3;
 
 std::atomic<bool> g_running{true};
 
@@ -41,17 +44,6 @@ void handleSignal(int) { g_running.store(false); }
 std::string getenvOrEmpty(const char *name) {
   const char *v = std::getenv(name);
   return v ? std::string(v) : std::string{};
-}
-
-void handleStatusMessage(std::shared_ptr<TextStreamReader> reader,
-                         const std::string &participant_identity) {
-  try {
-    const std::string text = reader->readAll();
-    LK_LOG_INFO("[from {}] {}", participant_identity, text);
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("Error reading text stream from {}: {}", participant_identity,
-                 e.what());
-  }
 }
 
 } // namespace
@@ -101,22 +93,33 @@ int main(int argc, char *argv[]) {
   LK_LOG_INFO("consumer connected as identity='{}' room='{}'",
               lp->identity(), room->room_info().name);
 
-  room->registerTextStreamHandler(
-      kTopic, [](std::shared_ptr<TextStreamReader> reader,
-                 const std::string &participant_identity) {
-        std::thread t(handleStatusMessage, std::move(reader),
-                      participant_identity);
-        t.detach();
-      });
+  std::vector<DataFrameCallbackId> sub_ids;
+  sub_ids.reserve(kNumSubscribers);
 
-  LK_LOG_INFO("listening on topic '{}'; Ctrl-C to exit", kTopic);
+  for (int i = 0; i < kNumSubscribers; ++i) {
+    auto id = room->addOnDataFrameCallback(
+        kProducerIdentity, kTrackName,
+        [i](const std::vector<std::uint8_t> &payload,
+            std::optional<std::uint64_t> /*user_timestamp*/) {
+          std::string text(payload.begin(), payload.end());
+          LK_LOG_INFO("[subscriber {}] {}", i, text);
+        });
+    sub_ids.push_back(id);
+    LK_LOG_INFO("registered subscriber {} (id={})", i, id);
+  }
+
+  LK_LOG_INFO("listening for data track '{}' from '{}' with {} subscribers; "
+              "Ctrl-C to exit",
+              kTrackName, kProducerIdentity, kNumSubscribers);
 
   while (g_running.load()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
   LK_LOG_INFO("shutting down");
-  room->unregisterTextStreamHandler(kTopic);
+  for (auto id : sub_ids) {
+    room->removeOnDataFrameCallback(id);
+  }
   room->setDelegate(nullptr);
   room.reset();
   livekit::shutdown();
