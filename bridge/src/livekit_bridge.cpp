@@ -237,45 +237,45 @@ LiveKitBridge::createVideoTrack(const std::string &name, int width, int height,
 // ---------------------------------------------------------------
 
 void LiveKitBridge::setOnAudioFrameCallback(
-    const std::string &participant_identity, const std::string &track_name,
+    const std::string &participant_identity, livekit::TrackSource source,
     AudioFrameCallback callback) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!room_) {
     LK_LOG_WARN("setOnAudioFrameCallback called before connect(); ignored");
     return;
   }
-  room_->setOnAudioFrameCallback(participant_identity, track_name,
+  room_->setOnAudioFrameCallback(participant_identity, source,
                                  std::move(callback));
 }
 
 void LiveKitBridge::setOnVideoFrameCallback(
-    const std::string &participant_identity, const std::string &track_name,
+    const std::string &participant_identity, livekit::TrackSource source,
     VideoFrameCallback callback) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!room_) {
     LK_LOG_WARN("setOnVideoFrameCallback called before connect(); ignored");
     return;
   }
-  room_->setOnVideoFrameCallback(participant_identity, track_name,
+  room_->setOnVideoFrameCallback(participant_identity, source,
                                  std::move(callback));
 }
 
 void LiveKitBridge::clearOnAudioFrameCallback(
-    const std::string &participant_identity, const std::string &track_name) {
+    const std::string &participant_identity, livekit::TrackSource source) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!room_) {
     return;
   }
-  room_->clearOnAudioFrameCallback(participant_identity, track_name);
+  room_->clearOnAudioFrameCallback(participant_identity, source);
 }
 
 void LiveKitBridge::clearOnVideoFrameCallback(
-    const std::string &participant_identity, const std::string &track_name) {
+    const std::string &participant_identity, livekit::TrackSource source) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!room_) {
     return;
   }
-  room_->clearOnVideoFrameCallback(participant_identity, track_name);
+  room_->clearOnVideoFrameCallback(participant_identity, source);
 }
 
 // ---------------------------------------------------------------

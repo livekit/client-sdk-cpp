@@ -36,12 +36,12 @@ mic->pushFrame(pcm_data, samples_per_channel);
 cam->pushFrame(rgba_data, timestamp_us);
 
 // 4. Receive frames from a remote participant
-bridge.setOnAudioFrameCallback("remote-peer", "mic",
+bridge.setOnAudioFrameCallback("remote-peer", livekit::TrackSource::SOURCE_MICROPHONE,
     [](const livekit::AudioFrame& frame) {
         // Called on a background reader thread
     });
 
-bridge.setOnVideoFrameCallback("remote-peer", "cam",
+bridge.setOnVideoFrameCallback("remote-peer", livekit::TrackSource::SOURCE_CAMERA,
     [](const livekit::VideoFrame& frame, int64_t timestamp_us) {
         // Called on a background reader thread
     });
@@ -126,7 +126,7 @@ This means the typical pattern is:
 livekit::RoomOptions options;
 options.auto_subscribe = true;
 bridge.connect(url, token, options);
-bridge.setOnAudioFrameCallback("robot-1", "robot-mic", my_callback);
+bridge.setOnAudioFrameCallback("robot-1", livekit::TrackSource::SOURCE_MICROPHONE, my_callback);
 // When robot-1 joins and publishes a mic track, my_callback starts firing.
 ```
 
@@ -147,10 +147,10 @@ bridge.setOnAudioFrameCallback("robot-1", "robot-mic", my_callback);
 | `isConnected()` | Returns whether the bridge is currently connected. |
 | `createAudioTrack(name, sample_rate, num_channels, source)` | Create and publish a local audio track with the given `TrackSource` (e.g. `SOURCE_MICROPHONE`, `SOURCE_SCREENSHARE_AUDIO`). Returns an RAII `shared_ptr<BridgeAudioTrack>`. |
 | `createVideoTrack(name, width, height, source)` | Create and publish a local video track with the given `TrackSource` (e.g. `SOURCE_CAMERA`, `SOURCE_SCREENSHARE`). Returns an RAII `shared_ptr<BridgeVideoTrack>`. |
-| `setOnAudioFrameCallback(identity, track_name, callback)` | Register a callback for audio frames from a specific remote participant + track name. |
-| `setOnVideoFrameCallback(identity, track_name, callback)` | Register a callback for video frames from a specific remote participant + track name. |
-| `clearOnAudioFrameCallback(identity, track_name)` | Clear the audio callback for a specific remote participant + track name. Stops and joins the reader thread if active. |
-| `clearOnVideoFrameCallback(identity, track_name)` | Clear the video callback for a specific remote participant + track name. Stops and joins the reader thread if active. |
+| `setOnAudioFrameCallback(identity, source, callback)` | Register a callback for audio frames from a specific remote participant + track source. |
+| `setOnVideoFrameCallback(identity, source, callback)` | Register a callback for video frames from a specific remote participant + track source. |
+| `clearOnAudioFrameCallback(identity, source)` | Clear the audio callback for a specific remote participant + track source. Stops and joins the reader thread if active. |
+| `clearOnVideoFrameCallback(identity, source)` | Clear the video callback for a specific remote participant + track source. Stops and joins the reader thread if active. |
 | `performRpc(destination_identity, method, payload, response_timeout?)` | Blocking RPC call to a remote participant. Returns the response payload. Throws `livekit::RpcError` on failure. |
 | `registerRpcMethod(method_name, handler)` | Register a handler for incoming RPC invocations. The handler returns an optional response payload or throws `livekit::RpcError`. |
 | `unregisterRpcMethod(method_name)` | Unregister a previously registered RPC handler. |
