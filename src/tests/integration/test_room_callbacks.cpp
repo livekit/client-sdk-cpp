@@ -51,6 +51,20 @@ TEST_F(RoomCallbackTest, VideoCallbackRegistrationIsAccepted) {
                                    [](const VideoFrame &, std::int64_t) {}));
 }
 
+TEST_F(RoomCallbackTest, AudioCallbackRegistrationByTrackNameIsAccepted) {
+  Room room;
+
+  EXPECT_NO_THROW(room.setOnAudioFrameCallback(
+      "alice", "mic-main", [](const AudioFrame &) {}));
+}
+
+TEST_F(RoomCallbackTest, VideoCallbackRegistrationByTrackNameIsAccepted) {
+  Room room;
+
+  EXPECT_NO_THROW(room.setOnVideoFrameCallback(
+      "alice", "cam-main", [](const VideoFrame &, std::int64_t) {}));
+}
+
 TEST_F(RoomCallbackTest, ClearingMissingCallbacksIsNoOp) {
   Room room;
 
@@ -58,6 +72,8 @@ TEST_F(RoomCallbackTest, ClearingMissingCallbacksIsNoOp) {
       room.clearOnAudioFrameCallback("nobody", TrackSource::SOURCE_MICROPHONE));
   EXPECT_NO_THROW(
       room.clearOnVideoFrameCallback("nobody", TrackSource::SOURCE_CAMERA));
+  EXPECT_NO_THROW(room.clearOnAudioFrameCallback("nobody", "missing-audio"));
+  EXPECT_NO_THROW(room.clearOnVideoFrameCallback("nobody", "missing-video"));
 }
 
 TEST_F(RoomCallbackTest, ReRegisteringSameAudioKeyDoesNotThrow) {
@@ -103,11 +119,28 @@ TEST_F(RoomCallbackTest, SameSourceDifferentTrackNamesAreAccepted) {
   Room room;
 
   EXPECT_NO_THROW(
-      room.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA,
+      room.setOnVideoFrameCallback("alice", "cam-main",
                                    [](const VideoFrame &, std::int64_t) {}));
   EXPECT_NO_THROW(
-      room.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA,
+      room.setOnVideoFrameCallback("alice", "cam-backup",
                                    [](const VideoFrame &, std::int64_t) {}));
+}
+
+TEST_F(RoomCallbackTest, ClearingTrackNameCallbackIsAccepted) {
+  Room room;
+
+  EXPECT_NO_THROW(room.setOnAudioFrameCallback(
+      "alice", "mic-main", [](const AudioFrame &) {}));
+  EXPECT_NO_THROW(room.clearOnAudioFrameCallback("alice", "mic-main"));
+}
+
+TEST_F(RoomCallbackTest, SourceAndTrackNameCallbacksCanCoexist) {
+  Room room;
+
+  EXPECT_NO_THROW(room.setOnAudioFrameCallback(
+      "alice", TrackSource::SOURCE_MICROPHONE, [](const AudioFrame &) {}));
+  EXPECT_NO_THROW(room.setOnAudioFrameCallback(
+      "alice", "mic-main", [](const AudioFrame &) {}));
 }
 
 TEST_F(RoomCallbackTest, DataCallbackRegistrationReturnsUsableIds) {
