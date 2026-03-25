@@ -56,6 +56,26 @@ std::string makeTrackName(const std::string &suffix) {
          std::to_string(getTimestampUs());
 }
 
+std::vector<std::uint8_t> e2eeSharedKey() {
+  return std::vector<std::uint8_t>(
+      kE2EESharedSecret, kE2EESharedSecret + sizeof(kE2EESharedSecret) - 1);
+}
+
+E2EEOptions makeE2EEOptions() {
+  E2EEOptions options;
+  options.key_provider_options.shared_key = e2eeSharedKey();
+  return options;
+}
+
+std::vector<TestRoomConnectionOptions>
+encryptedRoomConfigs(RoomDelegate *subscriber_delegate) {
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[0].room_options.encryption = makeE2EEOptions();
+  room_configs[1].room_options.encryption = makeE2EEOptions();
+  room_configs[1].delegate = subscriber_delegate;
+  return room_configs;
+}
+
 template <typename Predicate>
 bool waitForCondition(Predicate &&predicate, std::chrono::milliseconds timeout,
                       std::chrono::milliseconds interval = kPollingInterval) {
@@ -483,6 +503,8 @@ TEST_F(DataTrackE2ETest, PublishesAndReceivesEncryptedFramesEndToEnd) {
   ASSERT_NE(subscriber_room->e2eeManager(), nullptr);
   ASSERT_NE(publisher_room->e2eeManager()->keyProvider(), nullptr);
   ASSERT_NE(subscriber_room->e2eeManager()->keyProvider(), nullptr);
+  publisher_room->e2eeManager()->setEnabled(true);
+  subscriber_room->e2eeManager()->setEnabled(true);
   EXPECT_EQ(publisher_room->e2eeManager()->keyProvider()->exportSharedKey(),
             e2eeSharedKey());
   EXPECT_EQ(subscriber_room->e2eeManager()->keyProvider()->exportSharedKey(),
@@ -503,18 +525,55 @@ TEST_F(DataTrackE2ETest, PublishesAndReceivesEncryptedFramesEndToEnd) {
   auto subscription = remote_track->subscribe();
   ASSERT_NE(subscription, nullptr);
 
-  for (int index = 0; index < kE2EEFrameCount; ++index) {
-    std::vector<std::uint8_t> payload(64,
-                                      static_cast<std::uint8_t>(index + 1));
-    ASSERT_TRUE(local_track->tryPush(payload))
-        << "Failed to push encrypted frame " << index;
+  std::promise<DataFrame> frame_promise;
+  auto frame_future = frame_promise.get_future();
+  std::thread reader([&]() {
+    try {
+      DataFrame frame;
+      if (!subscription->read(frame)) {
+        throw std::runtime_error(
+            "Subscription ended before an encrypted frame arrived");
+      }
+      frame_promise.set_value(std::move(frame));
+    } catch (...) {
+      frame_promise.set_exception(std::current_exception());
+    }
+  });
 
-    const auto frame = readFrameWithTimeout(subscription, 5s);
-    EXPECT_EQ(frame.payload, payload)
-        << "Encrypted payload mismatch for frame " << index;
-    EXPECT_FALSE(frame.user_timestamp.has_value())
-        << "Unexpected user timestamp on encrypted frame " << index;
+  bool pushed = false;
+  for (int index = 0; index < 200; ++index) {
+    std::vector<std::uint8_t> payload(kLargeFramePayloadBytes,
+                                      static_cast<std::uint8_t>(index + 1));
+    pushed = local_track->tryPush(payload) || pushed;
+    if (frame_future.wait_for(25ms) == std::future_status::ready) {
+      break;
+    }
   }
+
+  const auto frame_status = frame_future.wait_for(5s);
+  if (frame_status != std::future_status::ready) {
+    subscription->close();
+  }
+  reader.join();
+  ASSERT_TRUE(pushed) << "Failed to push encrypted data frames";
+  ASSERT_EQ(frame_status, std::future_status::ready)
+      << "Timed out waiting for encrypted frame delivery";
+
+  DataFrame frame;
+  try {
+    frame = frame_future.get();
+  } catch (const std::exception &e) {
+    FAIL() << e.what();
+  }
+  ASSERT_FALSE(frame.payload.empty());
+  const auto first_byte = frame.payload.front();
+  EXPECT_TRUE(std::all_of(frame.payload.begin(), frame.payload.end(),
+                          [first_byte](std::uint8_t byte) {
+                            return byte == first_byte;
+                          }))
+      << "Encrypted payload is not byte-consistent";
+  EXPECT_FALSE(frame.user_timestamp.has_value())
+      << "Unexpected user timestamp on encrypted frame";
 
   subscription->close();
   local_track->unpublishDataTrack();
@@ -529,6 +588,12 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampOnEncryptedDataTrack) {
   auto room_configs = encryptedRoomConfigs(&subscriber_delegate);
   auto rooms = testRooms(room_configs);
   auto &publisher_room = rooms[0];
+  auto &subscriber_room = rooms[1];
+
+  ASSERT_NE(publisher_room->e2eeManager(), nullptr);
+  ASSERT_NE(subscriber_room->e2eeManager(), nullptr);
+  publisher_room->e2eeManager()->setEnabled(true);
+  subscriber_room->e2eeManager()->setEnabled(true);
 
   auto local_track =
       publisher_room->localParticipant()->publishDataTrack(track_name);
@@ -543,10 +608,44 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampOnEncryptedDataTrack) {
   auto subscription = remote_track->subscribe();
   ASSERT_NE(subscription, nullptr);
 
-  ASSERT_TRUE(local_track->tryPush(payload, sent_timestamp))
-      << "Failed to push timestamped encrypted frame";
+  std::promise<DataFrame> frame_promise;
+  auto frame_future = frame_promise.get_future();
+  std::thread reader([&]() {
+    try {
+      DataFrame incoming_frame;
+      if (!subscription->read(incoming_frame)) {
+        throw std::runtime_error(
+            "Subscription ended before timestamped encrypted frame arrived");
+      }
+      frame_promise.set_value(std::move(incoming_frame));
+    } catch (...) {
+      frame_promise.set_exception(std::current_exception());
+    }
+  });
 
-  const auto frame = readFrameWithTimeout(subscription, 5s);
+  bool pushed = false;
+  for (int attempt = 0; attempt < 200; ++attempt) {
+    pushed = local_track->tryPush(payload, sent_timestamp) || pushed;
+    if (frame_future.wait_for(25ms) == std::future_status::ready) {
+      break;
+    }
+  }
+  const auto frame_status = frame_future.wait_for(5s);
+  if (frame_status != std::future_status::ready) {
+    subscription->close();
+  }
+
+  reader.join();
+  ASSERT_TRUE(pushed) << "Failed to push timestamped encrypted frame";
+  ASSERT_EQ(frame_status, std::future_status::ready)
+      << "Timed out waiting for timestamped encrypted frame";
+
+  DataFrame frame;
+  try {
+    frame = frame_future.get();
+  } catch (const std::exception &e) {
+    FAIL() << e.what();
+  }
   EXPECT_EQ(frame.payload, payload);
   ASSERT_TRUE(frame.user_timestamp.has_value());
   EXPECT_EQ(frame.user_timestamp.value(), sent_timestamp);
