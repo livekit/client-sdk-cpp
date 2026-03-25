@@ -26,7 +26,6 @@
 #include "livekit/remote_video_track.h"
 #include "livekit/room_delegate.h"
 #include "livekit/room_event_types.h"
-#include "livekit/video_stream.h"
 
 #include "ffi.pb.h"
 #include "ffi_client.h"
@@ -65,10 +64,14 @@ createRemoteParticipant(const proto::OwnedParticipant &owned) {
 }
 
 } // namespace
-Room::Room() {}
+Room::Room()
+    : subscription_thread_dispatcher_(
+          std::make_unique<SubscriptionThreadDispatcher>()) {}
 
 Room::~Room() {
-  stopAllReaders();
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->stopAll();
+  }
 
   int listener_to_remove = 0;
   std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
@@ -264,166 +267,35 @@ void Room::setOnAudioFrameCallback(const std::string &participant_identity,
                                    TrackSource source,
                                    AudioFrameCallback callback,
                                    AudioStream::Options opts) {
-  CallbackKey key{participant_identity, source};
-  std::lock_guard<std::mutex> lock(lock_);
-  audio_callbacks_[key] =
-      RegisteredAudioCallback{std::move(callback), std::move(opts)};
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnAudioFrameCallback(
+        participant_identity, source, std::move(callback), std::move(opts));
+  }
 }
 
 void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    TrackSource source,
                                    VideoFrameCallback callback,
                                    VideoStream::Options opts) {
-  CallbackKey key{participant_identity, source};
-  std::lock_guard<std::mutex> lock(lock_);
-  video_callbacks_[key] =
-      RegisteredVideoCallback{std::move(callback), std::move(opts)};
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnVideoFrameCallback(
+        participant_identity, source, std::move(callback), std::move(opts));
+  }
 }
 
 void Room::clearOnAudioFrameCallback(const std::string &participant_identity,
                                      TrackSource source) {
-  CallbackKey key{participant_identity, source};
-  std::thread old_thread;
-  {
-    std::lock_guard<std::mutex> lock(lock_);
-    audio_callbacks_.erase(key);
-    old_thread = extractReaderThread(key);
-  }
-  if (old_thread.joinable()) {
-    old_thread.join();
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->clearOnAudioFrameCallback(
+        participant_identity, source);
   }
 }
 
 void Room::clearOnVideoFrameCallback(const std::string &participant_identity,
                                      TrackSource source) {
-  CallbackKey key{participant_identity, source};
-  std::thread old_thread;
-  {
-    std::lock_guard<std::mutex> lock(lock_);
-    video_callbacks_.erase(key);
-    old_thread = extractReaderThread(key);
-  }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
-}
-
-std::thread Room::extractReaderThread(const CallbackKey &key) {
-  auto it = active_readers_.find(key);
-  if (it == active_readers_.end()) {
-    return {};
-  }
-  ActiveReader reader = std::move(it->second);
-  active_readers_.erase(it);
-
-  if (reader.audio_stream) {
-    reader.audio_stream->close();
-  }
-  if (reader.video_stream) {
-    reader.video_stream->close();
-  }
-  return std::move(reader.thread);
-}
-
-std::thread Room::startAudioReader(const CallbackKey &key,
-                                   const std::shared_ptr<Track> &track,
-                                   AudioFrameCallback cb,
-                                   const AudioStream::Options &opts) {
-  auto old_thread = extractReaderThread(key);
-
-  if (static_cast<int>(active_readers_.size()) >= kMaxActiveReaders) {
-    LK_LOG_ERROR(
-        "Cannot start audio reader for {} source={}: active reader limit ({}) "
-        "reached",
-        key.participant_identity, static_cast<int>(key.source),
-        kMaxActiveReaders);
-    return old_thread;
-  }
-
-  auto stream = AudioStream::fromTrack(track, opts);
-  if (!stream) {
-    LK_LOG_ERROR("Failed to create AudioStream for {} source={}",
-                 key.participant_identity, static_cast<int>(key.source));
-    return old_thread;
-  }
-
-  ActiveReader reader;
-  reader.audio_stream = stream;
-  auto stream_copy = stream;
-  reader.thread = std::thread([stream_copy, cb]() {
-    AudioFrameEvent ev;
-    while (stream_copy->read(ev)) {
-      try {
-        cb(ev.frame);
-      } catch (const std::exception &e) {
-        LK_LOG_ERROR("Audio frame callback exception: {}", e.what());
-      }
-    }
-  });
-  active_readers_[key] = std::move(reader);
-  return old_thread;
-}
-
-std::thread Room::startVideoReader(const CallbackKey &key,
-                                   const std::shared_ptr<Track> &track,
-                                   VideoFrameCallback cb,
-                                   const VideoStream::Options &opts) {
-  auto old_thread = extractReaderThread(key);
-
-  if (static_cast<int>(active_readers_.size()) >= kMaxActiveReaders) {
-    LK_LOG_ERROR(
-        "Cannot start video reader for {} source={}: active reader limit ({}) "
-        "reached",
-        key.participant_identity, static_cast<int>(key.source),
-        kMaxActiveReaders);
-    return old_thread;
-  }
-
-  auto stream = VideoStream::fromTrack(track, opts);
-  if (!stream) {
-    LK_LOG_ERROR("Failed to create VideoStream for {} source={}",
-                 key.participant_identity, static_cast<int>(key.source));
-    return old_thread;
-  }
-
-  ActiveReader reader;
-  reader.video_stream = stream;
-  auto stream_copy = stream;
-  reader.thread = std::thread([stream_copy, cb]() {
-    VideoFrameEvent ev;
-    while (stream_copy->read(ev)) {
-      try {
-        cb(ev.frame, ev.timestamp_us);
-      } catch (const std::exception &e) {
-        LK_LOG_ERROR("Video frame callback exception: {}", e.what());
-      }
-    }
-  });
-  active_readers_[key] = std::move(reader);
-  return old_thread;
-}
-
-void Room::stopAllReaders() {
-  std::vector<std::thread> threads;
-  {
-    std::lock_guard<std::mutex> lock(lock_);
-    for (auto &[key, reader] : active_readers_) {
-      if (reader.audio_stream) {
-        reader.audio_stream->close();
-      }
-      if (reader.video_stream) {
-        reader.video_stream->close();
-      }
-      if (reader.thread.joinable()) {
-        threads.push_back(std::move(reader.thread));
-      }
-    }
-    active_readers_.clear();
-    audio_callbacks_.clear();
-    video_callbacks_.clear();
-  }
-  for (auto &t : threads) {
-    t.join();
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->clearOnVideoFrameCallback(
+        participant_identity, source);
   }
 }
 
@@ -431,7 +303,6 @@ void Room::OnEvent(const FfiEvent &event) {
   // Take a snapshot of the delegate under lock, but do NOT call it under the
   // lock.
   RoomDelegate *delegate_snapshot = nullptr;
-
   {
     std::lock_guard<std::mutex> guard(lock_);
     delegate_snapshot = delegate_;
@@ -713,30 +584,9 @@ void Room::OnEvent(const FfiEvent &event) {
         delegate_snapshot->onTrackSubscribed(*this, ev);
       }
 
-      // Start frame callback reader if one is registered
-      {
-        std::thread old_thread;
-        if (remote_track && rpublication) {
-          auto track_source = rpublication->source();
-          CallbackKey key{identity, track_source};
-          std::lock_guard<std::mutex> guard(lock_);
-          if (remote_track->kind() == TrackKind::KIND_AUDIO) {
-            auto it = audio_callbacks_.find(key);
-            if (it != audio_callbacks_.end()) {
-              old_thread = startAudioReader(
-                  key, remote_track, it->second.callback, it->second.options);
-            }
-          } else if (remote_track->kind() == TrackKind::KIND_VIDEO) {
-            auto it = video_callbacks_.find(key);
-            if (it != video_callbacks_.end()) {
-              old_thread = startVideoReader(
-                  key, remote_track, it->second.callback, it->second.options);
-            }
-          }
-        }
-        if (old_thread.joinable()) {
-          old_thread.join();
-        }
+      if (subscription_thread_dispatcher_ && remote_track && rpublication) {
+        subscription_thread_dispatcher_->handleTrackSubscribed(
+            identity, rpublication->source(), remote_track);
       }
       break;
     }
@@ -778,17 +628,10 @@ void Room::OnEvent(const FfiEvent &event) {
         delegate_snapshot->onTrackUnsubscribed(*this, ev);
       }
 
-      // Stop frame callback reader if one is active
-      if (unsub_source != TrackSource::SOURCE_UNKNOWN) {
-        CallbackKey key{unsub_identity, unsub_source};
-        std::thread old_thread;
-        {
-          std::lock_guard<std::mutex> guard(lock_);
-          old_thread = extractReaderThread(key);
-        }
-        if (old_thread.joinable()) {
-          old_thread.join();
-        }
+      if (subscription_thread_dispatcher_ &&
+          unsub_source != TrackSource::SOURCE_UNKNOWN) {
+        subscription_thread_dispatcher_->handleTrackUnsubscribed(unsub_identity,
+                                                                 unsub_source);
       }
       break;
     }
@@ -1215,7 +1058,9 @@ void Room::OnEvent(const FfiEvent &event) {
       break;
     }
     case proto::RoomEvent::kEos: {
-      stopAllReaders();
+      if (subscription_thread_dispatcher_) {
+        subscription_thread_dispatcher_->stopAll();
+      }
 
       int listener_to_remove = 0;
 
