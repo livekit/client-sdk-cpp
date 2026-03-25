@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 LiveKit
+ * Copyright 2026 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -90,8 +90,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  LK_LOG_INFO("consumer connected as identity='{}' room='{}'",
-              lp->identity(), room->room_info().name);
+  LK_LOG_INFO("consumer connected as identity='{}' room='{}'", lp->identity(),
+              room->room_info().name);
 
   std::vector<DataFrameCallbackId> sub_ids;
   sub_ids.reserve(kNumSubscribers);
