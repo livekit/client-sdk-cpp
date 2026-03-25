@@ -165,7 +165,7 @@ int main(int argc, char *argv[]) {
 
   // ----- Subscribe to receiver's audio -----
   bridge.setOnAudioFrameCallback(
-      receiver_identity, "mic",
+      receiver_identity, livekit::TrackSource::SOURCE_MICROPHONE,
       [&speaker, &speaker_mutex](const livekit::AudioFrame &frame) {
         const auto &samples = frame.data();
         if (samples.empty())
@@ -188,7 +188,7 @@ int main(int argc, char *argv[]) {
 
   // ----- Subscribe to receiver's video -----
   bridge.setOnVideoFrameCallback(
-      receiver_identity, "cam",
+      receiver_identity, livekit::TrackSource::SOURCE_CAMERA,
       [](const livekit::VideoFrame &frame, std::int64_t /*timestamp_us*/) {
         storeFrame(frame);
       });

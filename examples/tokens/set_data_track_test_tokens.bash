@@ -16,8 +16,8 @@
 # Generate two LiveKit access tokens via `lk` and set the environment variables
 # required by src/tests/integration/test_data_track.cpp.
 #
-#   source examples/tokens/set_test_tokens.bash
-#   eval "$(bash examples/tokens/set_test_tokens.bash)"
+#   source examples/tokens/set_data_track_test_tokens.bash
+#   eval "$(bash examples/tokens/set_data_track_test_tokens.bash)"
 #
 # Exports:
 #   LK_TOKEN_TEST_A
@@ -33,7 +33,7 @@ elif [[ -n "${ZSH_VERSION:-}" ]] && [[ "${ZSH_EVAL_CONTEXT:-}" == *:file* ]]; th
 fi
 
 _fail() {
-  echo "set_test_tokens.bash: $1" >&2
+  echo "set_data_track_test_tokens.bash: $1" >&2
   if [[ "$_sourced" -eq 1 ]]; then
     return "${2:-1}"
   fi
@@ -122,5 +122,5 @@ if [[ "$_sourced" -eq 1 ]]; then
   echo "LK_TOKEN_TEST_A, LK_TOKEN_TEST_B, and LIVEKIT_URL set for this shell." >&2
 else
   _emit_eval
-  echo "set_test_tokens.bash: for this shell run: source $0   or: eval \"\$(bash $0 ...)\"" >&2
+  echo "set_data_track_test_tokens.bash: for this shell run: source $0   or: eval \"\$(bash $0 ...)\"" >&2
 fi

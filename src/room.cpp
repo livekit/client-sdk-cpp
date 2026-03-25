@@ -272,12 +272,33 @@ void Room::unregisterByteStreamHandler(const std::string &topic) {
 // -------------------------------------------------------------------
 
 void Room::setOnAudioFrameCallback(const std::string &participant_identity,
+                                   TrackSource source,
+                                   AudioFrameCallback callback,
+                                   AudioStream::Options opts) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnAudioFrameCallback(
+        participant_identity, source, std::move(callback), std::move(opts));
+  }
+}
+
+void Room::setOnAudioFrameCallback(const std::string &participant_identity,
                                    const std::string &track_name,
                                    AudioFrameCallback callback,
                                    AudioStream::Options opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnAudioFrameCallback(
-        participant_identity, track_name, std::move(callback), std::move(opts));
+        participant_identity, track_name, std::move(callback),
+        std::move(opts));
+  }
+}
+
+void Room::setOnVideoFrameCallback(const std::string &participant_identity,
+                                   TrackSource source,
+                                   VideoFrameCallback callback,
+                                   VideoStream::Options opts) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnVideoFrameCallback(
+        participant_identity, source, std::move(callback), std::move(opts));
   }
 }
 
@@ -287,7 +308,16 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    VideoStream::Options opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnVideoFrameCallback(
-        participant_identity, track_name, std::move(callback), std::move(opts));
+        participant_identity, track_name, std::move(callback),
+        std::move(opts));
+  }
+}
+
+void Room::clearOnAudioFrameCallback(const std::string &participant_identity,
+                                     TrackSource source) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->clearOnAudioFrameCallback(
+        participant_identity, source);
   }
 }
 
@@ -296,6 +326,14 @@ void Room::clearOnAudioFrameCallback(const std::string &participant_identity,
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->clearOnAudioFrameCallback(
         participant_identity, track_name);
+  }
+}
+
+void Room::clearOnVideoFrameCallback(const std::string &participant_identity,
+                                     TrackSource source) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->clearOnVideoFrameCallback(
+        participant_identity, source);
   }
 }
 
@@ -611,13 +649,13 @@ void Room::OnEvent(const FfiEvent &event) {
 
       if (subscription_thread_dispatcher_ && remote_track && rpublication) {
         subscription_thread_dispatcher_->handleTrackSubscribed(
-            identity, rpublication->name(), remote_track);
+            identity, rpublication->source(), rpublication->name(), remote_track);
       }
       break;
     }
     case proto::RoomEvent::kTrackUnsubscribed: {
       TrackUnsubscribedEvent ev;
-      std::string unsub_track_name;
+      TrackSource unsub_source = TrackSource::SOURCE_UNKNOWN;
       std::string unsub_identity;
       {
         std::lock_guard<std::mutex> guard(lock_);
@@ -640,7 +678,7 @@ void Room::OnEvent(const FfiEvent &event) {
           break;
         }
         auto publication = pubIt->second;
-        unsub_track_name = publication->name();
+        unsub_source = publication->source();
         auto track = publication->track();
         publication->setTrack(nullptr);
         publication->setSubscribed(false);
@@ -653,9 +691,14 @@ void Room::OnEvent(const FfiEvent &event) {
         delegate_snapshot->onTrackUnsubscribed(*this, ev);
       }
 
-      if (subscription_thread_dispatcher_ && !unsub_track_name.empty()) {
-        subscription_thread_dispatcher_->handleTrackUnsubscribed(
-            unsub_identity, unsub_track_name);
+      if (subscription_thread_dispatcher_ &&
+          unsub_source != TrackSource::SOURCE_UNKNOWN) {
+        subscription_thread_dispatcher_->handleTrackUnsubscribed(unsub_identity,
+                                                                 unsub_source,
+                                                                 ev.publication
+                                                                     ? ev.publication
+                                                                           ->name()
+                                                                     : "");
       }
       break;
     }

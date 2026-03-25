@@ -114,10 +114,9 @@ int main(int argc, char *argv[]) {
         }
       });
 
-  LK_LOG_INFO(
-      "[receiver] Listening for video track '{}' + data track '{}'; Ctrl-C to "
-      "exit",
-      kVideoTrackName, kDataTrackName);
+  LK_LOG_INFO("[receiver] Listening for video track '{}' + data track '{}'; "
+              "Ctrl-C to exit",
+              kVideoTrackName, kDataTrackName);
 
   while (g_running.load()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));

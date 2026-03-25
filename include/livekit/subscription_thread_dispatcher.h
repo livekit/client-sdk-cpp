@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 LiveKit
+ * Copyright 2025 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,11 +39,11 @@ class Track;
 class VideoFrame;
 
 /// Callback type for incoming audio frames.
-/// Invoked on a dedicated reader thread per (participant, track_name) pair.
+/// Invoked on a dedicated reader thread per (participant, source) pair.
 using AudioFrameCallback = std::function<void(const AudioFrame &)>;
 
 /// Callback type for incoming video frames.
-/// Invoked on a dedicated reader thread per (participant, track_name) pair.
+/// Invoked on a dedicated reader thread per (participant, source) pair.
 using VideoFrameCallback =
     std::function<void(const VideoFrame &frame, std::int64_t timestamp_us)>;
 
@@ -67,7 +67,7 @@ using DataFrameCallbackId = std::uint64_t;
  * registration requests here, and then calls \ref handleTrackSubscribed and
  * \ref handleTrackUnsubscribed as room events arrive.
  *
- * For each registered `(participant identity, track_name)` pair, this class
+ * For each registered `(participant identity, TrackSource)` pair, this class
  * may create a dedicated \ref AudioStream or \ref VideoStream and a matching
  * reader thread. That thread blocks on stream reads and invokes the
  * registered callback with decoded frames.
@@ -92,6 +92,23 @@ public:
   /**
    * Register or replace an audio frame callback for a remote subscription.
    *
+   * The callback is keyed by remote participant identity plus \p source.
+   * If the matching remote audio track is already subscribed, \ref Room may
+   * immediately call \ref handleTrackSubscribed to start a reader.
+   *
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source to match.
+   * @param callback             Function invoked for each decoded audio frame.
+   * @param opts                 Options used when creating the backing
+   *                             \ref AudioStream.
+   */
+  void setOnAudioFrameCallback(const std::string &participant_identity,
+                               TrackSource source, AudioFrameCallback callback,
+                               AudioStream::Options opts = {});
+
+  /**
+   * Register or replace an audio frame callback for a remote subscription.
+   *
    * The callback is keyed by remote participant identity plus \p track_name.
    * If the matching remote audio track is already subscribed, \ref Room may
    * immediately call \ref handleTrackSubscribed to start a reader.
@@ -106,6 +123,23 @@ public:
                                const std::string &track_name,
                                AudioFrameCallback callback,
                                AudioStream::Options opts = {});
+
+  /**
+   * Register or replace a video frame callback for a remote subscription.
+   *
+   * The callback is keyed by remote participant identity plus \p source.
+   * If the matching remote video track is already subscribed, \ref Room may
+   * immediately call \ref handleTrackSubscribed to start a reader.
+   *
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source to match.
+   * @param callback             Function invoked for each decoded video frame.
+   * @param opts                 Options used when creating the backing
+   *                             \ref VideoStream.
+   */
+  void setOnVideoFrameCallback(const std::string &participant_identity,
+                               TrackSource source, VideoFrameCallback callback,
+                               VideoStream::Options opts = {});
 
   /**
    * Register or replace a video frame callback for a remote subscription.
@@ -132,10 +166,34 @@ public:
    * closed and the thread is joined before this call returns.
    *
    * @param participant_identity Identity of the remote participant.
+   * @param source               Track source to clear.
+   */
+  void clearOnAudioFrameCallback(const std::string &participant_identity,
+                                 TrackSource source);
+
+  /**
+   * Remove an audio callback registration and stop any active reader.
+   *
+   * If an audio reader thread is active for the given key, its stream is
+   * closed and the thread is joined before this call returns.
+   *
+   * @param participant_identity Identity of the remote participant.
    * @param track_name           Track name to clear.
    */
   void clearOnAudioFrameCallback(const std::string &participant_identity,
                                  const std::string &track_name);
+
+  /**
+   * Remove a video callback registration and stop any active reader.
+   *
+   * If a video reader thread is active for the given key, its stream is
+   * closed and the thread is joined before this call returns.
+   *
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source to clear.
+   */
+  void clearOnVideoFrameCallback(const std::string &participant_identity,
+                                 TrackSource source);
 
   /**
    * Remove a video callback registration and stop any active reader.
@@ -155,31 +213,32 @@ public:
    * \ref Room calls this after it has processed a track-subscription event and
    * updated its publication state. If a matching callback registration exists,
    * the dispatcher creates the appropriate stream type and launches a reader
-   * thread for the `(participant, track_name)` key.
+   * thread for the `(participant, source)` key.
    *
    * If no matching callback is registered, this is a no-op.
    *
    * @param participant_identity Identity of the remote participant.
-   * @param track_name           Track name associated with the subscription.
+   * @param source               Track source associated with the subscription.
    * @param track                Subscribed remote track to read from.
    */
   void handleTrackSubscribed(const std::string &participant_identity,
-                             const std::string &track_name,
+                             TrackSource source, const std::string &track_name,
                              const std::shared_ptr<Track> &track);
 
   /**
    * Stop reader dispatch for an unsubscribed remote track.
    *
    * \ref Room calls this when a remote track is unsubscribed. Any active
-   * reader stream for the given `(participant, track_name)` key is closed and
-   * its
+   * reader stream for the given `(participant, source)` key is closed and its
    * thread is joined. Callback registration is preserved so future
    * re-subscription can start dispatch again automatically.
    *
    * @param participant_identity Identity of the remote participant.
+   * @param source               Track source associated with the subscription.
    * @param track_name           Track name associated with the subscription.
    */
   void handleTrackUnsubscribed(const std::string &participant_identity,
+                               TrackSource source,
                                const std::string &track_name);
 
   // ---------------------------------------------------------------
@@ -250,14 +309,17 @@ public:
 private:
   friend class SubscriptionThreadDispatcherTest;
 
-  /// Compound lookup key for a remote participant identity and track name.
+  /// Compound lookup key for callback dispatch:
+  /// either `(participant, source, "")` or `(participant, SOURCE_UNKNOWN,
+  /// track_name)`.
   struct CallbackKey {
     std::string participant_identity;
+    TrackSource source;
     std::string track_name;
 
     bool operator==(const CallbackKey &o) const {
       return participant_identity == o.participant_identity &&
-             track_name == o.track_name;
+             source == o.source && track_name == o.track_name;
     }
   };
 
@@ -265,8 +327,9 @@ private:
   struct CallbackKeyHash {
     std::size_t operator()(const CallbackKey &k) const {
       auto h1 = std::hash<std::string>{}(k.participant_identity);
-      auto h2 = std::hash<std::string>{}(k.track_name);
-      return h1 ^ (h2 << 1);
+      auto h2 = std::hash<int>{}(static_cast<int>(k.source));
+      auto h3 = std::hash<std::string>{}(k.track_name);
+      return h1 ^ (h2 << 1) ^ (h3 << 2);
     }
   };
 
@@ -371,15 +434,15 @@ private:
   /// Protects callback registration maps and active reader state.
   mutable std::mutex lock_;
 
-  /// Registered audio frame callbacks keyed by `(participant, track_name)`.
+  /// Registered audio frame callbacks keyed by \ref CallbackKey.
   std::unordered_map<CallbackKey, RegisteredAudioCallback, CallbackKeyHash>
       audio_callbacks_;
 
-  /// Registered video frame callbacks keyed by `(participant, track_name)`.
+  /// Registered video frame callbacks keyed by \ref CallbackKey.
   std::unordered_map<CallbackKey, RegisteredVideoCallback, CallbackKeyHash>
       video_callbacks_;
 
-  /// Active stream/thread state keyed by `(participant, track_name)`.
+  /// Active stream/thread state keyed by \ref CallbackKey.
   std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash>
       active_readers_;
 
