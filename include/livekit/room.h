@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 LiveKit
+ * Copyright 2026 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -242,59 +242,64 @@ public:
 
   /**
    * Set a callback for audio frames from a specific remote participant and
-   * track source.
+   * track name.
    *
-   * A dedicated reader thread is spawned for each (participant, source) pair
+   * A dedicated reader thread is spawned for each (participant, track_name)
+   * pair
    * when the track is subscribed. If the track is already subscribed, the
    * reader starts immediately. If not, it starts when the track arrives.
    *
-   * Only one callback may exist per (participant, source) pair. Re-calling
+   * Only one callback may exist per (participant, track_name) pair. Re-calling
    * with the same pair replaces the previous callback.
    *
    * @param participant_identity Identity of the remote participant.
-   * @param source               Track source (e.g. SOURCE_MICROPHONE).
+   * @param track_name           Track name to subscribe to.
    * @param callback             Function invoked per audio frame.
    * @param opts                 AudioStream options (capacity, noise
    * cancellation).
    */
   void setOnAudioFrameCallback(const std::string &participant_identity,
-                               TrackSource source, AudioFrameCallback callback,
+                               const std::string &track_name,
+                               AudioFrameCallback callback,
                                AudioStream::Options opts = {});
 
   /**
    * Set a callback for video frames from a specific remote participant and
-   * track source.
+   * track name.
    *
    * @see setOnAudioFrameCallback for threading and lifecycle semantics.
    *
    * @param participant_identity Identity of the remote participant.
-   * @param source               Track source (e.g. SOURCE_CAMERA).
+   * @param track_name           Track name to subscribe to.
    * @param callback             Function invoked per video frame.
    * @param opts                 VideoStream options (capacity, pixel format).
    */
   void setOnVideoFrameCallback(const std::string &participant_identity,
-                               TrackSource source, VideoFrameCallback callback,
+                               const std::string &track_name,
+                               VideoFrameCallback callback,
                                VideoStream::Options opts = {});
 
   /**
-   * Clear the audio frame callback for a specific (participant, source) pair.
+   * Clear the audio frame callback for a specific (participant, track_name)
+   * pair.
    * Stops and joins any active reader thread.
    * No-op if no callback is registered for this key.
    * @param participant_identity Identity of the remote participant.
-   * @param source               Track source (e.g. SOURCE_MICROPHONE).
+   * @param track_name           Track name to clear.
    */
   void clearOnAudioFrameCallback(const std::string &participant_identity,
-                                 TrackSource source);
+                                 const std::string &track_name);
 
   /**
-   * Clear the video frame callback for a specific (participant, source) pair.
+   * Clear the video frame callback for a specific (participant, track_name)
+   * pair.
    * Stops and joins any active reader thread.
    * No-op if no callback is registered for this key.
    * @param participant_identity Identity of the remote participant.
-   * @param source               Track source (e.g. SOURCE_CAMERA).
+   * @param track_name           Track name to clear.
    */
   void clearOnVideoFrameCallback(const std::string &participant_identity,
-                                 TrackSource source);
+                                 const std::string &track_name);
 
   /**
    * Add a callback for data frames from a specific remote participant's

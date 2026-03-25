@@ -89,12 +89,10 @@ using VideoFrameCallback = livekit::VideoFrameCallback;
  *   mic->pushFrame(pcm_data, samples_per_channel);
  *   cam->pushFrame(rgba_data, timestamp_us);
  *
- *   bridge.setOnAudioFrameCallback("remote-participant",
- *       livekit::TrackSource::SOURCE_MICROPHONE,
+ *   bridge.setOnAudioFrameCallback("remote-participant", "mic",
  *       [](const livekit::AudioFrame& f) { process(f); });
  *
- *   bridge.setOnVideoFrameCallback("remote-participant",
- *       livekit::TrackSource::SOURCE_CAMERA,
+ *   bridge.setOnVideoFrameCallback("remote-participant", "cam",
  *       [](const livekit::VideoFrame& f, int64_t ts) { render(f); });
  *
  *   // Unpublish a single track mid-session:
@@ -208,59 +206,59 @@ public:
 
   /**
    * Set the callback for audio frames from a specific remote participant
-   * and track source.
+   * and track name.
    *
    * Delegates to Room::setOnAudioFrameCallback. The callback fires on a
    * dedicated reader thread owned by Room whenever a new audio frame is
    * received.
    *
-   * @note Only **one** callback may be registered per (participant, source)
-   *       pair. Calling this again with the same identity and source will
+   * @note Only **one** callback may be registered per (participant, track_name)
+   *       pair. Calling this again with the same identity and track_name will
    *       silently replace the previous callback.
    *
    * @param participant_identity  Identity of the remote participant.
-   * @param source                Track source (e.g. SOURCE_MICROPHONE).
+   * @param track_name            Track name to subscribe to.
    * @param callback              Function to invoke per audio frame.
    */
   void setOnAudioFrameCallback(const std::string &participant_identity,
-                               livekit::TrackSource source,
+                               const std::string &track_name,
                                AudioFrameCallback callback);
 
   /**
    * Register a callback for video frames from a specific remote participant
-   * and track source.
+   * and track name.
    *
    * Delegates to Room::setOnVideoFrameCallback.
    *
-   * @note Only **one** callback may be registered per (participant, source)
-   *       pair. Calling this again with the same identity and source will
+   * @note Only **one** callback may be registered per (participant, track_name)
+   *       pair. Calling this again with the same identity and track_name will
    *       silently replace the previous callback.
    *
    * @param participant_identity  Identity of the remote participant.
-   * @param source                Track source (e.g. SOURCE_CAMERA).
+   * @param track_name            Track name to subscribe to.
    * @param callback              Function to invoke per video frame.
    */
   void setOnVideoFrameCallback(const std::string &participant_identity,
-                               livekit::TrackSource source,
+                               const std::string &track_name,
                                VideoFrameCallback callback);
 
   /**
    * Clear the audio frame callback for a specific remote participant + track
-   * source.
+   * name.
    *
    * Delegates to Room::clearOnAudioFrameCallback.
    */
   void clearOnAudioFrameCallback(const std::string &participant_identity,
-                                 livekit::TrackSource source);
+                                 const std::string &track_name);
 
   /**
    * Clear the video frame callback for a specific remote participant + track
-   * source.
+   * name.
    *
    * Delegates to Room::clearOnVideoFrameCallback.
    */
   void clearOnVideoFrameCallback(const std::string &participant_identity,
-                                 livekit::TrackSource source);
+                                 const std::string &track_name);
 
   // ---------------------------------------------------------------
   // RPC (Remote Procedure Call)

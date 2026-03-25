@@ -59,9 +59,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (url.empty() || sender_token.empty()) {
-    LK_LOG_ERROR(
-        "Usage: HelloLivekitSender <ws-url> <sender-token>\n"
-        "  or set LIVEKIT_URL, LIVEKIT_SENDER_TOKEN");
+    LK_LOG_ERROR("Usage: HelloLivekitSender <ws-url> <sender-token>\n"
+                 "  or set LIVEKIT_URL, LIVEKIT_SENDER_TOKEN");
     return 1;
   }
 
