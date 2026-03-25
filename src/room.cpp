@@ -17,8 +17,6 @@
 #include "livekit/room.h"
 
 #include "livekit/audio_stream.h"
-#include "livekit/data_frame.h"
-#include "livekit/data_track_subscription.h"
 #include "livekit/e2ee.h"
 #include "livekit/local_data_track.h"
 #include "livekit/local_participant.h"
@@ -308,133 +306,17 @@ DataFrameCallbackId
 Room::addOnDataFrameCallback(const std::string &participant_identity,
                              const std::string &track_name,
                              DataFrameCallback callback) {
-  std::thread old_thread;
-  DataFrameCallbackId id;
-  {
-    std::lock_guard<std::mutex> lock(lock_);
-    id = next_data_callback_id_++;
-    DataCallbackKey key{participant_identity, track_name};
-    data_callbacks_[id] = RegisteredDataCallback{key, std::move(callback)};
-
-    auto track_it = remote_data_tracks_.find(key);
-    if (track_it != remote_data_tracks_.end()) {
-      old_thread = startDataReader(id, key, track_it->second,
-                                   data_callbacks_[id].callback);
-    }
+  if (subscription_thread_dispatcher_) {
+    return subscription_thread_dispatcher_->addOnDataFrameCallback(
+        participant_identity, track_name, std::move(callback));
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
-  return id;
+  return std::numeric_limits<DataFrameCallbackId>::max();
 }
 
 void Room::removeOnDataFrameCallback(DataFrameCallbackId id) {
-  std::thread old_thread;
-  {
-    std::lock_guard<std::mutex> lock(lock_);
-    data_callbacks_.erase(id);
-    old_thread = extractDataReaderThread(id);
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->removeOnDataFrameCallback(id);
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
-}
-
-std::thread Room::extractReaderThread(const CallbackKey &key) {
-  auto it = active_readers_.find(key);
-  if (it == active_readers_.end()) {
-    return {};
-  }
-  ActiveReader reader = std::move(it->second);
-  active_readers_.erase(it);
-
-  if (reader.audio_stream) {
-    reader.audio_stream->close();
-  }
-  if (reader.video_stream) {
-    reader.video_stream->close();
-  }
-  return std::move(reader.thread);
-}
-
-std::thread Room::extractDataReaderThread(const DataCallbackKey &key) {
-  auto it = active_data_readers_.find(key);
-  if (it == active_data_readers_.end()) {
-    return {};
-  }
-  auto reader = std::move(it->second);
-  active_data_readers_.erase(it);
-  {
-    std::lock_guard<std::mutex> guard(reader->sub_mutex);
-    if (reader->subscription) {
-      reader->subscription->close();
-    }
-  }
-  return std::move(reader->thread);
-}
-
-std::thread Room::startDataReader(DataFrameCallbackId id,
-                                  const DataCallbackKey &key,
-                                  const std::shared_ptr<RemoteDataTrack> &track,
-                                  DataFrameCallback cb) {
-  auto old_thread = extractDataReaderThread(id);
-
-  if (static_cast<int>(active_readers_.size() + active_data_readers_.size()) >=
-      kMaxActiveReaders) {
-    LK_LOG_ERROR("Cannot start data reader for {} track={}: active reader "
-                 "limit ({}) reached",
-                 key.participant_identity, key.track_name, kMaxActiveReaders);
-    return old_thread;
-  }
-
-  LK_LOG_INFO("[Room] Starting data reader for \"{}\" track=\"{}\"",
-              key.participant_identity, key.track_name);
-
-  // subscribe() is async over FFI — it sends a request and blocks on a future
-  // whose response arrives via LivekitFfiCallback.  If we are already on the
-  // FFI callback thread (e.g. inside kDataTrackPublished handling), blocking
-  // here would deadlock.  The reader thread performs subscribe() + read loop
-  // so the callback thread is never blocked.
-  auto reader = std::make_shared<ActiveDataReader>();
-  reader->remote_track = track;
-  auto identity = key.participant_identity;
-  auto track_name = key.track_name;
-  reader->thread = std::thread([reader, track, cb, identity, track_name]() {
-    LK_LOG_INFO("[Room] Data reader thread: subscribing to \"{}\" "
-                "track=\"{}\"",
-                identity, track_name);
-    std::shared_ptr<DataTrackSubscription> subscription;
-    try {
-      subscription = track->subscribe();
-    } catch (const std::exception &e) {
-      LK_LOG_ERROR("Failed to subscribe to data track \"{}\" from \"{}\": {}",
-                   track_name, identity, e.what());
-      return;
-    }
-    LK_LOG_INFO("[Room] Data reader thread: subscribed to \"{}\" track=\"{}\"",
-                identity, track_name);
-
-    {
-      std::lock_guard<std::mutex> guard(reader->sub_mutex);
-      reader->subscription = subscription;
-    }
-
-    LK_LOG_INFO("[Room] Data reader thread: entering read loop for \"{}\" "
-                "track=\"{}\"",
-                identity, track_name);
-    DataFrame frame;
-    while (subscription->read(frame)) {
-      try {
-        cb(frame.payload, frame.user_timestamp);
-      } catch (const std::exception &e) {
-        LK_LOG_ERROR("Data frame callback exception: {}", e.what());
-      }
-    }
-    LK_LOG_INFO("[Room] Data reader thread exiting for \"{}\" track=\"{}\"",
-                identity, track_name);
-  });
-  active_data_readers_[id] = reader;
-  return old_thread;
 }
 
 void Room::OnEvent(const FfiEvent &event) {
@@ -798,29 +680,9 @@ void Room::OnEvent(const FfiEvent &event) {
       const auto &rdtp = re.data_track_published();
       auto remote_track =
           std::shared_ptr<RemoteDataTrack>(new RemoteDataTrack(rdtp.track()));
-      LK_LOG_INFO("[Room] RoomEvent::kDataTrackPublished: \"{}\" from "
-                  "\"{}\" (sid={})",
-                  remote_track->info().name, remote_track->publisherIdentity(),
-                  remote_track->info().sid);
 
-      std::vector<std::thread> old_threads;
-      {
-        std::lock_guard<std::mutex> guard(lock_);
-        DataCallbackKey key{remote_track->publisherIdentity(),
-                            remote_track->info().name};
-        remote_data_tracks_[key] = remote_track;
-
-        for (auto &[id, reg] : data_callbacks_) {
-          if (reg.key == key) {
-            auto t = startDataReader(id, key, remote_track, reg.callback);
-            if (t.joinable()) {
-              old_threads.push_back(std::move(t));
-            }
-          }
-        }
-      }
-      for (auto &t : old_threads) {
-        t.join();
+      if (subscription_thread_dispatcher_) {
+        subscription_thread_dispatcher_->handleDataTrackPublished(remote_track);
       }
 
       DataTrackPublishedEvent ev;
@@ -832,40 +694,9 @@ void Room::OnEvent(const FfiEvent &event) {
     }
     case proto::RoomEvent::kDataTrackUnpublished: {
       const auto &dtu = re.data_track_unpublished();
-      LK_LOG_INFO("[Room] RoomEvent::kDataTrackUnpublished: sid={}", dtu.sid());
 
-      std::vector<std::thread> old_threads;
-      {
-        std::lock_guard<std::mutex> guard(lock_);
-        for (auto it = active_data_readers_.begin();
-             it != active_data_readers_.end();) {
-          auto &reader = it->second;
-          if (reader->remote_track &&
-              reader->remote_track->info().sid == dtu.sid()) {
-            {
-              std::lock_guard<std::mutex> sub_guard(reader->sub_mutex);
-              if (reader->subscription) {
-                reader->subscription->close();
-              }
-            }
-            if (reader->thread.joinable()) {
-              old_threads.push_back(std::move(reader->thread));
-            }
-            it = active_data_readers_.erase(it);
-          } else {
-            ++it;
-          }
-        }
-        for (auto it = remote_data_tracks_.begin();
-             it != remote_data_tracks_.end(); ++it) {
-          if (it->second && it->second->info().sid == dtu.sid()) {
-            remote_data_tracks_.erase(it);
-            break;
-          }
-        }
-      }
-      for (auto &t : old_threads) {
-        t.join();
+      if (subscription_thread_dispatcher_) {
+        subscription_thread_dispatcher_->handleDataTrackUnpublished(dtu.sid());
       }
 
       DataTrackUnpublishedEvent ev;

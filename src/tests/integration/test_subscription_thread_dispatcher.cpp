@@ -36,6 +36,8 @@ protected:
 
   using CallbackKey = SubscriptionThreadDispatcher::CallbackKey;
   using CallbackKeyHash = SubscriptionThreadDispatcher::CallbackKeyHash;
+  using DataCallbackKey = SubscriptionThreadDispatcher::DataCallbackKey;
+  using DataCallbackKeyHash = SubscriptionThreadDispatcher::DataCallbackKeyHash;
 
   static auto &audioCallbacks(SubscriptionThreadDispatcher &dispatcher) {
     return dispatcher.audio_callbacks_;
@@ -45,6 +47,15 @@ protected:
   }
   static auto &activeReaders(SubscriptionThreadDispatcher &dispatcher) {
     return dispatcher.active_readers_;
+  }
+  static auto &dataCallbacks(SubscriptionThreadDispatcher &dispatcher) {
+    return dispatcher.data_callbacks_;
+  }
+  static auto &activeDataReaders(SubscriptionThreadDispatcher &dispatcher) {
+    return dispatcher.active_data_readers_;
+  }
+  static auto &remoteDataTracks(SubscriptionThreadDispatcher &dispatcher) {
+    return dispatcher.remote_data_tracks_;
   }
   static int maxActiveReaders() {
     return SubscriptionThreadDispatcher::kMaxActiveReaders;
@@ -378,6 +389,266 @@ TEST_F(SubscriptionThreadDispatcherTest, ManyDistinctCallbacksCanBeRegistered) {
   }
 
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 0u);
+}
+
+// ============================================================================
+// DataCallbackKey equality
+// ============================================================================
+
+TEST_F(SubscriptionThreadDispatcherTest, DataCallbackKeyEqualKeysCompareEqual) {
+  DataCallbackKey a{"alice", "my-track"};
+  DataCallbackKey b{"alice", "my-track"};
+  EXPECT_TRUE(a == b);
+}
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       DataCallbackKeyDifferentIdentityNotEqual) {
+  DataCallbackKey a{"alice", "my-track"};
+  DataCallbackKey b{"bob", "my-track"};
+  EXPECT_FALSE(a == b);
+}
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       DataCallbackKeyDifferentTrackNameNotEqual) {
+  DataCallbackKey a{"alice", "track-a"};
+  DataCallbackKey b{"alice", "track-b"};
+  EXPECT_FALSE(a == b);
+}
+
+// ============================================================================
+// DataCallbackKeyHash
+// ============================================================================
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       DataCallbackKeyHashEqualKeysProduceSameHash) {
+  DataCallbackKey a{"alice", "my-track"};
+  DataCallbackKey b{"alice", "my-track"};
+  DataCallbackKeyHash hasher;
+  EXPECT_EQ(hasher(a), hasher(b));
+}
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       DataCallbackKeyHashDifferentKeysLikelyDifferentHash) {
+  DataCallbackKeyHash hasher;
+  DataCallbackKey a{"alice", "track-a"};
+  DataCallbackKey b{"alice", "track-b"};
+  DataCallbackKey c{"bob", "track-a"};
+  EXPECT_NE(hasher(a), hasher(b));
+  EXPECT_NE(hasher(a), hasher(c));
+}
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       DataCallbackKeyWorksAsUnorderedMapKey) {
+  std::unordered_map<DataCallbackKey, int, DataCallbackKeyHash> map;
+
+  DataCallbackKey k1{"alice", "track-a"};
+  DataCallbackKey k2{"bob", "track-b"};
+  DataCallbackKey k3{"alice", "track-b"};
+
+  map[k1] = 1;
+  map[k2] = 2;
+  map[k3] = 3;
+
+  EXPECT_EQ(map.size(), 3u);
+  EXPECT_EQ(map[k1], 1);
+  EXPECT_EQ(map[k2], 2);
+  EXPECT_EQ(map[k3], 3);
+
+  map[k1] = 42;
+  EXPECT_EQ(map[k1], 42);
+  EXPECT_EQ(map.size(), 3u);
+
+  map.erase(k2);
+  EXPECT_EQ(map.size(), 2u);
+  EXPECT_EQ(map.count(k2), 0u);
+}
+
+// ============================================================================
+// Data callback registration and clearing
+// ============================================================================
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       AddDataFrameCallbackStoresRegistration) {
+  SubscriptionThreadDispatcher dispatcher;
+  auto id = dispatcher.addOnDataFrameCallback(
+      "alice", "my-track",
+      [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
+
+  EXPECT_NE(id, 0u);
+  EXPECT_EQ(dataCallbacks(dispatcher).size(), 1u);
+}
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       RemoveDataFrameCallbackRemovesRegistration) {
+  SubscriptionThreadDispatcher dispatcher;
+  auto id = dispatcher.addOnDataFrameCallback(
+      "alice", "my-track",
+      [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
+  ASSERT_EQ(dataCallbacks(dispatcher).size(), 1u);
+
+  dispatcher.removeOnDataFrameCallback(id);
+  EXPECT_EQ(dataCallbacks(dispatcher).size(), 0u);
+}
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       RemoveNonExistentDataCallbackIsNoOp) {
+  SubscriptionThreadDispatcher dispatcher;
+  EXPECT_NO_THROW(dispatcher.removeOnDataFrameCallback(999));
+}
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       MultipleDataCallbacksForSameKeyAreIndependent) {
+  SubscriptionThreadDispatcher dispatcher;
+  auto cb = [](const std::vector<std::uint8_t> &,
+               std::optional<std::uint64_t>) {};
+  auto id1 = dispatcher.addOnDataFrameCallback("alice", "track", cb);
+  auto id2 = dispatcher.addOnDataFrameCallback("alice", "track", cb);
+
+  EXPECT_NE(id1, id2);
+  EXPECT_EQ(dataCallbacks(dispatcher).size(), 2u);
+
+  dispatcher.removeOnDataFrameCallback(id1);
+  EXPECT_EQ(dataCallbacks(dispatcher).size(), 1u);
+}
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       DataCallbackIdsAreMonotonicallyIncreasing) {
+  SubscriptionThreadDispatcher dispatcher;
+  auto cb = [](const std::vector<std::uint8_t> &,
+               std::optional<std::uint64_t>) {};
+  auto id1 = dispatcher.addOnDataFrameCallback("alice", "t1", cb);
+  auto id2 = dispatcher.addOnDataFrameCallback("bob", "t2", cb);
+  auto id3 = dispatcher.addOnDataFrameCallback("carol", "t3", cb);
+
+  EXPECT_LT(id1, id2);
+  EXPECT_LT(id2, id3);
+}
+
+// ============================================================================
+// Data track active readers (no real tracks, just map state)
+// ============================================================================
+
+TEST_F(SubscriptionThreadDispatcherTest, NoActiveDataReadersInitially) {
+  SubscriptionThreadDispatcher dispatcher;
+  EXPECT_TRUE(activeDataReaders(dispatcher).empty());
+}
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       ActiveDataReadersEmptyAfterCallbackRegistration) {
+  SubscriptionThreadDispatcher dispatcher;
+  dispatcher.addOnDataFrameCallback(
+      "alice", "my-track",
+      [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
+  EXPECT_TRUE(activeDataReaders(dispatcher).empty())
+      << "Registering a callback without a published track should not spawn "
+         "readers";
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, NoRemoteDataTracksInitially) {
+  SubscriptionThreadDispatcher dispatcher;
+  EXPECT_TRUE(remoteDataTracks(dispatcher).empty());
+}
+
+// ============================================================================
+// Data track destruction safety
+// ============================================================================
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       DestroyDispatcherWithDataCallbacksIsSafe) {
+  EXPECT_NO_THROW({
+    SubscriptionThreadDispatcher dispatcher;
+    dispatcher.addOnDataFrameCallback(
+        "alice", "track-a",
+        [](const std::vector<std::uint8_t> &,
+           std::optional<std::uint64_t>) {});
+    dispatcher.addOnDataFrameCallback(
+        "bob", "track-b",
+        [](const std::vector<std::uint8_t> &,
+           std::optional<std::uint64_t>) {});
+  });
+}
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       DestroyDispatcherAfterRemovingDataCallbacksIsSafe) {
+  EXPECT_NO_THROW({
+    SubscriptionThreadDispatcher dispatcher;
+    auto id = dispatcher.addOnDataFrameCallback(
+        "alice", "track-a",
+        [](const std::vector<std::uint8_t> &,
+           std::optional<std::uint64_t>) {});
+    dispatcher.removeOnDataFrameCallback(id);
+  });
+}
+
+// ============================================================================
+// Mixed audio/video/data registration
+// ============================================================================
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       MixedAudioVideoDataCallbacksAreIndependent) {
+  SubscriptionThreadDispatcher dispatcher;
+  dispatcher.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE,
+                                     [](const AudioFrame &) {});
+  dispatcher.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA,
+                                     [](const VideoFrame &, std::int64_t) {});
+  dispatcher.addOnDataFrameCallback(
+      "alice", "data-track",
+      [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
+
+  EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u);
+  EXPECT_EQ(videoCallbacks(dispatcher).size(), 1u);
+  EXPECT_EQ(dataCallbacks(dispatcher).size(), 1u);
+}
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       StopAllClearsDataCallbacksAndReaders) {
+  SubscriptionThreadDispatcher dispatcher;
+  dispatcher.addOnDataFrameCallback(
+      "alice", "track-a",
+      [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
+  dispatcher.addOnDataFrameCallback(
+      "bob", "track-b",
+      [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
+
+  dispatcher.stopAll();
+
+  EXPECT_EQ(dataCallbacks(dispatcher).size(), 0u);
+  EXPECT_TRUE(activeDataReaders(dispatcher).empty());
+  EXPECT_TRUE(remoteDataTracks(dispatcher).empty());
+}
+
+// ============================================================================
+// Concurrent data callback registration
+// ============================================================================
+
+TEST_F(SubscriptionThreadDispatcherTest,
+       ConcurrentDataCallbackRegistrationDoesNotCrash) {
+  SubscriptionThreadDispatcher dispatcher;
+  constexpr int kThreads = 8;
+  constexpr int kIterations = 100;
+
+  std::vector<std::thread> threads;
+  threads.reserve(kThreads);
+
+  for (int t = 0; t < kThreads; ++t) {
+    threads.emplace_back([&dispatcher, t]() {
+      for (int i = 0; i < kIterations; ++i) {
+        auto id = dispatcher.addOnDataFrameCallback(
+            "participant-" + std::to_string(t), "track",
+            [](const std::vector<std::uint8_t> &,
+               std::optional<std::uint64_t>) {});
+        dispatcher.removeOnDataFrameCallback(id);
+      }
+    });
+  }
+
+  for (auto &thread : threads) {
+    thread.join();
+  }
+
+  EXPECT_TRUE(dataCallbacks(dispatcher).empty())
+      << "All data callbacks should be cleared after concurrent "
+         "register/remove";
 }
 
 } // namespace livekit

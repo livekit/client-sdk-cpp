@@ -16,7 +16,10 @@
 
 #include "livekit/subscription_thread_dispatcher.h"
 
+#include "livekit/data_frame.h"
+#include "livekit/data_track_subscription.h"
 #include "livekit/lk_log.h"
+#include "livekit/remote_data_track.h"
 #include "livekit/track.h"
 
 #include <exception>
@@ -40,7 +43,8 @@ const char *trackKindName(TrackKind kind) {
 
 } // namespace
 
-SubscriptionThreadDispatcher::SubscriptionThreadDispatcher() = default;
+SubscriptionThreadDispatcher::SubscriptionThreadDispatcher()
+    : next_data_callback_id_(1) {}
 
 SubscriptionThreadDispatcher::~SubscriptionThreadDispatcher() {
   LK_LOG_DEBUG("Destroying SubscriptionThreadDispatcher");
@@ -158,23 +162,127 @@ void SubscriptionThreadDispatcher::handleTrackUnsubscribed(
   }
 }
 
-void SubscriptionThreadDispatcher::stopAll() {
-  std::vector<std::thread> threads;
-  std::size_t active_reader_count = 0;
-  std::size_t audio_callback_count = 0;
-  std::size_t video_callback_count = 0;
+// -------------------------------------------------------------------
+// Data track callback registration
+// -------------------------------------------------------------------
+
+DataFrameCallbackId SubscriptionThreadDispatcher::addOnDataFrameCallback(
+    const std::string &participant_identity, const std::string &track_name,
+    DataFrameCallback callback) {
+  std::thread old_thread;
+  DataFrameCallbackId id;
   {
     std::lock_guard<std::mutex> lock(lock_);
-    active_reader_count = active_readers_.size();
-    audio_callback_count = audio_callbacks_.size();
-    video_callback_count = video_callbacks_.size();
+    id = next_data_callback_id_++;
+    DataCallbackKey key{participant_identity, track_name};
+    data_callbacks_[id] = RegisteredDataCallback{key, std::move(callback)};
+
+    auto track_it = remote_data_tracks_.find(key);
+    if (track_it != remote_data_tracks_.end()) {
+      old_thread = startDataReaderLocked(id, key, track_it->second,
+                                         data_callbacks_[id].callback);
+    }
+  }
+  if (old_thread.joinable()) {
+    old_thread.join();
+  }
+  return id;
+}
+
+void SubscriptionThreadDispatcher::removeOnDataFrameCallback(
+    DataFrameCallbackId id) {
+  std::thread old_thread;
+  {
+    std::lock_guard<std::mutex> lock(lock_);
+    data_callbacks_.erase(id);
+    old_thread = extractDataReaderThreadLocked(id);
+  }
+  if (old_thread.joinable()) {
+    old_thread.join();
+  }
+}
+
+void SubscriptionThreadDispatcher::handleDataTrackPublished(
+    const std::shared_ptr<RemoteDataTrack> &track) {
+  if (!track) {
+    LK_LOG_WARN("handleDataTrackPublished called with null track");
+    return;
+  }
+
+  LK_LOG_INFO("Handling data track published: \"{}\" from \"{}\" (sid={})",
+              track->info().name, track->publisherIdentity(),
+              track->info().sid);
+
+  std::vector<std::thread> old_threads;
+  {
+    std::lock_guard<std::mutex> lock(lock_);
+    DataCallbackKey key{track->publisherIdentity(), track->info().name};
+    remote_data_tracks_[key] = track;
+
+    for (auto &[id, reg] : data_callbacks_) {
+      if (reg.key == key) {
+        auto t = startDataReaderLocked(id, key, track, reg.callback);
+        if (t.joinable()) {
+          old_threads.push_back(std::move(t));
+        }
+      }
+    }
+  }
+  for (auto &t : old_threads) {
+    t.join();
+  }
+}
+
+void SubscriptionThreadDispatcher::handleDataTrackUnpublished(
+    const std::string &sid) {
+  LK_LOG_INFO("Handling data track unpublished: sid={}", sid);
+
+  std::vector<std::thread> old_threads;
+  {
+    std::lock_guard<std::mutex> lock(lock_);
+    for (auto it = active_data_readers_.begin();
+         it != active_data_readers_.end();) {
+      auto &reader = it->second;
+      if (reader->remote_track && reader->remote_track->info().sid == sid) {
+        {
+          std::lock_guard<std::mutex> sub_guard(reader->sub_mutex);
+          if (reader->subscription) {
+            reader->subscription->close();
+          }
+        }
+        if (reader->thread.joinable()) {
+          old_threads.push_back(std::move(reader->thread));
+        }
+        it = active_data_readers_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+    for (auto it = remote_data_tracks_.begin(); it != remote_data_tracks_.end();
+         ++it) {
+      if (it->second && it->second->info().sid == sid) {
+        remote_data_tracks_.erase(it);
+        break;
+      }
+    }
+  }
+  for (auto &t : old_threads) {
+    t.join();
+  }
+}
+
+void SubscriptionThreadDispatcher::stopAll() {
+  std::vector<std::thread> threads;
+  {
+    std::lock_guard<std::mutex> lock(lock_);
     LK_LOG_DEBUG("Stopping all subscription readers active_readers={} "
-                 "audio_callbacks={} video_callbacks={}",
-                 active_reader_count, audio_callback_count,
-                 video_callback_count);
+                 "active_data_readers={} audio_callbacks={} "
+                 "video_callbacks={} data_callbacks={}",
+                 active_readers_.size(), active_data_readers_.size(),
+                 audio_callbacks_.size(), video_callbacks_.size(),
+                 data_callbacks_.size());
+
     for (auto &[key, reader] : active_readers_) {
-      LK_LOG_TRACE("Closing active reader for participant={} source={}",
-                   key.participant_identity, static_cast<int>(key.source));
       if (reader.audio_stream) {
         reader.audio_stream->close();
       }
@@ -188,6 +296,21 @@ void SubscriptionThreadDispatcher::stopAll() {
     active_readers_.clear();
     audio_callbacks_.clear();
     video_callbacks_.clear();
+
+    for (auto &[id, reader] : active_data_readers_) {
+      {
+        std::lock_guard<std::mutex> sub_guard(reader->sub_mutex);
+        if (reader->subscription) {
+          reader->subscription->close();
+        }
+      }
+      if (reader->thread.joinable()) {
+        threads.push_back(std::move(reader->thread));
+      }
+    }
+    active_data_readers_.clear();
+    data_callbacks_.clear();
+    remote_data_tracks_.clear();
   }
   for (auto &thread : threads) {
     thread.join();
@@ -356,6 +479,104 @@ std::thread SubscriptionThreadDispatcher::startVideoReaderLocked(
                "active_readers={}",
                key.participant_identity, static_cast<int>(key.source),
                active_readers_.size());
+  return old_thread;
+}
+
+// -------------------------------------------------------------------
+// Data track reader helpers
+// -------------------------------------------------------------------
+
+std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(
+    DataFrameCallbackId id) {
+  auto it = active_data_readers_.find(id);
+  if (it == active_data_readers_.end()) {
+    return {};
+  }
+  auto reader = std::move(it->second);
+  active_data_readers_.erase(it);
+  {
+    std::lock_guard<std::mutex> guard(reader->sub_mutex);
+    if (reader->subscription) {
+      reader->subscription->close();
+    }
+  }
+  return std::move(reader->thread);
+}
+
+std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(
+    const DataCallbackKey &key) {
+  for (auto it = active_data_readers_.begin(); it != active_data_readers_.end();
+       ++it) {
+    if (it->second && it->second->remote_track &&
+        it->second->remote_track->publisherIdentity() ==
+            key.participant_identity &&
+        it->second->remote_track->info().name == key.track_name) {
+      auto reader = std::move(it->second);
+      active_data_readers_.erase(it);
+      {
+        std::lock_guard<std::mutex> guard(reader->sub_mutex);
+        if (reader->subscription) {
+          reader->subscription->close();
+        }
+      }
+      return std::move(reader->thread);
+    }
+  }
+  return {};
+}
+
+std::thread SubscriptionThreadDispatcher::startDataReaderLocked(
+    DataFrameCallbackId id, const DataCallbackKey &key,
+    const std::shared_ptr<RemoteDataTrack> &track, DataFrameCallback cb) {
+  auto old_thread = extractDataReaderThreadLocked(id);
+
+  int total_active = static_cast<int>(active_readers_.size()) +
+                     static_cast<int>(active_data_readers_.size());
+  if (total_active >= kMaxActiveReaders) {
+    LK_LOG_ERROR("Cannot start data reader for {} track={}: active reader "
+                 "limit ({}) reached",
+                 key.participant_identity, key.track_name, kMaxActiveReaders);
+    return old_thread;
+  }
+
+  LK_LOG_INFO("Starting data reader for \"{}\" track=\"{}\"",
+              key.participant_identity, key.track_name);
+
+  auto reader = std::make_shared<ActiveDataReader>();
+  reader->remote_track = track;
+  auto identity = key.participant_identity;
+  auto track_name = key.track_name;
+  reader->thread = std::thread([reader, track, cb, identity, track_name]() {
+    LK_LOG_INFO("Data reader thread: subscribing to \"{}\" track=\"{}\"",
+                identity, track_name);
+    std::shared_ptr<DataTrackSubscription> subscription;
+    try {
+      subscription = track->subscribe();
+    } catch (const std::exception &e) {
+      LK_LOG_ERROR("Failed to subscribe to data track \"{}\" from \"{}\": {}",
+                   track_name, identity, e.what());
+      return;
+    }
+    LK_LOG_INFO("Data reader thread: subscribed to \"{}\" track=\"{}\"",
+                identity, track_name);
+
+    {
+      std::lock_guard<std::mutex> guard(reader->sub_mutex);
+      reader->subscription = subscription;
+    }
+
+    DataFrame frame;
+    while (subscription->read(frame)) {
+      try {
+        cb(frame.payload, frame.user_timestamp);
+      } catch (const std::exception &e) {
+        LK_LOG_ERROR("Data frame callback exception: {}", e.what());
+      }
+    }
+    LK_LOG_INFO("Data reader thread exiting for \"{}\" track=\"{}\"", identity,
+                track_name);
+  });
+  active_data_readers_[id] = reader;
   return old_thread;
 }
 
