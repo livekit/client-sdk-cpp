@@ -18,7 +18,6 @@
 #define LIVEKIT_ROOM_H
 
 #include "livekit/data_stream.h"
-#include "livekit/data_track_subscription.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
@@ -31,8 +30,6 @@
 namespace livekit {
 
 class RoomDelegate;
-class RemoteDataTrack;
-class DataTrackSubscription;
 struct RoomInfoData;
 namespace proto {
 class FfiEvent;
@@ -315,10 +312,13 @@ public:
    * @param callback              Function to invoke per data frame.
    * @return An opaque ID that can later be passed to
    *         removeOnDataFrameCallback() to tear down this subscription.
+   * If the subscription thread dispatcher is not available, returns
+   * std::numeric_limits<DataFrameCallbackId>::max().
    */
-  DataFrameCallbackId addOnDataFrameCallback(
-      const std::string &participant_identity,
-      const std::string &track_name, DataFrameCallback callback);
+  DataFrameCallbackId
+  addOnDataFrameCallback(const std::string &participant_identity,
+                         const std::string &track_name,
+                         DataFrameCallback callback);
 
   /**
    * Remove a data frame callback previously registered via
