@@ -45,6 +45,7 @@ set(EXAMPLES_ALL
   SimpleDataStream
   SimpleStatusProducer
   SimpleStatusConsumer
+  HelloLivekit
   LoggingLevelsBasicUsage
   LoggingLevelsCustomSinks
   BridgeRobot
@@ -265,6 +266,20 @@ add_executable(SimpleStatusConsumer
 target_include_directories(SimpleStatusConsumer PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
 
 target_link_libraries(SimpleStatusConsumer
+  PRIVATE
+    livekit
+    spdlog::spdlog
+)
+
+# --- hello_livekit (minimal synthetic video + data publish / subscribe) ---
+
+add_executable(HelloLivekit
+  hello_livekit/hello_livekit.cpp
+)
+
+target_include_directories(HelloLivekit PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(HelloLivekit
   PRIVATE
     livekit
     spdlog::spdlog
