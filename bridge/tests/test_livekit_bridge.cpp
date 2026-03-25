@@ -101,12 +101,10 @@ TEST_F(LiveKitBridgeTest, SetAndClearAudioCallbackBeforeConnectDoesNotCrash) {
   LiveKitBridge bridge;
 
   EXPECT_NO_THROW({
-    bridge.setOnAudioFrameCallback("remote-participant",
-                                   livekit::TrackSource::SOURCE_MICROPHONE,
+    bridge.setOnAudioFrameCallback("remote-participant", "microphone",
                                    [](const livekit::AudioFrame &) {});
 
-    bridge.clearOnAudioFrameCallback("remote-participant",
-                                     livekit::TrackSource::SOURCE_MICROPHONE);
+    bridge.clearOnAudioFrameCallback("remote-participant", "microphone");
   }) << "set/clear audio callback before connect should be safe (warns)";
 }
 
@@ -115,11 +113,10 @@ TEST_F(LiveKitBridgeTest, SetAndClearVideoCallbackBeforeConnectDoesNotCrash) {
 
   EXPECT_NO_THROW({
     bridge.setOnVideoFrameCallback(
-        "remote-participant", livekit::TrackSource::SOURCE_CAMERA,
+        "remote-participant", "camera",
         [](const livekit::VideoFrame &, std::int64_t) {});
 
-    bridge.clearOnVideoFrameCallback("remote-participant",
-                                     livekit::TrackSource::SOURCE_CAMERA);
+    bridge.clearOnVideoFrameCallback("remote-participant", "camera");
   }) << "set/clear video callback before connect should be safe (warns)";
 }
 
@@ -127,10 +124,8 @@ TEST_F(LiveKitBridgeTest, ClearNonExistentCallbackIsNoOp) {
   LiveKitBridge bridge;
 
   EXPECT_NO_THROW({
-    bridge.clearOnAudioFrameCallback("nonexistent",
-                                     livekit::TrackSource::SOURCE_MICROPHONE);
-    bridge.clearOnVideoFrameCallback("nonexistent",
-                                     livekit::TrackSource::SOURCE_CAMERA);
+    bridge.clearOnAudioFrameCallback("nonexistent", "microphone");
+    bridge.clearOnVideoFrameCallback("nonexistent", "camera");
   }) << "Clearing a callback that was never registered should be a no-op";
 }
 

@@ -232,7 +232,7 @@ int main(int argc, char *argv[]) {
 
   // ----- Set audio callbacks using Room::setOnAudioFrameCallback -----
   room->setOnAudioFrameCallback(
-      "robot", livekit::TrackSource::SOURCE_MICROPHONE,
+      "robot", "robot-mic",
       [playAudio, no_audio](const livekit::AudioFrame &frame) {
         g_audio_frames.fetch_add(1, std::memory_order_relaxed);
         if (!no_audio && g_selected_source.load(std::memory_order_relaxed) ==
@@ -242,7 +242,7 @@ int main(int argc, char *argv[]) {
       });
 
   room->setOnAudioFrameCallback(
-      "robot", livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO,
+      "robot", "robot-sim-audio",
       [playAudio, no_audio](const livekit::AudioFrame &frame) {
         g_audio_frames.fetch_add(1, std::memory_order_relaxed);
         if (!no_audio && g_selected_source.load(std::memory_order_relaxed) ==
@@ -253,7 +253,7 @@ int main(int argc, char *argv[]) {
 
   // ----- Set video callbacks using Room::setOnVideoFrameCallback -----
   room->setOnVideoFrameCallback(
-      "robot", livekit::TrackSource::SOURCE_CAMERA,
+      "robot", "robot-cam",
       [](const livekit::VideoFrame &frame, std::int64_t /*timestamp_us*/) {
         g_video_frames.fetch_add(1, std::memory_order_relaxed);
         if (g_selected_source.load(std::memory_order_relaxed) ==
@@ -263,7 +263,7 @@ int main(int argc, char *argv[]) {
       });
 
   room->setOnVideoFrameCallback(
-      "robot", livekit::TrackSource::SOURCE_SCREENSHARE,
+      "robot", "robot-sim-frame",
       [](const livekit::VideoFrame &frame, std::int64_t /*timestamp_us*/) {
         g_video_frames.fetch_add(1, std::memory_order_relaxed);
         if (g_selected_source.load(std::memory_order_relaxed) ==

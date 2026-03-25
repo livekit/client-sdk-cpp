@@ -35,6 +35,7 @@
 using namespace livekit;
 
 constexpr const char *kDataTrackName = "app-data";
+constexpr const char *kVideoTrackName = "camera0";
 
 std::atomic<bool> g_running{true};
 
@@ -91,7 +92,7 @@ int main(int argc, char *argv[]) {
 
   int video_frame_count = 0;
   room->setOnVideoFrameCallback(
-      sender_identity, TrackSource::SOURCE_CAMERA,
+      sender_identity, kVideoTrackName,
       [&video_frame_count](const VideoFrame &frame, std::int64_t timestamp_us) {
         const auto ts_ms =
             std::chrono::duration<double, std::milli>(timestamp_us).count();
@@ -114,8 +115,9 @@ int main(int argc, char *argv[]) {
       });
 
   LK_LOG_INFO(
-      "[receiver] Listening for camera + data track '{}'; Ctrl-C to exit",
-      kDataTrackName);
+      "[receiver] Listening for video track '{}' + data track '{}'; Ctrl-C to "
+      "exit",
+      kVideoTrackName, kDataTrackName);
 
   while (g_running.load()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
