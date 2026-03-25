@@ -17,7 +17,8 @@
 // This test is used to verify that data tracks are published and received
 // correctly. It is the same implementation as the rust
 // client-sdk-rust/livekit/tests/data_track_test.rs test. To run this test, run
-// a local SFU, set credentials examples/tokens/set_test_tokens.bash, and run:
+// a local SFU, set credentials examples/tokens/set_data_track_test_tokens.bash,
+// and run:
 //   ./build-debug/bin/livekit_integration_tests
 
 #include "../common/test_common.h"
@@ -567,10 +568,9 @@ TEST_F(DataTrackE2ETest, PublishesAndReceivesEncryptedFramesEndToEnd) {
   }
   ASSERT_FALSE(frame.payload.empty());
   const auto first_byte = frame.payload.front();
-  EXPECT_TRUE(std::all_of(frame.payload.begin(), frame.payload.end(),
-                          [first_byte](std::uint8_t byte) {
-                            return byte == first_byte;
-                          }))
+  EXPECT_TRUE(std::all_of(
+      frame.payload.begin(), frame.payload.end(),
+      [first_byte](std::uint8_t byte) { return byte == first_byte; }))
       << "Encrypted payload is not byte-consistent";
   EXPECT_FALSE(frame.user_timestamp.has_value())
       << "Unexpected user timestamp on encrypted frame";
