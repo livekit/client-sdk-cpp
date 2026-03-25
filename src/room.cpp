@@ -171,8 +171,8 @@ bool Room::Connect(const std::string &url, const std::string &token,
     std::unique_ptr<E2EEManager> new_e2ee_manager;
     if (options.encryption) {
       LK_LOG_INFO("creating E2eeManager");
-      e2ee_manager_ = std::unique_ptr<E2EEManager>(
-          new E2EEManager(room_handle_->get(), options.encryption.value()));
+      new_e2ee_manager = std::unique_ptr<E2EEManager>(
+          new E2EEManager(new_room_handle->get(), options.encryption.value()));
     }
 
     // Publish all state atomically under lock
@@ -228,6 +228,11 @@ Room::remoteParticipants() const {
     out.push_back(kv.second);
   }
   return out;
+}
+
+E2EEManager *Room::e2eeManager() const {
+  std::lock_guard<std::mutex> g(lock_);
+  return e2ee_manager_.get();
 }
 
 void Room::registerTextStreamHandler(const std::string &topic,
