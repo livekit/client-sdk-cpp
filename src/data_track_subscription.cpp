@@ -160,11 +160,7 @@ void DataTrackSubscription::pushFrame(DataFrame &&frame) {
   }
 
   // rust side handles buffering, so we should only really ever have one item
-  if (frame_.has_value()) {
-    LK_LOG_ERROR("[DataTrackSubscription] Frame is already set, the "
-                 "application cannot keep up with the data rate");
-    return;
-  }
+  assert(!frame_.has_value());
 
   frame_ = std::move(frame);
 
