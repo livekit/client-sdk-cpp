@@ -190,9 +190,9 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
       LocalAudioTrack::createLocalAudioTrack("latency-test", audio_source);
 
   TrackPublishOptions publish_options;
-  auto publication = sender_room->localParticipant()->publishTrack(
-      audio_track, publish_options);
-  ASSERT_NE(publication, nullptr) << "Failed to publish audio track";
+  sender_room->localParticipant()->publishTrack(audio_track, publish_options);
+  ASSERT_NE(audio_track->publication(), nullptr)
+      << "Failed to publish audio track";
 
   std::cout << "Audio track published, waiting for subscription..."
             << std::endl;
@@ -343,7 +343,8 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
   }
 
   // Clean up
-  sender_room->localParticipant()->unpublishTrack(publication->sid());
+  sender_room->localParticipant()->unpublishTrack(
+      audio_track->publication()->sid());
 
   EXPECT_GT(stats.count(), 0)
       << "At least one audio latency measurement should be recorded";

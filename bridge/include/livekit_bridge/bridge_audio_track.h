@@ -140,6 +140,7 @@ private:
 
   std::shared_ptr<livekit::AudioSource> source_;
   std::shared_ptr<livekit::LocalAudioTrack> track_;
+  /* DEPRECATED. use track_->publication() instead */
   std::shared_ptr<livekit::LocalTrackPublication> publication_;
   livekit::LocalParticipant *participant_ = nullptr; // not owned
 };

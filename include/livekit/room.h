@@ -21,6 +21,9 @@
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
+#include "livekit/subscription_thread_dispatcher.h"
+
+#include <cstdint>
 #include <memory>
 #include <mutex>
 
@@ -233,6 +236,66 @@ public:
    */
   E2EEManager *e2eeManager() const;
 
+  // ---------------------------------------------------------------
+  // Frame callbacks
+  // ---------------------------------------------------------------
+
+  /**
+   * Set a callback for audio frames from a specific remote participant and
+   * track source.
+   *
+   * A dedicated reader thread is spawned for each (participant, source) pair
+   * when the track is subscribed. If the track is already subscribed, the
+   * reader starts immediately. If not, it starts when the track arrives.
+   *
+   * Only one callback may exist per (participant, source) pair. Re-calling
+   * with the same pair replaces the previous callback.
+   *
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source (e.g. SOURCE_MICROPHONE).
+   * @param callback             Function invoked per audio frame.
+   * @param opts                 AudioStream options (capacity, noise
+   * cancellation).
+   */
+  void setOnAudioFrameCallback(const std::string &participant_identity,
+                               TrackSource source, AudioFrameCallback callback,
+                               AudioStream::Options opts = {});
+
+  /**
+   * Set a callback for video frames from a specific remote participant and
+   * track source.
+   *
+   * @see setOnAudioFrameCallback for threading and lifecycle semantics.
+   *
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source (e.g. SOURCE_CAMERA).
+   * @param callback             Function invoked per video frame.
+   * @param opts                 VideoStream options (capacity, pixel format).
+   */
+  void setOnVideoFrameCallback(const std::string &participant_identity,
+                               TrackSource source, VideoFrameCallback callback,
+                               VideoStream::Options opts = {});
+
+  /**
+   * Clear the audio frame callback for a specific (participant, source) pair.
+   * Stops and joins any active reader thread.
+   * No-op if no callback is registered for this key.
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source (e.g. SOURCE_MICROPHONE).
+   */
+  void clearOnAudioFrameCallback(const std::string &participant_identity,
+                                 TrackSource source);
+
+  /**
+   * Clear the video frame callback for a specific (participant, source) pair.
+   * Stops and joins any active reader thread.
+   * No-op if no callback is registered for this key.
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source (e.g. SOURCE_CAMERA).
+   */
+  void clearOnVideoFrameCallback(const std::string &participant_identity,
+                                 TrackSource source);
+
 private:
   mutable std::mutex lock_;
   ConnectionState connection_state_ = ConnectionState::Disconnected;
@@ -251,6 +314,7 @@ private:
       byte_stream_readers_;
   // E2EE
   std::unique_ptr<E2EEManager> e2ee_manager_;
+  std::shared_ptr<SubscriptionThreadDispatcher> subscription_thread_dispatcher_;
 
   // FfiClient listener ID (0 means no listener registered)
   int listener_id_{0};

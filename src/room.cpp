@@ -26,7 +26,6 @@
 #include "livekit/remote_video_track.h"
 #include "livekit/room_delegate.h"
 #include "livekit/room_event_types.h"
-#include "livekit/video_stream.h"
 
 #include "ffi.pb.h"
 #include "ffi_client.h"
@@ -65,9 +64,15 @@ createRemoteParticipant(const proto::OwnedParticipant &owned) {
 }
 
 } // namespace
-Room::Room() {}
+Room::Room()
+    : subscription_thread_dispatcher_(
+          std::make_unique<SubscriptionThreadDispatcher>()) {}
 
 Room::~Room() {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->stopAll();
+  }
+
   int listener_to_remove = 0;
   std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
   {
@@ -254,11 +259,50 @@ void Room::unregisterByteStreamHandler(const std::string &topic) {
   byte_stream_handlers_.erase(topic);
 }
 
+// -------------------------------------------------------------------
+// Frame callback registration
+// -------------------------------------------------------------------
+
+void Room::setOnAudioFrameCallback(const std::string &participant_identity,
+                                   TrackSource source,
+                                   AudioFrameCallback callback,
+                                   AudioStream::Options opts) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnAudioFrameCallback(
+        participant_identity, source, std::move(callback), std::move(opts));
+  }
+}
+
+void Room::setOnVideoFrameCallback(const std::string &participant_identity,
+                                   TrackSource source,
+                                   VideoFrameCallback callback,
+                                   VideoStream::Options opts) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnVideoFrameCallback(
+        participant_identity, source, std::move(callback), std::move(opts));
+  }
+}
+
+void Room::clearOnAudioFrameCallback(const std::string &participant_identity,
+                                     TrackSource source) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->clearOnAudioFrameCallback(
+        participant_identity, source);
+  }
+}
+
+void Room::clearOnVideoFrameCallback(const std::string &participant_identity,
+                                     TrackSource source) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->clearOnVideoFrameCallback(
+        participant_identity, source);
+  }
+}
+
 void Room::OnEvent(const FfiEvent &event) {
   // Take a snapshot of the delegate under lock, but do NOT call it under the
   // lock.
   RoomDelegate *delegate_snapshot = nullptr;
-
   {
     std::lock_guard<std::mutex> guard(lock_);
     delegate_snapshot = delegate_;
@@ -365,7 +409,7 @@ void Room::OnEvent(const FfiEvent &event) {
         }
         const auto &ltp = re.local_track_published();
         const std::string &sid = ltp.track_sid();
-        auto &pubs = local_participant_->trackPublications();
+        const auto pubs = local_participant_->trackPublications();
         auto it = pubs.find(sid);
         if (it == pubs.end()) {
           LK_LOG_WARN("local_track_published for unknown sid: {}", sid);
@@ -389,7 +433,7 @@ void Room::OnEvent(const FfiEvent &event) {
         }
         const auto &ltu = re.local_track_unpublished();
         const std::string &pub_sid = ltu.publication_sid();
-        auto &pubs = local_participant_->trackPublications();
+        const auto pubs = local_participant_->trackPublications();
         auto it = pubs.find(pub_sid);
         if (it == pubs.end()) {
           LK_LOG_WARN("local_track_unpublished for unknown publication sid: {}",
@@ -412,7 +456,7 @@ void Room::OnEvent(const FfiEvent &event) {
         }
         const auto &lts = re.local_track_subscribed();
         const std::string &sid = lts.track_sid();
-        auto &pubs = local_participant_->trackPublications();
+        const auto pubs = local_participant_->trackPublications();
         auto it = pubs.find(sid);
         if (it == pubs.end()) {
           LK_LOG_WARN("local_track_subscribed for unknown sid: {}", sid);
@@ -539,19 +583,26 @@ void Room::OnEvent(const FfiEvent &event) {
       if (delegate_snapshot) {
         delegate_snapshot->onTrackSubscribed(*this, ev);
       }
+
+      if (subscription_thread_dispatcher_ && remote_track && rpublication) {
+        subscription_thread_dispatcher_->handleTrackSubscribed(
+            identity, rpublication->source(), remote_track);
+      }
       break;
     }
     case proto::RoomEvent::kTrackUnsubscribed: {
       TrackUnsubscribedEvent ev;
+      TrackSource unsub_source = TrackSource::SOURCE_UNKNOWN;
+      std::string unsub_identity;
       {
         std::lock_guard<std::mutex> guard(lock_);
         const auto &tu = re.track_unsubscribed();
-        const std::string &identity = tu.participant_identity();
+        unsub_identity = tu.participant_identity();
         const std::string &track_sid = tu.track_sid();
-        auto pit = remote_participants_.find(identity);
+        auto pit = remote_participants_.find(unsub_identity);
         if (pit == remote_participants_.end()) {
           LK_LOG_WARN("track_unsubscribed for unknown participant: {}",
-                      identity);
+                      unsub_identity);
           break;
         }
         RemoteParticipant *rparticipant = pit->second.get();
@@ -560,10 +611,11 @@ void Room::OnEvent(const FfiEvent &event) {
         if (pubIt == pubs.end()) {
           LK_LOG_WARN("track_unsubscribed for unknown publication sid {} "
                       "(participant {})",
-                      track_sid, identity);
+                      track_sid, unsub_identity);
           break;
         }
         auto publication = pubIt->second;
+        unsub_source = publication->source();
         auto track = publication->track();
         publication->setTrack(nullptr);
         publication->setSubscribed(false);
@@ -574,6 +626,12 @@ void Room::OnEvent(const FfiEvent &event) {
 
       if (delegate_snapshot) {
         delegate_snapshot->onTrackUnsubscribed(*this, ev);
+      }
+
+      if (subscription_thread_dispatcher_ &&
+          unsub_source != TrackSource::SOURCE_UNKNOWN) {
+        subscription_thread_dispatcher_->handleTrackUnsubscribed(unsub_identity,
+                                                                 unsub_source);
       }
       break;
     }
@@ -1000,7 +1058,10 @@ void Room::OnEvent(const FfiEvent &event) {
       break;
     }
     case proto::RoomEvent::kEos: {
-      // Remove listener since no more events will come for this room
+      if (subscription_thread_dispatcher_) {
+        subscription_thread_dispatcher_->stopAll();
+      }
+
       int listener_to_remove = 0;
 
       // Move state out of lock scope before destroying to avoid holding lock

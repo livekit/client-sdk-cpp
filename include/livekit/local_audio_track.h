@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "audio_frame.h"
+#include "local_track_publication.h"
 #include "track.h"
 #include <memory>
 #include <string>
@@ -55,6 +57,8 @@ public:
   /// @param name   Human-readable name for the track. This may appear to
   ///               remote participants and in analytics/debug logs.
   /// @param source The audio source that produces PCM frames for this track.
+  ///               The caller retains ownership and should use this source
+  ///               directly for frame capture.
   ///
   /// @return A shared pointer to the newly constructed `LocalAudioTrack`.
   static std::shared_ptr<LocalAudioTrack>
@@ -74,8 +78,24 @@ public:
   /// including its SID and name. Useful for debugging and logging.
   std::string to_string() const;
 
+  /// Returns the publication that owns this track, or nullptr if the track is
+  /// not published.
+  std::shared_ptr<LocalTrackPublication> publication() const noexcept {
+    return local_publication_;
+  }
+
+  /// Sets the publication that owns this track.
+  void setPublication(const std::shared_ptr<LocalTrackPublication>
+                          &publication) noexcept override {
+    local_publication_ = std::move(publication);
+  }
+
 private:
   explicit LocalAudioTrack(FfiHandle handle, const proto::OwnedTrack &track);
+
+  /// The publication that owns this track. This is a nullptr until the track
+  /// is published, and then points to the publication that owns this track.
+  std::shared_ptr<LocalTrackPublication> local_publication_;
 };
 
 } // namespace livekit

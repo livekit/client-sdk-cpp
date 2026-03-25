@@ -138,6 +138,7 @@ private:
 
   std::shared_ptr<livekit::VideoSource> source_;
   std::shared_ptr<livekit::LocalVideoTrack> track_;
+  /* DEPRECATED. use track_->publication() instead */
   std::shared_ptr<livekit::LocalTrackPublication> publication_;
   livekit::LocalParticipant *participant_ = nullptr; // not owned
 };

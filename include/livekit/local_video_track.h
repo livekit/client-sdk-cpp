@@ -16,7 +16,9 @@
 
 #pragma once
 
+#include "local_track_publication.h"
 #include "track.h"
+
 #include <memory>
 #include <string>
 
@@ -37,9 +39,10 @@ class VideoSource;
  *
  *  Typical usage:
  *
- *    auto source = VideoSource::create(...);
+ *    auto source = std::make_shared<VideoSource>(1280, 720);
  *    auto track = LocalVideoTrack::createLocalVideoTrack("cam", source);
  *    room->localParticipant()->publishTrack(track);
+ *    // Capture frames on the video thread via `source`, not via the track.
  *
  *  Muting a local video track stops transmitting video to the room, but
  *  the underlying source may continue capturing depending on platform
@@ -55,6 +58,8 @@ public:
   /// @param name   Human-readable name for the track. This may appear to
   ///               remote participants and in analytics/debug logs.
   /// @param source The video source that produces video frames for this track.
+  ///               The caller retains ownership and should use this source
+  ///               directly for frame capture.
   ///
   /// @return A shared pointer to the newly constructed `LocalVideoTrack`.
   static std::shared_ptr<LocalVideoTrack>
@@ -74,8 +79,24 @@ public:
   /// including its SID and name. Useful for debugging and logging.
   std::string to_string() const;
 
+  /// Returns the publication that owns this track, or nullptr if the track is
+  /// not published.
+  std::shared_ptr<LocalTrackPublication> publication() const noexcept {
+    return local_publication_;
+  }
+
+  /// Sets the publication that owns this track.
+  void setPublication(const std::shared_ptr<LocalTrackPublication>
+                          &publication) noexcept override {
+    local_publication_ = std::move(publication);
+  }
+
 private:
   explicit LocalVideoTrack(FfiHandle handle, const proto::OwnedTrack &track);
+
+  /// The publication that owns this track. This is a nullptr until the track
+  /// is published, and then points to the publication that owns this track.
+  std::shared_ptr<LocalTrackPublication> local_publication_;
 };
 
 } // namespace livekit

@@ -1,5 +1,7 @@
 # LiveKit Bridge
 
+# **WARNING: This library is deprecated, use the base sdk found in src/**
+
 A simplified, high-level C++ wrapper around the [LiveKit C++ SDK](../README.md). The bridge abstracts away room lifecycle management, track creation, publishing, and subscription boilerplate so that external codebases can interface with LiveKit in just a few lines. It is intended that this library will be used to bridge the LiveKit C++ SDK into other SDKs such as, but not limited to, Foxglove, ROS, and Rerun.
 
 It is intended that this library closely matches the style of the core LiveKit C++ SDK.
@@ -98,36 +100,33 @@ Your Application
 
 **`BridgeAudioTrack` / `BridgeVideoTrack`** -- RAII handles for published local tracks. Created via `createAudioTrack()` / `createVideoTrack()`. When the `shared_ptr` is dropped, the track is automatically unpublished and all underlying SDK resources are freed. Call `pushFrame()` to send audio/video data to remote participants.
 
-**`BridgeRoomDelegate`** -- Internal (not part of the public API; lives in `src/`). Listens for `onTrackSubscribed` / `onTrackUnsubscribed` events from the LiveKit SDK and wires up reader threads automatically.
-
 ### What is a Reader?
 
 A **reader** is a background thread that receives decoded media frames from a remote participant.
 
-When a remote participant publishes an audio or video track and the bridge subscribes to it (auto-subscribe is enabled by default), the bridge creates an `AudioStream` or `VideoStream` from that track and spins up a dedicated thread. This thread loops on `stream->read()`, which blocks until a new frame arrives. Each received frame is forwarded to the user's registered callback.
+When a remote participant publishes an audio or video track and the room subscribes to it (auto-subscribe is enabled by default), `Room` creates an `AudioStream` or `VideoStream` from that track and spins up a dedicated thread. This thread loops on `stream->read()`, which blocks until a new frame arrives. Each received frame is forwarded to the user's registered callback.
 
 In short:
 
 - **Sending** (you -> remote): `BridgeAudioTrack::pushFrame()` / `BridgeVideoTrack::pushFrame()`
 - **Receiving** (remote -> you): reader threads invoke your registered callbacks
 
-Reader threads are managed entirely by the bridge. They are created when a matching remote track is subscribed, and torn down (stream closed, thread joined) when the track is unsubscribed, the callback is unregistered, or `disconnect()` is called.
+Reader threads are managed by `Room` internally. They are created when a matching remote track is subscribed, and torn down (stream closed, thread joined) when the track is unsubscribed, the callback is unregistered, or the `Room` is destroyed.
 
 ### Callback Registration Timing
 
-Callbacks are keyed by `(participant_identity, track_source)`. You can register them **before** the remote participant has joined the room. The bridge stores the callback and automatically wires it up when the matching track is subscribed.
+Callbacks are keyed by `(participant_identity, track_source)`. You can register them **after connecting** but before the remote participant has joined the room. `Room` stores the callback and automatically wires it up when the matching track is subscribed.
 
 > **Note:** Only one callback may be set per `(participant_identity, track_source)` pair. Calling `setOnAudioFrameCallback` or `setOnVideoFrameCallback` again with the same identity and source will silently replace the previous callback. If you need to fan-out a single stream to multiple consumers, do so inside your callback.
 
 This means the typical pattern is:
 
 ```cpp
-// Register first, connect second -- or register after connect but before
-// the remote participant joins.
-bridge.setOnAudioFrameCallback("robot-1", livekit::TrackSource::SOURCE_MICROPHONE, my_callback);
+// Connect first, then register callbacks before the remote participant joins.
 livekit::RoomOptions options;
 options.auto_subscribe = true;
 bridge.connect(url, token, options);
+bridge.setOnAudioFrameCallback("robot-1", livekit::TrackSource::SOURCE_MICROPHONE, my_callback);
 // When robot-1 joins and publishes a mic track, my_callback starts firing.
 ```
 
@@ -135,7 +134,7 @@ bridge.connect(url, token, options);
 
 - `LiveKitBridge` uses a mutex to protect the callback map and active reader state.
 - Frame callbacks fire on background reader threads. If your callback accesses shared application state, you are responsible for synchronization.
-- `disconnect()` closes all streams and joins all reader threads before returning -- it is safe to destroy the bridge immediately after.
+- `disconnect()` destroys the `Room`, which closes all streams and joins all reader threads before returning -- it is safe to destroy the bridge immediately after.
 
 ## API Reference
 
@@ -226,9 +225,8 @@ The human will print periodic summaries like:
 ## Testing
 
 The bridge includes a unit test suite built with [Google Test](https://github.com/google/googletest). Tests cover
-1. `CallbackKey` hashing/equality,
-2. `BridgeAudioTrack`/`BridgeVideoTrack` state management, and
-3. `LiveKitBridge` pre-connection behaviour (callback registration, error handling).
+1. `BridgeAudioTrack`/`BridgeVideoTrack` state management, and
+2. `LiveKitBridge` pre-connection behaviour (callback registration, error handling).
 
 ### Building and running tests
 

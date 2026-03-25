@@ -332,11 +332,9 @@ int main(int argc, char *argv[]) {
   audioOpts.source = TrackSource::SOURCE_MICROPHONE;
   audioOpts.dtx = false;
   audioOpts.simulcast = false;
-  std::shared_ptr<LocalTrackPublication> audioPub;
   try {
-    // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
-    // Track
-    audioPub = room->localParticipant()->publishTrack(audioTrack, audioOpts);
+    room->localParticipant()->publishTrack(audioTrack, audioOpts);
+    const auto audioPub = audioTrack->publication();
 
     std::cout << "Published track:\n"
               << "  SID: " << audioPub->sid() << "\n"
@@ -354,17 +352,18 @@ int main(int argc, char *argv[]) {
 
   // Setup Video Source / Track
   auto videoSource = std::make_shared<VideoSource>(1280, 720);
-  std::shared_ptr<LocalVideoTrack> videoTrack =
-      LocalVideoTrack::createLocalVideoTrack("cam", videoSource);
+  auto videoTrack = LocalVideoTrack::createLocalVideoTrack("cam", videoSource);
+
   TrackPublishOptions videoOpts;
   videoOpts.source = TrackSource::SOURCE_CAMERA;
   videoOpts.dtx = false;
   videoOpts.simulcast = true;
-  std::shared_ptr<LocalTrackPublication> videoPub;
   try {
     // publishTrack takes std::shared_ptr<Track>, LocalAudioTrack derives from
     // Track
-    videoPub = room->localParticipant()->publishTrack(videoTrack, videoOpts);
+    room->localParticipant()->publishTrack(videoTrack, videoOpts);
+
+    const auto videoPub = videoTrack->publication();
 
     std::cout << "Published track:\n"
               << "  SID: " << videoPub->sid() << "\n"
@@ -400,11 +399,14 @@ int main(int argc, char *argv[]) {
   // Must be cleaned up before FfiClient::instance().shutdown();
   room->setDelegate(nullptr);
 
-  // Clean up the audio track publishment
-  room->localParticipant()->unpublishTrack(audioPub->sid());
-
-  // Clean up the video track publishment
-  room->localParticipant()->unpublishTrack(videoPub->sid());
+  if (audioTrack->publication()) {
+    room->localParticipant()->unpublishTrack(audioTrack->publication()->sid());
+  }
+  if (videoTrack->publication()) {
+    room->localParticipant()->unpublishTrack(videoTrack->publication()->sid());
+  }
+  audioTrack.reset();
+  videoTrack.reset();
 
   room.reset();
 

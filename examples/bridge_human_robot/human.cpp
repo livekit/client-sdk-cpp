@@ -18,6 +18,11 @@
  * Human example -- receives audio and video frames from a robot in a
  * LiveKit room and renders them using SDL3.
  *
+ * This example demonstrates the base SDK's convenience frame callback API
+ * (Room::setOnAudioFrameCallback / Room::setOnVideoFrameCallback) which
+ * eliminates the need for a RoomDelegate subclass, manual AudioStream/
+ * VideoStream creation, and reader threads.
+ *
  * The robot publishes two video tracks and two audio tracks:
  *   - "robot-cam"        (SOURCE_CAMERA)            -- webcam or placeholder
  *   - "robot-sim-frame"  (SOURCE_SCREENSHARE)        -- simulated diagnostic
@@ -44,9 +49,9 @@
  */
 
 #include "livekit/audio_frame.h"
+#include "livekit/livekit.h"
 #include "livekit/track.h"
 #include "livekit/video_frame.h"
-#include "livekit_bridge/livekit_bridge.h"
 #include "sdl_media.h"
 
 #include <SDL3/SDL.h>
@@ -66,24 +71,21 @@ static std::atomic<bool> g_running{true};
 static void handleSignal(int) { g_running.store(false); }
 
 // ---- Video source selection ----
-enum class VideoSource : int { Webcam = 0, SimFrame = 1 };
+enum class SelectedSource : int { Webcam = 0, SimFrame = 1 };
 static std::atomic<int> g_selected_source{
-    static_cast<int>(VideoSource::Webcam)};
+    static_cast<int>(SelectedSource::Webcam)};
 
 // ---- Thread-safe video frame slot ----
-// renderFrame() writes the latest frame here; the main loop reads it.
 struct LatestVideoFrame {
   std::mutex mutex;
   std::vector<std::uint8_t> data;
   int width = 0;
   int height = 0;
-  bool dirty = false; // true when a new frame has been written
+  bool dirty = false;
 };
 
 static LatestVideoFrame g_latest_video;
 
-/// Store a video frame for the main loop to render.
-/// Called from bridge callbacks when their source is the active selection.
 static void renderFrame(const livekit::VideoFrame &frame) {
   const std::uint8_t *src = frame.data();
   const std::size_t size = frame.dataSize();
@@ -132,7 +134,7 @@ int main(int argc, char *argv[]) {
       }
     }
     if (url.empty())
-      url = positional[0], token = positional[1]; // fallback by position
+      url = positional[0], token = positional[1];
   } else {
     const char *e = std::getenv("LIVEKIT_URL");
     if (e)
@@ -179,24 +181,24 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // Texture for displaying video frames (lazily recreated on size change)
   SDL_Texture *texture = nullptr;
   int tex_width = 0;
   int tex_height = 0;
 
   // ----- SDL speaker for audio playback -----
-  // We lazily initialize the DDLSpeakerSink on the first audio frame,
-  // so we know the sample rate and channel count.
   std::unique_ptr<DDLSpeakerSink> speaker;
   std::mutex speaker_mutex;
 
-  // ----- Connect to LiveKit -----
-  livekit_bridge::LiveKitBridge bridge;
+  // ----- Connect to LiveKit using the base SDK -----
+  livekit::initialize();
+
+  auto room = std::make_unique<livekit::Room>();
   std::cout << "[human] Connecting to " << url << " ...\n";
   livekit::RoomOptions options;
   options.auto_subscribe = true;
-  if (!bridge.connect(url, token, options)) {
+  if (!room->Connect(url, token, options)) {
     LK_LOG_ERROR("[human] Failed to connect.");
+    livekit::shutdown();
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
@@ -228,64 +230,58 @@ int main(int argc, char *argv[]) {
     speaker->enqueue(samples.data(), frame.samples_per_channel());
   };
 
-  // ----- set audio callbacks -----
-  // Real mic (SOURCE_MICROPHONE) -- plays only when 'w' is selected
-  bridge.setOnAudioFrameCallback(
+  // ----- Set audio callbacks using Room::setOnAudioFrameCallback -----
+  room->setOnAudioFrameCallback(
       "robot", livekit::TrackSource::SOURCE_MICROPHONE,
       [playAudio, no_audio](const livekit::AudioFrame &frame) {
         g_audio_frames.fetch_add(1, std::memory_order_relaxed);
         if (!no_audio && g_selected_source.load(std::memory_order_relaxed) ==
-                             static_cast<int>(VideoSource::Webcam)) {
+                             static_cast<int>(SelectedSource::Webcam)) {
           playAudio(frame);
         }
       });
 
-  // Sim audio / siren (SOURCE_SCREENSHARE_AUDIO) -- plays only when 's' is
-  // selected
-  bridge.setOnAudioFrameCallback(
+  room->setOnAudioFrameCallback(
       "robot", livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO,
       [playAudio, no_audio](const livekit::AudioFrame &frame) {
         g_audio_frames.fetch_add(1, std::memory_order_relaxed);
         if (!no_audio && g_selected_source.load(std::memory_order_relaxed) ==
-                             static_cast<int>(VideoSource::SimFrame)) {
+                             static_cast<int>(SelectedSource::SimFrame)) {
           playAudio(frame);
         }
       });
 
-  // ----- set video callbacks -----
-  // Webcam feed (SOURCE_CAMERA) -- renders only when 'w' is selected
-  bridge.setOnVideoFrameCallback(
+  // ----- Set video callbacks using Room::setOnVideoFrameCallback -----
+  room->setOnVideoFrameCallback(
       "robot", livekit::TrackSource::SOURCE_CAMERA,
       [](const livekit::VideoFrame &frame, std::int64_t /*timestamp_us*/) {
         g_video_frames.fetch_add(1, std::memory_order_relaxed);
         if (g_selected_source.load(std::memory_order_relaxed) ==
-            static_cast<int>(VideoSource::Webcam)) {
+            static_cast<int>(SelectedSource::Webcam)) {
           renderFrame(frame);
         }
       });
 
-  // Sim frame feed (SOURCE_SCREENSHARE) -- renders only when 's' is selected
-  bridge.setOnVideoFrameCallback(
+  room->setOnVideoFrameCallback(
       "robot", livekit::TrackSource::SOURCE_SCREENSHARE,
       [](const livekit::VideoFrame &frame, std::int64_t /*timestamp_us*/) {
         g_video_frames.fetch_add(1, std::memory_order_relaxed);
         if (g_selected_source.load(std::memory_order_relaxed) ==
-            static_cast<int>(VideoSource::SimFrame)) {
+            static_cast<int>(SelectedSource::SimFrame)) {
           renderFrame(frame);
         }
       });
 
-  // ----- Stdin input thread (for switching when the SDL window is not focused)
-  // -----
+  // ----- Stdin input thread -----
   std::thread input_thread([&]() {
     std::string line;
     while (g_running.load() && std::getline(std::cin, line)) {
       if (line == "w" || line == "W") {
-        g_selected_source.store(static_cast<int>(VideoSource::Webcam),
+        g_selected_source.store(static_cast<int>(SelectedSource::Webcam),
                                 std::memory_order_relaxed);
         std::cout << "[human] Switched to webcam + mic.\n";
       } else if (line == "s" || line == "S") {
-        g_selected_source.store(static_cast<int>(VideoSource::SimFrame),
+        g_selected_source.store(static_cast<int>(SelectedSource::SimFrame),
                                 std::memory_order_relaxed);
         std::cout << "[human] Switched to sim frame + siren.\n";
       }
@@ -300,30 +296,26 @@ int main(int argc, char *argv[]) {
 
   auto last_report = std::chrono::steady_clock::now();
 
-  // Reused across iterations so the swap gives the producer a pre-allocated
-  // buffer back, avoiding repeated allocations in steady state.
   std::vector<std::uint8_t> local_pixels;
 
   while (g_running.load()) {
-    // Pump SDL events (including keyboard input for source selection)
     SDL_Event ev;
     while (SDL_PollEvent(&ev)) {
       if (ev.type == SDL_EVENT_QUIT) {
         g_running.store(false);
       } else if (ev.type == SDL_EVENT_KEY_DOWN) {
         if (ev.key.key == SDLK_W) {
-          g_selected_source.store(static_cast<int>(VideoSource::Webcam),
+          g_selected_source.store(static_cast<int>(SelectedSource::Webcam),
                                   std::memory_order_relaxed);
           std::cout << "[human] Switched to webcam + mic.\n";
         } else if (ev.key.key == SDLK_S) {
-          g_selected_source.store(static_cast<int>(VideoSource::SimFrame),
+          g_selected_source.store(static_cast<int>(SelectedSource::SimFrame),
                                   std::memory_order_relaxed);
           std::cout << "[human] Switched to sim frame + siren.\n";
         }
       }
     }
 
-    // Grab the latest video frame under a minimal lock, then render outside it.
     int fw = 0, fh = 0;
     bool have_frame = false;
     {
@@ -339,7 +331,6 @@ int main(int argc, char *argv[]) {
     }
 
     if (have_frame) {
-      // Recreate texture if size changed
       if (fw != tex_width || fh != tex_height) {
         if (texture)
           SDL_DestroyTexture(texture);
@@ -352,7 +343,6 @@ int main(int argc, char *argv[]) {
         tex_height = fh;
       }
 
-      // Upload pixels to texture
       if (texture) {
         void *pixels = nullptr;
         int pitch = 0;
@@ -367,7 +357,6 @@ int main(int argc, char *argv[]) {
       }
     }
 
-    // Render
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     if (texture) {
@@ -375,13 +364,12 @@ int main(int argc, char *argv[]) {
     }
     SDL_RenderPresent(renderer);
 
-    // Periodic status
     auto now = std::chrono::steady_clock::now();
     if (now - last_report >= std::chrono::seconds(5)) {
       last_report = now;
       const char *src_name =
           g_selected_source.load(std::memory_order_relaxed) ==
-                  static_cast<int>(VideoSource::Webcam)
+                  static_cast<int>(SelectedSource::Webcam)
               ? "webcam"
               : "sim_frame";
       std::cout << "[human] Status: " << g_audio_frames.load()
@@ -389,7 +377,6 @@ int main(int argc, char *argv[]) {
                 << " video frames received (showing: " << src_name << ").\n";
     }
 
-    // ~60fps render loop
     SDL_Delay(16);
   }
 
@@ -398,12 +385,13 @@ int main(int argc, char *argv[]) {
   std::cout << "[human] Total received: " << g_audio_frames.load()
             << " audio frames, " << g_video_frames.load() << " video frames.\n";
 
-  // The input thread blocks on std::getline; detach it since there is no
-  // portable way to interrupt blocking stdin reads.
   if (input_thread.joinable())
     input_thread.detach();
 
-  bridge.disconnect();
+  // Room destructor calls stopAllReaders() which closes streams and joins
+  // reader threads, then tears down FFI state.
+  room.reset();
+  livekit::shutdown();
 
   {
     std::lock_guard<std::mutex> lock(speaker_mutex);

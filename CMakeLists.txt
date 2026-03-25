@@ -335,6 +335,7 @@ add_library(livekit SHARED
   src/room.cpp
   src/room_proto_converter.cpp
   src/room_proto_converter.h
+  src/subscription_thread_dispatcher.cpp
   src/local_participant.cpp
   src/remote_participant.cpp
   src/stats.cpp
