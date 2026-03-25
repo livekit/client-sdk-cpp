@@ -135,9 +135,6 @@ void DataTrackSubscription::onFfiEvent(const FfiEvent &event) {
     return;
   }
 
-  LK_LOG_INFO("[DataTrackSubscription] Received event for handle {}",
-              static_cast<std::uint64_t>(subscription_handle_.get()));
-
   if (dts.has_frame_received()) {
     const auto &fr = dts.frame_received().frame();
     DataFrame frame;
