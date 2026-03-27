@@ -60,8 +60,12 @@ public:
 
   DataTrackSubscription(const DataTrackSubscription &) = delete;
   DataTrackSubscription &operator=(const DataTrackSubscription &) = delete;
-  DataTrackSubscription(DataTrackSubscription &&) noexcept;
-  DataTrackSubscription &operator=(DataTrackSubscription &&) noexcept;
+  // The FFI listener captures `this`, so moving the object would leave the
+  // registered callback pointing at the old address.
+  DataTrackSubscription(DataTrackSubscription &&) noexcept = delete;
+  // Instances are created and returned as std::shared_ptr, so value-move
+  // support is not required by the current API.
+  DataTrackSubscription &operator=(DataTrackSubscription &&) noexcept = delete;
 
   /**
    * Blocking read: waits until a DataFrame is available, or the
