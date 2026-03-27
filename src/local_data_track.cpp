@@ -65,6 +65,20 @@ bool LocalDataTrack::tryPush(const std::vector<std::uint8_t> &payload,
   }
 }
 
+bool LocalDataTrack::tryPush(std::vector<std::uint8_t> &&payload,
+                             std::optional<std::uint64_t> user_timestamp) {
+  DataFrame frame;
+  frame.payload = std::move(payload);
+  frame.user_timestamp = user_timestamp;
+
+  try {
+    return tryPush(frame);
+  } catch (const std::exception &e) {
+    LK_LOG_ERROR("[LocalDataTrack] tryPush error: {}", e.what());
+    return false;
+  }
+}
+
 bool LocalDataTrack::tryPush(const std::uint8_t *data, std::size_t size,
                              std::optional<std::uint64_t> user_timestamp) {
   DataFrame frame;
