@@ -98,8 +98,7 @@ bool DataTrackSubscription::read(DataFrame &out) {
     return false;
   }
 
-  out = std::move(frame_.value());
-  frame_.reset();
+  out = std::move(*frame_);
   return true;
 }
 

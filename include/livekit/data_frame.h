@@ -40,6 +40,15 @@ struct DataFrame {
    * By convention the SDK examples use microseconds since the Unix epoch.
    */
   std::optional<std::uint64_t> user_timestamp;
+  DataFrame() = default;
+  DataFrame(const DataFrame&) = default;
+  DataFrame(DataFrame&&) noexcept = default;
+  DataFrame& operator=(const DataFrame&) = default;
+  DataFrame& operator=(DataFrame&&) noexcept = default;
+
+  explicit DataFrame(std::vector<std::uint8_t>&& p,
+                     std::optional<std::uint64_t> ts = std::nullopt) noexcept
+      : payload(std::move(p)), user_timestamp(ts) {}
 };
 
 } // namespace livekit

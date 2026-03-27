@@ -76,6 +76,8 @@ public:
    */
   bool tryPush(const std::vector<std::uint8_t> &payload,
                std::optional<std::uint64_t> user_timestamp = std::nullopt);
+  bool tryPush(std::vector<std::uint8_t> &&payload,
+               std::optional<std::uint64_t> user_timestamp = std::nullopt);
   /**
    * Try to push a frame to all subscribers of this track.
    *
