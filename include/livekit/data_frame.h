@@ -22,6 +22,10 @@
 
 namespace livekit {
 
+namespace proto {
+class DataTrackFrame;
+} // namespace proto
+
 /**
  * A single frame of data published or received on a data track.
  *
@@ -49,6 +53,8 @@ struct DataFrame {
   explicit DataFrame(std::vector<std::uint8_t>&& p,
                      std::optional<std::uint64_t> ts = std::nullopt) noexcept
       : payload(std::move(p)), user_timestamp(ts) {}
+
+  static DataFrame fromOwnedInfo(const proto::DataTrackFrame &owned);
 };
 
 } // namespace livekit

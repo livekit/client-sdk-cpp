@@ -136,15 +136,7 @@ void DataTrackSubscription::onFfiEvent(const FfiEvent &event) {
 
   if (dts.has_frame_received()) {
     const auto &fr = dts.frame_received().frame();
-    DataFrame frame;
-    const auto &payload_str = fr.payload();
-    frame.payload.assign(
-        reinterpret_cast<const std::uint8_t *>(payload_str.data()),
-        reinterpret_cast<const std::uint8_t *>(payload_str.data()) +
-            payload_str.size());
-    if (fr.has_user_timestamp()) {
-      frame.user_timestamp = fr.user_timestamp();
-    }
+    DataFrame frame = DataFrame::fromOwnedInfo(fr);
     pushFrame(std::move(frame));
   } else if (dts.has_eos()) {
     pushEos();
