@@ -288,19 +288,27 @@ LocalParticipant::PublicationMap LocalParticipant::trackPublications() const {
   return out;
 }
 
-std::shared_ptr<LocalDataTrack>
+Result<std::shared_ptr<LocalDataTrack>, DataTrackError>
 LocalParticipant::publishDataTrack(const std::string &name) {
   auto handle_id = ffiHandleId();
   if (handle_id == 0) {
-    throw std::runtime_error(
-        "LocalParticipant::publishDataTrack: invalid FFI handle");
+    return Result<std::shared_ptr<LocalDataTrack>, DataTrackError>::failure(
+        DataTrackError{DataTrackErrorCode::INVALID_HANDLE,
+                       "LocalParticipant::publishDataTrack: invalid FFI handle",
+                       false});
   }
 
   auto fut = FfiClient::instance().publishDataTrackAsync(
       static_cast<std::uint64_t>(handle_id), name);
 
-  proto::OwnedLocalDataTrack owned = fut.get();
-  return std::shared_ptr<LocalDataTrack>(new LocalDataTrack(owned));
+  auto result = fut.get();
+  if (!result) {
+    return Result<std::shared_ptr<LocalDataTrack>, DataTrackError>::failure(
+        result.error());
+  }
+
+  return Result<std::shared_ptr<LocalDataTrack>, DataTrackError>::success(
+      std::shared_ptr<LocalDataTrack>(new LocalDataTrack(result.value())));
 }
 
 void LocalParticipant::unpublishDataTrack(

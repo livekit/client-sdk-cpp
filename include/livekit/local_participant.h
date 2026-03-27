@@ -181,10 +181,11 @@ public:
    * LocalParticipant::unpublishDataTrack().
    *
    * @param name  Unique track name visible to other participants.
-   * @return Shared pointer to the published data track.
-   * @throws std::runtime_error on FFI or publish failure.
+   * @return The published track on success, or a typed error describing why
+   *         publication failed.
    */
-  std::shared_ptr<LocalDataTrack> publishDataTrack(const std::string &name);
+  Result<std::shared_ptr<LocalDataTrack>, DataTrackError>
+  publishDataTrack(const std::string &name);
 
   /**
    * Unpublish a data track from the room.

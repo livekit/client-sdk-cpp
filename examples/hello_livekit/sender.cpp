@@ -95,8 +95,17 @@ int main(int argc, char *argv[]) {
   std::shared_ptr<LocalVideoTrack> video_track = lp->publishVideoTrack(
       kVideoTrackName, video_source, TrackSource::SOURCE_CAMERA);
 
-  std::shared_ptr<LocalDataTrack> data_track =
-      lp->publishDataTrack(kDataTrackName);
+  auto publish_result = lp->publishDataTrack(kDataTrackName);
+  if (!publish_result) {
+    const auto &error = publish_result.error();
+    LK_LOG_ERROR("Failed to publish data track: code={} retryable={} message={}",
+                 static_cast<std::uint32_t>(error.code), error.retryable,
+                 error.message);
+    room.reset();
+    livekit::shutdown();
+    return 1;
+  }
+  std::shared_ptr<LocalDataTrack> data_track = publish_result.value();
 
   const auto t0 = std::chrono::steady_clock::now();
   std::uint64_t count = 0;
@@ -115,7 +124,14 @@ int main(int argc, char *argv[]) {
     std::ostringstream oss;
     oss << std::fixed << std::setprecision(2) << ms << " ms, count: " << count;
     const std::string msg = oss.str();
-    data_track->tryPush(std::vector<std::uint8_t>(msg.begin(), msg.end()));
+    auto push_result =
+        data_track->tryPush(std::vector<std::uint8_t>(msg.begin(), msg.end()));
+    if (!push_result) {
+      const auto &error = push_result.error();
+      LK_LOG_WARN("Failed to push data frame: code={} retryable={} message={}",
+                  static_cast<std::uint32_t>(error.code), error.retryable,
+                  error.message);
+    }
 
     ++count;
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

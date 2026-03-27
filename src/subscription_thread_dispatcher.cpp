@@ -639,13 +639,17 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(
     LK_LOG_INFO("Data reader thread: subscribing to \"{}\" track=\"{}\"",
                 identity, track_name);
     std::shared_ptr<DataTrackSubscription> subscription;
-    try {
-      subscription = track->subscribe();
-    } catch (const std::exception &e) {
-      LK_LOG_ERROR("Failed to subscribe to data track \"{}\" from \"{}\": {}",
-                   track_name, identity, e.what());
+    auto subscribe_result = track->subscribe();
+    if (!subscribe_result) {
+      const auto &error = subscribe_result.error();
+      LK_LOG_ERROR(
+          "Failed to subscribe to data track \"{}\" from \"{}\": code={} "
+          "retryable={} message={}",
+          track_name, identity, static_cast<std::uint32_t>(error.code),
+          error.retryable, error.message);
       return;
     }
+    subscription = subscribe_result.value();
     LK_LOG_INFO("Data reader thread: subscribed to \"{}\" track=\"{}\"",
                 identity, track_name);
 

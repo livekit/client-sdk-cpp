@@ -43,10 +43,13 @@ class FfiEvent;
  *
  * Typical usage:
  *
- *   auto sub = remoteDataTrack->subscribe();
- *   DataFrame frame;
- *   while (sub->read(frame)) {
- *     // process frame.payload
+ *   auto sub_result = remoteDataTrack->subscribe();
+ *   if (sub_result) {
+ *     auto sub = sub_result.value();
+ *     DataFrame frame;
+ *     while (sub->read(frame)) {
+ *       // process frame.payload
+ *     }
  *   }
  */
 class DataTrackSubscription {

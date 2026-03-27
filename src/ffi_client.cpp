@@ -44,6 +44,11 @@ inline void logAndThrow(const std::string &error_msg) {
   throw std::runtime_error(error_msg);
 }
 
+DataTrackError makeDataTrackError(DataTrackErrorCode code, std::string message,
+                                  bool retryable = false) {
+  return DataTrackError{code, std::move(message), retryable};
+}
+
 std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent &event) {
   using E = proto::FfiEvent;
   switch (event.message_case()) {
@@ -621,32 +626,36 @@ std::future<void> FfiClient::publishDataAsync(
   return fut;
 }
 
-std::future<proto::OwnedLocalDataTrack>
+std::future<Result<proto::OwnedLocalDataTrack, DataTrackError>>
 FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
                                  const std::string &track_name) {
   const AsyncId async_id = generateAsyncId();
 
-  auto fut = registerAsync<proto::OwnedLocalDataTrack>(
+  auto fut = registerAsync<Result<proto::OwnedLocalDataTrack, DataTrackError>>(
       async_id,
       [async_id](const proto::FfiEvent &event) {
         return event.has_publish_data_track() &&
                event.publish_data_track().async_id() == async_id;
       },
       [](const proto::FfiEvent &event,
-         std::promise<proto::OwnedLocalDataTrack> &pr) {
+         std::promise<Result<proto::OwnedLocalDataTrack, DataTrackError>> &pr) {
         const auto &cb = event.publish_data_track();
-        if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
+        if (cb.has_error()) {
+          pr.set_value(Result<proto::OwnedLocalDataTrack,
+                              DataTrackError>::failure(
+              DataTrackError::fromProto(cb.error())));
           return;
         }
         if (!cb.has_track()) {
-          pr.set_exception(std::make_exception_ptr(
-              std::runtime_error("PublishDataTrackCallback missing track")));
+          pr.set_value(Result<proto::OwnedLocalDataTrack,
+                              DataTrackError>::failure(makeDataTrackError(
+              DataTrackErrorCode::PROTOCOL_ERROR,
+              "PublishDataTrackCallback missing track")));
           return;
         }
         proto::OwnedLocalDataTrack track = cb.track();
-        pr.set_value(std::move(track));
+        pr.set_value(Result<proto::OwnedLocalDataTrack,
+                            DataTrackError>::success(std::move(track)));
       });
 
   proto::FfiRequest req;
@@ -658,42 +667,61 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_publish_data_track()) {
-      logAndThrow("FfiResponse missing publish_data_track");
+      cancelPendingByAsyncId(async_id);
+      std::promise<Result<proto::OwnedLocalDataTrack, DataTrackError>> pr;
+      pr.set_value(Result<proto::OwnedLocalDataTrack, DataTrackError>::failure(
+          makeDataTrackError(DataTrackErrorCode::PROTOCOL_ERROR,
+                             "FfiResponse missing publish_data_track")));
+      return pr.get_future();
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
-    throw;
+    std::promise<Result<proto::OwnedLocalDataTrack, DataTrackError>> pr;
+    try {
+      throw;
+    } catch (const std::exception &e) {
+      pr.set_value(Result<proto::OwnedLocalDataTrack, DataTrackError>::failure(
+          makeDataTrackError(DataTrackErrorCode::INTERNAL, e.what())));
+    }
+    return pr.get_future();
   }
 
   return fut;
 }
 
-std::future<proto::OwnedDataTrackSubscription>
+std::future<Result<proto::OwnedDataTrackSubscription, DataTrackError>>
 FfiClient::subscribeDataTrackAsync(std::uint64_t track_handle,
                                    std::optional<std::uint32_t> buffer_size) {
   const AsyncId async_id = generateAsyncId();
 
-  auto fut = registerAsync<proto::OwnedDataTrackSubscription>(
+  auto fut =
+      registerAsync<Result<proto::OwnedDataTrackSubscription, DataTrackError>>(
       async_id,
       [async_id](const proto::FfiEvent &event) {
         return event.has_subscribe_data_track() &&
                event.subscribe_data_track().async_id() == async_id;
       },
       [](const proto::FfiEvent &event,
-         std::promise<proto::OwnedDataTrackSubscription> &pr) {
+         std::promise<
+             Result<proto::OwnedDataTrackSubscription, DataTrackError>> &pr) {
         const auto &cb = event.subscribe_data_track();
-        if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
+        if (cb.has_error()) {
+          pr.set_value(Result<proto::OwnedDataTrackSubscription,
+                              DataTrackError>::failure(
+              DataTrackError::fromProto(cb.error())));
           return;
         }
         if (!cb.has_subscription()) {
-          pr.set_exception(std::make_exception_ptr(std::runtime_error(
-              "SubscribeDataTrackCallback missing subscription")));
+          pr.set_value(
+              Result<proto::OwnedDataTrackSubscription, DataTrackError>::
+                  failure(makeDataTrackError(
+                      DataTrackErrorCode::PROTOCOL_ERROR,
+                      "SubscribeDataTrackCallback missing subscription")));
           return;
         }
         proto::OwnedDataTrackSubscription sub = cb.subscription();
-        pr.set_value(std::move(sub));
+        pr.set_value(Result<proto::OwnedDataTrackSubscription,
+                            DataTrackError>::success(std::move(sub)));
       });
 
   proto::FfiRequest req;
@@ -708,11 +736,26 @@ FfiClient::subscribeDataTrackAsync(std::uint64_t track_handle,
   try {
     proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_subscribe_data_track()) {
-      logAndThrow("FfiResponse missing subscribe_data_track");
+      cancelPendingByAsyncId(async_id);
+      std::promise<Result<proto::OwnedDataTrackSubscription, DataTrackError>>
+          pr;
+      pr.set_value(
+          Result<proto::OwnedDataTrackSubscription, DataTrackError>::failure(
+              makeDataTrackError(DataTrackErrorCode::PROTOCOL_ERROR,
+                                 "FfiResponse missing subscribe_data_track")));
+      return pr.get_future();
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
-    throw;
+    std::promise<Result<proto::OwnedDataTrackSubscription, DataTrackError>> pr;
+    try {
+      throw;
+    } catch (const std::exception &e) {
+      pr.set_value(
+          Result<proto::OwnedDataTrackSubscription, DataTrackError>::failure(
+              makeDataTrackError(DataTrackErrorCode::INTERNAL, e.what())));
+    }
+    return pr.get_future();
   }
 
   return fut;
