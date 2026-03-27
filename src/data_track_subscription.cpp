@@ -29,44 +29,6 @@ using proto::FfiEvent;
 
 DataTrackSubscription::~DataTrackSubscription() { close(); }
 
-DataTrackSubscription::DataTrackSubscription(
-    DataTrackSubscription &&other) noexcept {
-  std::lock_guard<std::mutex> lock(other.mutex_);
-  frame_ = std::move(other.frame_);
-  eof_ = other.eof_;
-  closed_ = other.closed_;
-  subscription_handle_ = std::move(other.subscription_handle_);
-  listener_id_ = other.listener_id_;
-
-  other.listener_id_ = 0;
-  other.closed_ = true;
-}
-
-DataTrackSubscription &
-DataTrackSubscription::operator=(DataTrackSubscription &&other) noexcept {
-  if (this == &other) {
-    return *this;
-  }
-
-  close();
-
-  {
-    std::lock_guard<std::mutex> lock_this(mutex_);
-    std::lock_guard<std::mutex> lock_other(other.mutex_);
-
-    frame_ = std::move(other.frame_);
-    eof_ = other.eof_;
-    closed_ = other.closed_;
-    subscription_handle_ = std::move(other.subscription_handle_);
-    listener_id_ = other.listener_id_;
-
-    other.listener_id_ = 0;
-    other.closed_ = true;
-  }
-
-  return *this;
-}
-
 void DataTrackSubscription::init(FfiHandle subscription_handle) {
   subscription_handle_ = std::move(subscription_handle);
 
@@ -80,16 +42,18 @@ bool DataTrackSubscription::read(DataFrame &out) {
     if (closed_ || eof_) {
       return false;
     }
-  }
 
-  // Signal the Rust side that we're ready to receive the next frame.
-  // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
-  // from the underlying stream until notified via this request.
-  proto::FfiRequest req;
-  auto *msg = req.mutable_data_track_subscription_read();
-  msg->set_subscription_handle(
-      static_cast<uint64_t>(subscription_handle_.get()));
-  FfiClient::instance().sendRequest(req);
+    const auto subscription_handle =
+        static_cast<std::uint64_t>(subscription_handle_.get());
+
+    // Signal the Rust side that we're ready to receive the next frame.
+    // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
+    // from the underlying stream until notified via this request.
+    proto::FfiRequest req;
+    auto *msg = req.mutable_data_track_subscription_read();
+    msg->set_subscription_handle(subscription_handle);
+    FfiClient::instance().sendRequest(req);
+  }
 
   std::unique_lock<std::mutex> lock(mutex_);
   cv_.wait(lock, [this] { return frame_.has_value() || eof_ || closed_; });
@@ -103,21 +67,20 @@ bool DataTrackSubscription::read(DataFrame &out) {
 }
 
 void DataTrackSubscription::close() {
+  std::int64_t listener_id = -1;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (closed_) {
       return;
     }
     closed_ = true;
-  }
-
-  if (subscription_handle_.get() != 0) {
     subscription_handle_.reset();
+    listener_id = listener_id_;
+    listener_id_ = 0;
   }
 
-  if (listener_id_ != 0) {
-    FfiClient::instance().RemoveListener(listener_id_);
-    listener_id_ = 0;
+  if (listener_id != -1) {
+    FfiClient::instance().RemoveListener(listener_id);
   }
 
   cv_.notify_all();
@@ -129,9 +92,13 @@ void DataTrackSubscription::onFfiEvent(const FfiEvent &event) {
   }
 
   const auto &dts = event.data_track_subscription_event();
-  if (dts.subscription_handle() !=
-      static_cast<std::uint64_t>(subscription_handle_.get())) {
-    return;
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (closed_ ||
+        dts.subscription_handle() !=
+            static_cast<std::uint64_t>(subscription_handle_.get())) {
+      return;
+    }
   }
 
   if (dts.has_frame_received()) {
