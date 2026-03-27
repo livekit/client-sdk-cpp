@@ -94,15 +94,18 @@ int main(int argc, char *argv[]) {
               room->room_info().name);
 
   std::shared_ptr<LocalDataTrack> data_track;
-  try {
-    data_track = lp->publishDataTrack(kTrackName);
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("Failed to publish data track: {}", e.what());
+  auto publish_result = lp->publishDataTrack(kTrackName);
+  if (!publish_result) {
+    const auto &error = publish_result.error();
+    LK_LOG_ERROR("Failed to publish data track: code={} retryable={} message={}",
+                 static_cast<std::uint32_t>(error.code), error.retryable,
+                 error.message);
     room->setDelegate(nullptr);
     room.reset();
     livekit::shutdown();
     return 1;
   }
+  data_track = publish_result.value();
 
   LK_LOG_INFO("published data track '{}'", kTrackName);
 
@@ -123,8 +126,12 @@ int main(int argc, char *argv[]) {
                              " count: " + std::to_string(count);
 
     std::vector<std::uint8_t> payload(text.begin(), text.end());
-    if (!data_track->tryPush(payload)) {
-      LK_LOG_WARN("Failed to push data frame");
+    auto push_result = data_track->tryPush(payload);
+    if (!push_result) {
+      const auto &error = push_result.error();
+      LK_LOG_WARN("Failed to push data frame: code={} retryable={} message={}",
+                  static_cast<std::uint32_t>(error.code), error.retryable,
+                  error.message);
     }
 
     LK_LOG_DEBUG("sent: {}", text);

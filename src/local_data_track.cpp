@@ -24,6 +24,14 @@
 
 namespace livekit {
 
+namespace {
+
+DataTrackError makeInternalDataTrackError(const std::string &message) {
+  return DataTrackError{DataTrackErrorCode::INTERNAL, message, false};
+}
+
+} // namespace
+
 LocalDataTrack::LocalDataTrack(const proto::OwnedLocalDataTrack &owned)
     : handle_(static_cast<uintptr_t>(owned.handle().id())) {
   const auto &pi = owned.info();
@@ -32,65 +40,61 @@ LocalDataTrack::LocalDataTrack(const proto::OwnedLocalDataTrack &owned)
   info_.uses_e2ee = pi.uses_e2ee();
 }
 
-bool LocalDataTrack::tryPush(const DataFrame &frame) {
+Result<void, DataTrackError> LocalDataTrack::tryPush(const DataFrame &frame) {
   if (!handle_.valid()) {
-    return false;
+    return Result<void, DataTrackError>::failure(
+        DataTrackError{DataTrackErrorCode::INVALID_HANDLE,
+                       "LocalDataTrack::tryPush: invalid FFI handle", false});
   }
 
-  proto::FfiRequest req;
-  auto *msg = req.mutable_local_data_track_try_push();
-  msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
-  auto *pf = msg->mutable_frame();
-  pf->set_payload(frame.payload.data(), frame.payload.size());
-  if (frame.user_timestamp.has_value()) {
-    pf->set_user_timestamp(frame.user_timestamp.value());
-  }
+  try {
+    proto::FfiRequest req;
+    auto *msg = req.mutable_local_data_track_try_push();
+    msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
+    auto *pf = msg->mutable_frame();
+    pf->set_payload(frame.payload.data(), frame.payload.size());
+    if (frame.user_timestamp.has_value()) {
+      pf->set_user_timestamp(frame.user_timestamp.value());
+    }
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-  const auto &r = resp.local_data_track_try_push();
-  return !r.has_error();
+    proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+    const auto &r = resp.local_data_track_try_push();
+    if (r.has_error()) {
+      return Result<void, DataTrackError>::failure(
+          DataTrackError::fromProto(r.error()));
+    }
+    return Result<void, DataTrackError>::success();
+  } catch (const std::exception &e) {
+    return Result<void, DataTrackError>::failure(
+        makeInternalDataTrackError(e.what()));
+  }
 }
 
-bool LocalDataTrack::tryPush(const std::vector<std::uint8_t> &payload,
-                             std::optional<std::uint64_t> user_timestamp) {
+Result<void, DataTrackError>
+LocalDataTrack::tryPush(const std::vector<std::uint8_t> &payload,
+                        std::optional<std::uint64_t> user_timestamp) {
   DataFrame frame;
   frame.payload = payload;
   frame.user_timestamp = user_timestamp;
-
-  try {
-    return tryPush(frame);
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("[LocalDataTrack] tryPush error: {}", e.what());
-    return false;
-  }
+  return tryPush(frame);
 }
 
-bool LocalDataTrack::tryPush(std::vector<std::uint8_t> &&payload,
-                             std::optional<std::uint64_t> user_timestamp) {
+Result<void, DataTrackError>
+LocalDataTrack::tryPush(std::vector<std::uint8_t> &&payload,
+                        std::optional<std::uint64_t> user_timestamp) {
   DataFrame frame;
   frame.payload = std::move(payload);
   frame.user_timestamp = user_timestamp;
-
-  try {
-    return tryPush(frame);
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("[LocalDataTrack] tryPush error: {}", e.what());
-    return false;
-  }
+  return tryPush(frame);
 }
 
-bool LocalDataTrack::tryPush(const std::uint8_t *data, std::size_t size,
-                             std::optional<std::uint64_t> user_timestamp) {
+Result<void, DataTrackError>
+LocalDataTrack::tryPush(const std::uint8_t *data, std::size_t size,
+                        std::optional<std::uint64_t> user_timestamp) {
   DataFrame frame;
   frame.payload.assign(data, data + size);
   frame.user_timestamp = user_timestamp;
-
-  try {
-    return tryPush(frame);
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("[LocalDataTrack] tryPush error: {}", e.what());
-    return false;
-  }
+  return tryPush(frame);
 }
 
 bool LocalDataTrack::isPublished() const {

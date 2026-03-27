@@ -17,8 +17,10 @@
 #pragma once
 
 #include "livekit/data_frame.h"
+#include "livekit/data_track_error.h"
 #include "livekit/data_track_info.h"
 #include "livekit/ffi_handle.h"
+#include "livekit/result.h"
 
 #include <cstddef>
 #include <memory>
@@ -44,11 +46,14 @@ class OwnedLocalDataTrack;
  * Typical usage:
  *
  *   auto lp = room->localParticipant();
- *   auto dt = lp->publishDataTrack("sensor-data");
- *   DataFrame frame;
- *   frame.payload = {0x01, 0x02, 0x03};
- *   dt->tryPush(frame);
- *   dt->unpublishDataTrack();
+ *   auto result = lp->publishDataTrack("sensor-data");
+ *   if (result) {
+ *     auto dt = result.value();
+ *     DataFrame frame;
+ *     frame.payload = {0x01, 0x02, 0x03};
+ *     (void)dt->tryPush(frame);
+ *     dt->unpublishDataTrack();
+ *   }
  */
 class LocalDataTrack {
 public:
@@ -63,29 +68,32 @@ public:
   /**
    * Try to push a frame to all subscribers of this track.
    *
-   * @return true on success, false if the push failed (e.g. back-pressure
-   *         or the track has been unpublished).
+   * @return success on delivery acceptance, or a typed error describing why
+   *         the frame could not be queued.
    */
-  bool tryPush(const DataFrame &frame);
+  Result<void, DataTrackError> tryPush(const DataFrame &frame);
 
   /**
    * Try to push a frame to all subscribers of this track.
    *
-   * @return true on success, false if the push failed (e.g. back-pressure
-   *         or the track has been unpublished).
+   * @return success on delivery acceptance, or a typed error describing why
+   *         the frame could not be queued.
    */
-  bool tryPush(const std::vector<std::uint8_t> &payload,
-               std::optional<std::uint64_t> user_timestamp = std::nullopt);
-  bool tryPush(std::vector<std::uint8_t> &&payload,
-               std::optional<std::uint64_t> user_timestamp = std::nullopt);
+  Result<void, DataTrackError>
+  tryPush(const std::vector<std::uint8_t> &payload,
+          std::optional<std::uint64_t> user_timestamp = std::nullopt);
+  Result<void, DataTrackError>
+  tryPush(std::vector<std::uint8_t> &&payload,
+          std::optional<std::uint64_t> user_timestamp = std::nullopt);
   /**
    * Try to push a frame to all subscribers of this track.
    *
-   * @return true on success, false if the push failed (e.g. back-pressure
-   *         or the track has been unpublished).
+   * @return success on delivery acceptance, or a typed error describing why
+   *         the frame could not be queued.
    */
-  bool tryPush(const std::uint8_t *data, std::size_t size,
-               std::optional<std::uint64_t> user_timestamp = std::nullopt);
+  Result<void, DataTrackError>
+  tryPush(const std::uint8_t *data, std::size_t size,
+          std::optional<std::uint64_t> user_timestamp = std::nullopt);
 
   /// Whether the track is still published in the room.
   bool isPublished() const;

@@ -18,7 +18,9 @@
 
 #include "livekit/data_track_info.h"
 #include "livekit/data_track_subscription.h"
+#include "livekit/data_track_error.h"
 #include "livekit/ffi_handle.h"
+#include "livekit/result.h"
 
 #include <memory>
 #include <string>
@@ -39,10 +41,13 @@ class OwnedRemoteDataTrack;
  * Typical usage:
  *
  *   // In RoomDelegate::onDataTrackPublished callback:
- *   auto sub = remoteDataTrack->subscribe();
- *   DataFrame frame;
- *   while (sub->read(frame)) {
- *     // process frame
+ *   auto sub_result = remoteDataTrack->subscribe();
+ *   if (sub_result) {
+ *     auto sub = sub_result.value();
+ *     DataFrame frame;
+ *     while (sub->read(frame)) {
+ *       // process frame
+ *     }
  *   }
  */
 class RemoteDataTrack {
@@ -68,10 +73,8 @@ public:
    *
    * Returns a DataTrackSubscription that delivers frames via blocking
    * read(). Destroy the subscription to unsubscribe.
-   *
-   * @throws std::runtime_error if the FFI subscribe call fails.
    */
-  std::shared_ptr<DataTrackSubscription>
+  Result<std::shared_ptr<DataTrackSubscription>, DataTrackError>
   subscribe(const DataTrackSubscription::Options &options = {});
 
 private:

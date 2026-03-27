@@ -90,6 +90,40 @@ bool waitForCondition(Predicate &&predicate, std::chrono::milliseconds timeout,
   return false;
 }
 
+std::string describeDataTrackError(const DataTrackError &error) {
+  return "code=" + std::to_string(static_cast<std::uint32_t>(error.code)) +
+         " retryable=" + (error.retryable ? "true" : "false") +
+         " message=" + error.message;
+}
+
+std::shared_ptr<LocalDataTrack>
+requirePublishedTrack(LocalParticipant *participant, const std::string &name) {
+  auto result = participant->publishDataTrack(name);
+  if (!result) {
+    throw std::runtime_error("Failed to publish data track: " +
+                             describeDataTrackError(result.error()));
+  }
+  return result.value();
+}
+
+std::shared_ptr<DataTrackSubscription>
+requireSubscription(const std::shared_ptr<RemoteDataTrack> &track) {
+  auto result = track->subscribe();
+  if (!result) {
+    throw std::runtime_error("Failed to subscribe to data track: " +
+                             describeDataTrackError(result.error()));
+  }
+  return result.value();
+}
+
+void requirePushSuccess(const Result<void, DataTrackError> &result,
+                        const std::string &context) {
+  if (!result) {
+    throw std::runtime_error(context + ": " +
+                             describeDataTrackError(result.error()));
+  }
+}
+
 class DataTrackPublishedDelegate : public RoomDelegate {
 public:
   void onDataTrackPublished(Room &,
@@ -173,8 +207,8 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   std::thread publisher([&]() {
     try {
       auto track =
-          publisher_room->localParticipant()->publishDataTrack(track_name);
-      if (!track || !track->isPublished()) {
+          requirePublishedTrack(publisher_room->localParticipant(), track_name);
+      if (!track->isPublished()) {
         throw std::runtime_error("Publisher failed to publish data track");
       }
       if (track->info().uses_e2ee) {
@@ -194,9 +228,7 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
       for (size_t index = 0; index < frame_count; ++index) {
         std::vector<std::uint8_t> payload(payload_len,
                                           static_cast<std::uint8_t>(index));
-        if (!track->tryPush(payload)) {
-          throw std::runtime_error("Failed to push data frame");
-        }
+        requirePushSuccess(track->tryPush(payload), "Failed to push data frame");
 
         next_send += frame_interval;
         std::this_thread::sleep_until(next_send);
@@ -215,8 +247,11 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   EXPECT_EQ(remote_track->info().name, track_name);
   EXPECT_EQ(remote_track->publisherIdentity(), publisher_identity);
 
-  auto subscription = remote_track->subscribe();
-  ASSERT_NE(subscription, nullptr);
+  auto subscribe_result = remote_track->subscribe();
+  if (!subscribe_result) {
+    FAIL() << describeDataTrackError(subscribe_result.error());
+  }
+  auto subscription = subscribe_result.value();
 
   std::promise<size_t> receive_count_promise;
   auto receive_count_future = receive_count_promise.get_future();
@@ -288,9 +323,12 @@ TEST_F(DataTrackE2ETest, UnpublishUpdatesPublishedStateEndToEnd) {
   auto rooms = testRooms(room_configs);
   auto &publisher_room = rooms[0];
 
-  auto local_track =
+  auto publish_result =
       publisher_room->localParticipant()->publishDataTrack(track_name);
-  ASSERT_NE(local_track, nullptr);
+  if (!publish_result) {
+    FAIL() << describeDataTrackError(publish_result.error());
+  }
+  auto local_track = publish_result.value();
   ASSERT_TRUE(local_track->isPublished());
 
   auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
@@ -316,9 +354,12 @@ TEST_F(DataTrackE2ETest, PublishManyTracks) {
   const auto start = std::chrono::steady_clock::now();
   for (int index = 0; index < kPublishManyTrackCount; ++index) {
     const auto track_name = "track_" + std::to_string(index);
-    auto track = room->localParticipant()->publishDataTrack(track_name);
-
-    ASSERT_NE(track, nullptr) << "Failed to publish track " << track_name;
+    auto publish_result = room->localParticipant()->publishDataTrack(track_name);
+    if (!publish_result) {
+      FAIL() << "Failed to publish track " << track_name << ": "
+             << describeDataTrackError(publish_result.error());
+    }
+    auto track = publish_result.value();
     EXPECT_TRUE(track->isPublished())
         << "Track was not published: " << track_name;
     EXPECT_EQ(track->info().name, track_name);
@@ -340,9 +381,13 @@ TEST_F(DataTrackE2ETest, PublishManyTracks) {
   // logs are expected. The purpose of this test is to verify publish/push
   // behavior and local track state, not end-to-end delivery of every packet.
   for (const auto &track : tracks) {
-    EXPECT_TRUE(track->tryPush(
-        std::vector<std::uint8_t>(kLargeFramePayloadBytes, 0xFA)))
-        << "Failed to push large frame on track " << track->info().name;
+    auto push_result =
+        track->tryPush(std::vector<std::uint8_t>(kLargeFramePayloadBytes, 0xFA));
+    if (!push_result) {
+      ADD_FAILURE() << "Failed to push large frame on track "
+                    << track->info().name << ": "
+                    << describeDataTrackError(push_result.error());
+    }
     std::this_thread::sleep_for(50ms);
   }
 
@@ -356,17 +401,19 @@ TEST_F(DataTrackE2ETest, PublishDuplicateName) {
   auto rooms = testRooms(1);
   auto &room = rooms[0];
 
-  auto first_track = room->localParticipant()->publishDataTrack("first");
-  ASSERT_NE(first_track, nullptr);
+  auto first_track_result = room->localParticipant()->publishDataTrack("first");
+  if (!first_track_result) {
+    FAIL() << describeDataTrackError(first_track_result.error());
+  }
+  auto first_track = first_track_result.value();
   ASSERT_TRUE(first_track->isPublished());
 
-  try {
-    (void)room->localParticipant()->publishDataTrack("first");
-    FAIL() << "Expected duplicate data-track name to be rejected";
-  } catch (const std::runtime_error &error) {
-    const std::string message = error.what();
-    EXPECT_FALSE(message.empty());
-  }
+  auto duplicate_result = room->localParticipant()->publishDataTrack("first");
+  ASSERT_FALSE(duplicate_result)
+      << "Expected duplicate data-track name to be rejected";
+  EXPECT_EQ(duplicate_result.error().code,
+            DataTrackErrorCode::DUPLICATE_TRACK_NAME);
+  EXPECT_FALSE(duplicate_result.error().message.empty());
 
   first_track->unpublishDataTrack();
 }
@@ -386,15 +433,14 @@ TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) {
   std::thread publisher([&]() {
     try {
       auto track =
-          publisher_room->localParticipant()->publishDataTrack(track_name);
-      if (!track || !track->isPublished()) {
+          requirePublishedTrack(publisher_room->localParticipant(), track_name);
+      if (!track->isPublished()) {
         throw std::runtime_error("Publisher failed to publish data track");
       }
 
       while (keep_publishing.load()) {
-        if (!track->tryPush(std::vector<std::uint8_t>(64, 0xFA))) {
-          throw std::runtime_error("Failed to push resubscribe test frame");
-        }
+        requirePushSuccess(track->tryPush(std::vector<std::uint8_t>(64, 0xFA)),
+                           "Failed to push resubscribe test frame");
         std::this_thread::sleep_for(50ms);
       }
 
@@ -408,8 +454,11 @@ TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) {
   ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
 
   for (int iteration = 0; iteration < kResubscribeIterations; ++iteration) {
-    auto subscription = remote_track->subscribe();
-    ASSERT_NE(subscription, nullptr);
+    auto subscribe_result = remote_track->subscribe();
+    if (!subscribe_result) {
+      FAIL() << describeDataTrackError(subscribe_result.error());
+    }
+    auto subscription = subscribe_result.value();
 
     auto frame = readFrameWithTimeout(subscription, 5s);
     EXPECT_FALSE(frame.payload.empty()) << "Iteration " << iteration;
@@ -437,16 +486,22 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
   auto rooms = testRooms(room_configs);
   auto &publisher_room = rooms[0];
 
-  auto local_track =
+  auto publish_result =
       publisher_room->localParticipant()->publishDataTrack(track_name);
-  ASSERT_NE(local_track, nullptr);
+  if (!publish_result) {
+    FAIL() << describeDataTrackError(publish_result.error());
+  }
+  auto local_track = publish_result.value();
   ASSERT_TRUE(local_track->isPublished());
 
   auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
   ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
 
-  auto subscription = remote_track->subscribe();
-  ASSERT_NE(subscription, nullptr);
+  auto subscribe_result = remote_track->subscribe();
+  if (!subscribe_result) {
+    FAIL() << describeDataTrackError(subscribe_result.error());
+  }
+  auto subscription = subscribe_result.value();
 
   std::promise<DataFrame> frame_promise;
   auto frame_future = frame_promise.get_future();
@@ -463,7 +518,7 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
     }
   });
 
-  const bool push_ok =
+  const auto push_result =
       local_track->tryPush(std::vector<std::uint8_t>(64, 0xFA), sent_timestamp);
   const auto frame_status = frame_future.wait_for(5s);
 
@@ -475,7 +530,10 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
   reader.join();
   local_track->unpublishDataTrack();
 
-  ASSERT_TRUE(push_ok) << "Failed to push timestamped data frame";
+  if (!push_result) {
+    FAIL() << "Failed to push timestamped data frame: "
+           << describeDataTrackError(push_result.error());
+  }
   ASSERT_EQ(frame_status, std::future_status::ready)
       << "Timed out waiting for timestamped frame";
 
@@ -511,9 +569,12 @@ TEST_F(DataTrackE2ETest, PublishesAndReceivesEncryptedFramesEndToEnd) {
   EXPECT_EQ(subscriber_room->e2eeManager()->keyProvider()->exportSharedKey(),
             e2eeSharedKey());
 
-  auto local_track =
+  auto publish_result =
       publisher_room->localParticipant()->publishDataTrack(track_name);
-  ASSERT_NE(local_track, nullptr);
+  if (!publish_result) {
+    FAIL() << describeDataTrackError(publish_result.error());
+  }
+  auto local_track = publish_result.value();
   ASSERT_TRUE(local_track->isPublished());
   EXPECT_TRUE(local_track->info().uses_e2ee);
 
@@ -523,8 +584,11 @@ TEST_F(DataTrackE2ETest, PublishesAndReceivesEncryptedFramesEndToEnd) {
   EXPECT_TRUE(remote_track->info().uses_e2ee);
   EXPECT_EQ(remote_track->info().name, track_name);
 
-  auto subscription = remote_track->subscribe();
-  ASSERT_NE(subscription, nullptr);
+  auto subscribe_result = remote_track->subscribe();
+  if (!subscribe_result) {
+    FAIL() << describeDataTrackError(subscribe_result.error());
+  }
+  auto subscription = subscribe_result.value();
 
   std::promise<DataFrame> frame_promise;
   auto frame_future = frame_promise.get_future();
@@ -545,7 +609,8 @@ TEST_F(DataTrackE2ETest, PublishesAndReceivesEncryptedFramesEndToEnd) {
   for (int index = 0; index < 200; ++index) {
     std::vector<std::uint8_t> payload(kLargeFramePayloadBytes,
                                       static_cast<std::uint8_t>(index + 1));
-    pushed = local_track->tryPush(payload) || pushed;
+    auto push_result = local_track->tryPush(payload);
+    pushed = static_cast<bool>(push_result) || pushed;
     if (frame_future.wait_for(25ms) == std::future_status::ready) {
       break;
     }
@@ -595,9 +660,12 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampOnEncryptedDataTrack) {
   publisher_room->e2eeManager()->setEnabled(true);
   subscriber_room->e2eeManager()->setEnabled(true);
 
-  auto local_track =
+  auto publish_result =
       publisher_room->localParticipant()->publishDataTrack(track_name);
-  ASSERT_NE(local_track, nullptr);
+  if (!publish_result) {
+    FAIL() << describeDataTrackError(publish_result.error());
+  }
+  auto local_track = publish_result.value();
   ASSERT_TRUE(local_track->isPublished());
   EXPECT_TRUE(local_track->info().uses_e2ee);
 
@@ -605,8 +673,11 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampOnEncryptedDataTrack) {
   ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
   EXPECT_TRUE(remote_track->info().uses_e2ee);
 
-  auto subscription = remote_track->subscribe();
-  ASSERT_NE(subscription, nullptr);
+  auto subscribe_result = remote_track->subscribe();
+  if (!subscribe_result) {
+    FAIL() << describeDataTrackError(subscribe_result.error());
+  }
+  auto subscription = subscribe_result.value();
 
   std::promise<DataFrame> frame_promise;
   auto frame_future = frame_promise.get_future();
@@ -625,7 +696,8 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampOnEncryptedDataTrack) {
 
   bool pushed = false;
   for (int attempt = 0; attempt < 200; ++attempt) {
-    pushed = local_track->tryPush(payload, sent_timestamp) || pushed;
+    auto push_result = local_track->tryPush(payload, sent_timestamp);
+    pushed = static_cast<bool>(push_result) || pushed;
     if (frame_future.wait_for(25ms) == std::future_status::ready) {
       break;
     }
