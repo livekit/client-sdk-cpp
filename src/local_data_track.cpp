@@ -71,28 +71,10 @@ Result<void, DataTrackError> LocalDataTrack::tryPush(const DataFrame &frame) {
 }
 
 Result<void, DataTrackError>
-LocalDataTrack::tryPush(const std::vector<std::uint8_t> &payload,
-                        std::optional<std::uint64_t> user_timestamp) {
-  DataFrame frame;
-  frame.payload = payload;
-  frame.user_timestamp = user_timestamp;
-  return tryPush(frame);
-}
-
-Result<void, DataTrackError>
 LocalDataTrack::tryPush(std::vector<std::uint8_t> &&payload,
                         std::optional<std::uint64_t> user_timestamp) {
   DataFrame frame;
   frame.payload = std::move(payload);
-  frame.user_timestamp = user_timestamp;
-  return tryPush(frame);
-}
-
-Result<void, DataTrackError>
-LocalDataTrack::tryPush(const std::uint8_t *data, std::size_t size,
-                        std::optional<std::uint64_t> user_timestamp) {
-  DataFrame frame;
-  frame.payload.assign(data, data + size);
   frame.user_timestamp = user_timestamp;
   return tryPush(frame);
 }
