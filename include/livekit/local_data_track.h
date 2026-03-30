@@ -80,19 +80,7 @@ public:
    *         the frame could not be queued.
    */
   Result<void, DataTrackError>
-  tryPush(const std::vector<std::uint8_t> &payload,
-          std::optional<std::uint64_t> user_timestamp = std::nullopt);
-  Result<void, DataTrackError>
   tryPush(std::vector<std::uint8_t> &&payload,
-          std::optional<std::uint64_t> user_timestamp = std::nullopt);
-  /**
-   * Try to push a frame to all subscribers of this track.
-   *
-   * @return success on delivery acceptance, or a typed error describing why
-   *         the frame could not be queued.
-   */
-  Result<void, DataTrackError>
-  tryPush(const std::uint8_t *data, std::size_t size,
           std::optional<std::uint64_t> user_timestamp = std::nullopt);
 
   /// Whether the track is still published in the room.
