@@ -108,6 +108,26 @@ public:
                                VideoStream::Options opts = {});
 
   /**
+   * Register or replace a rich video frame event callback for a remote
+   * subscription.
+   *
+   * The callback is keyed by remote participant identity plus \p source.
+   * If the matching remote video track is already subscribed, \ref Room may
+   * immediately call \ref handleTrackSubscribed to start a reader.
+   *
+   * @param participant_identity Identity of the remote participant.
+   * @param source               Track source to match.
+   * @param callback             Function invoked for each decoded video frame
+   *                             event, including optional metadata.
+   * @param opts                 Options used when creating the backing
+   *                             \ref VideoStream.
+   */
+  void setOnVideoFrameEventCallback(const std::string &participant_identity,
+                                    TrackSource source,
+                                    VideoFrameEventCallback callback,
+                                    VideoStream::Options opts = {});
+
+  /**
    * Remove an audio callback registration and stop any active reader.
    *
    * If an audio reader thread is active for the given key, its stream is
@@ -209,7 +229,8 @@ private:
 
   /// Stored video callback registration plus stream-construction options.
   struct RegisteredVideoCallback {
-    VideoFrameCallback callback;
+    VideoFrameCallback legacy_callback;
+    VideoFrameEventCallback event_callback;
     VideoStream::Options options;
   };
 
@@ -240,8 +261,7 @@ private:
   /// is extracted and returned to the caller for joining outside the lock.
   std::thread startVideoReaderLocked(const CallbackKey &key,
                                      const std::shared_ptr<Track> &track,
-                                     VideoFrameCallback cb,
-                                     const VideoStream::Options &opts);
+                                     const RegisteredVideoCallback &callback);
 
   /// Protects callback registration maps and active reader state.
   mutable std::mutex lock_;

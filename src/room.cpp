@@ -283,6 +283,16 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
   }
 }
 
+void Room::setOnVideoFrameEventCallback(const std::string &participant_identity,
+                                        TrackSource source,
+                                        VideoFrameEventCallback callback,
+                                        VideoStream::Options opts) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnVideoFrameEventCallback(
+        participant_identity, source, std::move(callback), std::move(opts));
+  }
+}
+
 void Room::clearOnAudioFrameCallback(const std::string &participant_identity,
                                      TrackSource source) {
   if (subscription_thread_dispatcher_) {

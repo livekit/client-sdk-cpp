@@ -17,6 +17,7 @@
 #pragma once
 
 #include "livekit/video_frame.h"
+#include "livekit/video_source.h"
 #include "video_frame.pb.h"
 
 namespace livekit {
@@ -28,5 +29,8 @@ VideoFrame convertViaFfi(const VideoFrame &frame, VideoBufferType dst,
                          bool flip_y);
 proto::VideoBufferType toProto(VideoBufferType t);
 VideoBufferType fromProto(proto::VideoBufferType t);
+std::optional<proto::FrameMetadata>
+toProto(const std::optional<VideoFrameMetadata> &metadata);
+std::optional<VideoFrameMetadata> fromProto(const proto::FrameMetadata &metadata);
 
 } // namespace livekit
