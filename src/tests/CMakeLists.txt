@@ -150,8 +150,8 @@ if(INTEGRATION_TEST_SOURCES)
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
-      ${LIVEKIT_BINARY_DIR}/generated
       ${Protobuf_INCLUDE_DIRS}
+      ${LIVEKIT_BINARY_DIR}/generated
   )
   if(TARGET absl::base)
     get_target_property(_livekit_test_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
@@ -238,7 +238,8 @@ if(STRESS_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
-      ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
+      ${LIVEKIT_BINARY_DIR}/generated
+      ${Protobuf_INCLUDE_DIRS}
   )
 
   target_compile_definitions(livekit_stress_tests

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "livekit/video_frame.h"
+#include "video_utils.h"
 
 #include <cstring>
 #include <stdexcept>
@@ -84,6 +84,43 @@ VideoBufferType fromProto(proto::VideoBufferType t) {
   default:
     throw std::runtime_error("Unknown proto::VideoBufferType in fromProto");
   }
+}
+
+std::optional<proto::FrameMetadata>
+toProto(const std::optional<VideoFrameMetadata> &metadata) {
+  if (!metadata.has_value()) {
+    return std::nullopt;
+  }
+
+  proto::FrameMetadata proto_metadata;
+  if (metadata->user_timestamp.has_value()) {
+    proto_metadata.set_user_timestamp(*metadata->user_timestamp);
+  }
+  if (metadata->frame_id.has_value()) {
+    proto_metadata.set_frame_id(*metadata->frame_id);
+  }
+
+  if (!proto_metadata.has_user_timestamp() && !proto_metadata.has_frame_id()) {
+    return std::nullopt;
+  }
+
+  return proto_metadata;
+}
+
+std::optional<VideoFrameMetadata> fromProto(const proto::FrameMetadata &metadata) {
+  VideoFrameMetadata out;
+  if (metadata.has_user_timestamp()) {
+    out.user_timestamp = metadata.user_timestamp();
+  }
+  if (metadata.has_frame_id()) {
+    out.frame_id = metadata.frame_id();
+  }
+
+  if (!out.user_timestamp.has_value() && !out.frame_id.has_value()) {
+    return std::nullopt;
+  }
+
+  return out;
 }
 
 proto::VideoBufferInfo toProto(const VideoFrame &frame) {

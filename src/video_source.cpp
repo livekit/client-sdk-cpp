@@ -16,7 +16,6 @@
 
 #include "livekit/video_source.h"
 
-#include <chrono>
 #include <stdexcept>
 
 #include "ffi.pb.h"
@@ -45,8 +44,7 @@ VideoSource::VideoSource(int width, int height)
 }
 
 void VideoSource::captureFrame(const VideoFrame &frame,
-                               std::int64_t timestamp_us,
-                               VideoRotation rotation) {
+                               const VideoCaptureOptions &options) {
   if (!handle_) {
     return;
   }
@@ -56,12 +54,24 @@ void VideoSource::captureFrame(const VideoFrame &frame,
   auto *msg = req.mutable_capture_video_frame();
   msg->set_source_handle(handle_.get());
   msg->mutable_buffer()->CopyFrom(buf);
-  msg->set_timestamp_us(timestamp_us);
-  msg->set_rotation(static_cast<proto::VideoRotation>(rotation));
-  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  msg->set_timestamp_us(options.timestamp_us);
+  msg->set_rotation(static_cast<proto::VideoRotation>(options.rotation));
+  if (auto metadata = toProto(options.metadata)) {
+    msg->mutable_metadata()->CopyFrom(*metadata);
+  }
+  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   if (!resp.has_capture_video_frame()) {
     throw std::runtime_error("FfiResponse missing capture_video_frame");
   }
+}
+
+void VideoSource::captureFrame(const VideoFrame &frame,
+                               std::int64_t timestamp_us,
+                               VideoRotation rotation) {
+  VideoCaptureOptions options;
+  options.timestamp_us = timestamp_us;
+  options.rotation = rotation;
+  captureFrame(frame, options);
 }
 
 } // namespace livekit

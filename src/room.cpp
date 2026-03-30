@@ -32,8 +32,8 @@
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
-#include "lk_log.h"
 #include "livekit_ffi.h"
+#include "lk_log.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
 #include "trace/trace_event.h"
@@ -310,7 +310,17 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    VideoStream::Options opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnVideoFrameCallback(
-        participant_identity, track_name, std::move(callback), opts);
+        participant_identity, track_name, std::move(callback), std::move(opts));
+  }
+}
+
+void Room::setOnVideoFrameEventCallback(const std::string &participant_identity,
+                                        TrackSource source,
+                                        VideoFrameEventCallback callback,
+                                        VideoStream::Options opts) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnVideoFrameEventCallback(
+        participant_identity, source, std::move(callback), std::move(opts));
   }
 }
 
