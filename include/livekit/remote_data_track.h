@@ -68,6 +68,11 @@ public:
   /// Whether the track is still published by the remote participant.
   bool isPublished() const;
 
+#ifdef LIVEKIT_TEST_ACCESS
+  /// Test-only accessor for exercising lower-level FFI subscription paths.
+  uintptr_t testFfiHandleId() const noexcept { return ffi_handle_id(); }
+#endif
+
   /**
    * Subscribe to this remote data track.
    *

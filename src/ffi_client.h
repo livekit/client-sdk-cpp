@@ -135,9 +135,8 @@ public:
   publishDataTrackAsync(std::uint64_t local_participant_handle,
                         const std::string &track_name);
 
-  // TODO(sderosa): the subscription model for data tracks has been changed to sync, need to update
-  std::future<Result<proto::OwnedDataTrackSubscription, DataTrackError>>
-  subscribeDataTrackAsync(
+  Result<proto::OwnedDataTrackSubscription, DataTrackError>
+  subscribeDataTrack(
       std::uint64_t track_handle,
       std::optional<std::uint32_t> buffer_size = std::nullopt);
 

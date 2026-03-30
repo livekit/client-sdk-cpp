@@ -56,10 +56,8 @@ RemoteDataTrack::subscribe(const DataTrackSubscription::Options &options) {
                        false});
   }
 
-  auto fut = FfiClient::instance().subscribeDataTrackAsync(
+  auto result = FfiClient::instance().subscribeDataTrack(
       static_cast<std::uint64_t>(handle_.get()), options.buffer_size);
-
-  auto result = fut.get();
   if (!result) {
     return Result<std::shared_ptr<DataTrackSubscription>,
                   DataTrackError>::failure(result.error());

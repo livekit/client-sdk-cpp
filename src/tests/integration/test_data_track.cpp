@@ -23,6 +23,8 @@
 
 #include "../common/test_common.h"
 
+#include "ffi_client.h"
+
 #include <cmath>
 #include <condition_variable>
 #include <exception>
@@ -60,6 +62,15 @@ std::string makeTrackName(const std::string &suffix) {
 std::vector<std::uint8_t> e2eeSharedKey() {
   return std::vector<std::uint8_t>(
       kE2EESharedSecret, kE2EESharedSecret + sizeof(kE2EESharedSecret) - 1);
+}
+
+std::size_t parseTestTrackIndex(const std::string &track_name) {
+  constexpr char kPrefix[] = "test_";
+  if (track_name.rfind(kPrefix, 0) != 0) {
+    throw std::runtime_error("Unexpected test track name: " + track_name);
+  }
+  return static_cast<std::size_t>(
+      std::stoul(track_name.substr(sizeof(kPrefix) - 1)));
 }
 
 E2EEOptions makeE2EEOptions() {
@@ -146,6 +157,16 @@ public:
     return tracks_.front();
   }
 
+  std::vector<std::shared_ptr<RemoteDataTrack>>
+  waitForTracks(std::size_t count, std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (!cv_.wait_for(lock, timeout,
+                      [this, count] { return tracks_.size() >= count; })) {
+      return {};
+    }
+    return {tracks_.begin(), tracks_.begin() + static_cast<std::ptrdiff_t>(count)};
+  }
+
 private:
   std::mutex mutex_;
   std::condition_variable cv_;
@@ -228,7 +249,8 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
       for (size_t index = 0; index < frame_count; ++index) {
         std::vector<std::uint8_t> payload(payload_len,
                                           static_cast<std::uint8_t>(index));
-        requirePushSuccess(track->tryPush(payload), "Failed to push data frame");
+        requirePushSuccess(track->tryPush(std::move(payload)),
+                           "Failed to push data frame");
 
         next_send += frame_interval;
         std::this_thread::sleep_until(next_send);
@@ -475,6 +497,85 @@ TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) {
   }
 }
 
+TEST_F(DataTrackE2ETest, FfiClientSubscribeDataTrackReturnsSyncResult) {
+  constexpr std::size_t kTopicCount = 20;
+
+  DataTrackPublishedDelegate subscriber_delegate;
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[1].delegate = &subscriber_delegate;
+
+  auto rooms = testRooms(room_configs);
+  auto &publisher_room = rooms[0];
+
+  std::vector<std::shared_ptr<LocalDataTrack>> local_tracks;
+  local_tracks.reserve(kTopicCount);
+
+  for (std::size_t idx = 0; idx < kTopicCount; ++idx) {
+    const auto track_name = "test_" + std::to_string(idx);
+    auto publish_result =
+        publisher_room->localParticipant()->publishDataTrack(track_name);
+    if (!publish_result) {
+      FAIL() << "Failed to publish " << track_name << ": "
+             << describeDataTrackError(publish_result.error());
+    }
+    auto local_track = publish_result.value();
+    ASSERT_TRUE(local_track->isPublished()) << track_name;
+    local_tracks.push_back(std::move(local_track));
+  }
+
+  auto remote_tracks =
+      subscriber_delegate.waitForTracks(kTopicCount, kTrackWaitTimeout);
+  ASSERT_EQ(remote_tracks.size(), kTopicCount)
+      << "Timed out waiting for all remote data tracks";
+
+  std::sort(remote_tracks.begin(), remote_tracks.end(),
+            [](const std::shared_ptr<RemoteDataTrack> &lhs,
+               const std::shared_ptr<RemoteDataTrack> &rhs) {
+              return parseTestTrackIndex(lhs->info().name) <
+                     parseTestTrackIndex(rhs->info().name);
+            });
+
+  std::vector<FfiHandle> subscription_handles;
+  subscription_handles.reserve(kTopicCount);
+
+  for (std::size_t idx = 0; idx < remote_tracks.size(); ++idx) {
+    const auto &remote_track = remote_tracks[idx];
+    const auto expected_name = "test_" + std::to_string(idx);
+    ASSERT_NE(remote_track, nullptr);
+    EXPECT_TRUE(remote_track->isPublished()) << expected_name;
+    EXPECT_EQ(remote_track->info().name, expected_name);
+
+    const auto subscribe_start = std::chrono::steady_clock::now();
+    auto subscribe_result = FfiClient::instance().subscribeDataTrack(
+        static_cast<std::uint64_t>(remote_track->testFfiHandleId()));
+    const auto subscribe_elapsed =
+        std::chrono::steady_clock::now() - subscribe_start;
+    const auto subscribe_elapsed_ns =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            subscribe_elapsed)
+            .count();
+
+    std::cout << "FfiClient::subscribeDataTrack(" << expected_name
+              << ") completed in " << subscribe_elapsed_ns << " ns"
+              << std::endl;
+
+    if (!subscribe_result) {
+      FAIL() << "Failed to subscribe to " << expected_name << ": "
+             << describeDataTrackError(subscribe_result.error());
+    }
+
+    const auto subscription_handle_id =
+        static_cast<uintptr_t>(subscribe_result.value().handle().id());
+    EXPECT_NE(subscription_handle_id, 0u) << expected_name;
+    subscription_handles.emplace_back(subscription_handle_id);
+    EXPECT_TRUE(subscription_handles.back().valid()) << expected_name;
+  }
+
+  for (auto &local_track : local_tracks) {
+    local_track->unpublishDataTrack();
+  }
+}
+
 TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
   const auto track_name = makeTrackName("user_timestamp");
   const auto sent_timestamp = getTimestampUs();
@@ -609,7 +710,7 @@ TEST_F(DataTrackE2ETest, PublishesAndReceivesEncryptedFramesEndToEnd) {
   for (int index = 0; index < 200; ++index) {
     std::vector<std::uint8_t> payload(kLargeFramePayloadBytes,
                                       static_cast<std::uint8_t>(index + 1));
-    auto push_result = local_track->tryPush(payload);
+    auto push_result = local_track->tryPush(std::move(payload));
     pushed = static_cast<bool>(push_result) || pushed;
     if (frame_future.wait_for(25ms) == std::future_status::ready) {
       break;
@@ -696,7 +797,9 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampOnEncryptedDataTrack) {
 
   bool pushed = false;
   for (int attempt = 0; attempt < 200; ++attempt) {
-    auto push_result = local_track->tryPush(payload, sent_timestamp);
+    auto payload_copy = payload;
+    auto push_result =
+        local_track->tryPush(std::move(payload_copy), sent_timestamp);
     pushed = static_cast<bool>(push_result) || pushed;
     if (frame_future.wait_for(25ms) == std::future_status::ready) {
       break;
