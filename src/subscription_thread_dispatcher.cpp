@@ -16,8 +16,8 @@
 
 #include "livekit/subscription_thread_dispatcher.h"
 
-#include "livekit/data_frame.h"
-#include "livekit/data_track_subscription.h"
+#include "livekit/data_track_frame.h"
+#include "livekit/data_track_stream.h"
 #include "livekit/lk_log.h"
 #include "livekit/remote_data_track.h"
 #include "livekit/track.h"
@@ -68,15 +68,16 @@ void SubscriptionThreadDispatcher::setOnAudioFrameCallback(
 void SubscriptionThreadDispatcher::setOnAudioFrameCallback(
     const std::string &participant_identity, const std::string &track_name,
     AudioFrameCallback callback, AudioStream::Options opts) {
-  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN, track_name};
+  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
+                  track_name};
   std::lock_guard<std::mutex> lock(lock_);
   const bool replacing = audio_callbacks_.find(key) != audio_callbacks_.end();
   audio_callbacks_[key] =
       RegisteredAudioCallback{std::move(callback), std::move(opts)};
-  LK_LOG_DEBUG("Registered audio frame callback for participant={} track_name={} "
-               "replacing_existing={} total_audio_callbacks={}",
-               participant_identity, track_name, replacing,
-               audio_callbacks_.size());
+  LK_LOG_DEBUG(
+      "Registered audio frame callback for participant={} track_name={} "
+      "replacing_existing={} total_audio_callbacks={}",
+      participant_identity, track_name, replacing, audio_callbacks_.size());
 }
 
 void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
@@ -96,15 +97,16 @@ void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
 void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
     const std::string &participant_identity, const std::string &track_name,
     VideoFrameCallback callback, VideoStream::Options opts) {
-  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN, track_name};
+  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
+                  track_name};
   std::lock_guard<std::mutex> lock(lock_);
   const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
   video_callbacks_[key] =
       RegisteredVideoCallback{std::move(callback), std::move(opts)};
-  LK_LOG_DEBUG("Registered video frame callback for participant={} track_name={} "
-               "replacing_existing={} total_video_callbacks={}",
-               participant_identity, track_name, replacing,
-               video_callbacks_.size());
+  LK_LOG_DEBUG(
+      "Registered video frame callback for participant={} track_name={} "
+      "replacing_existing={} total_video_callbacks={}",
+      participant_identity, track_name, replacing, video_callbacks_.size());
 }
 
 void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(
@@ -129,7 +131,8 @@ void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(
 
 void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(
     const std::string &participant_identity, const std::string &track_name) {
-  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN, track_name};
+  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
+                  track_name};
   std::thread old_thread;
   bool removed_callback = false;
   {
@@ -169,7 +172,8 @@ void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(
 
 void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(
     const std::string &participant_identity, const std::string &track_name) {
-  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN, track_name};
+  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
+                  track_name};
   std::thread old_thread;
   bool removed_callback = false;
   {
@@ -189,8 +193,7 @@ void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(
 
 void SubscriptionThreadDispatcher::handleTrackSubscribed(
     const std::string &participant_identity, TrackSource source,
-    const std::string &track_name,
-    const std::shared_ptr<Track> &track) {
+    const std::string &track_name, const std::shared_ptr<Track> &track) {
   if (!track) {
     LK_LOG_WARN(
         "Ignoring subscribed track dispatch for participant={} source={} "
@@ -203,7 +206,8 @@ void SubscriptionThreadDispatcher::handleTrackSubscribed(
                participant_identity, static_cast<int>(source),
                trackKindName(track->kind()));
 
-  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN, track_name};
+  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
+                  track_name};
   CallbackKey fallback_key{participant_identity, source, ""};
   std::thread old_thread;
   {
@@ -225,7 +229,8 @@ void SubscriptionThreadDispatcher::handleTrackSubscribed(
 void SubscriptionThreadDispatcher::handleTrackUnsubscribed(
     const std::string &participant_identity, TrackSource source,
     const std::string &track_name) {
-  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN, track_name};
+  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
+                  track_name};
   CallbackKey fallback_key{participant_identity, source, ""};
   std::thread old_thread;
   std::thread fallback_old_thread;
@@ -235,9 +240,8 @@ void SubscriptionThreadDispatcher::handleTrackUnsubscribed(
     fallback_old_thread = extractReaderThreadLocked(fallback_key);
     LK_LOG_DEBUG("Handling unsubscribed track for participant={} source={} "
                  "track_name={} stopped_reader={} fallback_stopped_reader={}",
-                 participant_identity, static_cast<int>(source),
-                 track_name, old_thread.joinable(),
-                 fallback_old_thread.joinable());
+                 participant_identity, static_cast<int>(source), track_name,
+                 old_thread.joinable(), fallback_old_thread.joinable());
   }
   if (old_thread.joinable()) {
     old_thread.join();
@@ -331,8 +335,8 @@ void SubscriptionThreadDispatcher::handleDataTrackUnpublished(
       if (reader->remote_track && reader->remote_track->info().sid == sid) {
         {
           std::lock_guard<std::mutex> sub_guard(reader->sub_mutex);
-          if (reader->subscription) {
-            reader->subscription->close();
+          if (reader->stream) {
+            reader->stream->close();
           }
         }
         if (reader->thread.joinable()) {
@@ -385,8 +389,8 @@ void SubscriptionThreadDispatcher::stopAll() {
     for (auto &[id, reader] : active_data_readers_) {
       {
         std::lock_guard<std::mutex> sub_guard(reader->sub_mutex);
-        if (reader->subscription) {
-          reader->subscription->close();
+        if (reader->stream) {
+          reader->stream->close();
         }
       }
       if (reader->thread.joinable()) {
@@ -585,8 +589,8 @@ std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(
   active_data_readers_.erase(it);
   {
     std::lock_guard<std::mutex> guard(reader->sub_mutex);
-    if (reader->subscription) {
-      reader->subscription->close();
+    if (reader->stream) {
+      reader->stream->close();
     }
   }
   return std::move(reader->thread);
@@ -604,8 +608,8 @@ std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(
       active_data_readers_.erase(it);
       {
         std::lock_guard<std::mutex> guard(reader->sub_mutex);
-        if (reader->subscription) {
-          reader->subscription->close();
+        if (reader->stream) {
+          reader->stream->close();
         }
       }
       return std::move(reader->thread);
@@ -638,28 +642,28 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(
   reader->thread = std::thread([reader, track, cb, identity, track_name]() {
     LK_LOG_INFO("Data reader thread: subscribing to \"{}\" track=\"{}\"",
                 identity, track_name);
-    std::shared_ptr<DataTrackSubscription> subscription;
+    std::shared_ptr<DataTrackStream> stream;
     auto subscribe_result = track->subscribe();
     if (!subscribe_result) {
       const auto &error = subscribe_result.error();
       LK_LOG_ERROR(
           "Failed to subscribe to data track \"{}\" from \"{}\": code={} "
-          "retryable={} message={}",
+          "message={}",
           track_name, identity, static_cast<std::uint32_t>(error.code),
-          error.retryable, error.message);
+          error.message);
       return;
     }
-    subscription = subscribe_result.value();
+    stream = subscribe_result.value();
     LK_LOG_INFO("Data reader thread: subscribed to \"{}\" track=\"{}\"",
                 identity, track_name);
 
     {
       std::lock_guard<std::mutex> guard(reader->sub_mutex);
-      reader->subscription = subscription;
+      reader->stream = stream;
     }
 
-    DataFrame frame;
-    while (subscription->read(frame)) {
+    DataTrackFrame frame;
+    while (stream->read(frame)) {
       try {
         cb(frame.payload, frame.user_timestamp);
       } catch (const std::exception &e) {

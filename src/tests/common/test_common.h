@@ -150,9 +150,9 @@ inline std::array<std::string, 2> getDataTrackTestTokens() {
   return {token_a, token_b};
 }
 
-inline void waitForParticipantVisibility(
-    const std::vector<std::unique_ptr<Room>> &rooms,
-    std::chrono::milliseconds timeout = 5s) {
+inline void
+waitForParticipantVisibility(const std::vector<std::unique_ptr<Room>> &rooms,
+                             std::chrono::milliseconds timeout = 5s) {
   std::vector<std::string> participant_identities;
   participant_identities.reserve(rooms.size());
   for (const auto &room : rooms) {

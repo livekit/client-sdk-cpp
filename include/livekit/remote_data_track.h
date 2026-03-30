@@ -16,9 +16,9 @@
 
 #pragma once
 
-#include "livekit/data_track_info.h"
-#include "livekit/data_track_subscription.h"
 #include "livekit/data_track_error.h"
+#include "livekit/data_track_info.h"
+#include "livekit/data_track_stream.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/result.h"
 
@@ -44,7 +44,7 @@ class OwnedRemoteDataTrack;
  *   auto sub_result = remoteDataTrack->subscribe();
  *   if (sub_result) {
  *     auto sub = sub_result.value();
- *     DataFrame frame;
+ *     DataTrackFrame frame;
  *     while (sub->read(frame)) {
  *       // process frame
  *     }
@@ -68,14 +68,19 @@ public:
   /// Whether the track is still published by the remote participant.
   bool isPublished() const;
 
+#ifdef LIVEKIT_TEST_ACCESS
+  /// Test-only accessor for exercising lower-level FFI subscription paths.
+  uintptr_t testFfiHandleId() const noexcept { return ffi_handle_id(); }
+#endif
+
   /**
    * Subscribe to this remote data track.
    *
-   * Returns a DataTrackSubscription that delivers frames via blocking
-   * read(). Destroy the subscription to unsubscribe.
+   * Returns a DataTrackStream that delivers frames via blocking
+   * read(). Destroy the stream to unsubscribe.
    */
-  Result<std::shared_ptr<DataTrackSubscription>, DataTrackError>
-  subscribe(const DataTrackSubscription::Options &options = {});
+  Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>
+  subscribe(const DataTrackStream::Options &options = {});
 
 private:
   friend class Room;

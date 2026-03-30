@@ -87,10 +87,8 @@ int main(int argc, char *argv[]) {
       local_participant->publishDataTrack(ping_pong::kPongTrackName);
   if (!publish_result) {
     const auto &error = publish_result.error();
-    LK_LOG_ERROR("Failed to publish pong data track: code={} retryable={} "
-                 "message={}",
-                 static_cast<std::uint32_t>(error.code), error.retryable,
-                 error.message);
+    LK_LOG_ERROR("Failed to publish pong data track: code={} message={}",
+                 static_cast<std::uint32_t>(error.code), error.message);
     room->setDelegate(nullptr);
     room.reset();
     livekit::shutdown();
@@ -120,10 +118,8 @@ int main(int argc, char *argv[]) {
           auto push_result = pong_track->tryPush(ping_pong::toPayload(json));
           if (!push_result) {
             const auto &error = push_result.error();
-            LK_LOG_WARN("Failed to push pong data frame: code={} retryable={} "
-                        "message={}",
-                        static_cast<std::uint32_t>(error.code),
-                        error.retryable, error.message);
+            LK_LOG_WARN("Failed to push pong data frame: code={} message={}",
+                        static_cast<std::uint32_t>(error.code), error.message);
             return;
           }
 

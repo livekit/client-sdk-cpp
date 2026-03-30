@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "livekit/data_frame.h"
+#include "livekit/data_track_frame.h"
 #include "livekit/ffi_handle.h"
 
 #include <condition_variable>
@@ -33,54 +33,54 @@ class FfiEvent;
 }
 
 /**
- * An active subscription to a remote data track.
+ * Represents a pull-based stream of frames from a remote data track.
  *
  * Provides a blocking read() interface similar to AudioStream / VideoStream.
  * Frames are delivered via FfiEvent callbacks and stored internally.
  *
- * Dropping (destroying) the subscription automatically unsubscribes from the
- * remote track by releasing the underlying FFI handle.
+ * Destroying the stream automatically unsubscribes from the remote track by
+ * releasing the underlying FFI handle.
  *
  * Typical usage:
  *
  *   auto sub_result = remoteDataTrack->subscribe();
  *   if (sub_result) {
  *     auto sub = sub_result.value();
- *     DataFrame frame;
+ *     DataTrackFrame frame;
  *     while (sub->read(frame)) {
  *       // process frame.payload
  *     }
  *   }
  */
-class DataTrackSubscription {
+class DataTrackStream {
 public:
   struct Options {
     /// Maximum frames buffered on the Rust side. Rust defaults to 16.
     std::optional<std::uint32_t> buffer_size{std::nullopt};
   };
 
-  virtual ~DataTrackSubscription();
+  virtual ~DataTrackStream();
 
-  DataTrackSubscription(const DataTrackSubscription &) = delete;
-  DataTrackSubscription &operator=(const DataTrackSubscription &) = delete;
+  DataTrackStream(const DataTrackStream &) = delete;
+  DataTrackStream &operator=(const DataTrackStream &) = delete;
   // The FFI listener captures `this`, so moving the object would leave the
   // registered callback pointing at the old address.
-  DataTrackSubscription(DataTrackSubscription &&) noexcept = delete;
+  DataTrackStream(DataTrackStream &&) noexcept = delete;
   // Instances are created and returned as std::shared_ptr, so value-move
   // support is not required by the current API.
-  DataTrackSubscription &operator=(DataTrackSubscription &&) noexcept = delete;
+  DataTrackStream &operator=(DataTrackStream &&) noexcept = delete;
 
   /**
-   * Blocking read: waits until a DataFrame is available, or the
-   * subscription reaches EOS / is closed.
+   * Blocking read: waits until a DataTrackFrame is available, or the
+   * stream reaches EOS / is closed.
    *
    * @param out  On success, filled with the next data frame.
-   * @return true if a frame was delivered; false if the subscription ended.
+   * @return true if a frame was delivered; false if the stream ended.
    */
-  bool read(DataFrame &out);
+  bool read(DataTrackFrame &out);
 
   /**
-   * End the subscription early.
+   * End the stream early.
    *
    * Releases the FFI handle (which unsubscribes from the remote track),
    * unregisters the event listener, and wakes any blocking read().
@@ -90,15 +90,15 @@ public:
 private:
   friend class RemoteDataTrack;
 
-  DataTrackSubscription() = default;
+  DataTrackStream() = default;
   /// Internal init helper, called by RemoteDataTrack.
   void init(FfiHandle subscription_handle);
 
   /// FFI event handler, called by FfiClient.
   void onFfiEvent(const proto::FfiEvent &event);
 
-  /// Push a received DataFrame to the internal storage.
-  void pushFrame(DataFrame &&frame);
+  /// Push a received DataTrackFrame to the internal storage.
+  void pushFrame(DataTrackFrame &&frame);
 
   /// Push an end-of-stream signal (EOS).
   void pushEos();
@@ -112,7 +112,7 @@ private:
   /** Received frame awaiting read().
   NOTE: the rust side handles buffering, so we should only really ever have one
   item*/
-  std::optional<DataFrame> frame_;
+  std::optional<DataTrackFrame> frame_;
 
   /** True once the remote side signals end-of-stream. */
   bool eof_{false};

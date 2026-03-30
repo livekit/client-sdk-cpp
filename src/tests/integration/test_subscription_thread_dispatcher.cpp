@@ -72,8 +72,7 @@ TEST_F(SubscriptionThreadDispatcherTest, CallbackKeyEqualKeysCompareEqual) {
   EXPECT_TRUE(a == b);
 }
 
-TEST_F(SubscriptionThreadDispatcherTest,
-       CallbackKeyDifferentIdentityNotEqual) {
+TEST_F(SubscriptionThreadDispatcherTest, CallbackKeyDifferentIdentityNotEqual) {
   CallbackKey a{"alice", TrackSource::SOURCE_MICROPHONE, ""};
   CallbackKey b{"bob", TrackSource::SOURCE_MICROPHONE, ""};
   EXPECT_FALSE(a == b);
@@ -85,7 +84,8 @@ TEST_F(SubscriptionThreadDispatcherTest, CallbackKeyDifferentSourceNotEqual) {
   EXPECT_FALSE(a == b);
 }
 
-TEST_F(SubscriptionThreadDispatcherTest, CallbackKeyDifferentTrackNameNotEqual) {
+TEST_F(SubscriptionThreadDispatcherTest,
+       CallbackKeyDifferentTrackNameNotEqual) {
   CallbackKey a{"alice", TrackSource::SOURCE_UNKNOWN, "cam-main"};
   CallbackKey b{"alice", TrackSource::SOURCE_UNKNOWN, "cam-backup"};
   EXPECT_FALSE(a == b);
@@ -176,9 +176,10 @@ TEST_F(SubscriptionThreadDispatcherTest,
                                      [](const AudioFrame &) {});
 
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u);
-  EXPECT_EQ(audioCallbacks(dispatcher).count(
-                CallbackKey{"alice", TrackSource::SOURCE_UNKNOWN, "mic-main"}),
-            1u);
+  EXPECT_EQ(
+      audioCallbacks(dispatcher)
+          .count(CallbackKey{"alice", TrackSource::SOURCE_UNKNOWN, "mic-main"}),
+      1u);
 }
 
 TEST_F(SubscriptionThreadDispatcherTest, SetVideoCallbackStoresRegistration) {
@@ -196,12 +197,14 @@ TEST_F(SubscriptionThreadDispatcherTest,
                                      [](const VideoFrame &, std::int64_t) {});
 
   EXPECT_EQ(videoCallbacks(dispatcher).size(), 1u);
-  EXPECT_EQ(videoCallbacks(dispatcher).count(
-                CallbackKey{"alice", TrackSource::SOURCE_UNKNOWN, "cam-main"}),
-            1u);
+  EXPECT_EQ(
+      videoCallbacks(dispatcher)
+          .count(CallbackKey{"alice", TrackSource::SOURCE_UNKNOWN, "cam-main"}),
+      1u);
 }
 
-TEST_F(SubscriptionThreadDispatcherTest, ClearAudioCallbackRemovesRegistration) {
+TEST_F(SubscriptionThreadDispatcherTest,
+       ClearAudioCallbackRemovesRegistration) {
   SubscriptionThreadDispatcher dispatcher;
   dispatcher.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE,
                                      [](const AudioFrame &) {});
@@ -222,7 +225,8 @@ TEST_F(SubscriptionThreadDispatcherTest,
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 0u);
 }
 
-TEST_F(SubscriptionThreadDispatcherTest, ClearVideoCallbackRemovesRegistration) {
+TEST_F(SubscriptionThreadDispatcherTest,
+       ClearVideoCallbackRemovesRegistration) {
   SubscriptionThreadDispatcher dispatcher;
   dispatcher.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA,
                                      [](const VideoFrame &, std::int64_t) {});
@@ -247,13 +251,14 @@ TEST_F(SubscriptionThreadDispatcherTest, ClearNonExistentCallbackIsNoOp) {
   SubscriptionThreadDispatcher dispatcher;
   EXPECT_NO_THROW(dispatcher.clearOnAudioFrameCallback(
       "nobody", TrackSource::SOURCE_MICROPHONE));
-  EXPECT_NO_THROW(
-      dispatcher.clearOnVideoFrameCallback("nobody", TrackSource::SOURCE_CAMERA));
+  EXPECT_NO_THROW(dispatcher.clearOnVideoFrameCallback(
+      "nobody", TrackSource::SOURCE_CAMERA));
   EXPECT_NO_THROW(dispatcher.clearOnAudioFrameCallback("nobody", "missing"));
   EXPECT_NO_THROW(dispatcher.clearOnVideoFrameCallback("nobody", "missing"));
 }
 
-TEST_F(SubscriptionThreadDispatcherTest, OverwriteAudioCallbackKeepsSingleEntry) {
+TEST_F(SubscriptionThreadDispatcherTest,
+       OverwriteAudioCallbackKeepsSingleEntry) {
   SubscriptionThreadDispatcher dispatcher;
   std::atomic<int> counter1{0};
   std::atomic<int> counter2{0};
@@ -269,7 +274,8 @@ TEST_F(SubscriptionThreadDispatcherTest, OverwriteAudioCallbackKeepsSingleEntry)
       << "Re-registering with the same key should overwrite, not add";
 }
 
-TEST_F(SubscriptionThreadDispatcherTest, OverwriteVideoCallbackKeepsSingleEntry) {
+TEST_F(SubscriptionThreadDispatcherTest,
+       OverwriteVideoCallbackKeepsSingleEntry) {
   SubscriptionThreadDispatcher dispatcher;
   dispatcher.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA,
                                      [](const VideoFrame &, std::int64_t) {});
@@ -305,8 +311,7 @@ TEST_F(SubscriptionThreadDispatcherTest,
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 2u);
   EXPECT_EQ(videoCallbacks(dispatcher).size(), 2u);
 
-  dispatcher.clearOnAudioFrameCallback("alice",
-                                       TrackSource::SOURCE_MICROPHONE);
+  dispatcher.clearOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE);
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u);
   EXPECT_EQ(videoCallbacks(dispatcher).size(), 2u);
 }
@@ -320,8 +325,7 @@ TEST_F(SubscriptionThreadDispatcherTest, ClearingOneSourceDoesNotAffectOther) {
                                      [](const AudioFrame &) {});
   ASSERT_EQ(audioCallbacks(dispatcher).size(), 2u);
 
-  dispatcher.clearOnAudioFrameCallback("alice",
-                                       TrackSource::SOURCE_MICROPHONE);
+  dispatcher.clearOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE);
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u);
 
   CallbackKey remaining{"alice", TrackSource::SOURCE_SCREENSHARE_AUDIO, ""};
@@ -339,9 +343,10 @@ TEST_F(SubscriptionThreadDispatcherTest,
 
   dispatcher.clearOnAudioFrameCallback("alice", "mic-main");
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u);
-  EXPECT_EQ(audioCallbacks(dispatcher).count(
-                CallbackKey{"alice", TrackSource::SOURCE_MICROPHONE, ""}),
-            1u);
+  EXPECT_EQ(
+      audioCallbacks(dispatcher)
+          .count(CallbackKey{"alice", TrackSource::SOURCE_MICROPHONE, ""}),
+      1u);
 }
 
 // ============================================================================
@@ -435,9 +440,9 @@ TEST_F(SubscriptionThreadDispatcherTest,
       for (int i = 0; i < kIterations; ++i) {
         dispatcher.setOnAudioFrameCallback(id, TrackSource::SOURCE_MICROPHONE,
                                            [](const AudioFrame &) {});
-        dispatcher.setOnVideoFrameCallback(id, TrackSource::SOURCE_CAMERA,
-                                           [](const VideoFrame &,
-                                              std::int64_t) {});
+        dispatcher.setOnVideoFrameCallback(
+            id, TrackSource::SOURCE_CAMERA,
+            [](const VideoFrame &, std::int64_t) {});
       }
     });
   }
@@ -573,8 +578,7 @@ TEST_F(SubscriptionThreadDispatcherTest,
   EXPECT_EQ(dataCallbacks(dispatcher).size(), 0u);
 }
 
-TEST_F(SubscriptionThreadDispatcherTest,
-       RemoveNonExistentDataCallbackIsNoOp) {
+TEST_F(SubscriptionThreadDispatcherTest, RemoveNonExistentDataCallbackIsNoOp) {
   SubscriptionThreadDispatcher dispatcher;
   EXPECT_NO_THROW(dispatcher.removeOnDataFrameCallback(999));
 }
@@ -642,12 +646,10 @@ TEST_F(SubscriptionThreadDispatcherTest,
     SubscriptionThreadDispatcher dispatcher;
     dispatcher.addOnDataFrameCallback(
         "alice", "track-a",
-        [](const std::vector<std::uint8_t> &,
-           std::optional<std::uint64_t>) {});
+        [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
     dispatcher.addOnDataFrameCallback(
         "bob", "track-b",
-        [](const std::vector<std::uint8_t> &,
-           std::optional<std::uint64_t>) {});
+        [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
   });
 }
 
@@ -657,8 +659,7 @@ TEST_F(SubscriptionThreadDispatcherTest,
     SubscriptionThreadDispatcher dispatcher;
     auto id = dispatcher.addOnDataFrameCallback(
         "alice", "track-a",
-        [](const std::vector<std::uint8_t> &,
-           std::optional<std::uint64_t>) {});
+        [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
     dispatcher.removeOnDataFrameCallback(id);
   });
 }
@@ -683,8 +684,7 @@ TEST_F(SubscriptionThreadDispatcherTest,
   EXPECT_EQ(dataCallbacks(dispatcher).size(), 1u);
 }
 
-TEST_F(SubscriptionThreadDispatcherTest,
-       StopAllClearsDataCallbacksAndReaders) {
+TEST_F(SubscriptionThreadDispatcherTest, StopAllClearsDataCallbacksAndReaders) {
   SubscriptionThreadDispatcher dispatcher;
   dispatcher.addOnDataFrameCallback(
       "alice", "track-a",

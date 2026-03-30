@@ -324,10 +324,10 @@ add_library(livekit SHARED
   src/audio_processing_module.cpp
   src/audio_source.cpp
   src/audio_stream.cpp
-  src/data_frame.cpp
+  src/data_track_frame.cpp
   src/data_stream.cpp
   src/data_track_error.cpp
-  src/data_track_subscription.cpp
+  src/data_track_stream.cpp
   src/e2ee.cpp
   src/ffi_handle.cpp
   src/ffi_client.cpp

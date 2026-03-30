@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "livekit/data_track_subscription.h"
+#include "livekit/data_track_stream.h"
 
 #include "data_track.pb.h"
 #include "ffi.pb.h"
@@ -27,16 +27,16 @@ namespace livekit {
 
 using proto::FfiEvent;
 
-DataTrackSubscription::~DataTrackSubscription() { close(); }
+DataTrackStream::~DataTrackStream() { close(); }
 
-void DataTrackSubscription::init(FfiHandle subscription_handle) {
+void DataTrackStream::init(FfiHandle subscription_handle) {
   subscription_handle_ = std::move(subscription_handle);
 
   listener_id_ = FfiClient::instance().AddListener(
       [this](const FfiEvent &e) { this->onFfiEvent(e); });
 }
 
-bool DataTrackSubscription::read(DataFrame &out) {
+bool DataTrackStream::read(DataTrackFrame &out) {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (closed_ || eof_) {
@@ -50,8 +50,8 @@ bool DataTrackSubscription::read(DataFrame &out) {
     // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
     // from the underlying stream until notified via this request.
     proto::FfiRequest req;
-    auto *msg = req.mutable_data_track_subscription_read();
-    msg->set_subscription_handle(subscription_handle);
+    auto *msg = req.mutable_data_track_stream_read();
+    msg->set_stream_handle(subscription_handle);
     FfiClient::instance().sendRequest(req);
   }
 
@@ -67,7 +67,7 @@ bool DataTrackSubscription::read(DataFrame &out) {
   return true;
 }
 
-void DataTrackSubscription::close() {
+void DataTrackStream::close() {
   std::int64_t listener_id = -1;
   {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -87,31 +87,30 @@ void DataTrackSubscription::close() {
   cv_.notify_all();
 }
 
-void DataTrackSubscription::onFfiEvent(const FfiEvent &event) {
-  if (event.message_case() != FfiEvent::kDataTrackSubscriptionEvent) {
+void DataTrackStream::onFfiEvent(const FfiEvent &event) {
+  if (event.message_case() != FfiEvent::kDataTrackStreamEvent) {
     return;
   }
 
-  const auto &dts = event.data_track_subscription_event();
+  const auto &dts = event.data_track_stream_event();
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (closed_ ||
-        dts.subscription_handle() !=
-            static_cast<std::uint64_t>(subscription_handle_.get())) {
+    if (closed_ || dts.stream_handle() !=
+                       static_cast<std::uint64_t>(subscription_handle_.get())) {
       return;
     }
   }
 
   if (dts.has_frame_received()) {
     const auto &fr = dts.frame_received().frame();
-    DataFrame frame = DataFrame::fromOwnedInfo(fr);
+    DataTrackFrame frame = DataTrackFrame::fromOwnedInfo(fr);
     pushFrame(std::move(frame));
   } else if (dts.has_eos()) {
     pushEos();
   }
 }
 
-void DataTrackSubscription::pushFrame(DataFrame &&frame) {
+void DataTrackStream::pushFrame(DataTrackFrame &&frame) {
   std::lock_guard<std::mutex> lock(mutex_);
 
   if (closed_ || eof_) {
@@ -127,7 +126,7 @@ void DataTrackSubscription::pushFrame(DataFrame &&frame) {
   cv_.notify_one();
 }
 
-void DataTrackSubscription::pushEos() {
+void DataTrackStream::pushEos() {
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (eof_) {

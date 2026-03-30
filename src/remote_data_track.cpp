@@ -46,34 +46,31 @@ bool RemoteDataTrack::isPublished() const {
   return resp.remote_data_track_is_published().is_published();
 }
 
-Result<std::shared_ptr<DataTrackSubscription>, DataTrackError>
-RemoteDataTrack::subscribe(const DataTrackSubscription::Options &options) {
+Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>
+RemoteDataTrack::subscribe(const DataTrackStream::Options &options) {
   if (!handle_.valid()) {
-    return Result<std::shared_ptr<DataTrackSubscription>,
-                  DataTrackError>::failure(
-        DataTrackError{DataTrackErrorCode::INVALID_HANDLE,
-                       "RemoteDataTrack::subscribe: invalid FFI handle",
-                       false});
+    return Result<std::shared_ptr<DataTrackStream>,
+                  SubscribeDataTrackError>::failure(SubscribeDataTrackError{
+        SubscribeDataTrackErrorCode::INVALID_HANDLE,
+        "RemoteDataTrack::subscribe: invalid FFI "
+        "handle"});
   }
 
-  auto fut = FfiClient::instance().subscribeDataTrackAsync(
+  auto result = FfiClient::instance().subscribeDataTrack(
       static_cast<std::uint64_t>(handle_.get()), options.buffer_size);
-
-  auto result = fut.get();
   if (!result) {
-    return Result<std::shared_ptr<DataTrackSubscription>,
-                  DataTrackError>::failure(result.error());
+    return Result<std::shared_ptr<DataTrackStream>,
+                  SubscribeDataTrackError>::failure(std::move(result).error());
   }
 
-  proto::OwnedDataTrackSubscription owned_sub = result.value();
+  proto::OwnedDataTrackStream owned_sub = result.value();
 
   FfiHandle sub_handle(static_cast<uintptr_t>(owned_sub.handle().id()));
 
-  auto subscription =
-      std::shared_ptr<DataTrackSubscription>(new DataTrackSubscription());
-  subscription->init(std::move(sub_handle));
-  return Result<std::shared_ptr<DataTrackSubscription>,
-                DataTrackError>::success(std::move(subscription));
+  auto stream = std::shared_ptr<DataTrackStream>(new DataTrackStream());
+  stream->init(std::move(sub_handle));
+  return Result<std::shared_ptr<DataTrackStream>,
+                SubscribeDataTrackError>::success(std::move(stream));
 }
 
 } // namespace livekit

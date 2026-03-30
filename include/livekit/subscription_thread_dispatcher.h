@@ -33,7 +33,7 @@
 namespace livekit {
 
 class AudioFrame;
-class DataTrackSubscription;
+class DataTrackStream;
 class RemoteDataTrack;
 class Track;
 class VideoFrame;
@@ -366,11 +366,11 @@ private:
     DataFrameCallback callback;
   };
 
-  /// Active read-side resources for one data track subscription.
+  /// Active read-side resources for one data track stream subscription.
   struct ActiveDataReader {
     std::shared_ptr<RemoteDataTrack> remote_track;
     std::mutex sub_mutex;
-    std::shared_ptr<DataTrackSubscription> subscription; // guarded by sub_mutex
+    std::shared_ptr<DataTrackStream> stream; // guarded by sub_mutex
     std::thread thread;
   };
 

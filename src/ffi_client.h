@@ -29,9 +29,9 @@
 #include <unordered_map>
 
 #include "data_track.pb.h"
-#include "livekit/stats.h"
 #include "livekit/data_track_error.h"
 #include "livekit/result.h"
+#include "livekit/stats.h"
 #include "room.pb.h"
 
 namespace livekit {
@@ -44,7 +44,7 @@ class FfiResponse;
 class FfiRequest;
 class OwnedTrackPublication;
 class OwnedLocalDataTrack;
-class OwnedDataTrackSubscription;
+class OwnedDataTrackStream;
 class DataStream;
 
 } // namespace proto
@@ -131,15 +131,13 @@ public:
       std::optional<std::uint32_t> response_timeout_ms = std::nullopt);
 
   // Data Track APIs
-  std::future<Result<proto::OwnedLocalDataTrack, DataTrackError>>
+  std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>
   publishDataTrackAsync(std::uint64_t local_participant_handle,
                         const std::string &track_name);
 
-  // TODO(sderosa): the subscription model for data tracks has been changed to sync, need to update
-  std::future<Result<proto::OwnedDataTrackSubscription, DataTrackError>>
-  subscribeDataTrackAsync(
-      std::uint64_t track_handle,
-      std::optional<std::uint32_t> buffer_size = std::nullopt);
+  Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>
+  subscribeDataTrack(std::uint64_t track_handle,
+                     std::optional<std::uint32_t> buffer_size = std::nullopt);
 
   // Data stream functionalities
   std::future<void>

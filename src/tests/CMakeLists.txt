@@ -49,10 +49,21 @@ if(INTEGRATION_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+      ${LIVEKIT_BINARY_DIR}/generated
+      ${Protobuf_INCLUDE_DIRS}
   )
+  if(TARGET absl::base)
+    get_target_property(_livekit_test_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
+    if(_livekit_test_absl_inc)
+      target_include_directories(livekit_integration_tests PRIVATE
+        ${_livekit_test_absl_inc}
+      )
+    endif()
+  endif()
 
   target_compile_definitions(livekit_integration_tests
     PRIVATE
+      LIVEKIT_TEST_ACCESS
       LIVEKIT_ROOT_DIR="${LIVEKIT_ROOT_DIR}"
       SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
   )

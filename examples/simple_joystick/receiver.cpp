@@ -108,8 +108,9 @@ int main(int argc, char *argv[]) {
   if (!g_running.load()) {
     std::cout << "[Receiver] Interrupted by signal. Shutting down.\n";
   } else if (!g_sender_connected.load()) {
-    std::cerr << "[Receiver] Timed out after 2 minutes with no sender connection. "
-              << "Exiting as failure.\n";
+    std::cerr
+        << "[Receiver] Timed out after 2 minutes with no sender connection. "
+        << "Exiting as failure.\n";
     room->setDelegate(nullptr);
     room.reset();
     livekit::shutdown();

@@ -33,7 +33,7 @@ class DataTrackFrame;
  * timestamp. The unit is application-defined; the SDK examples use
  * microseconds since the Unix epoch (system_clock).
  */
-struct DataFrame {
+struct DataTrackFrame {
   /** Arbitrary binary payload (the frame contents). */
   std::vector<std::uint8_t> payload;
 
@@ -44,17 +44,18 @@ struct DataFrame {
    * By convention the SDK examples use microseconds since the Unix epoch.
    */
   std::optional<std::uint64_t> user_timestamp;
-  DataFrame() = default;
-  DataFrame(const DataFrame&) = default;
-  DataFrame(DataFrame&&) noexcept = default;
-  DataFrame& operator=(const DataFrame&) = default;
-  DataFrame& operator=(DataFrame&&) noexcept = default;
+  DataTrackFrame() = default;
+  DataTrackFrame(const DataTrackFrame &) = default;
+  DataTrackFrame(DataTrackFrame &&) noexcept = default;
+  DataTrackFrame &operator=(const DataTrackFrame &) = default;
+  DataTrackFrame &operator=(DataTrackFrame &&) noexcept = default;
 
-  explicit DataFrame(std::vector<std::uint8_t>&& p,
-                     std::optional<std::uint64_t> ts = std::nullopt) noexcept
+  explicit DataTrackFrame(
+      std::vector<std::uint8_t> &&p,
+      std::optional<std::uint64_t> ts = std::nullopt) noexcept
       : payload(std::move(p)), user_timestamp(ts) {}
 
-  static DataFrame fromOwnedInfo(const proto::DataTrackFrame &owned);
+  static DataTrackFrame fromOwnedInfo(const proto::DataTrackFrame &owned);
 };
 
 } // namespace livekit

@@ -165,10 +165,12 @@ int main(int argc, char *argv[]) {
       bool receiver_present = (room->remoteParticipant("robot") != nullptr);
 
       if (receiver_present && !receiver_connected) {
-        std::cout << "[Sender] Receiver connected! Use keys to send commands.\n";
+        std::cout
+            << "[Sender] Receiver connected! Use keys to send commands.\n";
         receiver_connected = true;
       } else if (!receiver_present && receiver_connected) {
-        std::cout << "[Sender] Receiver disconnected. Waiting for reconnect...\n";
+        std::cout
+            << "[Sender] Receiver disconnected. Waiting for reconnect...\n";
         receiver_connected = false;
       }
     }
@@ -236,7 +238,8 @@ int main(int argc, char *argv[]) {
     simple_joystick::JoystickCommand cmd{x, y, z};
     std::string payload = simple_joystick::joystick_to_json(cmd);
 
-    std::cout << "[Sender] Sending: x=" << x << " y=" << y << " z=" << z << "\n";
+    std::cout << "[Sender] Sending: x=" << x << " y=" << y << " z=" << z
+              << "\n";
 
     try {
       std::string response =
@@ -246,7 +249,8 @@ int main(int argc, char *argv[]) {
       std::cerr << "[Sender] RPC error: " << e.message() << "\n";
       if (static_cast<RpcError::ErrorCode>(e.code()) ==
           RpcError::ErrorCode::RECIPIENT_DISCONNECTED) {
-        std::cout << "[Sender] Receiver disconnected. Waiting for reconnect...\n";
+        std::cout
+            << "[Sender] Receiver disconnected. Waiting for reconnect...\n";
         receiver_connected = false;
       }
     } catch (const std::exception &e) {

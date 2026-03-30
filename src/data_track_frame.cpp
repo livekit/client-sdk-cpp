@@ -1,11 +1,12 @@
-#include "livekit/data_frame.h"
+#include "livekit/data_track_frame.h"
 
 #include "data_track.pb.h"
 
 namespace livekit {
 
-DataFrame DataFrame::fromOwnedInfo(const proto::DataTrackFrame &owned) {
-  DataFrame frame;
+DataTrackFrame
+DataTrackFrame::fromOwnedInfo(const proto::DataTrackFrame &owned) {
+  DataTrackFrame frame;
   const auto &payload_str = owned.payload();
   frame.payload.assign(
       reinterpret_cast<const std::uint8_t *>(payload_str.data()),
