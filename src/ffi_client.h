@@ -29,9 +29,9 @@
 #include <unordered_map>
 
 #include "data_track.pb.h"
-#include "livekit/stats.h"
 #include "livekit/data_track_error.h"
 #include "livekit/result.h"
+#include "livekit/stats.h"
 #include "room.pb.h"
 
 namespace livekit {
@@ -131,14 +131,13 @@ public:
       std::optional<std::uint32_t> response_timeout_ms = std::nullopt);
 
   // Data Track APIs
-  std::future<Result<proto::OwnedLocalDataTrack, DataTrackError>>
+  std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>
   publishDataTrackAsync(std::uint64_t local_participant_handle,
                         const std::string &track_name);
 
-  Result<proto::OwnedDataTrackSubscription, DataTrackError>
-  subscribeDataTrack(
-      std::uint64_t track_handle,
-      std::optional<std::uint32_t> buffer_size = std::nullopt);
+  Result<proto::OwnedDataTrackSubscription, SubscribeDataTrackError>
+  subscribeDataTrack(std::uint64_t track_handle,
+                     std::optional<std::uint32_t> buffer_size = std::nullopt);
 
   // Data stream functionalities
   std::future<void>

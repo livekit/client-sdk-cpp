@@ -64,8 +64,7 @@ calculateLatencyMetrics(const ping_pong::PingMessage &ping_message,
   metrics.pong_to_ping_time_ms =
       static_cast<double>(metrics.pong_to_ping_time_ns) / 1'000'000.0;
   metrics.ping_to_pong_and_processing_ms =
-      static_cast<double>(metrics.ping_to_pong_and_processing_ns) /
-      1'000'000.0;
+      static_cast<double>(metrics.ping_to_pong_and_processing_ns) / 1'000'000.0;
   metrics.estimated_one_way_latency_ms =
       metrics.estimated_one_way_latency_ns / 1'000'000.0;
   return metrics;
@@ -116,10 +115,8 @@ int main(int argc, char *argv[]) {
       local_participant->publishDataTrack(ping_pong::kPingTrackName);
   if (!publish_result) {
     const auto &error = publish_result.error();
-    LK_LOG_ERROR("Failed to publish ping data track: code={} retryable={} "
-                 "message={}",
-                 static_cast<std::uint32_t>(error.code), error.retryable,
-                 error.message);
+    LK_LOG_ERROR("Failed to publish ping data track: code={} message={}",
+                 static_cast<std::uint32_t>(error.code), error.message);
     room->setDelegate(nullptr);
     room.reset();
     livekit::shutdown();
@@ -161,14 +158,14 @@ int main(int argc, char *argv[]) {
           const auto metrics = calculateLatencyMetrics(
               ping_message, pong_message, received_ts_ns);
 
-          LK_LOG_INFO(
-              "pong id={} rtt_ms={:.3f} "
-              "pong_to_ping_ms={:.3f} "
-              "ping_to_pong_and_processing_ms={:.3f} "
-              "estimated_one_way_latency_ms={:.3f}",
-              metrics.id, metrics.round_trip_time_ms, metrics.pong_to_ping_time_ms,
-              metrics.ping_to_pong_and_processing_ms,
-              metrics.estimated_one_way_latency_ms);
+          LK_LOG_INFO("pong id={} rtt_ms={:.3f} "
+                      "pong_to_ping_ms={:.3f} "
+                      "ping_to_pong_and_processing_ms={:.3f} "
+                      "estimated_one_way_latency_ms={:.3f}",
+                      metrics.id, metrics.round_trip_time_ms,
+                      metrics.pong_to_ping_time_ms,
+                      metrics.ping_to_pong_and_processing_ms,
+                      metrics.estimated_one_way_latency_ms);
         } catch (const std::exception &e) {
           LK_LOG_WARN("Failed to process pong payload: {}", e.what());
         }
@@ -190,10 +187,8 @@ int main(int argc, char *argv[]) {
     auto push_result = ping_track->tryPush(ping_pong::toPayload(json));
     if (!push_result) {
       const auto &error = push_result.error();
-      LK_LOG_WARN("Failed to push ping data frame: code={} retryable={} "
-                  "message={}",
-                  static_cast<std::uint32_t>(error.code), error.retryable,
-                  error.message);
+      LK_LOG_WARN("Failed to push ping data frame: code={} message={}",
+                  static_cast<std::uint32_t>(error.code), error.message);
     } else {
       {
         std::lock_guard<std::mutex> lock(sent_messages_mutex);

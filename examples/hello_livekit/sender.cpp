@@ -59,9 +59,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (url.empty() || sender_token.empty()) {
-    LK_LOG_ERROR(
-        "Usage: HelloLivekitSender <ws-url> <sender-token>\n"
-        "  or set LIVEKIT_URL, LIVEKIT_SENDER_TOKEN");
+    LK_LOG_ERROR("Usage: HelloLivekitSender <ws-url> <sender-token>\n"
+                 "  or set LIVEKIT_URL, LIVEKIT_SENDER_TOKEN");
     return 1;
   }
 
@@ -98,9 +97,8 @@ int main(int argc, char *argv[]) {
   auto publish_result = lp->publishDataTrack(kDataTrackName);
   if (!publish_result) {
     const auto &error = publish_result.error();
-    LK_LOG_ERROR("Failed to publish data track: code={} retryable={} message={}",
-                 static_cast<std::uint32_t>(error.code), error.retryable,
-                 error.message);
+    LK_LOG_ERROR("Failed to publish data track: code={} message={}",
+                 static_cast<std::uint32_t>(error.code), error.message);
     room.reset();
     livekit::shutdown();
     return 1;
@@ -128,9 +126,8 @@ int main(int argc, char *argv[]) {
         data_track->tryPush(std::vector<std::uint8_t>(msg.begin(), msg.end()));
     if (!push_result) {
       const auto &error = push_result.error();
-      LK_LOG_WARN("Failed to push data frame: code={} retryable={} message={}",
-                  static_cast<std::uint32_t>(error.code), error.retryable,
-                  error.message);
+      LK_LOG_WARN("Failed to push data frame: code={} message={}",
+                  static_cast<std::uint32_t>(error.code), error.message);
     }
 
     ++count;

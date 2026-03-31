@@ -19,6 +19,7 @@
 
 #include <cassert>
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <variant>
 
@@ -38,18 +39,22 @@ namespace livekit {
  * result, or `error()` on a success result, is a programmer error and will
  * trip the debug assertion.
  */
-template <typename T, typename E> class Result {
+template <typename T, typename E> class [[nodiscard]] Result {
 public:
   /// Construct a successful result containing a value.
-  static Result success(T value) {
-    return Result(std::variant<T, E>(std::in_place_index<0>,
-                                     std::move(value)));
+  template <typename U = T,
+            typename = std::enable_if_t<std::is_constructible<T, U &&>::value>>
+  static Result success(U &&value) {
+    return Result(
+        std::variant<T, E>(std::in_place_index<0>, std::forward<U>(value)));
   }
 
   /// Construct a failed result containing an error.
-  static Result failure(E error) {
+  template <typename F = E,
+            typename = std::enable_if_t<std::is_constructible<E, F &&>::value>>
+  static Result failure(F &&error) {
     return Result(
-        std::variant<T, E>(std::in_place_index<1>, std::move(error)));
+        std::variant<T, E>(std::in_place_index<1>, std::forward<F>(error)));
   }
 
   /// True when the result contains a success value.
@@ -60,27 +65,51 @@ public:
   explicit operator bool() const noexcept { return ok(); }
 
   /// Access the success value. Requires `ok() == true`.
-  T &value() noexcept {
+  T &value() & noexcept {
     assert(ok());
     return std::get<0>(storage_);
   }
 
   /// Access the success value. Requires `ok() == true`.
-  const T &value() const noexcept {
+  const T &value() const & noexcept {
     assert(ok());
     return std::get<0>(storage_);
   }
 
+  /// Move the success value out. Requires `ok() == true`.
+  T &&value() && noexcept {
+    assert(ok());
+    return std::get<0>(std::move(storage_));
+  }
+
+  /// Move the success value out. Requires `ok() == true`.
+  const T &&value() const && noexcept {
+    assert(ok());
+    return std::get<0>(std::move(storage_));
+  }
+
   /// Access the error value. Requires `has_error() == true`.
-  E &error() noexcept {
+  E &error() & noexcept {
     assert(has_error());
     return std::get<1>(storage_);
   }
 
   /// Access the error value. Requires `has_error() == true`.
-  const E &error() const noexcept {
+  const E &error() const & noexcept {
     assert(has_error());
     return std::get<1>(storage_);
+  }
+
+  /// Move the error value out. Requires `has_error() == true`.
+  E &&error() && noexcept {
+    assert(has_error());
+    return std::get<1>(std::move(storage_));
+  }
+
+  /// Move the error value out. Requires `has_error() == true`.
+  const E &&error() const && noexcept {
+    assert(has_error());
+    return std::get<1>(std::move(storage_));
   }
 
 private:
@@ -95,14 +124,16 @@ private:
  * This keeps the same calling style as `Result<T, E>` without forcing callers
  * to invent a dummy success payload.
  */
-template <typename E> class Result<void, E> {
+template <typename E> class [[nodiscard]] Result<void, E> {
 public:
   /// Construct a successful result with no payload.
   static Result success() { return Result(std::nullopt); }
 
   /// Construct a failed result containing an error.
-  static Result failure(E error) {
-    return Result(std::optional<E>(std::move(error)));
+  template <typename F = E,
+            typename = std::enable_if_t<std::is_constructible<E, F &&>::value>>
+  static Result failure(F &&error) {
+    return Result(std::optional<E>(std::forward<F>(error)));
   }
 
   /// True when the operation succeeded.
@@ -116,15 +147,27 @@ public:
   void value() const noexcept { assert(ok()); }
 
   /// Access the error value. Requires `has_error() == true`.
-  E &error() noexcept {
+  E &error() & noexcept {
     assert(has_error());
     return *error_;
   }
 
   /// Access the error value. Requires `has_error() == true`.
-  const E &error() const noexcept {
+  const E &error() const & noexcept {
     assert(has_error());
     return *error_;
+  }
+
+  /// Move the error value out. Requires `has_error() == true`.
+  E &&error() && noexcept {
+    assert(has_error());
+    return std::move(*error_);
+  }
+
+  /// Move the error value out. Requires `has_error() == true`.
+  const E &&error() const && noexcept {
+    assert(has_error());
+    return std::move(*error_);
   }
 
 private:

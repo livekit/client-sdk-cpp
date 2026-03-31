@@ -71,7 +71,7 @@ public:
    * @return success on delivery acceptance, or a typed error describing why
    *         the frame could not be queued.
    */
-  Result<void, DataTrackError> tryPush(const DataFrame &frame);
+  Result<void, LocalDataTrackTryPushError> tryPush(const DataFrame &frame);
 
   /**
    * Try to push a frame to all subscribers of this track.
@@ -79,7 +79,7 @@ public:
    * @return success on delivery acceptance, or a typed error describing why
    *         the frame could not be queued.
    */
-  Result<void, DataTrackError>
+  Result<void, LocalDataTrackTryPushError>
   tryPush(std::vector<std::uint8_t> &&payload,
           std::optional<std::uint64_t> user_timestamp = std::nullopt);
 

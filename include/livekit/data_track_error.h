@@ -23,33 +23,64 @@
 namespace livekit {
 
 namespace proto {
-class DataTrackError;
-}
+class PublishDataTrackError;
+class LocalDataTrackTryPushError;
+class SubscribeDataTrackError;
+} // namespace proto
 
-/// Stable error codes for data-track operations.
-enum class DataTrackErrorCode : std::uint32_t {
+enum class PublishDataTrackErrorCode : std::uint32_t {
   UNKNOWN = 0,
   INVALID_HANDLE = 1,
-  DUPLICATE_TRACK_NAME = 2,
-  TRACK_UNPUBLISHED = 3,
-  BUFFER_FULL = 4,
-  SUBSCRIPTION_CLOSED = 5,
-  CANCELLED = 6,
-  PROTOCOL_ERROR = 7,
-  INTERNAL = 8,
+  DUPLICATE_NAME = 2,
+  TIMEOUT = 3,
+  DISCONNECTED = 4,
+  NOT_ALLOWED = 5,
+  INVALID_NAME = 6,
+  LIMIT_REACHED = 7,
+  PROTOCOL_ERROR = 8,
+  INTERNAL = 9,
 };
 
-/// Structured failure returned by non-throwing data-track APIs.
-struct DataTrackError {
-  /// Machine-readable error code.
-  DataTrackErrorCode code{DataTrackErrorCode::UNKNOWN};
-  /// Human-readable description from the backend or SDK.
+struct PublishDataTrackError {
+  PublishDataTrackErrorCode code{PublishDataTrackErrorCode::UNKNOWN};
   std::string message;
-  /// Whether retrying the operation may succeed.
-  bool retryable{false};
 
-  /// Convert the FFI proto representation into the public SDK type.
-  static DataTrackError fromProto(const proto::DataTrackError &error);
+  static PublishDataTrackError
+  fromProto(const proto::PublishDataTrackError &error);
+};
+
+enum class LocalDataTrackTryPushErrorCode : std::uint32_t {
+  UNKNOWN = 0,
+  INVALID_HANDLE = 1,
+  TRACK_UNPUBLISHED = 2,
+  QUEUE_FULL = 3,
+  INTERNAL = 4,
+};
+
+struct LocalDataTrackTryPushError {
+  LocalDataTrackTryPushErrorCode code{LocalDataTrackTryPushErrorCode::UNKNOWN};
+  std::string message;
+
+  static LocalDataTrackTryPushError
+  fromProto(const proto::LocalDataTrackTryPushError &error);
+};
+
+enum class SubscribeDataTrackErrorCode : std::uint32_t {
+  UNKNOWN = 0,
+  INVALID_HANDLE = 1,
+  UNPUBLISHED = 2,
+  TIMEOUT = 3,
+  DISCONNECTED = 4,
+  PROTOCOL_ERROR = 5,
+  INTERNAL = 6,
+};
+
+struct SubscribeDataTrackError {
+  SubscribeDataTrackErrorCode code{SubscribeDataTrackErrorCode::UNKNOWN};
+  std::string message;
+
+  static SubscribeDataTrackError
+  fromProto(const proto::SubscribeDataTrackError &error);
 };
 
 } // namespace livekit

@@ -16,9 +16,9 @@
 
 #pragma once
 
+#include "livekit/data_track_error.h"
 #include "livekit/data_track_info.h"
 #include "livekit/data_track_subscription.h"
-#include "livekit/data_track_error.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/result.h"
 
@@ -79,7 +79,7 @@ public:
    * Returns a DataTrackSubscription that delivers frames via blocking
    * read(). Destroy the subscription to unsubscribe.
    */
-  Result<std::shared_ptr<DataTrackSubscription>, DataTrackError>
+  Result<std::shared_ptr<DataTrackSubscription>, SubscribeDataTrackError>
   subscribe(const DataTrackSubscription::Options &options = {});
 
 private:

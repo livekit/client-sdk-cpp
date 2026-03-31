@@ -288,14 +288,15 @@ LocalParticipant::PublicationMap LocalParticipant::trackPublications() const {
   return out;
 }
 
-Result<std::shared_ptr<LocalDataTrack>, DataTrackError>
+Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError>
 LocalParticipant::publishDataTrack(const std::string &name) {
   auto handle_id = ffiHandleId();
   if (handle_id == 0) {
-    return Result<std::shared_ptr<LocalDataTrack>, DataTrackError>::failure(
-        DataTrackError{DataTrackErrorCode::INVALID_HANDLE,
-                       "LocalParticipant::publishDataTrack: invalid FFI handle",
-                       false});
+    return Result<std::shared_ptr<LocalDataTrack>,
+                  PublishDataTrackError>::failure(PublishDataTrackError{
+        PublishDataTrackErrorCode::INVALID_HANDLE,
+        "LocalParticipant::publishDataTrack: invalid FFI "
+        "handle"});
   }
 
   auto fut = FfiClient::instance().publishDataTrackAsync(
@@ -303,12 +304,13 @@ LocalParticipant::publishDataTrack(const std::string &name) {
 
   auto result = fut.get();
   if (!result) {
-    return Result<std::shared_ptr<LocalDataTrack>, DataTrackError>::failure(
-        result.error());
+    return Result<std::shared_ptr<LocalDataTrack>,
+                  PublishDataTrackError>::failure(std::move(result).error());
   }
 
-  return Result<std::shared_ptr<LocalDataTrack>, DataTrackError>::success(
-      std::shared_ptr<LocalDataTrack>(new LocalDataTrack(result.value())));
+  return Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError>::
+      success(
+          std::shared_ptr<LocalDataTrack>(new LocalDataTrack(result.value())));
 }
 
 void LocalParticipant::unpublishDataTrack(

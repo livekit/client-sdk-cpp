@@ -95,9 +95,8 @@ void DataTrackSubscription::onFfiEvent(const FfiEvent &event) {
   const auto &dts = event.data_track_subscription_event();
   {
     std::lock_guard<std::mutex> lock(mutex_);
-    if (closed_ ||
-        dts.subscription_handle() !=
-            static_cast<std::uint64_t>(subscription_handle_.get())) {
+    if (closed_ || dts.subscription_handle() !=
+                       static_cast<std::uint64_t>(subscription_handle_.get())) {
       return;
     }
   }

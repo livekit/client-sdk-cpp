@@ -101,9 +101,9 @@ bool waitForCondition(Predicate &&predicate, std::chrono::milliseconds timeout,
   return false;
 }
 
-std::string describeDataTrackError(const DataTrackError &error) {
+template <typename Error>
+std::string describeDataTrackError(const Error &error) {
   return "code=" + std::to_string(static_cast<std::uint32_t>(error.code)) +
-         " retryable=" + (error.retryable ? "true" : "false") +
          " message=" + error.message;
 }
 
@@ -127,7 +127,7 @@ requireSubscription(const std::shared_ptr<RemoteDataTrack> &track) {
   return result.value();
 }
 
-void requirePushSuccess(const Result<void, DataTrackError> &result,
+void requirePushSuccess(const Result<void, LocalDataTrackTryPushError> &result,
                         const std::string &context) {
   if (!result) {
     throw std::runtime_error(context + ": " +
@@ -164,7 +164,8 @@ public:
                       [this, count] { return tracks_.size() >= count; })) {
       return {};
     }
-    return {tracks_.begin(), tracks_.begin() + static_cast<std::ptrdiff_t>(count)};
+    return {tracks_.begin(),
+            tracks_.begin() + static_cast<std::ptrdiff_t>(count)};
   }
 
 private:
@@ -376,7 +377,8 @@ TEST_F(DataTrackE2ETest, PublishManyTracks) {
   const auto start = std::chrono::steady_clock::now();
   for (int index = 0; index < kPublishManyTrackCount; ++index) {
     const auto track_name = "track_" + std::to_string(index);
-    auto publish_result = room->localParticipant()->publishDataTrack(track_name);
+    auto publish_result =
+        room->localParticipant()->publishDataTrack(track_name);
     if (!publish_result) {
       FAIL() << "Failed to publish track " << track_name << ": "
              << describeDataTrackError(publish_result.error());
@@ -403,8 +405,8 @@ TEST_F(DataTrackE2ETest, PublishManyTracks) {
   // logs are expected. The purpose of this test is to verify publish/push
   // behavior and local track state, not end-to-end delivery of every packet.
   for (const auto &track : tracks) {
-    auto push_result =
-        track->tryPush(std::vector<std::uint8_t>(kLargeFramePayloadBytes, 0xFA));
+    auto push_result = track->tryPush(
+        std::vector<std::uint8_t>(kLargeFramePayloadBytes, 0xFA));
     if (!push_result) {
       ADD_FAILURE() << "Failed to push large frame on track "
                     << track->info().name << ": "
@@ -434,7 +436,7 @@ TEST_F(DataTrackE2ETest, PublishDuplicateName) {
   ASSERT_FALSE(duplicate_result)
       << "Expected duplicate data-track name to be rejected";
   EXPECT_EQ(duplicate_result.error().code,
-            DataTrackErrorCode::DUPLICATE_TRACK_NAME);
+            PublishDataTrackErrorCode::DUPLICATE_NAME);
   EXPECT_FALSE(duplicate_result.error().message.empty());
 
   first_track->unpublishDataTrack();
@@ -551,8 +553,7 @@ TEST_F(DataTrackE2ETest, FfiClientSubscribeDataTrackReturnsSyncResult) {
     const auto subscribe_elapsed =
         std::chrono::steady_clock::now() - subscribe_start;
     const auto subscribe_elapsed_ns =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(
-            subscribe_elapsed)
+        std::chrono::duration_cast<std::chrono::nanoseconds>(subscribe_elapsed)
             .count();
 
     std::cout << "FfiClient::subscribeDataTrack(" << expected_name

@@ -184,7 +184,7 @@ public:
    * @return The published track on success, or a typed error describing why
    *         publication failed.
    */
-  Result<std::shared_ptr<LocalDataTrack>, DataTrackError>
+  Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError>
   publishDataTrack(const std::string &name);
 
   /**

@@ -287,8 +287,7 @@ void Room::setOnAudioFrameCallback(const std::string &participant_identity,
                                    AudioStream::Options opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnAudioFrameCallback(
-        participant_identity, track_name, std::move(callback),
-        std::move(opts));
+        participant_identity, track_name, std::move(callback), std::move(opts));
   }
 }
 
@@ -308,8 +307,7 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    VideoStream::Options opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnVideoFrameCallback(
-        participant_identity, track_name, std::move(callback),
-        std::move(opts));
+        participant_identity, track_name, std::move(callback), std::move(opts));
   }
 }
 
@@ -649,7 +647,8 @@ void Room::OnEvent(const FfiEvent &event) {
 
       if (subscription_thread_dispatcher_ && remote_track && rpublication) {
         subscription_thread_dispatcher_->handleTrackSubscribed(
-            identity, rpublication->source(), rpublication->name(), remote_track);
+            identity, rpublication->source(), rpublication->name(),
+            remote_track);
       }
       break;
     }
@@ -693,12 +692,9 @@ void Room::OnEvent(const FfiEvent &event) {
 
       if (subscription_thread_dispatcher_ &&
           unsub_source != TrackSource::SOURCE_UNKNOWN) {
-        subscription_thread_dispatcher_->handleTrackUnsubscribed(unsub_identity,
-                                                                 unsub_source,
-                                                                 ev.publication
-                                                                     ? ev.publication
-                                                                           ->name()
-                                                                     : "");
+        subscription_thread_dispatcher_->handleTrackUnsubscribed(
+            unsub_identity, unsub_source,
+            ev.publication ? ev.publication->name() : "");
       }
       break;
     }

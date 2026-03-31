@@ -54,8 +54,8 @@ TEST_F(RoomCallbackTest, VideoCallbackRegistrationIsAccepted) {
 TEST_F(RoomCallbackTest, AudioCallbackRegistrationByTrackNameIsAccepted) {
   Room room;
 
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback(
-      "alice", "mic-main", [](const AudioFrame &) {}));
+  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", "mic-main",
+                                               [](const AudioFrame &) {}));
 }
 
 TEST_F(RoomCallbackTest, VideoCallbackRegistrationByTrackNameIsAccepted) {
@@ -118,19 +118,17 @@ TEST_F(RoomCallbackTest, DistinctAudioAndVideoCallbacksCanCoexist) {
 TEST_F(RoomCallbackTest, SameSourceDifferentTrackNamesAreAccepted) {
   Room room;
 
-  EXPECT_NO_THROW(
-      room.setOnVideoFrameCallback("alice", "cam-main",
-                                   [](const VideoFrame &, std::int64_t) {}));
-  EXPECT_NO_THROW(
-      room.setOnVideoFrameCallback("alice", "cam-backup",
-                                   [](const VideoFrame &, std::int64_t) {}));
+  EXPECT_NO_THROW(room.setOnVideoFrameCallback(
+      "alice", "cam-main", [](const VideoFrame &, std::int64_t) {}));
+  EXPECT_NO_THROW(room.setOnVideoFrameCallback(
+      "alice", "cam-backup", [](const VideoFrame &, std::int64_t) {}));
 }
 
 TEST_F(RoomCallbackTest, ClearingTrackNameCallbackIsAccepted) {
   Room room;
 
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback(
-      "alice", "mic-main", [](const AudioFrame &) {}));
+  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", "mic-main",
+                                               [](const AudioFrame &) {}));
   EXPECT_NO_THROW(room.clearOnAudioFrameCallback("alice", "mic-main"));
 }
 
@@ -139,8 +137,8 @@ TEST_F(RoomCallbackTest, SourceAndTrackNameCallbacksCanCoexist) {
 
   EXPECT_NO_THROW(room.setOnAudioFrameCallback(
       "alice", TrackSource::SOURCE_MICROPHONE, [](const AudioFrame &) {}));
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback(
-      "alice", "mic-main", [](const AudioFrame &) {}));
+  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", "mic-main",
+                                               [](const AudioFrame &) {}));
 }
 
 TEST_F(RoomCallbackTest, DataCallbackRegistrationReturnsUsableIds) {
