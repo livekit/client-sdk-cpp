@@ -47,8 +47,7 @@ enum class FrameType {
  */
 class DataAlignmentManager {
 public:
-  // Video comes in at ~30Hz, imu comes in at ~100Hz, so 30 frames of history is
-  // enough to cover a few seconds.
+  // Video comes in at ~30Hz, imu comes in at ~100Hz
   static constexpr std::size_t kDefaultHistorySize = 30;
   // We allow up to 5ms of difference between video and imu timestamps for them
   // to be considered aligned.
