@@ -103,6 +103,11 @@ static void renderFrame(const livekit::VideoFrame &frame) {
 static std::atomic<uint64_t> g_audio_frames{0};
 static std::atomic<uint64_t> g_video_frames{0};
 
+constexpr const char *kRobotMicTrackName = "robot-mic";
+constexpr const char *kRobotSimAudioTrackName = "robot-sim-audio";
+constexpr const char *kRobotCamTrackName = "robot-cam";
+constexpr const char *kRobotSimVideoTrackName = "robot-sim-frame";
+
 int main(int argc, char *argv[]) {
   // ----- Parse args / env -----
   bool no_audio = false;
@@ -232,7 +237,7 @@ int main(int argc, char *argv[]) {
 
   // ----- Set audio callbacks using Room::setOnAudioFrameCallback -----
   room->setOnAudioFrameCallback(
-      "robot", livekit::TrackSource::SOURCE_MICROPHONE,
+      "robot", kRobotMicTrackName,
       [playAudio, no_audio](const livekit::AudioFrame &frame) {
         g_audio_frames.fetch_add(1, std::memory_order_relaxed);
         if (!no_audio && g_selected_source.load(std::memory_order_relaxed) ==
@@ -242,7 +247,7 @@ int main(int argc, char *argv[]) {
       });
 
   room->setOnAudioFrameCallback(
-      "robot", livekit::TrackSource::SOURCE_SCREENSHARE_AUDIO,
+      "robot", kRobotSimAudioTrackName,
       [playAudio, no_audio](const livekit::AudioFrame &frame) {
         g_audio_frames.fetch_add(1, std::memory_order_relaxed);
         if (!no_audio && g_selected_source.load(std::memory_order_relaxed) ==
@@ -253,7 +258,7 @@ int main(int argc, char *argv[]) {
 
   // ----- Set video callbacks using Room::setOnVideoFrameCallback -----
   room->setOnVideoFrameCallback(
-      "robot", livekit::TrackSource::SOURCE_CAMERA,
+      "robot", kRobotCamTrackName,
       [](const livekit::VideoFrame &frame, std::int64_t /*timestamp_us*/) {
         g_video_frames.fetch_add(1, std::memory_order_relaxed);
         if (g_selected_source.load(std::memory_order_relaxed) ==
@@ -263,7 +268,7 @@ int main(int argc, char *argv[]) {
       });
 
   room->setOnVideoFrameCallback(
-      "robot", livekit::TrackSource::SOURCE_SCREENSHARE,
+      "robot", kRobotSimVideoTrackName,
       [](const livekit::VideoFrame &frame, std::int64_t /*timestamp_us*/) {
         g_video_frames.fetch_add(1, std::memory_order_relaxed);
         if (g_selected_source.load(std::memory_order_relaxed) ==

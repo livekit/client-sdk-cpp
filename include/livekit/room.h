@@ -241,64 +241,45 @@ public:
   // ---------------------------------------------------------------
 
   /**
-   * Set a callback for audio frames from a specific remote participant and
-   * track source.
-   *
-   * A dedicated reader thread is spawned for each (participant, source) pair
-   * when the track is subscribed. If the track is already subscribed, the
-   * reader starts immediately. If not, it starts when the track arrives.
-   *
-   * Only one callback may exist per (participant, source) pair. Re-calling
-   * with the same pair replaces the previous callback.
-   *
-   * @param participant_identity Identity of the remote participant.
-   * @param source               Track source (e.g. SOURCE_MICROPHONE).
-   * @param callback             Function invoked per audio frame.
-   * @param opts                 AudioStream options (capacity, noise
-   * cancellation).
+   * @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
    */
   void setOnAudioFrameCallback(const std::string &participant_identity,
                                TrackSource source, AudioFrameCallback callback,
                                AudioStream::Options opts = {});
 
   /**
-   * Set a callback for video frames from a specific remote participant and
-   * track source.
-   *
-   * @see setOnAudioFrameCallback for threading and lifecycle semantics.
-   *
-   * @param participant_identity Identity of the remote participant.
-   * @param source               Track source (e.g. SOURCE_CAMERA).
-   * @param callback             Function invoked per video frame.
-   * @param opts                 VideoStream options (capacity, pixel format).
+   * @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
+   */
+  void setOnAudioFrameCallback(const std::string &participant_identity,
+                               const std::string &track_name,
+                               AudioFrameCallback callback,
+                               AudioStream::Options opts = {});
+
+  /**
+   * @brief Sets the video frame callback via SubscriptionThreadDispatcher.
    */
   void setOnVideoFrameCallback(const std::string &participant_identity,
                                TrackSource source, VideoFrameCallback callback,
                                VideoStream::Options opts = {});
 
   /**
-   * Set a rich callback for video frame events from a specific remote
-   * participant and track source.
-   *
-   * This variant delivers the full \ref VideoFrameEvent, including optional
-   * packet-trailer metadata when available.
-   *
-   * @see setOnVideoFrameCallback for threading and lifecycle semantics.
+   * @brief Sets the video frame callback via SubscriptionThreadDispatcher.
    */
-  void setOnVideoFrameEventCallback(const std::string &participant_identity,
-                                    TrackSource source,
-                                    VideoFrameEventCallback callback,
-                                    VideoStream::Options opts = {});
+  void setOnVideoFrameCallback(const std::string &participant_identity,
+                               const std::string &track_name,
+                               VideoFrameCallback callback,
+                               VideoStream::Options opts = {});
 
   /**
-   * Clear the audio frame callback for a specific (participant, source) pair.
-   * Stops and joins any active reader thread.
-   * No-op if no callback is registered for this key.
-   * @param participant_identity Identity of the remote participant.
-   * @param source               Track source (e.g. SOURCE_MICROPHONE).
+   * @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
    */
   void clearOnAudioFrameCallback(const std::string &participant_identity,
                                  TrackSource source);
+  /**
+   * @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
+   */
+  void clearOnAudioFrameCallback(const std::string &participant_identity,
+                                 const std::string &track_name);
 
   /**
    * @brief Clears the video frame callback via SubscriptionThreadDispatcher.
@@ -306,7 +287,28 @@ public:
   void clearOnVideoFrameCallback(const std::string &participant_identity,
                                  TrackSource source);
 
+  /**
+   * @brief Clears the video frame callback via SubscriptionThreadDispatcher.
+   */
+  void clearOnVideoFrameCallback(const std::string &participant_identity,
+                                 const std::string &track_name);
+
+  /**
+   * @brief Adds a data frame callback via SubscriptionThreadDispatcher.
+   */
+  DataFrameCallbackId
+  addOnDataFrameCallback(const std::string &participant_identity,
+                         const std::string &track_name,
+                         DataFrameCallback callback);
+
+  /**
+   * @brief Removes the data frame callback via SubscriptionThreadDispatcher.
+   */
+  void removeOnDataFrameCallback(DataFrameCallbackId id);
+
 private:
+  friend class RoomCallbackTest;
+
   mutable std::mutex lock_;
   ConnectionState connection_state_ = ConnectionState::Disconnected;
   RoomDelegate *delegate_ = nullptr; // Not owned

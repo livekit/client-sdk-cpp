@@ -166,6 +166,7 @@ void E2EEManager::setEnabled(bool enabled) {
   req.mutable_e2ee()->set_room_handle(room_handle_);
   req.mutable_e2ee()->mutable_manager_set_enabled()->set_enabled(enabled);
   FfiClient::instance().sendRequest(req);
+  enabled_ = enabled;
 }
 
 E2EEManager::KeyProvider *E2EEManager::keyProvider() { return &key_provider_; }

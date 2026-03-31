@@ -18,14 +18,19 @@
 #define LIVEKIT_FFI_CLIENT_H
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <future>
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <unordered_map>
 
+#include "data_track.pb.h"
+#include "livekit/data_track_error.h"
+#include "livekit/result.h"
 #include "livekit/stats.h"
 #include "room.pb.h"
 
@@ -38,6 +43,8 @@ class FfiEvent;
 class FfiResponse;
 class FfiRequest;
 class OwnedTrackPublication;
+class OwnedLocalDataTrack;
+class OwnedDataTrackSubscription;
 class DataStream;
 
 } // namespace proto
@@ -122,6 +129,15 @@ public:
       const std::string &destination_identity, const std::string &method,
       const std::string &payload,
       std::optional<std::uint32_t> response_timeout_ms = std::nullopt);
+
+  // Data Track APIs
+  std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>
+  publishDataTrackAsync(std::uint64_t local_participant_handle,
+                        const std::string &track_name);
+
+  Result<proto::OwnedDataTrackSubscription, SubscribeDataTrackError>
+  subscribeDataTrack(std::uint64_t track_handle,
+                     std::optional<std::uint32_t> buffer_size = std::nullopt);
 
   // Data stream functionalities
   std::future<void>

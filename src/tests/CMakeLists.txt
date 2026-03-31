@@ -53,9 +53,18 @@ if(INTEGRATION_TEST_SOURCES)
       ${LIVEKIT_BINARY_DIR}/_deps/livekit_protobuf-src/src
       ${LIVEKIT_BINARY_DIR}/_deps/livekit_abseil-src
   )
+  if(TARGET absl::base)
+    get_target_property(_livekit_test_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
+    if(_livekit_test_absl_inc)
+      target_include_directories(livekit_integration_tests PRIVATE
+        ${_livekit_test_absl_inc}
+      )
+    endif()
+  endif()
 
   target_compile_definitions(livekit_integration_tests
     PRIVATE
+      LIVEKIT_TEST_ACCESS
       LIVEKIT_ROOT_DIR="${LIVEKIT_ROOT_DIR}"
       SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
   )
