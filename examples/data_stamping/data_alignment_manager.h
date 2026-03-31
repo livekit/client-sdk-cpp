@@ -28,6 +28,11 @@
 
 namespace livekit_examples::data_stamping {
 
+enum class FrameType {
+  Video,
+  Imu,
+};
+
 /**
  * Aligns recent video and IMU frames by user timestamp.
  *
@@ -57,11 +62,13 @@ public:
         history_size_(std::max<std::size_t>(1, history_size)) {}
 
   void addVideoFrame(std::uint64_t user_timestamp) {
-    addFrame(video_timestamps_, imu_timestamps_, user_timestamp);
+    addFrame(video_timestamps_, imu_timestamps_, user_timestamp,
+             FrameType::Video);
   }
 
   void addImuFrame(std::uint64_t user_timestamp) {
-    addFrame(imu_timestamps_, video_timestamps_, user_timestamp);
+    addFrame(imu_timestamps_, video_timestamps_, user_timestamp,
+             FrameType::Imu);
   }
 
   std::uint64_t numberAlignedDataFrames() const {
@@ -82,7 +89,7 @@ private:
 
   void addFrame(std::deque<TimestampEntry> &own_timestamps,
                 std::deque<TimestampEntry> &other_timestamps,
-                std::uint64_t user_timestamp) {
+                std::uint64_t user_timestamp, FrameType frame_type) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     own_timestamps.push_back(TimestampEntry{user_timestamp, false});
@@ -98,9 +105,11 @@ private:
     ++aligned_frame_count_;
 
     LK_LOG_INFO(
-        "Aligned frames: own_timestamp={} other_timestamp={} "
+        "Aligned frames: {}={} {}={} "
         "delta_us={}",
-        user_timestamp, other_timestamps[*match_index].user_timestamp,
+        frame_type == FrameType::Video ? "Video" : "IMU", user_timestamp,
+        frame_type == FrameType::Video ? "IMU" : "Video",
+        other_timestamps[*match_index].user_timestamp,
         absoluteDifference(user_timestamp,
                            other_timestamps[*match_index].user_timestamp));
   }
