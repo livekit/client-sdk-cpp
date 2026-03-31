@@ -271,6 +271,14 @@ public:
                                VideoStream::Options opts = {});
 
   /**
+   * @brief Sets the video frame callback via SubscriptionThreadDispatcher.
+   */
+  void setOnVideoFrameEventCallback(const std::string &participant_identity,
+                                    TrackSource source,
+                                    VideoFrameEventCallback callback,
+                                    VideoStream::Options opts);
+
+  /**
    * @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
    */
   void clearOnAudioFrameCallback(const std::string &participant_identity,

@@ -97,10 +97,25 @@ void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
                video_callbacks_.size());
 }
 
+void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
+    const std::string &participant_identity, const std::string &track_name,
+    VideoFrameCallback callback, VideoStream::Options opts) {
+  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
+                  track_name};
+  std::lock_guard<std::mutex> lock(lock_);
+  const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
+  video_callbacks_[key] = RegisteredVideoCallback{
+      std::move(callback), VideoFrameEventCallback{}, std::move(opts)};
+  LK_LOG_DEBUG(
+      "Registered video frame callback for participant={} track_name={} "
+      "replacing_existing={} total_video_callbacks={}",
+      participant_identity, track_name, replacing, video_callbacks_.size());
+}
+
 void SubscriptionThreadDispatcher::setOnVideoFrameEventCallback(
     const std::string &participant_identity, TrackSource source,
     VideoFrameEventCallback callback, VideoStream::Options opts) {
-  CallbackKey key{participant_identity, source};
+  CallbackKey key{participant_identity, source, ""};
   std::lock_guard<std::mutex> lock(lock_);
   const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
   video_callbacks_[key] = RegisteredVideoCallback{
@@ -112,21 +127,6 @@ void SubscriptionThreadDispatcher::setOnVideoFrameEventCallback(
                "replacing_existing={} total_video_callbacks={}",
                participant_identity, static_cast<int>(source), replacing,
                video_callbacks_.size());
-}
-
-void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
-    const std::string &participant_identity, const std::string &track_name,
-    VideoFrameCallback callback, VideoStream::Options opts) {
-  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
-                  track_name};
-  std::lock_guard<std::mutex> lock(lock_);
-  const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
-  video_callbacks_[key] =
-      RegisteredVideoCallback{std::move(callback), std::move(opts)};
-  LK_LOG_DEBUG(
-      "Registered video frame callback for participant={} track_name={} "
-      "replacing_existing={} total_video_callbacks={}",
-      participant_identity, track_name, replacing, video_callbacks_.size());
 }
 
 void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(
@@ -573,9 +573,8 @@ std::thread SubscriptionThreadDispatcher::startVideoReaderLocked(
   auto event_cb = callback.event_callback;
   const std::string participant_identity = key.participant_identity;
   const TrackSource source = key.source;
-  reader.thread =
-      std::thread(
-          [stream_copy, legacy_cb, event_cb, participant_identity, source]() {
+  reader.thread = std::thread(
+      [stream_copy, legacy_cb, event_cb, participant_identity, source]() {
         LK_LOG_DEBUG("Video reader thread started for participant={} source={}",
                      participant_identity, static_cast<int>(source));
         VideoFrameEvent ev;

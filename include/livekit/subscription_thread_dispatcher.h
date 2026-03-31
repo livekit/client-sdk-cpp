@@ -142,6 +142,21 @@ public:
                                VideoStream::Options opts = {});
 
   /**
+   * Register or replace a legacy video frame callback for a remote
+   * subscription matched by track name.
+   *
+   * @param participant_identity Identity of the remote participant.
+   * @param track_name           Track name to match.
+   * @param callback             Function invoked for each decoded video frame.
+   * @param opts                 Options used when creating the backing
+   *                             \ref VideoStream.
+   */
+  void setOnVideoFrameCallback(const std::string &participant_identity,
+                               const std::string &track_name,
+                               VideoFrameCallback callback,
+                               VideoStream::Options opts = {});
+
+  /**
    * Register or replace a rich video frame event callback for a remote
    * subscription.
    *
@@ -212,15 +227,16 @@ public:
   /**
    * Start or restart reader dispatch for a newly subscribed remote track.
    *
-   * \ref Room calls this after it has processed a track-subscription event and
-   * updated its publication state. If a matching callback registration exists,
-   * the dispatcher creates the appropriate stream type and launches a reader
-   * thread for the `(participant, source)` key.
+   * \ref Room calls this after it has processed a track-subscription event
+   * and updated its publication state. If a matching callback registration
+   * exists, the dispatcher creates the appropriate stream type and launches a
+   * reader thread for the `(participant, source)` key.
    *
    * If no matching callback is registered, this is a no-op.
    *
    * @param participant_identity Identity of the remote participant.
-   * @param source               Track source associated with the subscription.
+   * @param source               Track source associated with the
+   * subscription.
    * @param track                Subscribed remote track to read from.
    */
   void handleTrackSubscribed(const std::string &participant_identity,
@@ -236,7 +252,8 @@ public:
    * re-subscription can start dispatch again automatically.
    *
    * @param participant_identity Identity of the remote participant.
-   * @param source               Track source associated with the subscription.
+   * @param source               Track source associated with the
+   * subscription.
    * @param track_name           Track name associated with the subscription.
    */
   void handleTrackUnsubscribed(const std::string &participant_identity,
@@ -335,14 +352,16 @@ private:
     }
   };
 
-  /// Active read-side resources for one audio/video subscription dispatch slot.
+  /// Active read-side resources for one audio/video subscription dispatch
+  /// slot.
   struct ActiveReader {
     std::shared_ptr<AudioStream> audio_stream;
     std::shared_ptr<VideoStream> video_stream;
     std::thread thread;
   };
 
-  /// Compound lookup key for a remote participant identity and data track name.
+  /// Compound lookup key for a remote participant identity and data track
+  /// name.
   struct DataCallbackKey {
     std::string participant_identity;
     std::string track_name;
@@ -403,8 +422,9 @@ private:
 
   /// Start an audio reader thread for \p key using \p track.
   ///
-  /// Must be called with \ref lock_ held. Any previous reader for the same key
-  /// is extracted and returned to the caller for joining outside the lock.
+  /// Must be called with \ref lock_ held. Any previous reader for the same
+  /// key is extracted and returned to the caller for joining outside the
+  /// lock.
   std::thread startAudioReaderLocked(const CallbackKey &key,
                                      const std::shared_ptr<Track> &track,
                                      AudioFrameCallback cb,
@@ -412,8 +432,9 @@ private:
 
   /// Start a video reader thread for \p key using \p track.
   ///
-  /// Must be called with \ref lock_ held. Any previous reader for the same key
-  /// is extracted and returned to the caller for joining outside the lock.
+  /// Must be called with \ref lock_ held. Any previous reader for the same
+  /// key is extracted and returned to the caller for joining outside the
+  /// lock.
   std::thread startVideoReaderLocked(const CallbackKey &key,
                                      const std::shared_ptr<Track> &track,
                                      const RegisteredVideoCallback &callback);

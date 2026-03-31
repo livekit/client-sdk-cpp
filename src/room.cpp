@@ -301,6 +301,16 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
   }
 }
 
+void Room::setOnVideoFrameCallback(const std::string &participant_identity,
+                                   const std::string &track_name,
+                                   VideoFrameCallback callback,
+                                   VideoStream::Options opts) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnVideoFrameCallback(
+        participant_identity, track_name, std::move(callback), std::move(opts));
+  }
+}
+
 void Room::setOnVideoFrameEventCallback(const std::string &participant_identity,
                                         TrackSource source,
                                         VideoFrameEventCallback callback,
