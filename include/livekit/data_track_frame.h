@@ -55,6 +55,13 @@ struct DataTrackFrame {
       std::optional<std::uint64_t> ts = std::nullopt) noexcept
       : payload(std::move(p)), user_timestamp(ts) {}
 
+  /**
+   * @brief This is a private method used by the SDK to create a DataTrackFrame
+   * from a proto::DataTrackFrame.
+   *
+   * @param owned The proto::DataTrackFrame to create a DataTrackFrame from.
+   * @return The created DataTrackFrame.
+   */
   static DataTrackFrame fromOwnedInfo(const proto::DataTrackFrame &owned);
 };
 

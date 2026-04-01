@@ -14,10 +14,10 @@
 # limitations under the License.
 
 # Generate two LiveKit access tokens via `lk` and set the environment variables
-# required by src/tests/integration/test_data_track.cpp.
+# required by src/tests/integration/test_data_track.cpp and src/tests/integration/test_rpc.cpp.
 #
-#   source examples/tokens/set_data_track_test_tokens.bash
-#   eval "$(bash examples/tokens/set_data_track_test_tokens.bash)"
+#   source examples/tokens/set_integration_test_tokens.bash
+#   eval "$(bash examples/tokens/set_integration_test_tokens.bash)"
 #
 # Exports:
 #   LK_TOKEN_TEST_A
@@ -33,7 +33,7 @@ elif [[ -n "${ZSH_VERSION:-}" ]] && [[ "${ZSH_EVAL_CONTEXT:-}" == *:file* ]]; th
 fi
 
 _fail() {
-  echo "set_data_track_test_tokens.bash: $1" >&2
+  echo "set_integration_test_tokens.bash: $1" >&2
   if [[ "$_sourced" -eq 1 ]]; then
     return "${2:-1}"
   fi
@@ -44,9 +44,15 @@ if [[ "$_sourced" -eq 0 ]]; then
   set -euo pipefail
 fi
 
+# data track
 LIVEKIT_ROOM="cpp_data_track_test"
 LIVEKIT_IDENTITY_A="cpp-test-a"
 LIVEKIT_IDENTITY_B="cpp-test-b"
+
+# rpc
+LIVEKIT_RPC_ROOM="rpc-test-room"
+LIVEKIT_CALLER_TOKEN="caller"
+LIVEKIT_RECEIVER_TOKEN="receiver"
 
 if [[ $# -ne 0 ]]; then
   _fail "this script is hard-coded and does not accept arguments" 2
@@ -104,23 +110,29 @@ _create_token() {
 
 LK_TOKEN_TEST_A="$(_create_token "$LIVEKIT_IDENTITY_A")"
 LK_TOKEN_TEST_B="$(_create_token "$LIVEKIT_IDENTITY_B")"
+LK_TOKEN_RPC_CALLER="$(_create_token "$LIVEKIT_CALLER_TOKEN")"
+LK_TOKEN_RPC_RECEIVER="$(_create_token "$LIVEKIT_RECEIVER_TOKEN")"
 
 _apply() {
   export LK_TOKEN_TEST_A
   export LK_TOKEN_TEST_B
+  export LK_TOKEN_RPC_CALLER
+  export LK_TOKEN_RPC_RECEIVER
   export LIVEKIT_URL
 }
 
 _emit_eval() {
   printf 'export LK_TOKEN_TEST_A=%q\n' "$LK_TOKEN_TEST_A"
   printf 'export LK_TOKEN_TEST_B=%q\n' "$LK_TOKEN_TEST_B"
+  printf 'export LK_TOKEN_RPC_CALLER=%q\n' "$LK_TOKEN_RPC_CALLER"
+  printf 'export LK_TOKEN_RPC_RECEIVER=%q\n' "$LK_TOKEN_RPC_RECEIVER"
   printf 'export LIVEKIT_URL=%q\n' "$LIVEKIT_URL"
 }
 
 if [[ "$_sourced" -eq 1 ]]; then
   _apply
-  echo "LK_TOKEN_TEST_A, LK_TOKEN_TEST_B, and LIVEKIT_URL set for this shell." >&2
+  echo "LK_TOKEN_TEST_A, LK_TOKEN_TEST_B, LK_TOKEN_RPC_CALLER, LK_TOKEN_RPC_RECEIVER, and LIVEKIT_URL set for this shell." >&2
 else
   _emit_eval
-  echo "set_data_track_test_tokens.bash: for this shell run: source $0   or: eval \"\$(bash $0 ...)\"" >&2
+  echo "set_integration_test_tokens.bash: for this shell run: source $0   or: eval \"\$(bash $0 ...)\"" >&2
 fi
