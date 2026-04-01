@@ -49,6 +49,9 @@ if(INTEGRATION_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+      ${LIVEKIT_BINARY_DIR}/generated
+      ${LIVEKIT_BINARY_DIR}/_deps/livekit_protobuf-src/src
+      ${LIVEKIT_BINARY_DIR}/_deps/livekit_abseil-src
   )
 
   target_compile_definitions(livekit_integration_tests
@@ -123,6 +126,9 @@ if(STRESS_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+      ${LIVEKIT_BINARY_DIR}/generated
+      ${LIVEKIT_BINARY_DIR}/_deps/livekit_protobuf-src/src
+      ${LIVEKIT_BINARY_DIR}/_deps/livekit_abseil-src
   )
 
   # Copy shared libraries to test executable directory

@@ -22,6 +22,40 @@
 
 namespace livekit {
 
+namespace {
+
+std::vector<proto::PacketTrailerFeature>
+toProto(const PacketTrailerFeatures &features) {
+  std::vector<proto::PacketTrailerFeature> out;
+  if (features.user_timestamp) {
+    out.push_back(proto::PacketTrailerFeature::PTF_USER_TIMESTAMP);
+  }
+  if (features.frame_id) {
+    out.push_back(proto::PacketTrailerFeature::PTF_FRAME_ID);
+  }
+  return out;
+}
+
+PacketTrailerFeatures
+fromProto(const google::protobuf::RepeatedField<int> &features) {
+  PacketTrailerFeatures out;
+  for (int feature : features) {
+    switch (static_cast<proto::PacketTrailerFeature>(feature)) {
+    case proto::PacketTrailerFeature::PTF_USER_TIMESTAMP:
+      out.user_timestamp = true;
+      break;
+    case proto::PacketTrailerFeature::PTF_FRAME_ID:
+      out.frame_id = true;
+      break;
+    default:
+      break;
+    }
+  }
+  return out;
+}
+
+} // namespace
+
 // --------- enum conversions ---------
 
 ConnectionQuality toConnectionQuality(proto::ConnectionQuality in) {
@@ -340,6 +374,9 @@ proto::TrackPublishOptions toProto(const TrackPublishOptions &in) {
   if (in.preconnect_buffer) {
     msg.set_preconnect_buffer(*in.preconnect_buffer);
   }
+  for (proto::PacketTrailerFeature feature : toProto(in.packet_trailer_features)) {
+    msg.add_packet_trailer_features(feature);
+  }
   return msg;
 }
 
@@ -372,6 +409,7 @@ TrackPublishOptions fromProto(const proto::TrackPublishOptions &in) {
   if (in.has_preconnect_buffer()) {
     out.preconnect_buffer = in.preconnect_buffer();
   }
+  out.packet_trailer_features = fromProto(in.packet_trailer_features());
   return out;
 }
 

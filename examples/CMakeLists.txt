@@ -39,6 +39,8 @@ set(EXAMPLES_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
 # All example executables (used for copying livekit_ffi DLL/shared lib)
 set(EXAMPLES_ALL
   SimpleRoom
+  UserTimestampedVideoProducer
+  UserTimestampedVideoConsumer
   SimpleRpc
   SimpleJoystickSender
   SimpleJoystickReceiver
@@ -229,6 +231,32 @@ add_executable(SimpleDataStream
 target_include_directories(SimpleDataStream PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
 
 target_link_libraries(SimpleDataStream
+  PRIVATE
+    livekit
+    spdlog::spdlog
+)
+
+# --- UserTimestampedVideo example ---
+
+add_executable(UserTimestampedVideoProducer
+  user_timestamped_video/producer.cpp
+)
+
+target_include_directories(UserTimestampedVideoProducer PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(UserTimestampedVideoProducer
+  PRIVATE
+    livekit
+    spdlog::spdlog
+)
+
+add_executable(UserTimestampedVideoConsumer
+  user_timestamped_video/consumer.cpp
+)
+
+target_include_directories(UserTimestampedVideoConsumer PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(UserTimestampedVideoConsumer
   PRIVATE
     livekit
     spdlog::spdlog

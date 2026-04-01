@@ -277,6 +277,20 @@ public:
                                VideoStream::Options opts = {});
 
   /**
+   * Set a rich callback for video frame events from a specific remote
+   * participant and track source.
+   *
+   * This variant delivers the full \ref VideoFrameEvent, including optional
+   * packet-trailer metadata when available.
+   *
+   * @see setOnVideoFrameCallback for threading and lifecycle semantics.
+   */
+  void setOnVideoFrameEventCallback(const std::string &participant_identity,
+                                    TrackSource source,
+                                    VideoFrameEventCallback callback,
+                                    VideoStream::Options opts = {});
+
+  /**
    * Clear the audio frame callback for a specific (participant, source) pair.
    * Stops and joins any active reader thread.
    * No-op if no callback is registered for this key.
@@ -287,11 +301,7 @@ public:
                                  TrackSource source);
 
   /**
-   * Clear the video frame callback for a specific (participant, source) pair.
-   * Stops and joins any active reader thread.
-   * No-op if no callback is registered for this key.
-   * @param participant_identity Identity of the remote participant.
-   * @param source               Track source (e.g. SOURCE_CAMERA).
+   * @brief Clears the video frame callback via SubscriptionThreadDispatcher.
    */
   void clearOnVideoFrameCallback(const std::string &participant_identity,
                                  TrackSource source);
