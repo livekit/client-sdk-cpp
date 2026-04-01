@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 LiveKit
+ * Copyright 2025 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
+#include "../common/audio_utils.h"
 #include "../common/test_common.h"
+#include "../common/video_utils.h"
 #include <atomic>
 #include <chrono>
-#include <cmath>
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
@@ -32,12 +33,10 @@ using namespace std::chrono_literals;
 
 namespace {
 
-constexpr int kVideoWidth = 640;
-constexpr int kVideoHeight = 360;
-constexpr int kAudioSampleRate = 48000;
-constexpr int kAudioChannels = 1;
-constexpr int kAudioFrameMs = 10;
-constexpr int kSamplesPerChannel = kAudioSampleRate * kAudioFrameMs / 1000;
+constexpr int kVideoWidth = kDefaultVideoWidth;
+constexpr int kVideoHeight = kDefaultVideoHeight;
+constexpr int kAudioSampleRate = kDefaultAudioSampleRate;
+constexpr int kAudioChannels = kDefaultAudioChannels;
 
 struct MediaSubscriptionState {
   std::mutex mutex;
@@ -77,120 +76,6 @@ public:
 private:
   MediaSubscriptionState &state_;
 };
-
-void fillWebcamLikeFrame(VideoFrame &frame, std::uint64_t frame_index) {
-  // ARGB layout: [A, R, G, B]
-  std::uint8_t *data = frame.data();
-  const std::size_t size = frame.dataSize();
-  const std::uint8_t blue = static_cast<std::uint8_t>((frame_index * 3) % 255);
-  for (std::size_t i = 0; i < size; i += 4) {
-    data[i + 0] = 255; // A
-    data[i + 1] = 0;   // R
-    data[i + 2] = 170; // G
-    data[i + 3] = blue;
-  }
-}
-
-void fillRedFrameWithMetadata(VideoFrame &frame, std::uint64_t frame_index,
-                              std::uint64_t timestamp_us) {
-  // ARGB layout: [A, R, G, B]
-  std::uint8_t *data = frame.data();
-  const std::size_t size = frame.dataSize();
-  for (std::size_t i = 0; i < size; i += 4) {
-    data[i + 0] = 255; // A
-    data[i + 1] = 255; // R
-    data[i + 2] = 0;   // G
-    data[i + 3] = 0;   // B
-  }
-
-  // Encode frame counter + timestamp into first 16 pixels for easy debugging.
-  std::uint8_t meta[16];
-  for (int i = 0; i < 8; ++i) {
-    meta[i] = static_cast<std::uint8_t>((frame_index >> (i * 8)) & 0xFF);
-    meta[8 + i] = static_cast<std::uint8_t>((timestamp_us >> (i * 8)) & 0xFF);
-  }
-  for (int i = 0; i < 16; ++i) {
-    const std::size_t px = static_cast<std::size_t>(i) * 4;
-    if (px + 3 < size) {
-      data[px + 0] = 255;
-      data[px + 1] = 255;
-      data[px + 2] = meta[i];
-      data[px + 3] = meta[(15 - i)];
-    }
-  }
-}
-
-void runVideoLoop(const std::shared_ptr<VideoSource> &source,
-                  std::atomic<bool> &running,
-                  void (*fill_fn)(VideoFrame &, std::uint64_t, std::uint64_t)) {
-  VideoFrame frame =
-      VideoFrame::create(kVideoWidth, kVideoHeight, VideoBufferType::ARGB);
-  std::uint64_t frame_index = 0;
-  while (running.load(std::memory_order_relaxed)) {
-    const auto now = std::chrono::steady_clock::now().time_since_epoch();
-    const auto ts_us = static_cast<std::uint64_t>(
-        std::chrono::duration_cast<std::chrono::microseconds>(now).count());
-    fill_fn(frame, frame_index, ts_us);
-    try {
-      source->captureFrame(frame, static_cast<std::int64_t>(ts_us),
-                           VideoRotation::VIDEO_ROTATION_0);
-    } catch (...) {
-      break;
-    }
-    frame_index++;
-    std::this_thread::sleep_for(33ms);
-  }
-}
-
-void fillWebcamWrapper(VideoFrame &frame, std::uint64_t frame_index,
-                       std::uint64_t) {
-  fillWebcamLikeFrame(frame, frame_index);
-}
-
-void fillRedWrapper(VideoFrame &frame, std::uint64_t frame_index,
-                    std::uint64_t timestamp_us) {
-  fillRedFrameWithMetadata(frame, frame_index, timestamp_us);
-}
-
-void runToneLoop(const std::shared_ptr<AudioSource> &source,
-                 std::atomic<bool> &running, double base_freq_hz,
-                 bool siren_mode) {
-  double phase = 0.0;
-  constexpr double kTwoPi = 6.283185307179586;
-  while (running.load(std::memory_order_relaxed)) {
-    AudioFrame frame = AudioFrame::create(kAudioSampleRate, kAudioChannels,
-                                          kSamplesPerChannel);
-    auto &samples = frame.data();
-
-    const double time_sec =
-        static_cast<double>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now().time_since_epoch())
-                .count()) /
-        1000.0;
-    const double freq =
-        siren_mode ? (700.0 + 250.0 * std::sin(time_sec * 2.0)) : base_freq_hz;
-
-    const double phase_inc =
-        kTwoPi * freq / static_cast<double>(kAudioSampleRate);
-    for (int i = 0; i < kSamplesPerChannel; ++i) {
-      samples[static_cast<std::size_t>(i)] =
-          static_cast<std::int16_t>(std::sin(phase) * 12000.0);
-      phase += phase_inc;
-      if (phase > kTwoPi) {
-        phase -= kTwoPi;
-      }
-    }
-
-    try {
-      source->captureFrame(frame);
-    } catch (...) {
-      break;
-    }
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(kAudioFrameMs));
-  }
-}
 
 } // namespace
 
@@ -233,19 +118,15 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
 
   std::vector<std::shared_ptr<VideoSource>> video_sources;
   std::vector<std::shared_ptr<LocalVideoTrack>> video_tracks;
-  std::vector<std::shared_ptr<LocalTrackPublication>> video_pubs;
   std::vector<std::shared_ptr<AudioSource>> audio_sources;
   std::vector<std::shared_ptr<LocalAudioTrack>> audio_tracks;
-  std::vector<std::shared_ptr<LocalTrackPublication>> audio_pubs;
   std::vector<std::thread> threads;
   std::set<std::string> expected_names;
 
   video_sources.reserve(kVideoTrackCount);
   video_tracks.reserve(kVideoTrackCount);
-  video_pubs.reserve(kVideoTrackCount);
   audio_sources.reserve(kAudioTrackCount);
   audio_tracks.reserve(kAudioTrackCount);
-  audio_pubs.reserve(kAudioTrackCount);
   threads.reserve(kVideoTrackCount + kAudioTrackCount);
 
   for (int i = 0; i < kVideoTrackCount; ++i) {
@@ -255,12 +136,11 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
     TrackPublishOptions opts;
     opts.source = (i % 2 == 0) ? TrackSource::SOURCE_CAMERA
                                : TrackSource::SOURCE_SCREENSHARE;
-    auto pub = sender_room->localParticipant()->publishTrack(track, opts);
+    sender_room->localParticipant()->publishTrack(track, opts);
     std::cerr << "[MediaMultiStream] published video " << name
-              << " sid=" << pub->sid() << std::endl;
+              << " sid=" << track->sid() << std::endl;
     video_sources.push_back(source);
     video_tracks.push_back(track);
-    video_pubs.push_back(pub);
     expected_names.insert(name);
   }
 
@@ -272,12 +152,11 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
     TrackPublishOptions opts;
     opts.source = (i % 2 == 0) ? TrackSource::SOURCE_MICROPHONE
                                : TrackSource::SOURCE_SCREENSHARE_AUDIO;
-    auto pub = sender_room->localParticipant()->publishTrack(track, opts);
+    sender_room->localParticipant()->publishTrack(track, opts);
     std::cerr << "[MediaMultiStream] published audio " << name
-              << " sid=" << pub->sid() << std::endl;
+              << " sid=" << track->sid() << std::endl;
     audio_sources.push_back(source);
     audio_tracks.push_back(track);
-    audio_pubs.push_back(pub);
     expected_names.insert(name);
   }
 
@@ -351,11 +230,11 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
     }
   }
 
-  for (const auto &pub : video_pubs) {
-    sender_room->localParticipant()->unpublishTrack(pub->sid());
+  for (const auto &track : video_tracks) {
+    sender_room->localParticipant()->unpublishTrack(track->sid());
   }
-  for (const auto &pub : audio_pubs) {
-    sender_room->localParticipant()->unpublishTrack(pub->sid());
+  for (const auto &track : audio_tracks) {
+    sender_room->localParticipant()->unpublishTrack(track->sid());
   }
 }
 

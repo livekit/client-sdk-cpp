@@ -602,12 +602,8 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
   ASSERT_NE(track_b, nullptr);
 
   TrackPublishOptions publish_options;
-  auto pub_a =
-      room_a->localParticipant()->publishTrack(track_a, publish_options);
-  auto pub_b =
-      room_b->localParticipant()->publishTrack(track_b, publish_options);
-  ASSERT_NE(pub_a, nullptr);
-  ASSERT_NE(pub_b, nullptr);
+  room_a->localParticipant()->publishTrack(track_a, publish_options);
+  room_b->localParticipant()->publishTrack(track_b, publish_options);
 
   auto track_from_a_on_b =
       delegate_b.waitForAudioTrackFromParticipant(id_a, 10s);
@@ -842,8 +838,8 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
     std::cout << "Response timeouts: " << timeouts << std::endl;
   }
 
-  room_a->localParticipant()->unpublishTrack(pub_a->sid());
-  room_b->localParticipant()->unpublishTrack(pub_b->sid());
+  room_a->localParticipant()->unpublishTrack(track_a->sid());
+  room_b->localParticipant()->unpublishTrack(track_b->sid());
 
   EXPECT_GT(round_trip_stats.count(), 0)
       << "At least one round-trip latency measurement should be recorded";
