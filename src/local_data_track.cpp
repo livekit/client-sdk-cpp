@@ -16,6 +16,7 @@
 
 #include "livekit/local_data_track.h"
 
+#include "livekit/data_track_error.h"
 #include "livekit/lk_log.h"
 
 #include "data_track.pb.h"
@@ -55,8 +56,7 @@ LocalDataTrack::tryPush(const DataTrackFrame &frame) {
     const auto &r = resp.local_data_track_try_push();
     if (r.has_error()) {
       return Result<void, LocalDataTrackTryPushError>::failure(
-          LocalDataTrackTryPushError{LocalDataTrackTryPushErrorCode::INTERNAL,
-                                     r.error()});
+          LocalDataTrackTryPushError::fromProto(r.error()));
     }
     return Result<void, LocalDataTrackTryPushError>::success();
   } catch (const std::exception &e) {

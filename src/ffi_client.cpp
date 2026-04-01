@@ -21,6 +21,7 @@
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit/build.h"
+#include "livekit/data_track_error.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/lk_log.h"
@@ -638,8 +639,8 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
         if (cb.has_error()) {
           pr.set_value(
               Result<proto::OwnedLocalDataTrack,
-                     PublishDataTrackError>::failure(PublishDataTrackError{
-                  PublishDataTrackErrorCode::INTERNAL, cb.error()}));
+                     PublishDataTrackError>::failure(
+                  PublishDataTrackError::fromProto(cb.error())));
           return;
         }
         if (!cb.has_track()) {
