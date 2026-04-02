@@ -379,7 +379,7 @@ target_include_directories(livekit
 
 target_link_libraries(livekit
   PUBLIC
-    $<BUILD_INTERFACE:spdlog::spdlog>
+    spdlog::spdlog
   PRIVATE
     livekit_ffi
     ${LIVEKIT_PROTOBUF_TARGET}
