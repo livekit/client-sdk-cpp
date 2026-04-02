@@ -22,6 +22,7 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV HOME=/root
+ENV SDK_INSTALL_PREFIX=/opt/livekit-sdk
 
 # Install make, pkg-config, and base build deps (pkg-config + libglib2.0-dev for Rust glib-sys, libasound2-dev for alsa-sys)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -29,18 +30,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     libasound2-dev \
+    libabsl-dev \
     libclang-dev \
     libdrm-dev \
     libglib2.0-dev \
+    libprotobuf-dev \
+    libdecor-0-dev \
     libspdlog-dev \
     libssl-dev \
     libunwind-dev \
     libusb-1.0-0-dev \
     libva-dev \
+    libwayland-dev \
     make \
     ninja-build \
     pkg-config \
+    protobuf-compiler \
     wget \
+    llvm-dev \
+    clang \
     xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
@@ -122,3 +130,13 @@ RUN mkdir -p /client-sdk-cpp/client-sdk-rust/.cargo \
     && printf '%s\n' '[target.x86_64-unknown-linux-gnu]' 'linker = "/root/gcc-14/bin/g++"' \
         '[target.aarch64-unknown-linux-gnu]' 'linker = "/root/gcc-14/bin/g++"' > /client-sdk-cpp/client-sdk-rust/.cargo/config.toml
 
+# Build and install the SDK into a fixed prefix so downstream projects can
+# consume the image as a prebuilt LiveKit SDK environment.
+RUN LLVM_VERSION="$(llvm-config --version | cut -d. -f1)" \
+    && export LIBCLANG_PATH="/usr/lib/llvm-${LLVM_VERSION}/lib" \
+    && export CXXFLAGS="-Wno-deprecated-declarations" \
+    && export CFLAGS="-Wno-deprecated-declarations" \
+    && chmod +x /client-sdk-cpp/build.sh \
+    && cd /client-sdk-cpp \
+    && ./build.sh release --bundle --prefix "${SDK_INSTALL_PREFIX}" \
+    && test -f "${SDK_INSTALL_PREFIX}/lib/cmake/LiveKit/LiveKitConfig.cmake"
