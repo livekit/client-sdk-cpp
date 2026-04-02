@@ -18,15 +18,18 @@
 
 #include "livekit/audio_stream.h"
 #include "livekit/e2ee.h"
+#include "livekit/local_data_track.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
 #include "livekit/remote_audio_track.h"
+#include "livekit/remote_data_track.h"
 #include "livekit/remote_participant.h"
 #include "livekit/remote_track_publication.h"
 #include "livekit/remote_video_track.h"
 #include "livekit/room_delegate.h"
 #include "livekit/room_event_types.h"
 
+#include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit/lk_log.h"
@@ -168,8 +171,8 @@ bool Room::Connect(const std::string &url, const std::string &token,
     std::unique_ptr<E2EEManager> new_e2ee_manager;
     if (options.encryption) {
       LK_LOG_INFO("creating E2eeManager");
-      e2ee_manager_ = std::unique_ptr<E2EEManager>(
-          new E2EEManager(room_handle_->get(), options.encryption.value()));
+      new_e2ee_manager = std::unique_ptr<E2EEManager>(
+          new E2EEManager(new_room_handle->get(), options.encryption.value()));
     }
 
     // Publish all state atomically under lock
@@ -227,6 +230,11 @@ Room::remoteParticipants() const {
   return out;
 }
 
+E2EEManager *Room::e2eeManager() const {
+  std::lock_guard<std::mutex> g(lock_);
+  return e2ee_manager_.get();
+}
+
 void Room::registerTextStreamHandler(const std::string &topic,
                                      TextStreamHandler handler) {
   std::lock_guard<std::mutex> g(lock_);
@@ -273,6 +281,16 @@ void Room::setOnAudioFrameCallback(const std::string &participant_identity,
   }
 }
 
+void Room::setOnAudioFrameCallback(const std::string &participant_identity,
+                                   const std::string &track_name,
+                                   AudioFrameCallback callback,
+                                   AudioStream::Options opts) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnAudioFrameCallback(
+        participant_identity, track_name, std::move(callback), std::move(opts));
+  }
+}
+
 void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    TrackSource source,
                                    VideoFrameCallback callback,
@@ -280,6 +298,16 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnVideoFrameCallback(
         participant_identity, source, std::move(callback), std::move(opts));
+  }
+}
+
+void Room::setOnVideoFrameCallback(const std::string &participant_identity,
+                                   const std::string &track_name,
+                                   VideoFrameCallback callback,
+                                   VideoStream::Options opts) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnVideoFrameCallback(
+        participant_identity, track_name, std::move(callback), std::move(opts));
   }
 }
 
@@ -291,11 +319,44 @@ void Room::clearOnAudioFrameCallback(const std::string &participant_identity,
   }
 }
 
+void Room::clearOnAudioFrameCallback(const std::string &participant_identity,
+                                     const std::string &track_name) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->clearOnAudioFrameCallback(
+        participant_identity, track_name);
+  }
+}
+
 void Room::clearOnVideoFrameCallback(const std::string &participant_identity,
                                      TrackSource source) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->clearOnVideoFrameCallback(
         participant_identity, source);
+  }
+}
+
+void Room::clearOnVideoFrameCallback(const std::string &participant_identity,
+                                     const std::string &track_name) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->clearOnVideoFrameCallback(
+        participant_identity, track_name);
+  }
+}
+
+DataFrameCallbackId
+Room::addOnDataFrameCallback(const std::string &participant_identity,
+                             const std::string &track_name,
+                             DataFrameCallback callback) {
+  if (subscription_thread_dispatcher_) {
+    return subscription_thread_dispatcher_->addOnDataFrameCallback(
+        participant_identity, track_name, std::move(callback));
+  }
+  return std::numeric_limits<DataFrameCallbackId>::max();
+}
+
+void Room::removeOnDataFrameCallback(DataFrameCallbackId id) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->removeOnDataFrameCallback(id);
   }
 }
 
@@ -586,7 +647,8 @@ void Room::OnEvent(const FfiEvent &event) {
 
       if (subscription_thread_dispatcher_ && remote_track && rpublication) {
         subscription_thread_dispatcher_->handleTrackSubscribed(
-            identity, rpublication->source(), remote_track);
+            identity, rpublication->source(), rpublication->name(),
+            remote_track);
       }
       break;
     }
@@ -630,8 +692,9 @@ void Room::OnEvent(const FfiEvent &event) {
 
       if (subscription_thread_dispatcher_ &&
           unsub_source != TrackSource::SOURCE_UNKNOWN) {
-        subscription_thread_dispatcher_->handleTrackUnsubscribed(unsub_identity,
-                                                                 unsub_source);
+        subscription_thread_dispatcher_->handleTrackUnsubscribed(
+            unsub_identity, unsub_source,
+            ev.publication ? ev.publication->name() : "");
       }
       break;
     }
@@ -653,6 +716,36 @@ void Room::OnEvent(const FfiEvent &event) {
       }
       if (delegate_snapshot) {
         delegate_snapshot->onTrackSubscriptionFailed(*this, ev);
+      }
+      break;
+    }
+    case proto::RoomEvent::kDataTrackPublished: {
+      const auto &rdtp = re.data_track_published();
+      auto remote_track =
+          std::shared_ptr<RemoteDataTrack>(new RemoteDataTrack(rdtp.track()));
+
+      if (subscription_thread_dispatcher_) {
+        subscription_thread_dispatcher_->handleDataTrackPublished(remote_track);
+      }
+
+      DataTrackPublishedEvent ev;
+      ev.track = remote_track;
+      if (delegate_snapshot) {
+        delegate_snapshot->onDataTrackPublished(*this, ev);
+      }
+      break;
+    }
+    case proto::RoomEvent::kDataTrackUnpublished: {
+      const auto &dtu = re.data_track_unpublished();
+
+      if (subscription_thread_dispatcher_) {
+        subscription_thread_dispatcher_->handleDataTrackUnpublished(dtu.sid());
+      }
+
+      DataTrackUnpublishedEvent ev;
+      ev.sid = dtu.sid();
+      if (delegate_snapshot) {
+        delegate_snapshot->onDataTrackUnpublished(*this, ev);
       }
       break;
     }

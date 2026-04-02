@@ -17,6 +17,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -25,8 +26,10 @@
 #include <iostream>
 #include <livekit/livekit.h>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <numeric>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -45,6 +48,9 @@ constexpr int kDefaultTestIterations = 10;
 
 // Default stress test duration in seconds
 constexpr int kDefaultStressDurationSeconds = 600; // 10 minutes
+
+// Local SFU URL used by end-to-end data track tests.
+constexpr char kLocalTestLiveKitUrl[] = "ws://localhost:7880";
 
 // =============================================================================
 // Common Test Configuration
@@ -97,6 +103,11 @@ struct TestConfig {
   }
 };
 
+struct TestRoomConnectionOptions {
+  RoomOptions room_options;
+  RoomDelegate *delegate = nullptr;
+};
+
 // =============================================================================
 // Utility Functions
 // =============================================================================
@@ -119,6 +130,113 @@ inline bool waitForParticipant(Room *room, const std::string &identity,
     std::this_thread::sleep_for(100ms);
   }
   return false;
+}
+
+inline std::array<std::string, 2> getDataTrackTestTokens() {
+  const char *token_a = std::getenv("LK_TOKEN_TEST_A");
+  if (token_a == nullptr || std::string(token_a).empty()) {
+    throw std::runtime_error(
+        "LK_TOKEN_TEST_A must be present and non-empty for data track E2E "
+        "tests");
+  }
+
+  const char *token_b = std::getenv("LK_TOKEN_TEST_B");
+  if (token_b == nullptr || std::string(token_b).empty()) {
+    throw std::runtime_error(
+        "LK_TOKEN_TEST_B must be present and non-empty for data track E2E "
+        "tests");
+  }
+
+  return {token_a, token_b};
+}
+
+inline void
+waitForParticipantVisibility(const std::vector<std::unique_ptr<Room>> &rooms,
+                             std::chrono::milliseconds timeout = 5s) {
+  std::vector<std::string> participant_identities;
+  participant_identities.reserve(rooms.size());
+  for (const auto &room : rooms) {
+    if (!room || room->localParticipant() == nullptr) {
+      throw std::runtime_error(
+          "Test room is missing a local participant after connect");
+    }
+    participant_identities.push_back(room->localParticipant()->identity());
+  }
+
+  auto start = std::chrono::steady_clock::now();
+  while (std::chrono::steady_clock::now() - start < timeout) {
+    bool all_visible = true;
+    for (size_t i = 0; i < rooms.size(); ++i) {
+      const auto &room = rooms[i];
+      if (!room || room->localParticipant() == nullptr) {
+        throw std::runtime_error(
+            "Test room is missing a local participant after connect");
+      }
+
+      for (size_t j = 0; j < participant_identities.size(); ++j) {
+        if (i == j) {
+          continue;
+        }
+
+        if (room->remoteParticipant(participant_identities[j]) == nullptr) {
+          all_visible = false;
+          break;
+        }
+      }
+
+      if (!all_visible) {
+        break;
+      }
+    }
+
+    if (all_visible) {
+      return;
+    }
+
+    std::this_thread::sleep_for(10ms);
+  }
+
+  throw std::runtime_error("Not all test participants became visible");
+}
+
+inline std::vector<std::unique_ptr<Room>>
+testRooms(const std::vector<TestRoomConnectionOptions> &room_configs) {
+  if (room_configs.empty()) {
+    throw std::invalid_argument("testRooms requires at least one room");
+  }
+
+  if (room_configs.size() > 2) {
+    throw std::invalid_argument(
+        "testRooms supports at most two rooms with LK_TOKEN_TEST_A/B");
+  }
+
+  auto tokens = getDataTrackTestTokens();
+
+  std::vector<std::unique_ptr<Room>> rooms;
+  rooms.reserve(room_configs.size());
+
+  for (size_t i = 0; i < room_configs.size(); ++i) {
+    auto room = std::make_unique<Room>();
+    if (room_configs[i].delegate != nullptr) {
+      room->setDelegate(room_configs[i].delegate);
+    }
+
+    if (!room->Connect(kLocalTestLiveKitUrl, tokens[i],
+                       room_configs[i].room_options)) {
+      throw std::runtime_error("Failed to connect test room " +
+                               std::to_string(i));
+    }
+
+    rooms.push_back(std::move(room));
+  }
+
+  waitForParticipantVisibility(rooms);
+  return rooms;
+}
+
+inline std::vector<std::unique_ptr<Room>> testRooms(size_t count) {
+  std::vector<TestRoomConnectionOptions> room_configs(count);
+  return testRooms(room_configs);
 }
 
 // =============================================================================

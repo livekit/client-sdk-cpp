@@ -288,6 +288,24 @@ public:
   virtual void onTextStreamOpened(Room &, const TextStreamOpenedEvent &) {}
 
   // ------------------------------------------------------------------
+  // Data tracks
+  // ------------------------------------------------------------------
+
+  /**
+   * Called when a remote participant publishes a data track.
+   *
+   * Data tracks are independent of the audio/video track hierarchy and
+   * require an explicit subscribe() call to start receiving frames.
+   */
+  virtual void onDataTrackPublished(Room &, const DataTrackPublishedEvent &) {}
+
+  /**
+   * Called when a remote participant unpublishes a data track.
+   */
+  virtual void onDataTrackUnpublished(Room &,
+                                      const DataTrackUnpublishedEvent &) {}
+
+  // ------------------------------------------------------------------
   // Participants snapshot
   // ------------------------------------------------------------------
 

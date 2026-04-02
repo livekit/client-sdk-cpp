@@ -43,6 +43,10 @@ set(EXAMPLES_ALL
   SimpleJoystickSender
   SimpleJoystickReceiver
   SimpleDataStream
+  PingPongPing
+  PingPongPong
+  HelloLivekitSender
+  HelloLivekitReceiver
   LoggingLevelsBasicUsage
   LoggingLevelsCustomSinks
   BridgeRobot
@@ -240,6 +244,77 @@ add_custom_command(
   COMMAND ${CMAKE_COMMAND} -E copy_directory
           ${LIVEKIT_ROOT_DIR}/data
           $<TARGET_FILE_DIR:SimpleDataStream>/data
+)
+
+# --- ping_pong (request/response latency measurement over data tracks) ---
+
+add_library(ping_pong_support STATIC
+  ping_pong/json_converters.cpp
+  ping_pong/json_converters.h
+  ping_pong/constants.h
+  ping_pong/messages.h
+  ping_pong/utils.h
+)
+
+target_include_directories(ping_pong_support PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}/ping_pong
+)
+
+target_link_libraries(ping_pong_support
+  PRIVATE
+    nlohmann_json::nlohmann_json
+)
+
+add_executable(PingPongPing
+  ping_pong/ping.cpp
+)
+
+target_include_directories(PingPongPing PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(PingPongPing
+  PRIVATE
+    ping_pong_support
+    livekit
+    spdlog::spdlog
+)
+
+add_executable(PingPongPong
+  ping_pong/pong.cpp
+)
+
+target_include_directories(PingPongPong PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(PingPongPong
+  PRIVATE
+    ping_pong_support
+    livekit
+    spdlog::spdlog
+)
+
+# --- hello_livekit (minimal synthetic video + data publish / subscribe) ---
+
+add_executable(HelloLivekitSender
+  hello_livekit/sender.cpp
+)
+
+target_include_directories(HelloLivekitSender PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(HelloLivekitSender
+  PRIVATE
+    livekit
+    spdlog::spdlog
+)
+
+add_executable(HelloLivekitReceiver
+  hello_livekit/receiver.cpp
+)
+
+target_include_directories(HelloLivekitReceiver PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
+
+target_link_libraries(HelloLivekitReceiver
+  PRIVATE
+    livekit
+    spdlog::spdlog
 )
 
 # --- bridge_human_robot examples (robot + human; use livekit_bridge and SDL3) ---

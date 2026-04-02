@@ -76,6 +76,7 @@ set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/e2ee.proto
     ${FFI_PROTO_DIR}/stats.proto
     ${FFI_PROTO_DIR}/data_stream.proto
+    ${FFI_PROTO_DIR}/data_track.proto
     ${FFI_PROTO_DIR}/rpc.proto
     ${FFI_PROTO_DIR}/track_publication.proto
 )
@@ -323,7 +324,10 @@ add_library(livekit SHARED
   src/audio_processing_module.cpp
   src/audio_source.cpp
   src/audio_stream.cpp
+  src/data_track_frame.cpp
   src/data_stream.cpp
+  src/data_track_error.cpp
+  src/data_track_stream.cpp
   src/e2ee.cpp
   src/ffi_handle.cpp
   src/ffi_client.cpp
@@ -331,7 +335,9 @@ add_library(livekit SHARED
   src/livekit.cpp
   src/logging.cpp
   src/local_audio_track.cpp
+  src/local_data_track.cpp
   src/remote_audio_track.cpp
+  src/remote_data_track.cpp
   src/room.cpp
   src/room_proto_converter.cpp
   src/room_proto_converter.h
@@ -682,10 +688,6 @@ install(FILES
 
 # Build the LiveKit C++ bridge before examples (human_robot depends on it)
 add_subdirectory(bridge)
-
-# ---- Examples ----
-# add_subdirectory(examples)
-
 
 if(LIVEKIT_BUILD_EXAMPLES)
   add_subdirectory(examples)
