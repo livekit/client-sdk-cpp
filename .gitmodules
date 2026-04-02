@@ -1,3 +1,6 @@
 [submodule "client-sdk-rust"]
 	path = client-sdk-rust
 	url = https://github.com/livekit/client-sdk-rust
+[submodule "cpp-example-collection"]
+	path = cpp-example-collection
+	url = https://github.com/livekit-examples/cpp-example-collection.git
