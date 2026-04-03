@@ -25,6 +25,86 @@ enable_testing()
 include(GoogleTest)
 
 # ============================================================================
+# Benchmark Utilities (shared by all test types)
+# ============================================================================
+
+set(BENCHMARK_UTILS_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/benchmark/benchmark_utils.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/benchmark/benchmark_utils.h"
+)
+
+# ============================================================================
+# Unit Tests
+# ============================================================================
+
+# Collect all unit test sources
+file(GLOB UNIT_TEST_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/unit/*.cpp"
+)
+
+if(UNIT_TEST_SOURCES)
+  add_executable(livekit_unit_tests
+    ${UNIT_TEST_SOURCES}
+    ${BENCHMARK_UTILS_SOURCES}
+  )
+
+  target_link_libraries(livekit_unit_tests
+    PRIVATE
+      livekit
+      GTest::gtest_main
+      GTest::gmock
+  )
+
+  target_include_directories(livekit_unit_tests
+    PRIVATE
+      ${LIVEKIT_ROOT_DIR}/include
+      ${LIVEKIT_ROOT_DIR}/src
+      ${LIVEKIT_ROOT_DIR}/src/trace
+      ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
+  )
+
+  # Copy shared libraries to test executable directory
+  if(WIN32)
+    add_custom_command(TARGET livekit_unit_tests POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:livekit>
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMENT "Copying DLLs to unit test directory"
+    )
+  elseif(APPLE)
+    add_custom_command(TARGET livekit_unit_tests POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:livekit>
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMENT "Copying dylibs to unit test directory"
+    )
+  else()
+    add_custom_command(TARGET livekit_unit_tests POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:livekit>
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMENT "Copying shared libraries to unit test directory"
+    )
+  endif()
+
+  # Register tests with CTest
+  gtest_discover_tests(livekit_unit_tests
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    PROPERTIES
+      LABELS "unit"
+  )
+endif()
+
+# ============================================================================
 # Integration Tests
 # ============================================================================
 
@@ -36,6 +116,7 @@ file(GLOB INTEGRATION_TEST_SOURCES
 if(INTEGRATION_TEST_SOURCES)
   add_executable(livekit_integration_tests
     ${INTEGRATION_TEST_SOURCES}
+    ${BENCHMARK_UTILS_SOURCES}
   )
 
   target_link_libraries(livekit_integration_tests
@@ -49,6 +130,8 @@ if(INTEGRATION_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+      ${LIVEKIT_ROOT_DIR}/src/trace
+      ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
       ${LIVEKIT_BINARY_DIR}/generated
       ${Protobuf_INCLUDE_DIRS}
   )
@@ -121,6 +204,7 @@ file(GLOB STRESS_TEST_SOURCES
 if(STRESS_TEST_SOURCES)
   add_executable(livekit_stress_tests
     ${STRESS_TEST_SOURCES}
+    ${BENCHMARK_UTILS_SOURCES}
   )
 
   target_link_libraries(livekit_stress_tests
@@ -134,6 +218,8 @@ if(STRESS_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+      ${LIVEKIT_ROOT_DIR}/src/trace
+      ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
   )
 
   # Copy shared libraries to test executable directory
@@ -187,6 +273,10 @@ add_custom_target(run_all_tests
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Running all tests"
 )
+
+if(TARGET livekit_unit_tests)
+  add_dependencies(run_all_tests livekit_unit_tests)
+endif()
 
 if(TARGET livekit_integration_tests)
   add_dependencies(run_all_tests livekit_integration_tests)

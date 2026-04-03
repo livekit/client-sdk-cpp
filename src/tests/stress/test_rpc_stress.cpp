@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+#include "../benchmark/benchmark_utils.h"
 #include "../common/test_common.h"
 #include <fstream>
 #include <random>
 #include <sstream>
+
+using namespace livekit::test::benchmark;
 
 namespace livekit {
 namespace test {
@@ -200,7 +203,11 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
 
   std::cout << "Both rooms connected. Starting stress test..." << std::endl;
 
-  StressTestStats stats;
+  // Start benchmark session with tracing
+  BenchmarkSession session("MaxPayloadStress", {kCategoryRpc});
+  session.start("rpc_max_payload_stress_trace.json");
+
+  TracedStressStats stats("Max Payload RPC", kCategoryRpc);
   std::atomic<bool> running{true};
 
   auto start_time = std::chrono::steady_clock::now();
@@ -320,7 +327,10 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
   }
   progress_thread.join();
 
-  stats.printStats("RPC Max Payload Stress Test");
+  session.stop();
+
+  // Print trace-based statistics
+  stats.printStats();
 
   // Verify results
   EXPECT_GT(stats.successfulCalls(), 0) << "No successful calls";
@@ -394,7 +404,11 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
 
   std::cout << "Both rooms connected. Starting stress test..." << std::endl;
 
-  StressTestStats stats;
+  // Start benchmark session with tracing
+  BenchmarkSession session("SmallPayloadStress", {kCategoryRpc});
+  session.start("rpc_small_payload_stress_trace.json");
+
+  TracedStressStats stats("Small Payload RPC", kCategoryRpc);
   std::atomic<bool> running{true};
 
   auto start_time = std::chrono::steady_clock::now();
@@ -506,7 +520,10 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   }
   progress_thread.join();
 
-  stats.printStats("RPC Small Payload Stress Test");
+  session.stop();
+
+  // Print trace-based statistics
+  stats.printStats();
 
   // Verify results
   EXPECT_GT(stats.successfulCalls(), 0) << "No successful calls";
@@ -573,8 +590,12 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
         return data.payload;
       });
 
-  StressTestStats stats_a_to_b;
-  StressTestStats stats_b_to_a;
+  // Start benchmark session with tracing
+  BenchmarkSession session("BidirectionalRpcStress", {kCategoryRpc});
+  session.start("rpc_bidirectional_stress_trace.json");
+
+  TracedStressStats stats_a_to_b("A->B RPC", kCategoryRpc);
+  TracedStressStats stats_b_to_a("B->A RPC", kCategoryRpc);
   std::atomic<bool> running{true};
 
   auto start_time = std::chrono::steady_clock::now();
@@ -715,11 +736,20 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   thread_b_to_a.join();
   progress_thread.join();
 
+  session.stop();
+
+  // Print trace-based statistics
   std::cout << "\n=== A -> B Statistics ===" << std::endl;
-  stats_a_to_b.printStats("A -> B");
+  stats_a_to_b.printStats();
 
   std::cout << "\n=== B -> A Statistics ===" << std::endl;
-  stats_b_to_a.printStats("B -> A");
+  stats_b_to_a.printStats();
+
+  // Print comparison table
+  std::vector<BenchmarkStats> all_stats = {stats_a_to_b.getLatencyStats(),
+                                           stats_b_to_a.getLatencyStats()};
+  std::cout << "\n=== Comparison Table ===" << std::endl;
+  printComparisonTable(all_stats);
 
   EXPECT_GT(stats_a_to_b.successfulCalls(), 0);
   EXPECT_GT(stats_b_to_a.successfulCalls(), 0);
@@ -769,7 +799,11 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
       waitForParticipant(caller_room.get(), receiver_identity, 10s);
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
-  StressTestStats stats;
+  // Start benchmark session with tracing
+  BenchmarkSession session("HighThroughputBurst", {kCategoryRpc});
+  session.start("rpc_high_throughput_burst_trace.json");
+
+  TracedStressStats stats("High Throughput Burst", kCategoryRpc);
   std::atomic<bool> running{true};
 
   auto start_time = std::chrono::steady_clock::now();
@@ -866,7 +900,10 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   }
   progress_thread.join();
 
-  stats.printStats("High Throughput Burst Test");
+  session.stop();
+
+  // Print trace-based statistics
+  stats.printStats();
 
   auto total_time = std::chrono::duration_cast<std::chrono::seconds>(
                         std::chrono::steady_clock::now() - start_time)
