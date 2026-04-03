@@ -31,3 +31,4 @@ lib/
 *.exe
 livekit.log
 web/
+*trace.json
