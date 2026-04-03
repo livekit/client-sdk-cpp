@@ -285,13 +285,13 @@ jobs:
 
       - name: Save Docker image artifact
         run: |
-          docker save livekit-cpp-sdk-x64:${{ github.sha }} | gzip > livekit-cpp-sdk-x64.tar.gz
+          docker save livekit-cpp-sdk-x64:${{ github.sha }} | gzip > livekit-cpp-sdk-x64-docker.tar.gz
 
       - name: Upload Docker image artifact
         uses: actions/upload-artifact@v4
         with:
           name: livekit-cpp-sdk-docker-x64
-          path: livekit-cpp-sdk-x64.tar.gz
+          path: livekit-cpp-sdk-x64-docker.tar.gz
           retention-days: 7
 
   docker-build-linux-arm64:
@@ -324,13 +324,13 @@ jobs:
 
       - name: Save Docker image artifact
         run: |
-          docker save livekit-cpp-sdk:${{ github.sha }} | gzip > livekit-cpp-sdk-arm64.tar.gz
+          docker save livekit-cpp-sdk:${{ github.sha }} | gzip > livekit-cpp-sdk-arm64-docker.tar.gz
 
       - name: Upload Docker image artifact
         uses: actions/upload-artifact@v4
         with:
           name: livekit-cpp-sdk-docker-arm64
-          path: livekit-cpp-sdk-arm64.tar.gz
+          path: livekit-cpp-sdk-arm64-docker.tar.gz
           retention-days: 7
 
   build-collections-linux-arm64:
@@ -345,7 +345,7 @@ jobs:
           name: livekit-cpp-sdk-docker-arm64
 
       - name: Load Docker image
-        run: gzip -dc livekit-cpp-sdk-arm64.tar.gz | docker load
+        run: gzip -dc livekit-cpp-sdk-arm64-docker.tar.gz | docker load
 
       - name: Build cpp-example-collection against installed SDK
         run: |
@@ -370,7 +370,7 @@ jobs:
           name: livekit-cpp-sdk-docker-x64
 
       - name: Load Docker image
-        run: gzip -dc livekit-cpp-sdk-x64.tar.gz | docker load
+        run: gzip -dc livekit-cpp-sdk-x64-docker.tar.gz | docker load
 
       - name: Build cpp-example-collection against installed SDK
         run: |
