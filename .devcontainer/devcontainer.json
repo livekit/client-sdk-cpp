@@ -1,0 +1,29 @@
+{
+    "name": "C++ & Rust (macOS)",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:1": {
+            "configureZsh": true
+        }
+    },
+
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools",
+                "rust-lang.rust-analyzer",
+                "tamasfe.even-better-toml",
+                "ms-vscode.cpptools-extension-pack"
+            ],
+            "settings": {
+                "cmake.configureOnOpen": true,
+                "rust-analyzer.cargo.buildScripts.enable": true
+            }
+        }
+    },
+    "remoteUser": "vscode"
+}
