@@ -152,6 +152,11 @@ configure() {
       cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE="${BUILD_TYPE}"
     fi
   fi
+
+  if [[ -f "${BUILD_DIR}/compile_commands.json" ]]; then
+    ln -sf "${BUILD_DIR}/compile_commands.json" "${PROJECT_ROOT}/compile_commands.json"
+    echo "==> Symlinked compile_commands.json -> ${BUILD_DIR}/compile_commands.json"
+  fi
 }
 
 build() {
