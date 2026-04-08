@@ -34,6 +34,7 @@
 #include "livekit/video_source.h"
 
 #include <cassert>
+#include <iostream>
 #include <stdexcept>
 
 namespace livekit_bridge {
@@ -122,8 +123,8 @@ void LiveKitBridge::disconnect() {
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!connected_) {
-      LK_LOG_WARN("Attempting to disconnect an already disconnected bridge. "
-                  "Things may not disconnect properly.");
+      std::cerr << "[warn] Attempting to disconnect an already disconnected "
+                   "bridge. Things may not disconnect properly.\n";
     }
 
     connected_ = false;
@@ -241,7 +242,8 @@ void LiveKitBridge::setOnAudioFrameCallback(
     AudioFrameCallback callback) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!room_) {
-    LK_LOG_WARN("setOnAudioFrameCallback called before connect(); ignored");
+    std::cerr << "[warn] setOnAudioFrameCallback called before connect(); "
+                 "ignored\n";
     return;
   }
   room_->setOnAudioFrameCallback(participant_identity, source,
@@ -253,7 +255,8 @@ void LiveKitBridge::setOnVideoFrameCallback(
     VideoFrameCallback callback) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!room_) {
-    LK_LOG_WARN("setOnVideoFrameCallback called before connect(); ignored");
+    std::cerr << "[warn] setOnVideoFrameCallback called before connect(); "
+                 "ignored\n";
     return;
   }
   room_->setOnVideoFrameCallback(participant_identity, source,
