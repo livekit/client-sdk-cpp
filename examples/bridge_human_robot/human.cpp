@@ -162,7 +162,7 @@ int main(int argc, char *argv[]) {
 
   // ----- Initialize SDL3 -----
   if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
-    LK_LOG_ERROR("[human] SDL_Init failed: {}", SDL_GetError());
+    std::cerr << "[human] SDL_Init failed: " << SDL_GetError() << "\n";
     return 1;
   }
 
@@ -173,14 +173,15 @@ int main(int argc, char *argv[]) {
   SDL_Window *window = SDL_CreateWindow("Human - Robot Camera Feed",
                                         kWindowWidth, kWindowHeight, 0);
   if (!window) {
-    LK_LOG_ERROR("[human] SDL_CreateWindow failed: {}", SDL_GetError());
+    std::cerr << "[human] SDL_CreateWindow failed: " << SDL_GetError() << "\n";
     SDL_Quit();
     return 1;
   }
 
   SDL_Renderer *renderer = SDL_CreateRenderer(window, nullptr);
   if (!renderer) {
-    LK_LOG_ERROR("[human] SDL_CreateRenderer failed: {}", SDL_GetError());
+    std::cerr << "[human] SDL_CreateRenderer failed: " << SDL_GetError()
+              << "\n";
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 1;
@@ -202,7 +203,7 @@ int main(int argc, char *argv[]) {
   livekit::RoomOptions options;
   options.auto_subscribe = true;
   if (!room->Connect(url, token, options)) {
-    LK_LOG_ERROR("[human] Failed to connect.");
+    std::cerr << "[human] Failed to connect.\n";
     livekit::shutdown();
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
@@ -224,7 +225,7 @@ int main(int argc, char *argv[]) {
       speaker = std::make_unique<DDLSpeakerSink>(frame.sample_rate(),
                                                  frame.num_channels());
       if (!speaker->init()) {
-        LK_LOG_ERROR("[human] Failed to init SDL speaker.");
+        std::cerr << "[human] Failed to init SDL speaker.\n";
         speaker.reset();
         return;
       }
@@ -342,7 +343,8 @@ int main(int argc, char *argv[]) {
         texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32,
                                     SDL_TEXTUREACCESS_STREAMING, fw, fh);
         if (!texture) {
-          LK_LOG_ERROR("[human] SDL_CreateTexture failed: {}", SDL_GetError());
+          std::cerr << "[human] SDL_CreateTexture failed: " << SDL_GetError()
+                    << "\n";
         }
         tex_width = fw;
         tex_height = fh;

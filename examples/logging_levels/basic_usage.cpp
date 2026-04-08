@@ -35,12 +35,11 @@
 /// see which messages are filtered at each setting.
 
 #include "livekit/livekit.h"
-#include "livekit/lk_log.h"
+#include "lk_log.h"
 
 #include <cstring>
 #include <iostream>
 #include <string>
-#include <thread>
 
 namespace {
 

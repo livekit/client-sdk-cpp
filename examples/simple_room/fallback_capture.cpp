@@ -48,7 +48,7 @@ void runNoiseCaptureLoop(const std::shared_ptr<AudioSource> &source,
     try {
       source->captureFrame(frame);
     } catch (const std::exception &e) {
-      LK_LOG_ERROR("Error in captureFrame (noise): {}", e.what());
+      std::cerr << "Error in captureFrame (noise): " << e.what() << "\n";
       break;
     }
 
@@ -60,7 +60,7 @@ void runNoiseCaptureLoop(const std::shared_ptr<AudioSource> &source,
   try {
     source->clearQueue();
   } catch (...) {
-    LK_LOG_WARN("Error in clearQueue (noise)");
+    std::cerr << "Error in clearQueue (noise)\n";
   }
 }
 
@@ -110,7 +110,7 @@ void runFakeVideoCaptureLoop(const std::shared_ptr<VideoSource> &source,
       // If it expects I420, pass i420 instead.
       source->captureFrame(frame, 0, VideoRotation::VIDEO_ROTATION_0);
     } catch (const std::exception &e) {
-      LK_LOG_ERROR("Error in captureFrame (fake video): {}", e.what());
+      std::cerr << "Error in captureFrame (fake video): " << e.what() << "\n";
       break;
     }
 

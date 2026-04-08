@@ -6,7 +6,7 @@
 #include <stdexcept>
 
 #include "ffi_client.h"
-#include "livekit/lk_log.h"
+#include "lk_log.h"
 #include "livekit/local_participant.h"
 #include "room.pb.h"
 

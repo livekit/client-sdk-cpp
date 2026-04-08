@@ -204,13 +204,14 @@ public:
       opts.format = livekit::VideoBufferType::RGBA;
       auto video_stream = VideoStream::fromTrack(ev.track, opts);
       if (!video_stream) {
-        LK_LOG_ERROR("Failed to create VideoStream for track {}", track_sid);
+        std::cerr << "Failed to create VideoStream for track " << track_sid
+                  << "\n";
         return;
       }
 
       MainThreadDispatcher::dispatch([this, video_stream] {
         if (!media_.initRenderer(video_stream)) {
-          LK_LOG_ERROR("SDLMediaManager::startRenderer failed for track");
+          std::cerr << "SDLMediaManager::startRenderer failed for track\n";
         }
       });
     } else if (ev.track && ev.track->kind() == TrackKind::KIND_AUDIO) {
@@ -218,7 +219,7 @@ public:
       auto audio_stream = AudioStream::fromTrack(ev.track, opts);
       MainThreadDispatcher::dispatch([this, audio_stream] {
         if (!media_.startSpeaker(audio_stream)) {
-          LK_LOG_ERROR("SDLMediaManager::startSpeaker failed for track");
+          std::cerr << "SDLMediaManager::startSpeaker failed for track\n";
         }
       });
     }
@@ -257,7 +258,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (!SDL_Init(SDL_INIT_VIDEO)) {
-    LK_LOG_ERROR("SDL_Init(SDL_INIT_VIDEO) failed: {}", SDL_GetError());
+    std::cerr << "SDL_Init(SDL_INIT_VIDEO) failed: " << SDL_GetError() << "\n";
     // You can choose to exit, or run in "headless" mode without renderer.
     // return 1;
   }
@@ -300,7 +301,7 @@ int main(int argc, char *argv[]) {
   bool res = room->Connect(url, token, options);
   std::cout << "Connect result is " << std::boolalpha << res << std::endl;
   if (!res) {
-    LK_LOG_ERROR("Failed to connect to room");
+    std::cerr << "Failed to connect to room\n";
     livekit::shutdown();
     return 1;
   }
@@ -345,7 +346,7 @@ int main(int argc, char *argv[]) {
               << "\n"
               << "  Muted: " << std::boolalpha << audioPub->muted() << "\n";
   } catch (const std::exception &e) {
-    LK_LOG_ERROR("Failed to publish track: {}", e.what());
+    std::cerr << "Failed to publish track: " << e.what() << "\n";
   }
 
   media.startMic(audioSource);
@@ -374,7 +375,7 @@ int main(int argc, char *argv[]) {
               << "\n"
               << "  Muted: " << std::boolalpha << videoPub->muted() << "\n";
   } catch (const std::exception &e) {
-    LK_LOG_ERROR("Failed to publish track: {}", e.what());
+    std::cerr << "Failed to publish track: " << e.what() << "\n";
   }
   media.startCamera(videoSource);
 

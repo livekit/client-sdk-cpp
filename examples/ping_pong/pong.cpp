@@ -20,7 +20,6 @@
 #include "constants.h"
 #include "json_converters.h"
 #include "livekit/livekit.h"
-#include "livekit/lk_log.h"
 #include "messages.h"
 #include "utils.h"
 
@@ -28,6 +27,7 @@
 #include <csignal>
 #include <cstdint>
 #include <exception>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
@@ -54,8 +54,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (url.empty() || token.empty()) {
-    LK_LOG_ERROR("LIVEKIT_URL and LIVEKIT_TOKEN (or <ws-url> <token>) are "
-                 "required");
+    std::cerr << "LIVEKIT_URL and LIVEKIT_TOKEN (or <ws-url> <token>) are "
+                 "required\n";
     return 1;
   }
 
@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
   options.dynacast = false;
 
   if (!room->Connect(url, token, options)) {
-    LK_LOG_ERROR("Failed to connect to room");
+    std::cerr << "Failed to connect to room\n";
     livekit::shutdown();
     return 1;
   }
@@ -80,15 +80,16 @@ int main(int argc, char *argv[]) {
   LocalParticipant *local_participant = room->localParticipant();
   assert(local_participant);
 
-  LK_LOG_INFO("pong connected as identity='{}' room='{}'",
-              local_participant->identity(), room->room_info().name);
+  std::cout << "pong connected as identity='" << local_participant->identity()
+            << "' room='" << room->room_info().name << "'\n";
 
   auto publish_result =
       local_participant->publishDataTrack(ping_pong::kPongTrackName);
   if (!publish_result) {
     const auto &error = publish_result.error();
-    LK_LOG_ERROR("Failed to publish pong data track: code={} message={}",
-                 static_cast<std::uint32_t>(error.code), error.message);
+    std::cerr << "Failed to publish pong data track: code="
+              << static_cast<std::uint32_t>(error.code)
+              << " message=" << error.message << "\n";
     room->setDelegate(nullptr);
     room.reset();
     livekit::shutdown();
@@ -103,7 +104,6 @@ int main(int argc, char *argv[]) {
                    std::optional<std::uint64_t> /*user_timestamp*/) {
         try {
           if (payload.empty()) {
-            LK_LOG_DEBUG("Ignoring empty ping payload");
             return;
           }
 
@@ -118,29 +118,30 @@ int main(int argc, char *argv[]) {
           auto push_result = pong_track->tryPush(ping_pong::toPayload(json));
           if (!push_result) {
             const auto &error = push_result.error();
-            LK_LOG_WARN("Failed to push pong data frame: code={} message={}",
-                        static_cast<std::uint32_t>(error.code), error.message);
+            std::cerr << "Failed to push pong data frame: code="
+                      << static_cast<std::uint32_t>(error.code)
+                      << " message=" << error.message << "\n";
             return;
           }
 
-          LK_LOG_INFO("received ping id={} ts_ns={} and sent pong rec_id={} "
-                      "ts_ns={}",
-                      ping_message.id, ping_message.ts_ns, pong_message.rec_id,
-                      pong_message.ts_ns);
+          std::cout << "received ping id=" << ping_message.id
+                    << " ts_ns=" << ping_message.ts_ns << " and sent pong rec_id="
+                    << pong_message.rec_id << " ts_ns=" << pong_message.ts_ns
+                    << "\n";
         } catch (const std::exception &e) {
-          LK_LOG_WARN("Failed to process ping payload: {}", e.what());
+          std::cerr << "Failed to process ping payload: " << e.what() << "\n";
         }
       });
 
-  LK_LOG_INFO("published data track '{}' and listening for '{}' from '{}'",
-              ping_pong::kPongTrackName, ping_pong::kPingTrackName,
-              ping_pong::kPingParticipantIdentity);
+  std::cout << "published data track '" << ping_pong::kPongTrackName
+            << "' and listening for '" << ping_pong::kPingTrackName
+            << "' from '" << ping_pong::kPingParticipantIdentity << "'\n";
 
   while (g_running.load()) {
     std::this_thread::sleep_for(ping_pong::kPollPeriod);
   }
 
-  LK_LOG_INFO("shutting down pong participant");
+  std::cout << "shutting down pong participant\n";
   room.reset();
   livekit::shutdown();
   return 0;

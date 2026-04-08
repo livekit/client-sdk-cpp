@@ -30,9 +30,6 @@ set(EXAMPLES_PRIVATE_INCLUDE_DIRS
     ${LIVEKIT_BINARY_DIR}/generated
 )
 
-# Propagate the compile-time log level to all example targets.
-add_compile_definitions(SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL})
-
 # Shared example code (SDL media, wav source, etc.)
 set(EXAMPLES_COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
 
@@ -97,7 +94,6 @@ target_include_directories(SimpleRoom PRIVATE
 target_link_libraries(SimpleRoom
     PRIVATE
         livekit
-        spdlog::spdlog
         SDL3::SDL3
 )
 
@@ -152,7 +148,6 @@ target_link_libraries(SimpleRpc
   PRIVATE
     nlohmann_json::nlohmann_json
     livekit
-    spdlog::spdlog
 )
 
 # --- SimpleJoystick example (sender + receiver executables with shared json_utils) ---
@@ -183,7 +178,6 @@ target_link_libraries(SimpleJoystickReceiver
   PRIVATE
     simple_joystick_json_utils
     livekit
-    spdlog::spdlog
 )
 
 add_executable(SimpleJoystickSender
@@ -196,7 +190,6 @@ target_link_libraries(SimpleJoystickSender
   PRIVATE
     simple_joystick_json_utils
     livekit
-    spdlog::spdlog
 )
 
 # --- LoggingLevelsBasicUsage example ---
@@ -207,10 +200,16 @@ add_executable(LoggingLevelsBasicUsage
 
 target_include_directories(LoggingLevelsBasicUsage PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_DIRS})
 
+# Internal LK_LOG_* macros + lk_log.h require spdlog and the same compile-time
+# log level as the main SDK (SPDLOG_ACTIVE_LEVEL).
 target_link_libraries(LoggingLevelsBasicUsage
   PRIVATE
     livekit
     spdlog::spdlog
+)
+target_compile_definitions(LoggingLevelsBasicUsage
+  PRIVATE
+    SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
 )
 
 # --- LoggingLevelsCustomSinks example ---
@@ -235,7 +234,6 @@ target_include_directories(SimpleDataStream PRIVATE ${EXAMPLES_PRIVATE_INCLUDE_D
 target_link_libraries(SimpleDataStream
   PRIVATE
     livekit
-    spdlog::spdlog
 )
 
 add_custom_command(
@@ -275,7 +273,6 @@ target_link_libraries(PingPongPing
   PRIVATE
     ping_pong_support
     livekit
-    spdlog::spdlog
 )
 
 add_executable(PingPongPong
@@ -288,7 +285,6 @@ target_link_libraries(PingPongPong
   PRIVATE
     ping_pong_support
     livekit
-    spdlog::spdlog
 )
 
 # --- hello_livekit (minimal synthetic video + data publish / subscribe) ---
@@ -302,7 +298,6 @@ target_include_directories(HelloLivekitSender PRIVATE ${EXAMPLES_PRIVATE_INCLUDE
 target_link_libraries(HelloLivekitSender
   PRIVATE
     livekit
-    spdlog::spdlog
 )
 
 add_executable(HelloLivekitReceiver
@@ -314,7 +309,6 @@ target_include_directories(HelloLivekitReceiver PRIVATE ${EXAMPLES_PRIVATE_INCLU
 target_link_libraries(HelloLivekitReceiver
   PRIVATE
     livekit
-    spdlog::spdlog
 )
 
 # --- bridge_human_robot examples (robot + human; use livekit_bridge and SDL3) ---
@@ -328,7 +322,7 @@ target_include_directories(BridgeRobot PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(BridgeRobot PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
+target_link_libraries(BridgeRobot PRIVATE livekit_bridge SDL3::SDL3)
 
 add_executable(BridgeHuman
   bridge_human_robot/human.cpp
@@ -339,7 +333,7 @@ target_include_directories(BridgeHuman PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(BridgeHuman PRIVATE livekit spdlog::spdlog SDL3::SDL3)
+target_link_libraries(BridgeHuman PRIVATE livekit SDL3::SDL3)
 
 # --- bridge_rpc examples (headless custom RPC caller + receiver) ---
 
@@ -364,7 +358,7 @@ target_include_directories(BridgeMuteCaller PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(BridgeMuteCaller PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
+target_link_libraries(BridgeMuteCaller PRIVATE livekit_bridge SDL3::SDL3)
 
 add_executable(BridgeMuteReceiver
   bridge_mute_unmute/receiver.cpp
@@ -375,7 +369,7 @@ target_include_directories(BridgeMuteReceiver PRIVATE
   ${EXAMPLES_PRIVATE_INCLUDE_DIRS}
   ${EXAMPLES_COMMON_DIR}
 )
-target_link_libraries(BridgeMuteReceiver PRIVATE livekit_bridge spdlog::spdlog SDL3::SDL3)
+target_link_libraries(BridgeMuteReceiver PRIVATE livekit_bridge SDL3::SDL3)
 
 # Copy SDL3 shared library to bridge example output directories
 if(UNIX AND NOT APPLE)

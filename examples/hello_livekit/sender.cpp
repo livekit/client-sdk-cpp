@@ -30,6 +30,7 @@
 #include <csignal>
 #include <cstdlib>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 #include <thread>
 
@@ -59,8 +60,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (url.empty() || sender_token.empty()) {
-    LK_LOG_ERROR("Usage: HelloLivekitSender <ws-url> <sender-token>\n"
-                 "  or set LIVEKIT_URL, LIVEKIT_SENDER_TOKEN");
+    std::cerr << "Usage: HelloLivekitSender <ws-url> <sender-token>\n"
+                 "  or set LIVEKIT_URL, LIVEKIT_SENDER_TOKEN\n";
     return 1;
   }
 
@@ -77,7 +78,7 @@ int main(int argc, char *argv[]) {
   options.dynacast = false;
 
   if (!room->Connect(url, sender_token, options)) {
-    LK_LOG_ERROR("[sender] Failed to connect");
+    std::cerr << "[sender] Failed to connect\n";
     livekit::shutdown();
     return 1;
   }
@@ -85,9 +86,9 @@ int main(int argc, char *argv[]) {
   LocalParticipant *lp = room->localParticipant();
   assert(lp);
 
-  LK_LOG_INFO("[sender] Connected as identity='{}' room='{}' — pass this "
-              "identity to HelloLivekitReceiver",
-              lp->identity(), room->room_info().name);
+  std::cout << "[sender] Connected as identity='" << lp->identity()
+            << "' room='" << room->room_info().name
+            << "' — pass this identity to HelloLivekitReceiver\n";
 
   auto video_source = std::make_shared<VideoSource>(kWidth, kHeight);
 
@@ -97,8 +98,9 @@ int main(int argc, char *argv[]) {
   auto publish_result = lp->publishDataTrack(kDataTrackName);
   if (!publish_result) {
     const auto &error = publish_result.error();
-    LK_LOG_ERROR("Failed to publish data track: code={} message={}",
-                 static_cast<std::uint32_t>(error.code), error.message);
+    std::cerr << "Failed to publish data track: code="
+              << static_cast<std::uint32_t>(error.code)
+              << " message=" << error.message << "\n";
     room.reset();
     livekit::shutdown();
     return 1;
@@ -108,9 +110,8 @@ int main(int argc, char *argv[]) {
   const auto t0 = std::chrono::steady_clock::now();
   std::uint64_t count = 0;
 
-  LK_LOG_INFO(
-      "[sender] Publishing synthetic video + data on '{}'; Ctrl-C to exit",
-      kDataTrackName);
+  std::cout << "[sender] Publishing synthetic video + data on '" << kDataTrackName
+            << "'; Ctrl-C to exit\n";
 
   while (g_running.load()) {
     VideoFrame vf = VideoFrame::create(kWidth, kHeight, VideoBufferType::RGBA);
@@ -126,15 +127,16 @@ int main(int argc, char *argv[]) {
         data_track->tryPush(std::vector<std::uint8_t>(msg.begin(), msg.end()));
     if (!push_result) {
       const auto &error = push_result.error();
-      LK_LOG_WARN("Failed to push data frame: code={} message={}",
-                  static_cast<std::uint32_t>(error.code), error.message);
+      std::cerr << "Failed to push data frame: code="
+                << static_cast<std::uint32_t>(error.code)
+                << " message=" << error.message << "\n";
     }
 
     ++count;
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 
-  LK_LOG_INFO("[sender] Disconnecting");
+  std::cout << "[sender] Disconnecting\n";
   room.reset();
 
   livekit::shutdown();

@@ -61,6 +61,11 @@ Valid values: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`, `OFF`.
 Under the hood this sets `SPDLOG_ACTIVE_LEVEL`, which the `LK_LOG_*` macros
 check with a preprocessor guard before emitting any code.
 
+`LoggingLevelsBasicUsage` links **spdlog** and includes the internal `lk_log.h`
+header so it can call `LK_LOG_*` (same path as the SDK implementation). Other
+examples use only the public `livekit::logging.h` API and normal application
+logging (`std::cerr`, etc.).
+
 ### 2. Runtime (`setLogLevel`)
 
 Among the levels that survived compilation, `setLogLevel()` controls which

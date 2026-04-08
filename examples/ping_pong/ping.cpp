@@ -21,7 +21,6 @@
 #include "constants.h"
 #include "json_converters.h"
 #include "livekit/livekit.h"
-#include "livekit/lk_log.h"
 #include "messages.h"
 #include "utils.h"
 
@@ -29,6 +28,8 @@
 #include <csignal>
 #include <cstdint>
 #include <exception>
+#include <iomanip>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -82,8 +83,8 @@ int main(int argc, char *argv[]) {
   }
 
   if (url.empty() || token.empty()) {
-    LK_LOG_ERROR("LIVEKIT_URL and LIVEKIT_TOKEN (or <ws-url> <token>) are "
-                 "required");
+    std::cerr << "LIVEKIT_URL and LIVEKIT_TOKEN (or <ws-url> <token>) are "
+                 "required\n";
     return 1;
   }
 
@@ -100,7 +101,7 @@ int main(int argc, char *argv[]) {
   options.dynacast = false;
 
   if (!room->Connect(url, token, options)) {
-    LK_LOG_ERROR("Failed to connect to room");
+    std::cerr << "Failed to connect to room\n";
     livekit::shutdown();
     return 1;
   }
@@ -108,15 +109,16 @@ int main(int argc, char *argv[]) {
   LocalParticipant *local_participant = room->localParticipant();
   assert(local_participant);
 
-  LK_LOG_INFO("ping connected as identity='{}' room='{}'",
-              local_participant->identity(), room->room_info().name);
+  std::cout << "ping connected as identity='" << local_participant->identity()
+            << "' room='" << room->room_info().name << "'\n";
 
   auto publish_result =
       local_participant->publishDataTrack(ping_pong::kPingTrackName);
   if (!publish_result) {
     const auto &error = publish_result.error();
-    LK_LOG_ERROR("Failed to publish ping data track: code={} message={}",
-                 static_cast<std::uint32_t>(error.code), error.message);
+    std::cerr << "Failed to publish ping data track: code="
+              << static_cast<std::uint32_t>(error.code)
+              << " message=" << error.message << "\n";
     room->setDelegate(nullptr);
     room.reset();
     livekit::shutdown();
@@ -134,7 +136,6 @@ int main(int argc, char *argv[]) {
                              std::optional<std::uint64_t> /*user_timestamp*/) {
         try {
           if (payload.empty()) {
-            LK_LOG_DEBUG("Ignoring empty pong payload");
             return;
           }
 
@@ -147,8 +148,8 @@ int main(int argc, char *argv[]) {
             std::lock_guard<std::mutex> lock(sent_messages_mutex);
             const auto it = sent_messages.find(pong_message.rec_id);
             if (it == sent_messages.end()) {
-              LK_LOG_WARN("Received pong for unknown id={}",
-                          pong_message.rec_id);
+              std::cerr << "Received pong for unknown id=" << pong_message.rec_id
+                        << "\n";
               return;
             }
             ping_message = it->second;
@@ -158,22 +159,21 @@ int main(int argc, char *argv[]) {
           const auto metrics = calculateLatencyMetrics(
               ping_message, pong_message, received_ts_ns);
 
-          LK_LOG_INFO("pong id={} rtt_ms={:.3f} "
-                      "pong_to_ping_ms={:.3f} "
-                      "ping_to_pong_and_processing_ms={:.3f} "
-                      "estimated_one_way_latency_ms={:.3f}",
-                      metrics.id, metrics.round_trip_time_ms,
-                      metrics.pong_to_ping_time_ms,
-                      metrics.ping_to_pong_and_processing_ms,
-                      metrics.estimated_one_way_latency_ms);
+          std::cout << "pong id=" << metrics.id << " rtt_ms=" << std::fixed
+                    << std::setprecision(3) << metrics.round_trip_time_ms
+                    << " pong_to_ping_ms=" << metrics.pong_to_ping_time_ms
+                    << " ping_to_pong_and_processing_ms="
+                    << metrics.ping_to_pong_and_processing_ms
+                    << " estimated_one_way_latency_ms="
+                    << metrics.estimated_one_way_latency_ms << "\n";
         } catch (const std::exception &e) {
-          LK_LOG_WARN("Failed to process pong payload: {}", e.what());
+          std::cerr << "Failed to process pong payload: " << e.what() << "\n";
         }
       });
 
-  LK_LOG_INFO("published data track '{}' and listening for '{}' from '{}'",
-              ping_pong::kPingTrackName, ping_pong::kPongTrackName,
-              ping_pong::kPongParticipantIdentity);
+  std::cout << "published data track '" << ping_pong::kPingTrackName
+            << "' and listening for '" << ping_pong::kPongTrackName
+            << "' from '" << ping_pong::kPongParticipantIdentity << "'\n";
 
   std::uint64_t next_id = 1;
   auto next_deadline = std::chrono::steady_clock::now();
@@ -187,22 +187,23 @@ int main(int argc, char *argv[]) {
     auto push_result = ping_track->tryPush(ping_pong::toPayload(json));
     if (!push_result) {
       const auto &error = push_result.error();
-      LK_LOG_WARN("Failed to push ping data frame: code={} message={}",
-                  static_cast<std::uint32_t>(error.code), error.message);
+      std::cerr << "Failed to push ping data frame: code="
+                << static_cast<std::uint32_t>(error.code)
+                << " message=" << error.message << "\n";
     } else {
       {
         std::lock_guard<std::mutex> lock(sent_messages_mutex);
         sent_messages.emplace(ping_message.id, ping_message);
       }
-      LK_LOG_INFO("sent ping id={} ts_ns={}", ping_message.id,
-                  ping_message.ts_ns);
+      std::cout << "sent ping id=" << ping_message.id
+                << " ts_ns=" << ping_message.ts_ns << "\n";
     }
 
     next_deadline += ping_pong::kPingPeriod;
     std::this_thread::sleep_until(next_deadline);
   }
 
-  LK_LOG_INFO("shutting down ping participant");
+  std::cout << "shutting down ping participant\n";
   room.reset();
   livekit::shutdown();
   return 0;

@@ -17,7 +17,7 @@
 #include "livekit/local_data_track.h"
 
 #include "livekit/data_track_error.h"
-#include "livekit/lk_log.h"
+#include "lk_log.h"
 
 #include "data_track.pb.h"
 #include "ffi.pb.h"

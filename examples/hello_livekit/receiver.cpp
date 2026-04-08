@@ -30,6 +30,7 @@
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
+#include <iostream>
 #include <thread>
 
 using namespace livekit;
@@ -58,10 +59,10 @@ int main(int argc, char *argv[]) {
   }
 
   if (url.empty() || receiver_token.empty() || sender_identity.empty()) {
-    LK_LOG_ERROR("Usage: HelloLivekitReceiver <ws-url> <receiver-token> "
+    std::cerr << "Usage: HelloLivekitReceiver <ws-url> <receiver-token> "
                  "<sender-identity>\n"
                  "  or set LIVEKIT_URL, LIVEKIT_RECEIVER_TOKEN, "
-                 "LIVEKIT_SENDER_IDENTITY");
+                 "LIVEKIT_SENDER_IDENTITY\n";
     return 1;
   }
 
@@ -78,7 +79,7 @@ int main(int argc, char *argv[]) {
   options.dynacast = false;
 
   if (!room->Connect(url, receiver_token, options)) {
-    LK_LOG_ERROR("[receiver] Failed to connect");
+    std::cerr << "[receiver] Failed to connect\n";
     livekit::shutdown();
     return 1;
   }
@@ -86,9 +87,10 @@ int main(int argc, char *argv[]) {
   LocalParticipant *lp = room->localParticipant();
   assert(lp);
 
-  LK_LOG_INFO("[receiver] Connected as identity='{}' room='{}'; subscribing "
-              "to sender identity='{}'",
-              lp->identity(), room->room_info().name, sender_identity);
+  std::cout << "[receiver] Connected as identity='" << lp->identity()
+            << "' room='" << room->room_info().name
+            << "'; subscribing to sender identity='" << sender_identity
+            << "'\n";
 
   int video_frame_count = 0;
   room->setOnVideoFrameCallback(
@@ -98,8 +100,8 @@ int main(int argc, char *argv[]) {
             std::chrono::duration<double, std::milli>(timestamp_us).count();
         const int n = video_frame_count++;
         if (n % 10 == 0) {
-          LK_LOG_INFO("[receiver] Video frame #{} {}x{} ts_ms={}", n,
-                      frame.width(), frame.height(), ts_ms);
+          std::cout << "[receiver] Video frame #" << n << " " << frame.width()
+                    << "x" << frame.height() << " ts_ms=" << ts_ms << "\n";
         }
       });
 
@@ -110,19 +112,18 @@ int main(int argc, char *argv[]) {
                           std::optional<std::uint64_t> user_ts) {
         const int n = data_frame_count++;
         if (n % 10 == 0) {
-          LK_LOG_INFO("[receiver] Data frame #{}", n);
+          std::cout << "[receiver] Data frame #" << n << "\n";
         }
       });
 
-  LK_LOG_INFO("[receiver] Listening for video track '{}' + data track '{}'; "
-              "Ctrl-C to exit",
-              kVideoTrackName, kDataTrackName);
+  std::cout << "[receiver] Listening for video track '" << kVideoTrackName
+            << "' + data track '" << kDataTrackName << "'; Ctrl-C to exit\n";
 
   while (g_running.load()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 
-  LK_LOG_INFO("[receiver] Shutting down");
+  std::cout << "[receiver] Shutting down\n";
   room.reset();
 
   livekit::shutdown();
