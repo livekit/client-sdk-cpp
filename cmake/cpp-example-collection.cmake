@@ -42,16 +42,25 @@ function(livekit_configure_cpp_example_collection)
 
   # cmake --install /Users/sderosa/workspaces/client-sdk-cpp/build-debug --prefix ~/livekit-sdk-local
 
+  set(_lk_examples_configure_args
+    "-DCMAKE_PREFIX_PATH=${LIVEKIT_CPP_EXAMPLES_INSTALL_PREFIX}"
+    "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
+    "-DLIVEKIT_LOCAL_SDK_DIR=${LIVEKIT_CPP_EXAMPLES_INSTALL_PREFIX}"
+    "-DLiveKit_DIR=${LIVEKIT_CPP_EXAMPLES_LIVEKIT_DIR}"
+  )
+
+  if(APPLE AND CMAKE_OSX_ARCHITECTURES)
+    list(APPEND _lk_examples_configure_args
+      "-DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}"
+    )
+  endif()
 
   add_custom_target(cpp_example_collection ALL
     COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}"
             --prefix "${LIVEKIT_CPP_EXAMPLES_INSTALL_PREFIX}"
     COMMAND ${CMAKE_COMMAND} -S "${LIVEKIT_CPP_EXAMPLES_SOURCE_DIR}"
             -B "${LIVEKIT_CPP_EXAMPLES_BINARY_DIR}"
-            "-DCMAKE_PREFIX_PATH=${LIVEKIT_CPP_EXAMPLES_INSTALL_PREFIX}"
-            "-DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}"
-            "-DLIVEKIT_LOCAL_SDK_DIR=${LIVEKIT_CPP_EXAMPLES_INSTALL_PREFIX}"
-            "-DLiveKit_DIR=${LIVEKIT_CPP_EXAMPLES_LIVEKIT_DIR}"
+            ${_lk_examples_configure_args}
     COMMAND ${CMAKE_COMMAND} --build "${LIVEKIT_CPP_EXAMPLES_BINARY_DIR}"
             --config "$<CONFIG>"
     DEPENDS install_livekit_sdk_for_examples
