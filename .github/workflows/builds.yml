@@ -438,6 +438,8 @@ jobs:
       - name: Run clang-tidy
         uses: cpp-linter/cpp-linter-action@v2
         id: linter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           style: ''
           tidy-checks: ''
