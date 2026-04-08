@@ -18,7 +18,7 @@
 
 #include "livekit/data_track_frame.h"
 #include "livekit/data_track_stream.h"
-#include "livekit/lk_log.h"
+#include "lk_log.h"
 #include "livekit/remote_data_track.h"
 #include "livekit/track.h"
 

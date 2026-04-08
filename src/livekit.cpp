@@ -16,7 +16,7 @@
 
 #include "livekit/livekit.h"
 #include "ffi_client.h"
-#include "livekit/lk_log.h"
+#include "lk_log.h"
 
 namespace livekit {
 

@@ -24,7 +24,7 @@
 #include "livekit/data_track_error.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
-#include "livekit/lk_log.h"
+#include "lk_log.h"
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"
 #include "livekit/track.h"
