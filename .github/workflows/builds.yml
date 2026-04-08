@@ -244,6 +244,16 @@ jobs:
             ${{ matrix.build_dir }}/bin/
           retention-days: 7
 
+      - name: Upload compile database (for clang-tidy)
+        if: matrix.name == 'linux-x64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: compile-database
+          path: |
+            ${{ matrix.build_dir }}/compile_commands.json
+            ${{ matrix.build_dir }}/generated/
+          retention-days: 1
+
       # ---------- Cleanup ----------
       - name: Clean after build (best-effort)
         if: always()
@@ -382,3 +392,55 @@ jobs:
             cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
             cmake --build build --parallel
           '
+
+  clang-tidy:
+    name: clang-tidy
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    if: ${{ !cancelled() }}
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang-tidy \
+            llvm-dev libclang-dev clang \
+            libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libabsl-dev \
+            libspdlog-dev \
+            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+            libxrandr-dev libxi-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev \
+            libwayland-dev libdecor-0-dev
+
+      - name: Download compile database
+        uses: actions/download-artifact@v4
+        with:
+          name: compile-database
+          path: build-release/
+
+      - name: Collect source files
+        run: |
+          find src/ bridge/src/ examples/ \
+            -name '*.cpp' -not -path '*/tests/*' \
+            | sort -u > /tmp/tidy-files.txt
+          echo "Files to analyze ($(wc -l < /tmp/tidy-files.txt)):"
+          cat /tmp/tidy-files.txt
+
+      - name: Run clang-tidy
+        run: |
+          run-clang-tidy \
+            -p build-release \
+            -header-filter='(include/livekit|src|bridge/(include|src)|examples)' \
+            $(cat /tmp/tidy-files.txt)

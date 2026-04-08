@@ -1,0 +1,21 @@
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  modernize-*,
+  readability-braces-around-statements,
+  readability-misleading-indentation,
+  readability-redundant-smartptr-get,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -bugprone-easily-swappable-parameters
+
+WarningsAsErrors: ''
+
+HeaderFilterRegex: '(include/livekit|src|bridge/(include|src)|examples)'
+
+FormatStyle: file
+
+CheckOptions:
+  - key: modernize-use-nullptr.NullMacros
+    value: 'NULL'
