@@ -57,22 +57,26 @@ git submodule update --init --recursive
 
 **Linux/macOS:**
 ```bash
-./build.sh clean          # Clean CMake build artifacts
-./build.sh clean-all      # Deep clean (C++ + Rust + generated files)
-./build.sh debug          # Build Debug version
-./build.sh release        # Build Release version
-./build.sh debug-tests    # Build Debug with tests
-./build.sh release-tests  # Build Release with tests
+./build.sh clean              # Clean CMake build artifacts
+./build.sh clean-all          # Deep clean (C++ + Rust + generated files)
+./build.sh debug              # Build Debug version
+./build.sh release            # Build Release version
+./build.sh debug-examples     # Build Debug with examples
+./build.sh release-examples   # Build Release with examples
+./build.sh debug-tests        # Build Debug with tests
+./build.sh release-tests      # Build Release with tests
 ```
 **Windows**
 Using build scripts:
 ```powershell
-.\build.cmd clean          # Clean CMake build artifacts
-.\build.cmd clean-all      # Deep clean (C++ + Rust + generated files)
-.\build.cmd debug          # Build Debug version
-.\build.cmd release        # Build Release version
-.\build.cmd debug-tests    # Build Debug with tests
-.\build.cmd release-tests  # Build Release with tests
+.\build.cmd clean             # Clean CMake build artifacts
+.\build.cmd clean-all         # Deep clean (C++ + Rust + generated files)
+.\build.cmd debug             # Build Debug version
+.\build.cmd release           # Build Release version
+.\build.cmd debug-examples    # Build Debug with examples
+.\build.cmd release-examples  # Build Release with examples
+.\build.cmd debug-tests       # Build Debug with tests
+.\build.cmd release-tests     # Build Release with tests
 ```
 
 ### Windows build using cmake/vcpkg
@@ -142,6 +146,10 @@ export PATH=$HOME/cmake-3.31/bin:$PATH
 
 ## 🧪 Run Example
 
+### Prerequisites
+
+Ensure one of the `*-examples` build script options was run prior.
+
 ### Generate Tokens
 Before running any participant, create JWT tokens with the proper identity and room name, example
 ```bash
@@ -151,21 +159,21 @@ lk token create -r test -i your_own_identity  --join --valid-for 99999h --dev --
 ### SimpleRoom
 
 ```bash
-./build/examples/SimpleRoom --url $URL --token <jwt-token>
+./build-<configuration>/bin/SimpleRoom --url $URL --token <jwt-token>
 ```
 
 You can also provide the URL and token via environment variables:
 ```bash
 export LIVEKIT_URL=ws://localhost:7880
 export LIVEKIT_TOKEN=<jwt-token>
-./build/examples/SimpleRoom
+./build-<configuration>/bin/SimpleRoom
 ```
 
 **End-to-End Encryption (E2EE)**
 You can enable E2E encryption for the streams via --enable_e2ee and --e2ee_key flags,
 by running the following cmds in two terminals or computers. **Note, jwt_token needs to be different identity**
 ```bash
-./build/examples/SimpleRoom --url $URL --token <jwt-token> --enable_e2ee --e2ee_key="your_key"
+./build-<configuration>/bin/SimpleRoom --url $URL --token <jwt-token> --enable_e2ee --e2ee_key="your_key"
 ```
 **Note**, **all participants must use the exact same E2EE configuration and shared key.**
 If the E2EE keys do not match between participants:
@@ -195,7 +203,7 @@ lk token create -r test -i math-genius --join --valid-for 99999h --dev --room=yo
 #### ▶ Start Participants
 Every participant is run as a separate terminal process, note --role needs to match the token identity.
 ```bash
-./build/examples/SimpleRpc --url $URL --token <jwt-token> --role=math-genius
+./build-<configuration>/bin/SimpleRpc --url $URL --token <jwt-token> --role=math-genius
 ```
 The caller will automatically:
 - Wait for the greeter and math-genius to join
@@ -223,11 +231,11 @@ lk token create -r test -i greeter --join --valid-for 99999h --dev --room=your_o
 #### ▶ Start Participants
 Start the receiver first (so it registers stream handlers before messages arrive):
 ```bash
-./build/examples/SimpleDataStream --url $URL --token <jwt-token>
+./build-<configuration>/bin/SimpleDataStream --url $URL --token <jwt-token>
 ```
 On another terminal or computer, start the sender
 ```bash
-./build/examples/SimpleDataStream --url $URL --token <jwt-token>
+./build-<configuration>/bin/SimpleDataStream --url $URL --token <jwt-token>
 ```
 
 **Sender** (e.g. greeter)
