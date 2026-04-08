@@ -246,16 +246,6 @@ jobs:
             ${{ matrix.build_dir }}/bin/
           retention-days: 7
 
-      - name: Debug compile database before upload
-        if: matrix.name == 'linux-x64'
-        run: |
-          echo "=== Files to be uploaded ==="
-          echo "build_dir=${{ matrix.build_dir }}"
-          ls -la ${{ matrix.build_dir }}/compile_commands.json || echo "compile_commands.json NOT FOUND"
-          echo "Generated headers:"
-          ls -la ${{ matrix.build_dir }}/generated/*.pb.h 2>/dev/null | head -5 || echo "No .pb.h files found"
-          echo "Generated header count: $(find ${{ matrix.build_dir }}/generated -name '*.pb.h' 2>/dev/null | wc -l)"
-
       - name: Upload compile database (for clang-tidy)
         if: matrix.name == 'linux-x64'
         uses: actions/upload-artifact@v4
@@ -411,6 +401,9 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     if: ${{ !cancelled() }}
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - name: Checkout (with submodules)
@@ -441,18 +434,33 @@ jobs:
         with:
           name: compile-database
           path: build-release/
-          
-      - name: Collect source files
-        run: |
-          find src/ bridge/src/ examples/ \
-            -name '*.cpp' -not -path '*/tests/*' \
-            | sort -u > /tmp/tidy-files.txt
-          echo "Files to analyze ($(wc -l < /tmp/tidy-files.txt)):"
-          cat /tmp/tidy-files.txt
 
       - name: Run clang-tidy
+        uses: cpp-linter/cpp-linter-action@v2
+        id: linter
+        with:
+          style: ''
+          tidy-checks: ''
+          database: build-release
+          files-changed-only: true
+          lines-changed-only: false
+          ignore: 'build-*|client-sdk-rust|vcpkg_installed'
+          file-annotations: true
+          thread-comments: update
+          step-summary: true
+          tidy-review: true
+          passive-reviews: true
+          no-lgtm: true
+          version: ''
+
+      - name: Check warning thresholds
+        env:
+          TIDY_FINDINGS: ${{ steps.linter.outputs.clang-tidy-checks-failed }}
+          MAX_TIDY_FINDINGS: '0'
         run: |
-          run-clang-tidy \
-            -p build-release \
-            -header-filter='(include/livekit|src|bridge/(include|src)|examples)' \
-            $(cat /tmp/tidy-files.txt)
+          echo "clang-tidy findings: ${TIDY_FINDINGS}"
+          if [ "${TIDY_FINDINGS}" -gt "${MAX_TIDY_FINDINGS}" ]; then
+            echo "::warning::clang-tidy found ${TIDY_FINDINGS} issue(s), threshold is ${MAX_TIDY_FINDINGS}"
+            exit 1
+          fi
+          echo "clang-tidy findings within threshold"
