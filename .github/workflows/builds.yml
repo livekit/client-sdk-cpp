@@ -451,7 +451,6 @@ jobs:
           tidy-review: true
           passive-reviews: true
           no-lgtm: true
-          version: ''
 
       - name: Check warning thresholds
         env:
