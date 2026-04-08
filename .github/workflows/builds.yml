@@ -444,7 +444,7 @@ jobs:
           style: ''
           tidy-checks: ''
           database: build-release
-          files-changed-only: true
+          files-changed-only: false
           lines-changed-only: false
           ignore: 'build-*|client-sdk-rust|vcpkg_installed'
           file-annotations: true
