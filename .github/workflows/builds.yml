@@ -246,6 +246,16 @@ jobs:
             ${{ matrix.build_dir }}/bin/
           retention-days: 7
 
+      - name: Debug compile database before upload
+        if: matrix.name == 'linux-x64'
+        run: |
+          echo "=== Files to be uploaded ==="
+          echo "build_dir=${{ matrix.build_dir }}"
+          ls -la ${{ matrix.build_dir }}/compile_commands.json || echo "compile_commands.json NOT FOUND"
+          echo "Generated headers:"
+          ls -la ${{ matrix.build_dir }}/generated/*.pb.h 2>/dev/null | head -5 || echo "No .pb.h files found"
+          echo "Generated header count: $(find ${{ matrix.build_dir }}/generated -name '*.pb.h' 2>/dev/null | wc -l)"
+
       - name: Upload compile database (for clang-tidy)
         if: matrix.name == 'linux-x64'
         uses: actions/upload-artifact@v4
@@ -430,13 +440,30 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: compile-database
+          path: build-release/
 
-      - name: Verify compile database
+      - name: Debug download artifact layout
         run: |
-          echo "Artifact contents:"
-          find build-release/ -type f | head -20
-          test -f build-release/compile_commands.json
-          echo "compile_commands.json found ($(wc -l < build-release/compile_commands.json) lines)"
+          echo "=== Workspace root ==="
+          ls -la
+          echo ""
+          echo "=== build-release/ contents ==="
+          find build-release/ -type f 2>/dev/null | head -30 || echo "build-release/ directory NOT FOUND"
+          echo ""
+          echo "=== Looking for compile_commands.json anywhere ==="
+          find . -name 'compile_commands.json' -not -path './.git/*' 2>/dev/null
+          echo ""
+          echo "=== Looking for .pb.h anywhere ==="
+          find . -name '*.pb.h' -not -path './.git/*' 2>/dev/null | head -5
+          echo ""
+          if [ -f build-release/compile_commands.json ]; then
+            echo "SUCCESS: build-release/compile_commands.json found ($(wc -l < build-release/compile_commands.json) lines)"
+          else
+            echo "FAIL: build-release/compile_commands.json not found"
+            echo "Trying without build-release/ prefix:"
+            ls -la compile_commands.json 2>/dev/null || echo "  Not at workspace root either"
+            exit 1
+          fi
 
       - name: Collect source files
         run: |
