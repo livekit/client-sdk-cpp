@@ -35,6 +35,8 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  packages: read
 
 env:
   CARGO_TERM_COLOR: always
