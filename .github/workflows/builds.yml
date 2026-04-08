@@ -441,30 +441,7 @@ jobs:
         with:
           name: compile-database
           path: build-release/
-
-      - name: Debug download artifact layout
-        run: |
-          echo "=== Workspace root ==="
-          ls -la
-          echo ""
-          echo "=== build-release/ contents ==="
-          find build-release/ -type f 2>/dev/null | head -30 || echo "build-release/ directory NOT FOUND"
-          echo ""
-          echo "=== Looking for compile_commands.json anywhere ==="
-          find . -name 'compile_commands.json' -not -path './.git/*' 2>/dev/null
-          echo ""
-          echo "=== Looking for .pb.h anywhere ==="
-          find . -name '*.pb.h' -not -path './.git/*' 2>/dev/null | head -5
-          echo ""
-          if [ -f build-release/compile_commands.json ]; then
-            echo "SUCCESS: build-release/compile_commands.json found ($(wc -l < build-release/compile_commands.json) lines)"
-          else
-            echo "FAIL: build-release/compile_commands.json not found"
-            echo "Trying without build-release/ prefix:"
-            ls -la compile_commands.json 2>/dev/null || echo "  Not at workspace root either"
-            exit 1
-          fi
-
+          
       - name: Collect source files
         run: |
           find src/ bridge/src/ examples/ \
