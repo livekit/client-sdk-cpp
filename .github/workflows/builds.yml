@@ -38,6 +38,8 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Pinned commit for cpp-example-collection smoke build (https://github.com/livekit-examples/cpp-example-collection)
+  CPP_EXAMPLE_COLLECTION_REF: f231c0c75028d1dcf13edcecd369d030d2c7c8d4
   # vcpkg binary caching for Windows
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
@@ -415,11 +417,12 @@ jobs:
 
       - name: Build cpp-example-collection against installed SDK
         run: |
-          docker run --rm livekit-cpp-sdk:${{ github.sha }} bash -lc '
+          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm livekit-cpp-sdk:${{ github.sha }} bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
-            git checkout f231c0c75028d1dcf13edcecd369d030d2c7c8d4
+            git fetch --depth 1 origin "$CPP_EX_REF"
+            git checkout "$CPP_EX_REF"
             cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
             cmake --build build --parallel
           '
@@ -440,11 +443,12 @@ jobs:
 
       - name: Build cpp-example-collection against installed SDK
         run: |
-          docker run --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -lc '
+          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
-            git checkout f231c0c75028d1dcf13edcecd369d030d2c7c8d4
+            git fetch --depth 1 origin "$CPP_EX_REF"
+            git checkout "$CPP_EX_REF"
             cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
             cmake --build build --parallel
           '
