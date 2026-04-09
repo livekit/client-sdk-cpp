@@ -56,8 +56,6 @@ function(livekit_configure_cpp_example_collection)
   endif()
 
   add_custom_target(cpp_example_collection ALL
-    COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}"
-            --prefix "${LIVEKIT_CPP_EXAMPLES_INSTALL_PREFIX}"
     COMMAND ${CMAKE_COMMAND} -S "${LIVEKIT_CPP_EXAMPLES_SOURCE_DIR}"
             -B "${LIVEKIT_CPP_EXAMPLES_BINARY_DIR}"
             ${_lk_examples_configure_args}
