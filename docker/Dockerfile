@@ -139,24 +139,23 @@ RUN LLVM_VERSION="$(llvm-config --version | cut -d. -f1)" \
     && ./build.sh release --bundle --prefix "${SDK_INSTALL_PREFIX}" \
     && test -f "${SDK_INSTALL_PREFIX}/lib/cmake/LiveKit/LiveKitConfig.cmake"
 
-# Flatten GCC install lib dirs (amd64 uses lib64; some targets use only lib/)
-# so the runtime stage can COPY a single path.
-RUN mkdir -p /root/gcc14-for-runtime \
-    && if [ -d /root/gcc-14/lib64 ]; then cp -a /root/gcc-14/lib64/. /root/gcc14-for-runtime/; fi \
-    && if [ -d /root/gcc-14/lib ]; then cp -a /root/gcc-14/lib/. /root/gcc14-for-runtime/; fi
-
 # -----------------------------------------------------------------------------
 # Runtime image: installed SDK + deps to build/run downstream apps (e.g.
-# cpp-example-collection). Omits Rust, the full GCC 14 build tree, CMake in
-# $HOME, and /client-sdk-cpp sources — large reduction vs. single-stage.
+# cpp-example-collection). Omits Rust, CMake in $HOME, and /client-sdk-cpp
+# sources. Ships the full GCC 14 *install* prefix (not the GCC source tree) so
+# downstream links use the same libstdc++ as liblivekit.so (GLIBCXX_3.4.32+).
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV HOME=/root
 ENV SDK_INSTALL_PREFIX=/opt/livekit-sdk
-# Prebuilt Rust/C++ artifacts were linked with GCC 14’s libstdc++; ship those
-# DSOs without the full compiler prefix.
-ENV LD_LIBRARY_PATH=/opt/livekit-gcc14-lib
+
+COPY --from=builder /root/gcc-14 /opt/gcc-14
+
+ENV PATH=/opt/gcc-14/bin:$PATH
+ENV CC=/opt/gcc-14/bin/gcc
+ENV CXX=/opt/gcc-14/bin/g++
+ENV LD_LIBRARY_PATH=/opt/gcc-14/lib64:/opt/gcc-14/lib
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
@@ -187,7 +186,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /opt/livekit-sdk /opt/livekit-sdk
-COPY --from=builder /root/gcc14-for-runtime /opt/livekit-gcc14-lib
 
 WORKDIR /root
 
