@@ -89,6 +89,7 @@ if(UNIT_TEST_SOURCES)
 
   gtest_discover_tests(livekit_unit_tests
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    DISCOVERY_MODE PRE_TEST
     PROPERTIES
       LABELS "unit"
   )
@@ -175,6 +176,7 @@ if(INTEGRATION_TEST_SOURCES)
   # Register tests with CTest
   gtest_discover_tests(livekit_integration_tests
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    DISCOVERY_MODE PRE_TEST
     PROPERTIES
       LABELS "integration"
   )
@@ -243,6 +245,7 @@ if(STRESS_TEST_SOURCES)
   # Register tests with CTest (longer timeout for stress tests)
   gtest_discover_tests(livekit_stress_tests
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    DISCOVERY_MODE PRE_TEST
     PROPERTIES
       LABELS "stress"
       TIMEOUT 300
