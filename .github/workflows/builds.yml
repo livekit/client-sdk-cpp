@@ -51,35 +51,24 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
-            build_cmd: ./build.sh release-examples
+            build_cmd: ./build.sh release-tests
             build_dir: build-release
-            test_preset: linux-release-tests
-            run_tests: true
           - os: ubuntu-24.04-arm
             name: linux-arm64
-            build_cmd: ./build.sh release-examples
+            build_cmd: ./build.sh release-tests
             build_dir: build-release
-            test_preset: linux-release-tests
-            run_tests: true
           - os: macos-latest
             name: macos-arm64
-            build_cmd: ./build.sh release-examples
+            build_cmd: ./build.sh release-tests
             build_dir: build-release
-            test_preset: macos-release-tests
-            run_tests: true
           - os: macos-latest
             name: macos-x64
-            build_cmd: ./build.sh release-examples --macos-arch x86_64
+            build_cmd: ./build.sh release-tests --macos-arch x86_64
             build_dir: build-release
-            test_preset: macos-release-tests
-            test_cmake_args: -DCMAKE_OSX_ARCHITECTURES=x86_64
-            run_tests: true
           - os: windows-latest
             name: windows-x64
-            build_cmd: .\build.cmd release-examples
+            build_cmd: .\build.cmd release-tests
             build_dir: build-release
-            test_preset: windows-release-tests
-            run_tests: true
 
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
@@ -89,7 +78,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          fetch-depth: 0
+          fetch-depth: 1
 
       # ---------- vcpkg caching for Windows ----------
       - name: Export GitHub Actions cache environment variables
@@ -180,101 +169,70 @@ jobs:
         shell: pwsh
         run: ${{ matrix.build_cmd }}
 
-      # ---------- Smoke test examples ----------
-      - name: Smoke test examples (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -x
-          failed=false
-          for exe in SimpleRoom SimpleRpc SimpleDataStream; do
-            exe_path="${{ matrix.build_dir }}/bin/${exe}"
-            if [[ -x "${exe_path}" ]]; then
-              echo "Testing ${exe}..."
-              output=$("${exe_path}" --help 2>&1) || true
-              if [[ -z "${output}" ]]; then
-                echo "ERROR: ${exe} produced no output"
-                failed=true
-              else
-                echo "${output}"
-                echo "${exe} ran successfully"
-              fi
-            else
-              echo "ERROR: ${exe_path} not found or not executable"
-              failed=true
-            fi
-          done
-          if [[ "$failed" == "true" ]]; then exit 1; fi
-
-      - name: Smoke test examples (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $examples = @('SimpleRoom', 'SimpleRpc', 'SimpleDataStream')
-          $failed = $false
-          foreach ($exe in $examples) {
-            $exePath = "${{ matrix.build_dir }}/bin/${exe}.exe"
-            if (Test-Path $exePath) {
-              Write-Host "Testing ${exe}..."
-              $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-              $pinfo.FileName = $exePath
-              $pinfo.Arguments = "--help"
-              $pinfo.RedirectStandardOutput = $true
-              $pinfo.RedirectStandardError = $true
-              $pinfo.UseShellExecute = $false
-              $p = New-Object System.Diagnostics.Process
-              $p.StartInfo = $pinfo
-              $p.Start() | Out-Null
-              $stdout = $p.StandardOutput.ReadToEnd()
-              $stderr = $p.StandardError.ReadToEnd()
-              $p.WaitForExit()
-              $output = $stdout + $stderr
-              if ([string]::IsNullOrWhiteSpace($output)) {
-                Write-Host "ERROR: ${exe} produced no output"
-                $failed = $true
-              } else {
-                Write-Host $output
-                Write-Host "${exe} ran successfully"
-              }
-            } else {
-              Write-Host "ERROR: ${exePath} not found"
-              $failed = $true
-            }
-          }
-          if ($failed) { exit 1 } else { exit 0 }
-
-      # ---------- Build and run tests ----------
-      - name: Configure tests
-        if: matrix.run_tests
-        run: cmake --preset ${{ matrix.test_preset }} ${{ matrix.test_cmake_args }}
-
-      - name: Build unit tests
-        if: matrix.run_tests
-        run: cmake --build ${{ matrix.build_dir }} --config Release --target livekit_unit_tests
-
-      - name: Run unit tests (Unix)
-        if: runner.os != 'Windows' && matrix.run_tests
-        shell: bash
-        run: |
-          ${{ matrix.build_dir }}/bin/livekit_unit_tests \
-            --gtest_output=xml:${{ matrix.build_dir }}/unit-test-results.xml
-
-      - name: Run unit tests (Windows)
-        if: runner.os == 'Windows' && matrix.run_tests
-        shell: pwsh
-        run: |
-          & "${{ matrix.build_dir }}/bin/livekit_unit_tests.exe" `
-            --gtest_output=xml:${{ matrix.build_dir }}/unit-test-results.xml
-
-      - name: Upload test results
-        if: always() && matrix.run_tests
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ matrix.name }}
-          path: |
-            ${{ matrix.build_dir }}/unit-test-results.xml
-          retention-days: 7
+      # TODO: Re-enable smoke tests once examples are built alongside tests
+      # # ---------- Smoke test examples ----------
+      # - name: Smoke test examples (Unix)
+      #   if: runner.os != 'Windows'
+      #   shell: bash
+      #   run: |
+      #     set -x
+      #     failed=false
+      #     for exe in SimpleRoom SimpleRpc SimpleDataStream; do
+      #       exe_path="${{ matrix.build_dir }}/bin/${exe}"
+      #       if [[ -x "${exe_path}" ]]; then
+      #         echo "Testing ${exe}..."
+      #         output=$("${exe_path}" --help 2>&1) || true
+      #         if [[ -z "${output}" ]]; then
+      #           echo "ERROR: ${exe} produced no output"
+      #           failed=true
+      #         else
+      #           echo "${output}"
+      #           echo "${exe} ran successfully"
+      #         fi
+      #       else
+      #         echo "ERROR: ${exe_path} not found or not executable"
+      #         failed=true
+      #       fi
+      #     done
+      #     if [[ "$failed" == "true" ]]; then exit 1; fi
+      #
+      # - name: Smoke test examples (Windows)
+      #   if: runner.os == 'Windows'
+      #   shell: pwsh
+      #   run: |
+      #     $ErrorActionPreference = 'Continue'
+      #     $examples = @('SimpleRoom', 'SimpleRpc', 'SimpleDataStream')
+      #     $failed = $false
+      #     foreach ($exe in $examples) {
+      #       $exePath = "${{ matrix.build_dir }}/bin/${exe}.exe"
+      #       if (Test-Path $exePath) {
+      #         Write-Host "Testing ${exe}..."
+      #         $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+      #         $pinfo.FileName = $exePath
+      #         $pinfo.Arguments = "--help"
+      #         $pinfo.RedirectStandardOutput = $true
+      #         $pinfo.RedirectStandardError = $true
+      #         $pinfo.UseShellExecute = $false
+      #         $p = New-Object System.Diagnostics.Process
+      #         $p.StartInfo = $pinfo
+      #         $p.Start() | Out-Null
+      #         $stdout = $p.StandardOutput.ReadToEnd()
+      #         $stderr = $p.StandardError.ReadToEnd()
+      #         $p.WaitForExit()
+      #         $output = $stdout + $stderr
+      #         if ([string]::IsNullOrWhiteSpace($output)) {
+      #           Write-Host "ERROR: ${exe} produced no output"
+      #           $failed = $true
+      #         } else {
+      #           Write-Host $output
+      #           Write-Host "${exe} ran successfully"
+      #         }
+      #       } else {
+      #         Write-Host "ERROR: ${exePath} not found"
+      #         $failed = $true
+      #       }
+      #     }
+      #     if ($failed) { exit 1 } else { exit 0 }
 
       # ---------- Upload artifacts ----------
       - name: Upload build artifacts
@@ -297,6 +255,56 @@ jobs:
           else
             ./build.sh clean-all || true
           fi
+
+  quality:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x64
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+          - os: macos-latest
+            name: macos-arm64
+          - os: macos-latest
+            name: macos-x64
+          - os: windows-latest
+            name: windows-x64
+
+    name: Quality (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: livekit-sdk-${{ matrix.name }}
+          path: build-release
+
+      - name: Run unit tests (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          chmod +x build-release/bin/livekit_unit_tests
+          build-release/bin/livekit_unit_tests \
+            --gtest_output=xml:unit-test-results.xml
+
+      - name: Run unit tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "build-release/bin/livekit_unit_tests.exe" `
+            --gtest_output=xml:unit-test-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.name }}
+          path: unit-test-results.xml
+          retention-days: 7
 
   docker-build-x64:
     name: Build (docker-linux-x64)
