@@ -10,7 +10,16 @@ Checks: >
   -modernize-avoid-c-arrays,
   -bugprone-easily-swappable-parameters
 
-WarningsAsErrors: ''
+WarningsAsErrors: >
+  bugprone-use-after-move,
+  bugprone-dangling-handle,
+  bugprone-undefined-memory-manipulation,
+  bugprone-move-forwarding-reference,
+  bugprone-incorrect-roundings,
+  bugprone-sizeof-expression,
+  bugprone-string-literal-with-embedded-nul,
+  bugprone-suspicious-memset-usage,
+  bugprone-infinite-loop
 
 HeaderFilterRegex: '(include/livekit|src|bridge/(include|src)|examples)'
 
