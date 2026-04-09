@@ -16,7 +16,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t files < <(rg --files src include bridge cpp-example-collection -g '*.cpp' -g '*.h' -g '*.hpp' | sort)
+
+          search_dirs=()
+          for dir in src include bridge cpp-example-collection; do
+            if [[ -d "$dir" ]]; then
+              search_dirs+=("$dir")
+            fi
+          done
+
+          if [[ ${#search_dirs[@]} -eq 0 ]]; then
+            echo "No source directories found to validate."
+            exit 1
+          fi
+
+          mapfile -t files < <(find "${search_dirs[@]}" -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) | LC_ALL=C sort)
           if [[ ${#files[@]} -eq 0 ]]; then
             echo "No source files found to validate."
             exit 1
