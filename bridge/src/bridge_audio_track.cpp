@@ -38,7 +38,11 @@ BridgeAudioTrack::BridgeAudioTrack(
     : name_(std::move(name)), sample_rate_(sample_rate),
       num_channels_(num_channels), source_(std::move(source)),
       track_(std::move(track)), publication_(std::move(publication)),
-      participant_(participant) {}
+      participant_(participant) {
+        std::cout << "Bad name use: " << name << "\n"; // Should invoke clang-tidy warning
+
+        while(true); // should invoke another warning
+      }
 
 BridgeAudioTrack::~BridgeAudioTrack() { release(); }
 

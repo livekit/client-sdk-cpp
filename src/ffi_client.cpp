@@ -244,7 +244,7 @@ void FfiClient::PushEvent(const proto::FfiEvent &event) const {
 
 void LivekitFfiCallback(const uint8_t *buf, size_t len) {
   proto::FfiEvent event;
-  event.ParseFromArray(buf, len);
+  event.ParseFromArray(buf, static_cast<int>(len)); // TODO: this fixes for now, what if len exceeds int?
 
   FfiClient::instance().PushEvent(event);
 }
