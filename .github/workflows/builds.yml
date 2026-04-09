@@ -53,31 +53,32 @@ jobs:
             name: linux-x64
             build_cmd: ./build.sh release-examples
             build_dir: build-release
-            test_build_cmd: ./build.sh release-tests
+            test_preset: linux-release-tests
             run_tests: true
           - os: ubuntu-24.04-arm
             name: linux-arm64
             build_cmd: ./build.sh release-examples
             build_dir: build-release
-            test_build_cmd: ./build.sh release-tests
+            test_preset: linux-release-tests
             run_tests: true
           - os: macos-latest
             name: macos-arm64
             build_cmd: ./build.sh release-examples
             build_dir: build-release
-            test_build_cmd: ./build.sh release-tests
+            test_preset: macos-release-tests
             run_tests: true
           - os: macos-latest
             name: macos-x64
             build_cmd: ./build.sh release-examples --macos-arch x86_64
             build_dir: build-release
-            test_build_cmd: ./build.sh release-tests --macos-arch x86_64
+            test_preset: macos-release-tests
+            test_cmake_args: -DCMAKE_OSX_ARCHITECTURES=x86_64
             run_tests: true
           - os: windows-latest
             name: windows-x64
             build_cmd: .\build.cmd release-examples
             build_dir: build-release
-            test_build_cmd: .\build.cmd release-tests
+            test_preset: windows-release-tests
             run_tests: true
 
     name: Build (${{ matrix.name }})
@@ -244,17 +245,13 @@ jobs:
           if ($failed) { exit 1 } else { exit 0 }
 
       # ---------- Build and run tests ----------
-      - name: Build tests (Unix)
-        if: runner.os != 'Windows' && matrix.run_tests
-        shell: bash
-        run: |
-          chmod +x build.sh
-          ${{ matrix.test_build_cmd }}
+      - name: Configure tests
+        if: matrix.run_tests
+        run: cmake --preset ${{ matrix.test_preset }} ${{ matrix.test_cmake_args }}
 
-      - name: Build tests (Windows)
-        if: runner.os == 'Windows' && matrix.run_tests
-        shell: pwsh
-        run: ${{ matrix.test_build_cmd }}
+      - name: Build unit tests
+        if: matrix.run_tests
+        run: cmake --build ${{ matrix.build_dir }} --config Release --target livekit_unit_tests
 
       - name: Run unit tests (Unix)
         if: runner.os != 'Windows' && matrix.run_tests
