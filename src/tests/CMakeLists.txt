@@ -25,6 +25,76 @@ enable_testing()
 include(GoogleTest)
 
 # ============================================================================
+# Unit Tests
+# ============================================================================
+
+file(GLOB UNIT_TEST_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/unit/*.cpp"
+)
+
+if(UNIT_TEST_SOURCES)
+  add_executable(livekit_unit_tests
+    ${UNIT_TEST_SOURCES}
+  )
+
+  target_link_libraries(livekit_unit_tests
+    PRIVATE
+      livekit
+      GTest::gtest_main
+      GTest::gmock
+  )
+
+  target_include_directories(livekit_unit_tests
+    PRIVATE
+      ${LIVEKIT_ROOT_DIR}/include
+      ${LIVEKIT_ROOT_DIR}/src
+  )
+
+  target_compile_definitions(livekit_unit_tests
+    PRIVATE
+      LIVEKIT_TEST_ACCESS
+  )
+
+  if(WIN32)
+    add_custom_command(TARGET livekit_unit_tests POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:livekit>
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMENT "Copying DLLs to unit test directory"
+    )
+  elseif(APPLE)
+    add_custom_command(TARGET livekit_unit_tests POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:livekit>
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMENT "Copying dylibs to unit test directory"
+    )
+  else()
+    add_custom_command(TARGET livekit_unit_tests POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:livekit>
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+        $<TARGET_FILE_DIR:livekit_unit_tests>
+      COMMENT "Copying shared libraries to unit test directory"
+    )
+  endif()
+
+  gtest_discover_tests(livekit_unit_tests
+    WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    PROPERTIES
+      LABELS "unit"
+  )
+endif()
+
+# ============================================================================
 # Integration Tests
 # ============================================================================
 
@@ -188,6 +258,10 @@ add_custom_target(run_all_tests
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   COMMENT "Running all tests"
 )
+
+if(TARGET livekit_unit_tests)
+  add_dependencies(run_all_tests livekit_unit_tests)
+endif()
 
 if(TARGET livekit_integration_tests)
   add_dependencies(run_all_tests livekit_integration_tests)
