@@ -5,6 +5,8 @@
 include_guard(GLOBAL)
 
 function(livekit_configure_cpp_example_collection)
+  include(GNUInstallDirs)
+
   # Absolute paths so out-of-tree builds and symlinks behave consistently.
   get_filename_component(LIVEKIT_CPP_EXAMPLES_SOURCE_DIR
     "${LIVEKIT_ROOT_DIR}/cpp-example-collection" ABSOLUTE)
@@ -39,8 +41,6 @@ function(livekit_configure_cpp_example_collection)
     COMMENT "Installing LiveKit SDK for cpp-example-collection"
     VERBATIM
   )
-
-  # cmake --install /Users/sderosa/workspaces/client-sdk-cpp/build-debug --prefix ~/livekit-sdk-local
 
   set(_lk_examples_configure_args
     "-DCMAKE_PREFIX_PATH=${LIVEKIT_CPP_EXAMPLES_INSTALL_PREFIX}"
