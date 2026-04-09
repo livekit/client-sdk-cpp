@@ -7,10 +7,10 @@ include_guard(GLOBAL)
 function(livekit_configure_cpp_example_collection)
   # Absolute paths so out-of-tree builds and symlinks behave consistently.
   get_filename_component(LIVEKIT_CPP_EXAMPLES_SOURCE_DIR
-    "${CMAKE_SOURCE_DIR}/cpp-example-collection" ABSOLUTE)
+    "${LIVEKIT_ROOT_DIR}/cpp-example-collection" ABSOLUTE)
 
   get_filename_component(_lk_examples_install_default
-    "${CMAKE_SOURCE_DIR}/local-install" ABSOLUTE)
+    "${LIVEKIT_ROOT_DIR}/local-install" ABSOLUTE)
   set(LIVEKIT_CPP_EXAMPLES_INSTALL_PREFIX "${_lk_examples_install_default}"
     CACHE PATH "Install prefix used by cpp-example-collection")
 
