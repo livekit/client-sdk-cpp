@@ -294,9 +294,6 @@ jobs:
           docker run --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -c \
             'test -f /opt/livekit-sdk/lib/cmake/LiveKit/LiveKitConfig.cmake'
 
-      - name: Prune BuildKit cache
-        run: docker buildx prune -af
-
       - name: Save Docker image artifact
         run: |
           docker save livekit-cpp-sdk-x64:${{ github.sha }} | gzip > livekit-cpp-sdk-x64-docker.tar.gz
@@ -346,9 +343,6 @@ jobs:
         run: |
           docker run --rm livekit-cpp-sdk:${{ github.sha }} bash -c \
             'test -f /opt/livekit-sdk/lib/cmake/LiveKit/LiveKitConfig.cmake'
-
-      - name: Prune BuildKit cache
-        run: docker buildx prune -af
 
       - name: Save Docker image artifact
         run: |

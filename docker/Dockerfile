@@ -18,7 +18,7 @@
 # Run with:
 # docker run -it --network host livekit-cpp-sdk:latest bash
 
-FROM ubuntu:22.04 AS builder
+FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV HOME=/root
@@ -122,6 +122,8 @@ COPY examples /client-sdk-cpp/examples
 COPY cmake /client-sdk-cpp/cmake
 COPY CMakeLists.txt /client-sdk-cpp/CMakeLists.txt
 COPY build.h.in /client-sdk-cpp/build.h.in
+COPY build.sh /client-sdk-cpp/build.sh
+COPY build.cmd /client-sdk-cpp/build.cmd
 
 # Configure Rust linker: use full GCC path so liblto_plugin.so is found (not /home/installs/ which has no plugin)
 RUN mkdir -p /client-sdk-cpp/client-sdk-rust/.cargo \
@@ -138,55 +140,3 @@ RUN LLVM_VERSION="$(llvm-config --version | cut -d. -f1)" \
     && cd /client-sdk-cpp \
     && ./build.sh release --bundle --prefix "${SDK_INSTALL_PREFIX}" \
     && test -f "${SDK_INSTALL_PREFIX}/lib/cmake/LiveKit/LiveKitConfig.cmake"
-
-# -----------------------------------------------------------------------------
-# Runtime image: installed SDK + deps to build/run downstream apps (e.g.
-# cpp-example-collection). Omits Rust, CMake in $HOME, and /client-sdk-cpp
-# sources. Ships the full GCC 14 *install* prefix (not the GCC source tree) so
-# downstream links use the same libstdc++ as liblivekit.so (GLIBCXX_3.4.32+).
-FROM ubuntu:22.04
-
-ENV DEBIAN_FRONTEND=noninteractive
-ENV HOME=/root
-ENV SDK_INSTALL_PREFIX=/opt/livekit-sdk
-
-COPY --from=builder /root/gcc-14 /opt/gcc-14
-
-ENV PATH=/opt/gcc-14/bin:$PATH
-ENV CC=/opt/gcc-14/bin/gcc
-ENV CXX=/opt/gcc-14/bin/g++
-ENV LD_LIBRARY_PATH=/opt/gcc-14/lib64:/opt/gcc-14/lib
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    ca-certificates \
-    cmake \
-    curl \
-    git \
-    libabsl-dev \
-    libasound2-dev \
-    libdecor-0-dev \
-    libdrm-dev \
-    libgl1-mesa-dev \
-    libprotobuf-dev \
-    libspdlog-dev \
-    libssl-dev \
-    libva-dev \
-    libwayland-dev \
-    libx11-dev \
-    libxcursor-dev \
-    libxext-dev \
-    libxfixes-dev \
-    libxi-dev \
-    libxrandr-dev \
-    ninja-build \
-    pkg-config \
-    protobuf-compiler \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /opt/livekit-sdk /opt/livekit-sdk
-
-WORKDIR /root
-
-RUN test -f "${SDK_INSTALL_PREFIX}/lib/cmake/LiveKit/LiveKitConfig.cmake"
