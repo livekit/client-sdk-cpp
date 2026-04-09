@@ -18,7 +18,7 @@
 # Run with:
 # docker run -it --network host livekit-cpp-sdk:latest bash
 
-FROM ubuntu:22.04
+FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV HOME=/root
@@ -122,8 +122,6 @@ COPY examples /client-sdk-cpp/examples
 COPY cmake /client-sdk-cpp/cmake
 COPY CMakeLists.txt /client-sdk-cpp/CMakeLists.txt
 COPY build.h.in /client-sdk-cpp/build.h.in
-COPY build.sh /client-sdk-cpp/build.sh
-COPY build.cmd /client-sdk-cpp/build.cmd
 
 # Configure Rust linker: use full GCC path so liblto_plugin.so is found (not /home/installs/ which has no plugin)
 RUN mkdir -p /client-sdk-cpp/client-sdk-rust/.cargo \
@@ -140,3 +138,57 @@ RUN LLVM_VERSION="$(llvm-config --version | cut -d. -f1)" \
     && cd /client-sdk-cpp \
     && ./build.sh release --bundle --prefix "${SDK_INSTALL_PREFIX}" \
     && test -f "${SDK_INSTALL_PREFIX}/lib/cmake/LiveKit/LiveKitConfig.cmake"
+
+# Flatten GCC install lib dirs (amd64 uses lib64; some targets use only lib/)
+# so the runtime stage can COPY a single path.
+RUN mkdir -p /root/gcc14-for-runtime \
+    && if [ -d /root/gcc-14/lib64 ]; then cp -a /root/gcc-14/lib64/. /root/gcc14-for-runtime/; fi \
+    && if [ -d /root/gcc-14/lib ]; then cp -a /root/gcc-14/lib/. /root/gcc14-for-runtime/; fi
+
+# -----------------------------------------------------------------------------
+# Runtime image: installed SDK + deps to build/run downstream apps (e.g.
+# cpp-example-collection). Omits Rust, the full GCC 14 build tree, CMake in
+# $HOME, and /client-sdk-cpp sources — large reduction vs. single-stage.
+FROM ubuntu:22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV HOME=/root
+ENV SDK_INSTALL_PREFIX=/opt/livekit-sdk
+# Prebuilt Rust/C++ artifacts were linked with GCC 14’s libstdc++; ship those
+# DSOs without the full compiler prefix.
+ENV LD_LIBRARY_PATH=/opt/livekit-gcc14-lib
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    curl \
+    git \
+    libabsl-dev \
+    libasound2-dev \
+    libdecor-0-dev \
+    libdrm-dev \
+    libgl1-mesa-dev \
+    libprotobuf-dev \
+    libspdlog-dev \
+    libssl-dev \
+    libva-dev \
+    libwayland-dev \
+    libx11-dev \
+    libxcursor-dev \
+    libxext-dev \
+    libxfixes-dev \
+    libxi-dev \
+    libxrandr-dev \
+    ninja-build \
+    pkg-config \
+    protobuf-compiler \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /opt/livekit-sdk /opt/livekit-sdk
+COPY --from=builder /root/gcc14-for-runtime /opt/livekit-gcc14-lib
+
+WORKDIR /root
+
+RUN test -f "${SDK_INSTALL_PREFIX}/lib/cmake/LiveKit/LiveKitConfig.cmake"

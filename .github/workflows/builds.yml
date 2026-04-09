@@ -266,6 +266,17 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Free disk space (GitHub-hosted runner)
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -282,6 +293,9 @@ jobs:
         run: |
           docker run --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -c \
             'test -f /opt/livekit-sdk/lib/cmake/LiveKit/LiveKitConfig.cmake'
+
+      - name: Prune BuildKit cache
+        run: docker buildx prune -af
 
       - name: Save Docker image artifact
         run: |
@@ -305,6 +319,17 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Free disk space (GitHub-hosted runner)
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -321,6 +346,9 @@ jobs:
         run: |
           docker run --rm livekit-cpp-sdk:${{ github.sha }} bash -c \
             'test -f /opt/livekit-sdk/lib/cmake/LiveKit/LiveKitConfig.cmake'
+
+      - name: Prune BuildKit cache
+        run: docker buildx prune -af
 
       - name: Save Docker image artifact
         run: |
