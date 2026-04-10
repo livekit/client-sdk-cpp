@@ -1,0 +1,50 @@
+name: License Check
+on:
+  workflow_call: {}
+  workflow_dispatch: {}
+
+jobs:
+  license-check:
+    name: License Check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Check License Headers
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          search_dirs=()
+          for dir in src include bridge cpp-example-collection; do
+            if [[ -d "$dir" ]]; then
+              search_dirs+=("$dir")
+            fi
+          done
+
+          if [[ ${#search_dirs[@]} -eq 0 ]]; then
+            echo "No source directories found to validate."
+            exit 1
+          fi
+
+          mapfile -t files < <(find "${search_dirs[@]}" -type f \( -name '*.cpp' -o -name '*.h' -o -name '*.hpp' \) | LC_ALL=C sort)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No source files found to validate."
+            exit 1
+          fi
+
+          failed=0
+          for file in "${files[@]}"; do
+            if ! grep -Eq 'Copyright [0-9]{4}(-[0-9]{4})? LiveKit(, Inc\.)?$' "$file"; then
+              echo "Missing or unexpected copyright header in $file"
+              failed=1
+            fi
+            if ! grep -Fq 'Licensed under the Apache License, Version 2.0' "$file"; then
+              echo "Missing Apache 2.0 header in $file"
+              failed=1
+            fi
+          done
+
+          exit "$failed"

@@ -6,7 +6,7 @@ on:
     paths:
       - src/**
       - include/**
-      - examples/**
+      - cpp-example-collection/**
       - bridge/**
       - client-sdk-rust/**
       - CMakeLists.txt
@@ -21,7 +21,7 @@ on:
     paths:
       - src/**
       - include/**
-      - examples/**
+      - cpp-example-collection/**
       - bridge/**
       - client-sdk-rust/**
       - CMakeLists.txt
@@ -38,12 +38,22 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Pinned commit for cpp-example-collection smoke build (https://github.com/livekit-examples/cpp-example-collection)
+  CPP_EXAMPLE_COLLECTION_REF: f231c0c75028d1dcf13edcecd369d030d2c7c8d4
   # vcpkg binary caching for Windows
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
   VCPKG_TARGET_TRIPLET: x64-windows-static-md
 
 jobs:
+  license-check:
+    name: License Check
+    uses: ./.github/workflows/license_check.yml
+
+  pin-check:
+    name: Pin Check
+    uses: ./.github/workflows/pin_check.yml
+
   build:
     strategy:
       fail-fast: false
@@ -75,7 +85,7 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
           fetch-depth: 1
@@ -83,7 +93,7 @@ jobs:
       # ---------- vcpkg caching for Windows ----------
       - name: Export GitHub Actions cache environment variables
         if: runner.os == 'Windows'
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
@@ -91,7 +101,7 @@ jobs:
 
       - name: Setup vcpkg (Windows only)
         if: runner.os == 'Windows'
-        uses: lukka/run-vcpkg@v11
+        uses: lukka/run-vcpkg@6fe69898af670ac05f4a8427cc5cff4fb361cee5 # v11.5
         with:
           vcpkgGitCommitId: 'fb87e2bb3fe69e16c224989acb5a61349166c782'
 
@@ -123,7 +133,9 @@ jobs:
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
 
       - name: Install Rust cross-compilation target
         if: matrix.name == 'macos-x64'
@@ -131,7 +143,7 @@ jobs:
 
       # ---------- Cache Cargo ----------
       - name: Cache Cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -140,7 +152,7 @@ jobs:
           restore-keys: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-
 
       - name: Cache Cargo target
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: client-sdk-rust/target
           key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
@@ -194,7 +206,7 @@ jobs:
 
       # ---------- Upload artifacts ----------
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: livekit-sdk-${{ matrix.name }}
           path: |
@@ -220,13 +232,24 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Build Docker image
         run: |
@@ -247,7 +270,7 @@ jobs:
           docker save livekit-cpp-sdk-x64:${{ github.sha }} | gzip > livekit-cpp-sdk-x64-docker.tar.gz
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: livekit-cpp-sdk-docker-x64
           path: livekit-cpp-sdk-x64-docker.tar.gz
@@ -259,13 +282,24 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
           fetch-depth: 0
 
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
 
       - name: Build Docker image
         run: |
@@ -286,7 +320,7 @@ jobs:
           docker save livekit-cpp-sdk:${{ github.sha }} | gzip > livekit-cpp-sdk-arm64-docker.tar.gz
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: livekit-cpp-sdk-docker-arm64
           path: livekit-cpp-sdk-arm64-docker.tar.gz
@@ -299,7 +333,7 @@ jobs:
 
     steps:
       - name: Download Docker image artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: livekit-cpp-sdk-docker-arm64
 
@@ -308,11 +342,12 @@ jobs:
 
       - name: Build cpp-example-collection against installed SDK
         run: |
-          docker run --rm livekit-cpp-sdk:${{ github.sha }} bash -lc '
+          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm livekit-cpp-sdk:${{ github.sha }} bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
-            git checkout sderosa/examples-migration
+            git fetch --depth 1 origin "$CPP_EX_REF"
+            git checkout "$CPP_EX_REF"
             cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
             cmake --build build --parallel
           '
@@ -324,7 +359,7 @@ jobs:
 
     steps:
       - name: Download Docker image artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: livekit-cpp-sdk-docker-x64
 
@@ -333,11 +368,12 @@ jobs:
 
       - name: Build cpp-example-collection against installed SDK
         run: |
-          docker run --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -lc '
+          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
-            git checkout sderosa/examples-migration
+            git fetch --depth 1 origin "$CPP_EX_REF"
+            git checkout "$CPP_EX_REF"
             cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
             cmake --build build --parallel
           '
