@@ -122,6 +122,13 @@ if(INTEGRATION_TEST_SOURCES)
     ${INTEGRATION_TEST_SOURCES}
   )
 
+  # On Windows, protobuf default-instance symbols (constinit globals) are not
+  # auto-exported from livekit.dll by WINDOWS_EXPORT_ALL_SYMBOLS.  Link the
+  # proto object library directly so the test binary has its own copy.
+  if(WIN32 AND TARGET livekit_proto)
+    target_sources(livekit_integration_tests PRIVATE $<TARGET_OBJECTS:livekit_proto>)
+  endif()
+
   target_link_libraries(livekit_integration_tests
     PRIVATE
       livekit
