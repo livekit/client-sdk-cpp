@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 LiveKit
+ * Copyright 2026 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@
 
 #include "ffi.pb.h"
 #include "ffi_client.h"
-#include "lk_log.h"
 #include "livekit/track.h"
+#include "lk_log.h"
 #include "video_frame.pb.h"
 #include "video_utils.h"
 
