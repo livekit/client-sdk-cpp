@@ -169,70 +169,28 @@ jobs:
         shell: pwsh
         run: ${{ matrix.build_cmd }}
 
-      # TODO: Re-enable smoke tests once examples are built alongside tests
-      # # ---------- Smoke test examples ----------
-      # - name: Smoke test examples (Unix)
-      #   if: runner.os != 'Windows'
-      #   shell: bash
-      #   run: |
-      #     set -x
-      #     failed=false
-      #     for exe in SimpleRoom SimpleRpc SimpleDataStream; do
-      #       exe_path="${{ matrix.build_dir }}/bin/${exe}"
-      #       if [[ -x "${exe_path}" ]]; then
-      #         echo "Testing ${exe}..."
-      #         output=$("${exe_path}" --help 2>&1) || true
-      #         if [[ -z "${output}" ]]; then
-      #           echo "ERROR: ${exe} produced no output"
-      #           failed=true
-      #         else
-      #           echo "${output}"
-      #           echo "${exe} ran successfully"
-      #         fi
-      #       else
-      #         echo "ERROR: ${exe_path} not found or not executable"
-      #         failed=true
-      #       fi
-      #     done
-      #     if [[ "$failed" == "true" ]]; then exit 1; fi
-      #
-      # - name: Smoke test examples (Windows)
-      #   if: runner.os == 'Windows'
-      #   shell: pwsh
-      #   run: |
-      #     $ErrorActionPreference = 'Continue'
-      #     $examples = @('SimpleRoom', 'SimpleRpc', 'SimpleDataStream')
-      #     $failed = $false
-      #     foreach ($exe in $examples) {
-      #       $exePath = "${{ matrix.build_dir }}/bin/${exe}.exe"
-      #       if (Test-Path $exePath) {
-      #         Write-Host "Testing ${exe}..."
-      #         $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-      #         $pinfo.FileName = $exePath
-      #         $pinfo.Arguments = "--help"
-      #         $pinfo.RedirectStandardOutput = $true
-      #         $pinfo.RedirectStandardError = $true
-      #         $pinfo.UseShellExecute = $false
-      #         $p = New-Object System.Diagnostics.Process
-      #         $p.StartInfo = $pinfo
-      #         $p.Start() | Out-Null
-      #         $stdout = $p.StandardOutput.ReadToEnd()
-      #         $stderr = $p.StandardError.ReadToEnd()
-      #         $p.WaitForExit()
-      #         $output = $stdout + $stderr
-      #         if ([string]::IsNullOrWhiteSpace($output)) {
-      #           Write-Host "ERROR: ${exe} produced no output"
-      #           $failed = $true
-      #         } else {
-      #           Write-Host $output
-      #           Write-Host "${exe} ran successfully"
-      #         }
-      #       } else {
-      #         Write-Host "ERROR: ${exePath} not found"
-      #         $failed = $true
-      #       }
-      #     }
-      #     if ($failed) { exit 1 } else { exit 0 }
+      # ---------- Run unit tests ----------
+      - name: Run unit tests (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          ${{ matrix.build_dir }}/bin/livekit_unit_tests \
+            --gtest_output=xml:${{ matrix.build_dir }}/unit-test-results.xml
+
+      - name: Run unit tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "${{ matrix.build_dir }}/bin/livekit_unit_tests.exe" `
+            --gtest_output=xml:${{ matrix.build_dir }}/unit-test-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.name }}
+          path: ${{ matrix.build_dir }}/unit-test-results.xml
+          retention-days: 7
 
       # ---------- Upload artifacts ----------
       - name: Upload build artifacts
@@ -255,56 +213,6 @@ jobs:
           else
             ./build.sh clean-all || true
           fi
-
-  quality:
-    needs: build
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            name: linux-x64
-          - os: ubuntu-24.04-arm
-            name: linux-arm64
-          - os: macos-latest
-            name: macos-arm64
-          - os: macos-latest
-            name: macos-x64
-          - os: windows-latest
-            name: windows-x64
-
-    name: Quality (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: livekit-sdk-${{ matrix.name }}
-          path: build-release
-
-      - name: Run unit tests (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          chmod +x build-release/bin/livekit_unit_tests
-          build-release/bin/livekit_unit_tests \
-            --gtest_output=xml:unit-test-results.xml
-
-      - name: Run unit tests (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          & "build-release/bin/livekit_unit_tests.exe" `
-            --gtest_output=xml:unit-test-results.xml
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ matrix.name }}
-          path: unit-test-results.xml
-          retention-days: 7
 
   docker-build-x64:
     name: Build (docker-linux-x64)
