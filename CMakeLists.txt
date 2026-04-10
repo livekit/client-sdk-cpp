@@ -689,7 +689,8 @@ install(FILES
 add_subdirectory(bridge)
 
 if(LIVEKIT_BUILD_EXAMPLES)
-  add_subdirectory(examples)
+  include(cpp-example-collection)
+  livekit_configure_cpp_example_collection()
 endif()
 
 if(LIVEKIT_BUILD_TESTS)
