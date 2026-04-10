@@ -20,7 +20,6 @@
 #include <livekit/livekit.h>
 
 #include <algorithm>
-#define _USE_MATH_DEFINES
 #include <cmath>
 #include <cstdint>
 #include <fstream>

@@ -66,6 +66,7 @@ if(UNIT_TEST_SOURCES)
       LIVEKIT_TEST_ACCESS
       LIVEKIT_ROOT_DIR="${LIVEKIT_ROOT_DIR}"
       SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
+      $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
   )
 
   if(WIN32)
@@ -158,6 +159,7 @@ if(INTEGRATION_TEST_SOURCES)
       LIVEKIT_TEST_ACCESS
       LIVEKIT_ROOT_DIR="${LIVEKIT_ROOT_DIR}"
       SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
+      $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
   )
 
   # Copy shared libraries to test executable directory
@@ -227,6 +229,11 @@ if(STRESS_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+  )
+
+  target_compile_definitions(livekit_stress_tests
+    PRIVATE
+      $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
   )
 
   # Copy shared libraries to test executable directory
