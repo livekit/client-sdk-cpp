@@ -28,13 +28,8 @@ include(GoogleTest)
 # Unit Tests
 # ============================================================================
 
-set(UNIT_TEST_SOURCES
-  unit/test_audio_frame.cpp
-  unit/test_audio_processing_module.cpp
-  unit/test_logging.cpp
-  unit/test_room_callbacks.cpp
-  unit/test_sdk_initialization.cpp
-  unit/test_subscription_thread_dispatcher.cpp
+file(GLOB UNIT_TEST_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/unit/*.cpp"
 )
 
 if(UNIT_TEST_SOURCES)
