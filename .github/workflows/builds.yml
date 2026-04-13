@@ -89,7 +89,9 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
-          lfs: true
+
+      - name: Pull LFS files
+        run: git lfs pull
 
       # ---------- vcpkg caching for Windows ----------
       - name: Export GitHub Actions cache environment variables
