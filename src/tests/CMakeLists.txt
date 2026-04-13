@@ -54,17 +54,7 @@ if(UNIT_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
-      ${LIVEKIT_BINARY_DIR}/generated
-      ${Protobuf_INCLUDE_DIRS}
   )
-  # if(TARGET absl::base)
-  #   get_target_property(_livekit_unit_test_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
-  #   if(_livekit_unit_test_absl_inc)
-  #     target_include_directories(livekit_unit_tests PRIVATE
-  #       ${_livekit_unit_test_absl_inc}
-  #     )
-  #   endif()
-  # endif()
 
   target_compile_definitions(livekit_unit_tests
     PRIVATE
