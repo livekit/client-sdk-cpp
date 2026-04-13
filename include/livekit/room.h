@@ -79,7 +79,7 @@ struct RoomOptions {
   // Enable single peer connection mode. When true, uses one RTCPeerConnection
   // for both publishing and subscribing instead of two separate connections.
   // Falls back to dual peer connection if the server doesn't support single PC.
-  bool single_peer_connection = false;
+  bool single_peer_connection = true;
 
   // Optional WebRTC configuration (ICE policy, servers, etc.)
   std::optional<RtcConfig> rtc_config;
