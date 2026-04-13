@@ -49,6 +49,9 @@ git clone --recurse-submodules https://github.com/livekit/client-sdk-cpp.git
 git clone https://github.com/livekit/client-sdk-cpp.git
 cd client-sdk-cpp
 git submodule update --init --recursive
+
+# Note: If running tests, pull Git LFS to bring in test data:
+git lfs pull
 ```
 
 ## ⚙️ BUILD

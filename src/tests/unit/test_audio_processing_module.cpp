@@ -802,10 +802,8 @@ TEST_F(AudioProcessingModuleTest, AGCAttenuatesLoudSpeech) {
   int num_channels = 0;
 
   // TODO: figure out what generates this welcome.wav file such that this test isn't skipped
-  std::string wav_path = std::string(LIVEKIT_ROOT_DIR) + "/data/welcome.wav";
-  if (!readWavFile(wav_path, original_samples, sample_rate, num_channels)) {
-    GTEST_SKIP() << "Could not read " << wav_path;
-  }
+  std::string wav_path = std::string(LIVEKIT_ROOT_DIR) + "/data/welcome2.wav";
+  ASSERT_TRUE(readWavFile(wav_path, original_samples, sample_rate, num_channels)) << "Could not read " << wav_path;
 
   std::cout << "[AGC-LoudSpeech] Loaded " << original_samples.size()
             << " samples, " << sample_rate << " Hz, " << num_channels

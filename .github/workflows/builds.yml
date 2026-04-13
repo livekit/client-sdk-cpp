@@ -89,6 +89,7 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
+          lfs: true
 
       # ---------- vcpkg caching for Windows ----------
       - name: Export GitHub Actions cache environment variables
