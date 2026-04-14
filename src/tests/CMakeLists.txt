@@ -36,6 +36,8 @@ set(BENCHMARK_UTILS_SOURCES
 # ============================================================================
 # Unit Tests
 # ============================================================================
+
+# Collect all unit test sources
 file(GLOB UNIT_TEST_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/unit/*.cpp"
 )
@@ -49,7 +51,6 @@ if(UNIT_TEST_SOURCES)
   target_link_libraries(livekit_unit_tests
     PRIVATE
       livekit
-      spdlog::spdlog
       GTest::gtest_main
       GTest::gmock
   )
@@ -58,19 +59,15 @@ if(UNIT_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
-      ${LIVEKIT_ROOT_DIR}/src/trace
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
   )
 
-  # Copy shared libraries to test executable directory
   target_compile_definitions(livekit_unit_tests
     PRIVATE
-      LIVEKIT_TEST_ACCESS
       LIVEKIT_ROOT_DIR="${LIVEKIT_ROOT_DIR}"
-      SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
-      $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
   )
 
+  # Copy shared libraries to test executable directory
   if(WIN32)
     add_custom_command(TARGET livekit_unit_tests POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -103,10 +100,9 @@ if(UNIT_TEST_SOURCES)
     )
   endif()
 
-
+  # Register tests with CTest
   gtest_discover_tests(livekit_unit_tests
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-    DISCOVERY_MODE PRE_TEST
     PROPERTIES
       LABELS "unit"
   )
@@ -127,18 +123,10 @@ if(INTEGRATION_TEST_SOURCES)
     ${BENCHMARK_UTILS_SOURCES}
   )
 
-  # On Windows, protobuf default-instance symbols (constinit globals) are not
-  # auto-exported from livekit.dll by WINDOWS_EXPORT_ALL_SYMBOLS.  Link the
-  # proto object library directly so the test binary has its own copy.
-  if(WIN32 AND TARGET livekit_proto)
-    target_sources(livekit_integration_tests PRIVATE $<TARGET_OBJECTS:livekit_proto>)
-  endif()
-
   target_link_libraries(livekit_integration_tests
     PRIVATE
       livekit
       spdlog::spdlog
-      $<$<PLATFORM_ID:Windows>:${LIVEKIT_PROTOBUF_TARGET}>
       GTest::gtest_main
       GTest::gmock
   )
@@ -147,7 +135,6 @@ if(INTEGRATION_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
-      ${LIVEKIT_ROOT_DIR}/src/trace
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
       ${LIVEKIT_BINARY_DIR}/generated
       ${Protobuf_INCLUDE_DIRS}
@@ -166,7 +153,6 @@ if(INTEGRATION_TEST_SOURCES)
       LIVEKIT_TEST_ACCESS
       LIVEKIT_ROOT_DIR="${LIVEKIT_ROOT_DIR}"
       SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
-      $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
   )
 
   # Copy shared libraries to test executable directory
@@ -205,7 +191,6 @@ if(INTEGRATION_TEST_SOURCES)
   # Register tests with CTest
   gtest_discover_tests(livekit_integration_tests
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-    DISCOVERY_MODE PRE_TEST
     PROPERTIES
       LABELS "integration"
   )
@@ -237,13 +222,7 @@ if(STRESS_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
-      ${LIVEKIT_ROOT_DIR}/src/trace
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
-  )
-
-  target_compile_definitions(livekit_stress_tests
-    PRIVATE
-      $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
   )
 
   # Copy shared libraries to test executable directory
@@ -282,7 +261,6 @@ if(STRESS_TEST_SOURCES)
   # Register tests with CTest (longer timeout for stress tests)
   gtest_discover_tests(livekit_stress_tests
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-    DISCOVERY_MODE PRE_TEST
     PROPERTIES
       LABELS "stress"
       TIMEOUT 300
