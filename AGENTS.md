@@ -145,7 +145,7 @@ When adding new client facing functionality, add a new test case to the existing
 When adding new client facing functionality, add benchmarking to understand the limitations of the new functionality.
 
 ## Formatting
-Adhere to the formatting rules if TODO: @alan
+Use clang formatting that aligns with the existing codebase.
 
 ## Deprecated / Out of Scope
 
