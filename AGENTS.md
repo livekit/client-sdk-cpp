@@ -18,7 +18,7 @@ The SDK must be supported on the following platforms:
 - macOS x86_64
 - macOS arm64
 
-
+### FFI Patterns
 SDK features follow one of two FFI patterns:
 
 **Synchronous calls:**
@@ -35,6 +35,35 @@ SDK features follow one of two FFI patterns:
 5. Expose the result through the C++ API.
 
 When making larger scale changes, check with the developer before committing to architecture changes involving changes to the `client-sdk-rust/` submodule.
+
+### Threading Model
+
+The SDK has three categories of threads:
+
+**FFI callback thread** — The Rust FFI layer calls `LivekitFfiCallback` from a Rust-managed thread (typically a Tokio runtime thread). This single entry point deserializes the `FfiEvent` and calls `FfiClient::PushEvent`, which:
+1. Completes any pending async `std::promise` matched by `async_id`.
+2. Invokes all registered `FfiClient` listeners (including `Room::OnEvent`).
+
+All `RoomDelegate` callbacks and stream handler callbacks (e.g., `registerTextStreamHandler`) are invoked on this FFI callback thread. **Handlers must not block**; spawn a background thread if synchronous work is needed.
+
+**Per-subscription reader threads** — `SubscriptionThreadDispatcher` creates a dedicated `std::thread` for each active audio, video, or data track subscription. These threads block on `AudioStream::read()`, `VideoStream::read()`, or `DataTrackStream::read()` and invoke the registered `AudioFrameCallback`, `VideoFrameCallback`, or `DataFrameCallback` on that reader thread — not on the FFI callback thread. A hard limit of 20 concurrent reader threads is enforced.
+
+**Application threads** — The calling thread for public API methods such as `Room::Connect`, `LocalParticipant::publishTrack`, `AudioSource::captureFrame`, etc. These may block while waiting for FFI responses or future completion.
+
+#### Thread-safety guarantees
+
+| Component | Thread-safe? | Notes |
+|-----------|-------------|-------|
+| `FfiClient::sendRequest` | Yes (C++ side) | No C++ mutex; relies on the Rust FFI being safe for concurrent calls. Multiple threads may call concurrently. |
+| `FfiClient` listener/async registration | Yes | Protected by internal `std::mutex`. |
+| `Room` | Yes | Internal `std::mutex` protects all mutable state. `RoomDelegate` is called outside the lock. |
+| `SubscriptionThreadDispatcher` | Yes | Internal `std::mutex` protects registrations and active readers. Thread joins happen outside the lock. |
+| `AudioStream` / `VideoStream` / `DataTrackStream` | Yes | Internal `std::mutex` + `condition_variable` coordinate the FFI producer thread and the consumer reader thread. |
+| `AudioSource::captureFrame` | No | Not safe to call concurrently from multiple threads. |
+| `VideoSource::captureFrame` | No | Not safe to call concurrently from multiple threads. |
+| `LocalAudioTrack` / `LocalVideoTrack` | No | Thin `sendRequest` wrappers with no internal synchronization. |
+| `LocalDataTrack::tryPush` | No | Thin `sendRequest` wrapper with no internal synchronization. |
+| `TextStreamWriter` / `ByteStreamWriter` | Serialized | `write()` is serialized by an internal `write_mutex_`. |
 
 ### Directory Layout
 Be sure to update the directory layout in this file if the directory layout changes.
