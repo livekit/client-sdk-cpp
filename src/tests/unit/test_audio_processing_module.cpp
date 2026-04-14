@@ -65,7 +65,8 @@ protected:
   // Helper to fill frame with random noise
   static void fillWithNoise(AudioFrame &frame, double amplitude = 5000.0,
                             unsigned int seed = 0) {
-    std::mt19937 gen(seed == 0 ? std::random_device{}() : seed);
+    std::mt19937 gen(static_cast<std::mt19937::result_type>(
+        seed == 0 ? std::random_device{}() : seed));
     std::uniform_real_distribution<> dis(-amplitude, amplitude);
 
     auto &data = frame.data();

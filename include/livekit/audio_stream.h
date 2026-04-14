@@ -142,7 +142,7 @@ private:
   FfiHandle stream_handle_;
 
   // Listener id registered on FfiClient
-  std::int64_t listener_id_{0};
+  std::int32_t listener_id_{0};
 };
 
 } // namespace livekit

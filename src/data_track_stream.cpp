@@ -68,7 +68,7 @@ bool DataTrackStream::read(DataTrackFrame &out) {
 }
 
 void DataTrackStream::close() {
-  std::int64_t listener_id = -1;
+  std::int32_t listener_id = -1;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (closed_) {
