@@ -202,7 +202,7 @@ TEST_F(RoomCallbackTest, ConcurrentRegistrationDoesNotCrash) {
   threads.reserve(kThreads);
 
   for (int t = 0; t < kThreads; ++t) {
-    threads.emplace_back([&room, t]() {
+    threads.emplace_back([&room, t, kIterations]() {
       for (int i = 0; i < kIterations; ++i) {
         const std::string id = "participant-" + std::to_string(t);
         room.setOnAudioFrameCallback(id, TrackSource::SOURCE_MICROPHONE,
@@ -228,7 +228,7 @@ TEST_F(RoomCallbackTest, ConcurrentMixedRegistrationDoesNotCrash) {
   threads.reserve(kThreads);
 
   for (int t = 0; t < kThreads; ++t) {
-    threads.emplace_back([&room, t]() {
+    threads.emplace_back([&room, t, kIterations]() {
       const std::string id = "p-" + std::to_string(t);
       for (int i = 0; i < kIterations; ++i) {
         room.setOnAudioFrameCallback(id, TrackSource::SOURCE_MICROPHONE,

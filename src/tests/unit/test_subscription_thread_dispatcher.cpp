@@ -407,7 +407,7 @@ TEST_F(SubscriptionThreadDispatcherTest, ConcurrentRegistrationDoesNotCrash) {
   threads.reserve(kThreads);
 
   for (int t = 0; t < kThreads; ++t) {
-    threads.emplace_back([&dispatcher, t]() {
+    threads.emplace_back([&dispatcher, t, kIterations]() {
       for (int i = 0; i < kIterations; ++i) {
         std::string id = "participant-" + std::to_string(t);
         dispatcher.setOnAudioFrameCallback(id, TrackSource::SOURCE_MICROPHONE,
@@ -435,7 +435,7 @@ TEST_F(SubscriptionThreadDispatcherTest,
   std::vector<std::thread> threads;
 
   for (int t = 0; t < kThreads; ++t) {
-    threads.emplace_back([&dispatcher, t]() {
+    threads.emplace_back([&dispatcher, t, kIterations]() {
       std::string id = "p-" + std::to_string(t);
       for (int i = 0; i < kIterations; ++i) {
         dispatcher.setOnAudioFrameCallback(id, TrackSource::SOURCE_MICROPHONE,
@@ -714,7 +714,7 @@ TEST_F(SubscriptionThreadDispatcherTest,
   threads.reserve(kThreads);
 
   for (int t = 0; t < kThreads; ++t) {
-    threads.emplace_back([&dispatcher, t]() {
+    threads.emplace_back([&dispatcher, t, kIterations]() {
       for (int i = 0; i < kIterations; ++i) {
         auto id = dispatcher.addOnDataFrameCallback(
             "participant-" + std::to_string(t), "track",
