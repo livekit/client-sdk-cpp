@@ -231,10 +231,16 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
   }
 
   for (const auto &track : video_tracks) {
-    sender_room->localParticipant()->unpublishTrack(track->sid());
+    if (track->publication()) {
+      sender_room->localParticipant()->unpublishTrack(
+          track->publication()->sid());
+    }
   }
   for (const auto &track : audio_tracks) {
-    sender_room->localParticipant()->unpublishTrack(track->sid());
+    if (track->publication()) {
+      sender_room->localParticipant()->unpublishTrack(
+          track->publication()->sid());
+    }
   }
 }
 
