@@ -13,11 +13,11 @@ ensure backwards compatibility is maintained when possible.
 
 ### Platform Support
 The SDK must be supported on the following platforms:
-1. windows x64
-2. linux x86_64
-3. linux arm64
-3. macOS x86_64
-4. macOS arm64
+- windows x64
+- linux x86_64
+- linux arm64
+- macOS x86_64
+- macOS arm64
 
 
 SDK features follow pattern:
@@ -30,6 +30,7 @@ SDK features follow pattern:
 When making larger scale changes, check with the developer before committing to architecture changes involving changes to the `client-sdk-rust/` submodule.
 
 ### Directory Layout
+Be sure to update the directory layout in this file if the directory layout changes.
 
 | Path | Description |
 |------|-------------|
@@ -54,7 +55,8 @@ When making larger scale changes, check with the developer before committing to 
 - **`LocalParticipant` / `RemoteParticipant`** — Participant objects for publishing and receiving tracks.
 
 ## Build
-for building, use the build.sh script for Linux and macOS, and the build.cmd script for Windows. Do not invoke CMake directly.
+for building, use the build.sh script for Linux and macOS, and the build.cmd script for Windows. Do not invoke CMake directly to build the SDK.
+Updates to ./build.sh and ./build.cmd should be accompanied by updates to this file and the README.md file.
 
 ```
 ./build.sh debug              # Debug build
@@ -104,7 +106,6 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 
 ### Error Handling
 
-- Throw exceptions for broken/unrecoverable states.
 - Use `LK_LOG_WARN` for non-fatal unexpected conditions.
 - Use `Result<T, E>` for operations that can fail with typed errors (e.g., data track publish/subscribe).
 
