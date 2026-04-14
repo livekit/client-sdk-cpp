@@ -20,12 +20,20 @@ The SDK must be supported on the following platforms:
 - macOS arm64
 
 
-SDK features follow pattern:
+SDK features follow one of two FFI patterns:
 
+**Synchronous calls:**
 1. Serialize a protobuf `FfiRequest` message.
 2. Send it to Rust via `FfiClient::instance().sendRequest(req)`.
-3. Receive a synchronous `FfiResponse` or an asynchronous `FfiEvent` callback.
+3. Receive a `FfiResponse` with the result.
 4. Expose the result through the C++ API.
+
+**Asynchronous calls:**
+1. Set up an async handler that listens for an event keyed by a `request_async_id`.
+2. Serialize a protobuf `FfiRequest` message containing the `request_async_id`.
+3. Send it to Rust via `FfiClient::instance().sendRequest(req)`.
+4. Receive a synchronous `FfiResponse` (acknowledgement) and, later, an asynchronous `FfiEvent` callback with the actual result.
+5. Expose the result through the C++ API.
 
 When making larger scale changes, check with the developer before committing to architecture changes involving changes to the `client-sdk-rust/` submodule.
 
