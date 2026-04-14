@@ -574,14 +574,7 @@ jobs:
           path: |
             build-release/compile_commands.json
             build-release/generated/
-            build-release/_deps/googletest-src/googletest/include/
-            build-release/_deps/googletest-src/googletest/src/
-            build-release/_deps/googletest-src/googlemock/include/
-            build-release/_deps/googletest-src/googlemock/src/
-            build-release/_deps/livekit_spdlog-src/include/
-            build-release/_deps/livekit_protobuf-src/src/google/
-            build-release/_deps/livekit_protobuf-src/third_party/utf8_range/
-            build-release/_deps/livekit_abseil-src/absl/
+            build-release/_deps/*-src/
           retention-days: 1
 
   clang-tidy:
