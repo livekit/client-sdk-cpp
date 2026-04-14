@@ -51,6 +51,7 @@ if(UNIT_TEST_SOURCES)
   target_link_libraries(livekit_unit_tests
     PRIVATE
       livekit
+      spdlog::spdlog
       GTest::gtest_main
       GTest::gmock
   )
