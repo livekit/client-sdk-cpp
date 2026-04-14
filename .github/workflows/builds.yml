@@ -574,6 +574,14 @@ jobs:
           path: |
             build-release/compile_commands.json
             build-release/generated/
+            build-release/_deps/googletest-src/googletest/include/
+            build-release/_deps/googletest-src/googletest/src/
+            build-release/_deps/googletest-src/googlemock/include/
+            build-release/_deps/googletest-src/googlemock/src/
+            build-release/_deps/livekit_spdlog-src/include/
+            build-release/_deps/livekit_protobuf-src/src/google/
+            build-release/_deps/livekit_protobuf-src/third_party/utf8_range/
+            build-release/_deps/livekit_abseil-src/absl/
           retention-days: 1
 
   clang-tidy:
@@ -627,6 +635,7 @@ jobs:
           database: build-release
           files-changed-only: false
           lines-changed-only: false
+          extensions: 'c,cpp,cc,cxx'
           ignore: 'build-*|cpp-example-collection|client-sdk-rust|vcpkg_installed'
           file-annotations: true
           thread-comments: update
