@@ -651,10 +651,8 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
                   "PublishDataTrackCallback missing track"}));
           return;
         }
-        proto::OwnedLocalDataTrack track = cb.track();
         pr.set_value(
-            Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::success(
-                std::move(track)));
+            Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::success(cb.track()));
       });
 
   proto::FfiRequest req;
