@@ -7,9 +7,8 @@ This is **client-sdk-cpp**, the official LiveKit C++ client SDK. It wraps a Rust
 ## Architecture
 
 ### Core Principle
-Rust owns as much of the business logic as possible. If a feature may be used by another SDK it should be implemented in Rust. Since this is an SDK,
+Rust owns as much of the business logic as possible. The C++ layer should be a thin wrapper around the Rust core. If a feature may be used by another SDK it should be implemented in Rust. Since this is an SDK,
 ensure backwards compatibility is maintained when possible.
-
 
 ### Platform Support
 The SDK must be supported on the following platforms:
