@@ -575,6 +575,7 @@ jobs:
             build-release/compile_commands.json
             build-release/generated/
             build-release/_deps/*-src/
+            include/livekit/build.h
           retention-days: 1
 
   clang-tidy:
@@ -629,7 +630,7 @@ jobs:
           files-changed-only: false
           lines-changed-only: false
           extensions: 'c,cpp,cc,cxx'
-          ignore: 'build-*|cpp-example-collection|client-sdk-rust|vcpkg_installed'
+          ignore: 'build-*|cpp-example-collection|client-sdk-rust|vcpkg_installed|bridge/tests/integration'
           file-annotations: true
           thread-comments: update
           step-summary: true
