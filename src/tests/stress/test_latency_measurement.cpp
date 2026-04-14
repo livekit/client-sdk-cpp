@@ -285,6 +285,7 @@ TEST_F(LatencyMeasurementTest, ConnectionTime) {
 
   RoomOptions options;
   options.auto_subscribe = true;
+  LatencyStats stats;
   int successful_connections = 0;
 
   for (int i = 0; i < config_.test_iterations; ++i) {

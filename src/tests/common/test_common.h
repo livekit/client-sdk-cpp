@@ -25,7 +25,6 @@
 #include <iomanip>
 #include <iostream>
 #include <livekit/livekit.h>
-#include <livekit/tracing.h>
 #include <map>
 #include <memory>
 #include <mutex>
