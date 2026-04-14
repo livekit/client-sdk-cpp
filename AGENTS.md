@@ -183,6 +183,13 @@ When adding new client facing functionality, add benchmarking to understand the 
 ## Formatting
 Use clang formatting that aligns with the existing codebase.
 
+## General C++ Development
+- Do not use dynamic memory allocation after initialization
+- Keep each function short (roughly ≤ 60 lines)
+- Declare all data objects at the smallest possible level of scope
+- Each calling function must check the return value of nonvoid functions, and each called function must check the validity of all parameters provided by the caller
+
+
 ## Deprecated / Out of Scope
 
 - **`bridge/`** (`livekit_bridge`) is deprecated. Do not add new functionality to it.
