@@ -34,9 +34,11 @@ Commands:
   debug             Configure + build Debug version (build-debug/)
   debug-examples    Configure + build Debug version with examples
   debug-tests       Configure + build Debug version with tests
+  debug-all         Configure + build Debug version with tests + examples
   release           Configure + build Release version (build-release/)
   release-examples  Configure + build Release version with examples
   release-tests     Configure + build Release version with tests
+  release-all       Configure + build Release version with tests + examples
   build-all         Configure + build all of the above (debug/release + examples + tests)
   clean             Clean both Debug and Release build directories
   clean-all         Full clean (build dirs + Rust targets)
@@ -399,6 +401,32 @@ case "${cmd}" in
     BUILD_TYPE="Release"
     BUILD_DIR="${PROJECT_ROOT}/build-release"
     PRESET="${OS_TYPE}-release-tests"
+    configure
+    build
+    if [[ "${DO_BUNDLE}" == "1" ]]; then
+      install_bundle
+      if [[ "${DO_ARCHIVE}" == "1" ]]; then
+        archive_bundle
+      fi
+    fi
+    ;;
+  release-all)
+    BUILD_TYPE="Release"
+    BUILD_DIR="${PROJECT_ROOT}/build-release"
+    PRESET="${OS_TYPE}-release-all"
+    configure
+    build
+    if [[ "${DO_BUNDLE}" == "1" ]]; then
+      install_bundle
+      if [[ "${DO_ARCHIVE}" == "1" ]]; then
+        archive_bundle
+      fi
+    fi
+    ;;
+  debug-all)
+    BUILD_TYPE="Debug"
+    BUILD_DIR="${PROJECT_ROOT}/build-debug"
+    PRESET="${OS_TYPE}-debug-all"
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then

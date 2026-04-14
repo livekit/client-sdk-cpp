@@ -65,25 +65,25 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
-            build_cmd: ./build.sh release-tests && ./build.sh release-examples
+            build_cmd: ./build.sh release-all
             build_dir: build-release
           # Temporarily comment these out to ensure clang-tidy gets done faster
           # TODO: undo before merge
           # - os: ubuntu-24.04-arm
           #   name: linux-arm64
-          #   build_cmd: ./build.sh release-tests && ./build.sh release-examples
+          #   build_cmd: ./build.sh release-all
           #   build_dir: build-release
           # - os: macos-latest
           #   name: macos-arm64
-          #   build_cmd: ./build.sh release-tests && ./build.sh release-examples
+          #   build_cmd: ./build.sh release-all
           #   build_dir: build-release
           # - os: macos-latest
           #   name: macos-x64
-          #   build_cmd: ./build.sh release-tests && ./build.sh release-examples --macos-arch x86_64
+          #   build_cmd: ./build.sh release-all --macos-arch x86_64
           #   build_dir: build-release
           # - os: windows-latest
           #   name: windows-x64
-          #   build_cmd: .\build.cmd release-tests && .\build.cmd release-examples
+          #   build_cmd: .\build.cmd release-all
           #   build_dir: build-release
 
     name: Build (${{ matrix.name }})
@@ -121,7 +121,7 @@ jobs:
           set -eux
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential cmake ninja-build pkg-config \
+            build-essential cmake ninja-build pkg-config ccache \
             llvm-dev libclang-dev clang \
             libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
             libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
@@ -168,10 +168,26 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-target-
 
+      # ---------- ccache ----------
+      - name: Cache ccache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/ccache
+          key: ${{ runner.os }}-${{ matrix.name }}-ccache-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-${{ matrix.name }}-ccache-
+
+      - name: Configure ccache
+        run: |
+          ccache --set-config=max_size=500M
+          ccache --set-config=compression=true
+          ccache -z
+
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
         if: runner.os == 'Linux'
         run: |
+          echo "CMAKE_C_COMPILER_LAUNCHER=ccache" >> $GITHUB_ENV
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache" >> $GITHUB_ENV
           echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
           echo "CFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
@@ -324,15 +340,9 @@ jobs:
             ${{ matrix.build_dir }}/bin/
           retention-days: 7
 
-      - name: Upload compile database (for clang-tidy)
-        if: matrix.name == 'linux-x64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: compile-database
-          path: |
-            ${{ matrix.build_dir }}/compile_commands.json
-            ${{ matrix.build_dir }}/generated/
-          retention-days: 1
+      - name: Print ccache stats
+        if: always()
+        run: ccache -s
 
       # ---------- Cleanup ----------
       - name: Clean after build (best-effort)
@@ -509,9 +519,66 @@ jobs:
             cmake --build build --parallel
           '
 
+  # Lightweight job: configure-only to produce compile_commands.json + generated
+  # protobuf headers for clang-tidy, without waiting for the full build.
+  configure:
+    name: Configure (compile database)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install deps (Ubuntu)
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            llvm-dev libclang-dev clang \
+            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+            libxrandr-dev libxi-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev \
+            libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libabsl-dev \
+            libwayland-dev libdecor-0-dev \
+            libspdlog-dev
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
+
+      - name: Set Linux build environment
+        run: |
+          echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          echo "CFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+
+      - name: CMake configure
+        run: cmake --preset linux-release-all
+
+      - name: Generate protobuf headers
+        run: cmake --build build-release --target livekit_proto
+
+      - name: Upload compile database
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: compile-database
+          path: |
+            build-release/compile_commands.json
+            build-release/generated/
+          retention-days: 1
+
   clang-tidy:
     name: clang-tidy
-    needs: build
+    needs: configure
     runs-on: ubuntu-latest
     continue-on-error: false
     if: ${{ !cancelled() }}
@@ -524,7 +591,7 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           submodules: recursive
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Install dependencies
         run: |
