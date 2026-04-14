@@ -894,7 +894,7 @@ TEST_F(AudioProcessingModuleTest, AGCWithNoiseSuppressionCombined) {
 
     // Add noise on top
     auto &data = frame.data();
-    std::mt19937 gen(kSeed + 50 + i);
+    std::mt19937 gen(static_cast<std::mt19937::result_type>(kSeed + 50 + i));
     std::uniform_real_distribution<> dis(-kNoiseAmplitude, kNoiseAmplitude);
     for (auto &sample : data) {
       sample = static_cast<std::int16_t>(std::clamp(

@@ -188,7 +188,7 @@ bool Room::Connect(const std::string &url, const std::string &token,
 
     // Install listener (Room is fully initialized)
     auto listenerId = FfiClient::instance().AddListener(
-        std::bind(&Room::OnEvent, this, std::placeholders::_1));
+        [this](const proto::FfiEvent &e) { OnEvent(e); });
     {
       std::lock_guard<std::mutex> g(lock_);
       listener_id_ = listenerId;

@@ -344,8 +344,8 @@ void ByteStreamWriter::write(const std::vector<std::uint8_t> &data) {
   while (offset < data.size()) {
     const std::size_t n =
         std::min<std::size_t>(kStreamChunkSize, data.size() - offset);
-    std::vector<std::uint8_t> chunk(data.begin() + offset,
-                                    data.begin() + offset + n);
+    auto it = data.begin() + static_cast<std::ptrdiff_t>(offset);
+    std::vector<std::uint8_t> chunk(it, it + static_cast<std::ptrdiff_t>(n));
     sendChunk(chunk);
     offset += n;
   }
