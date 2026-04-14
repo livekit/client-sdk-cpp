@@ -385,9 +385,8 @@ target_include_directories(livekit
 )
 
 target_link_libraries(livekit
-  PUBLIC
-    $<BUILD_INTERFACE:spdlog::spdlog>
   PRIVATE
+    spdlog::spdlog
     livekit_ffi
     ${LIVEKIT_PROTOBUF_TARGET}
 )
@@ -697,7 +696,8 @@ install(FILES
 add_subdirectory(bridge)
 
 if(LIVEKIT_BUILD_EXAMPLES)
-  add_subdirectory(examples)
+  include(cpp-example-collection)
+  livekit_configure_cpp_example_collection()
 endif()
 
 if(LIVEKIT_BUILD_TESTS)

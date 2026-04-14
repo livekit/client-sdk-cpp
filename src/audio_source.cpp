@@ -24,7 +24,7 @@
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit/audio_frame.h"
-#include "livekit/lk_log.h"
+#include "lk_log.h"
 
 namespace livekit {
 

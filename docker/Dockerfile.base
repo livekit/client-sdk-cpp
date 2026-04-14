@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Build with:
-# docker build -t livekit-cpp-sdk . -f docker/Dockerfile
-# From repo root.
+# Build with (from docker/ directory):
+# docker buildx build --platform linux/$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/') -t livekit-cpp-sdk-base -f Dockerfile.base .
 # Run with:
-# docker run -it --network host livekit-cpp-sdk:latest bash
+# docker run -it --network host livekit-cpp-sdk-base:latest bash
 
 FROM ubuntu:22.04
 
@@ -29,18 +28,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     libasound2-dev \
+    libabsl-dev \
     libclang-dev \
     libdrm-dev \
     libglib2.0-dev \
+    libprotobuf-dev \
+    libdecor-0-dev \
     libspdlog-dev \
     libssl-dev \
     libunwind-dev \
     libusb-1.0-0-dev \
     libva-dev \
+    libwayland-dev \
     make \
     ninja-build \
     pkg-config \
+    protobuf-compiler \
     wget \
+    llvm-dev \
+    clang \
     xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
@@ -98,27 +104,3 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libxi-dev \
         libxrandr-dev \
     && rm -rf /var/lib/apt/lists/*
-
-# Copy project source (build context = repo root)
-WORKDIR /client-sdk-cpp
-RUN mkdir -p /client-sdk-cpp
-COPY src /client-sdk-cpp/src
-COPY include /client-sdk-cpp/include
-COPY bridge /client-sdk-cpp/bridge
-COPY build.sh /client-sdk-cpp/build.sh
-COPY CMakePresets.json /client-sdk-cpp/CMakePresets.json
-COPY build.cmd /client-sdk-cpp/build.cmd
-COPY client-sdk-rust /client-sdk-cpp/client-sdk-rust
-COPY data /client-sdk-cpp/data
-COPY examples /client-sdk-cpp/examples
-COPY cmake /client-sdk-cpp/cmake
-COPY CMakeLists.txt /client-sdk-cpp/CMakeLists.txt
-COPY build.h.in /client-sdk-cpp/build.h.in
-COPY build.sh /client-sdk-cpp/build.sh
-COPY build.cmd /client-sdk-cpp/build.cmd
-
-# Configure Rust linker: use full GCC path so liblto_plugin.so is found (not /home/installs/ which has no plugin)
-RUN mkdir -p /client-sdk-cpp/client-sdk-rust/.cargo \
-    && printf '%s\n' '[target.x86_64-unknown-linux-gnu]' 'linker = "/root/gcc-14/bin/g++"' \
-        '[target.aarch64-unknown-linux-gnu]' 'linker = "/root/gcc-14/bin/g++"' > /client-sdk-cpp/client-sdk-rust/.cargo/config.toml
-
