@@ -20,8 +20,7 @@
 #include <memory>
 #include <spdlog/spdlog.h>
 
-namespace livekit {
-namespace detail {
+namespace livekit::detail {
 
 /// Returns the shared "livekit" logger instance.
 /// The logger is created lazily on first access and lives until
@@ -31,8 +30,7 @@ std::shared_ptr<spdlog::logger> getLogger();
 /// Tears down the spdlog logger. Called by livekit::shutdown().
 void shutdownLogger();
 
-} // namespace detail
-} // namespace livekit
+} // namespace livekit::detail
 
 // Convenience macros — two-tier filtering:
 //

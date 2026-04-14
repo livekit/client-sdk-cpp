@@ -24,8 +24,7 @@
 
 #include <stdexcept>
 
-namespace livekit_bridge {
-namespace test {
+namespace livekit_bridge::test {
 
 class LiveKitBridgeTest : public ::testing::Test {
 protected:
@@ -134,5 +133,4 @@ TEST_F(LiveKitBridgeTest, ClearNonExistentCallbackIsNoOp) {
   }) << "Clearing a callback that was never registered should be a no-op";
 }
 
-} // namespace test
-} // namespace livekit_bridge
+} // namespace livekit_bridge::test

@@ -24,8 +24,7 @@
 #include <memory>
 #include <vector>
 
-namespace livekit_bridge {
-namespace test {
+namespace livekit_bridge::test {
 
 class BridgeAudioTrackTest : public ::testing::Test {
 protected:
@@ -114,5 +113,4 @@ TEST_F(BridgeAudioTrackTest, UnmuteOnReleasedTrackDoesNotCrash) {
       << "unmute() on a released track should be a no-op";
 }
 
-} // namespace test
-} // namespace livekit_bridge
+} // namespace livekit_bridge::test

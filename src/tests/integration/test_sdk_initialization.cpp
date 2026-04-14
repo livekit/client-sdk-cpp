@@ -17,8 +17,7 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 class SDKInitializationTest : public ::testing::Test {
 protected:
@@ -69,5 +68,4 @@ TEST_F(SDKInitializationTest, MultipleShutdowns) {
   EXPECT_NO_THROW(livekit::shutdown());
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

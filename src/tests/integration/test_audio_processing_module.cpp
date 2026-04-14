@@ -28,8 +28,7 @@
 #include <string>
 #include <vector>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 class AudioProcessingModuleTest : public ::testing::Test {
 protected:
@@ -922,5 +921,4 @@ TEST_F(AudioProcessingModuleTest, AGCWithNoiseSuppressionCombined) {
       << "Combined AGC+NS should produce reasonable output";
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

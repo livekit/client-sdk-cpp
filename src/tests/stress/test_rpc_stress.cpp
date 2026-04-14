@@ -19,8 +19,7 @@
 #include <random>
 #include <sstream>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 // Maximum RPC payload size (15KB)
 constexpr size_t kMaxRpcPayloadSize = 15 * 1024;
@@ -887,5 +886,4 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   receiver_room.reset();
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

@@ -18,8 +18,7 @@
 #include <livekit/audio_frame.h>
 #include <livekit/livekit.h>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 class AudioFrameTest : public ::testing::Test {
 protected:
@@ -166,5 +165,4 @@ TEST_F(AudioFrameTest, InvalidDataSizeThrows) {
   EXPECT_THROW(AudioFrame(data, 48000, 2, 960), std::invalid_argument);
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

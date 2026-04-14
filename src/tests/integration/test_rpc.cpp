@@ -26,8 +26,7 @@
 #include <thread>
 #include <vector>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 using namespace std::chrono_literals;
 
@@ -532,5 +531,4 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   receiver_room.reset();
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

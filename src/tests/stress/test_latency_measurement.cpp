@@ -20,8 +20,7 @@
 #include <type_traits>
 #include <variant>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 // Audio configuration for latency test
 constexpr int kAudioSampleRate = 48000;
@@ -852,5 +851,4 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
       << "At least one B->A latency measurement should be recorded";
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

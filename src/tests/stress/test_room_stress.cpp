@@ -22,8 +22,7 @@
 #include <thread>
 #include <vector>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 class RoomStressTest : public ::testing::Test {
 protected:
@@ -238,5 +237,4 @@ TEST_F(RoomServerStressTest, RepeatedConnectDisconnect) {
             << std::endl;
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

@@ -24,8 +24,7 @@
 #include <memory>
 #include <thread>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 // Default audio parameters for tests
 constexpr int kDefaultAudioSampleRate = 48000;
@@ -116,5 +115,4 @@ inline void fillToneFrame(AudioFrame &frame, double freq_hz, int sample_rate,
   }
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

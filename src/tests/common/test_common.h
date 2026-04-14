@@ -34,8 +34,7 @@
 #include <thread>
 #include <vector>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 using namespace std::chrono_literals;
 
@@ -435,5 +434,4 @@ protected:
   TestConfig config_;
 };
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

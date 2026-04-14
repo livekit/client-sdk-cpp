@@ -16,9 +16,7 @@
 
 #include "livekit_bridge/rpc_constants.h"
 
-namespace livekit_bridge {
-namespace rpc {
-namespace track_control {
+namespace livekit_bridge::rpc::track_control {
 
 const char *const kMethod = "lk.bridge.track-control";
 const char *const kActionMute = "mute";
@@ -36,6 +34,4 @@ std::string formatPayload(const char *action, const std::string &track_name) {
   return payload;
 }
 
-} // namespace track_control
-} // namespace rpc
-} // namespace livekit_bridge
+} // namespace livekit_bridge::rpc::track_control
