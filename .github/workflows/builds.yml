@@ -6,7 +6,7 @@ on:
     paths:
       - src/**
       - include/**
-      - examples/**
+      - cpp-example-collection/**
       - bridge/**
       - client-sdk-rust/**
       - CMakeLists.txt
@@ -14,14 +14,15 @@ on:
       - build.cmd
       - vcpkg.json
       - CMakePresets.json
-      - docker/Dockerfile
+      - docker/Dockerfile.base
+      - docker/Dockerfile.sdk
       - .github/workflows/**
   pull_request:
     branches: ["main"]
     paths:
       - src/**
       - include/**
-      - examples/**
+      - cpp-example-collection/**
       - bridge/**
       - client-sdk-rust/**
       - CMakeLists.txt
@@ -29,7 +30,8 @@ on:
       - build.cmd
       - vcpkg.json
       - CMakePresets.json
-      - docker/Dockerfile
+      - docker/Dockerfile.base
+      - docker/Dockerfile.sdk
       - .github/workflows/**
   workflow_dispatch:
 
@@ -40,12 +42,22 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Pinned commit for cpp-example-collection smoke build (https://github.com/livekit-examples/cpp-example-collection)
+  CPP_EXAMPLE_COLLECTION_REF: f231c0c75028d1dcf13edcecd369d030d2c7c8d4
   # vcpkg binary caching for Windows
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
   VCPKG_TARGET_TRIPLET: x64-windows-static-md
 
 jobs:
+  license-check:
+    name: License Check
+    uses: ./.github/workflows/license_check.yml
+
+  pin-check:
+    name: Pin Check
+    uses: ./.github/workflows/pin_check.yml
+
   build:
     strategy:
       fail-fast: false
@@ -53,39 +65,42 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
-            build_cmd: ./build.sh release-examples
+            build_cmd: ./build.sh release-tests && ./build.sh release-examples
             build_dir: build-release
-          # - os: ubuntu-24.04-arm
-          #   name: linux-arm64
-          #   build_cmd: ./build.sh release-examples
-          #   build_dir: build-release
-          # - os: macos-latest
-          #   name: macos-arm64
-          #   build_cmd: ./build.sh release-examples
-          #   build_dir: build-release
-          # - os: macos-latest
-          #   name: macos-x64
-          #   build_cmd: ./build.sh release-examples --macos-arch x86_64
-          #   build_dir: build-release
-          # - os: windows-latest
-          #   name: windows-x64
-          #   build_cmd: .\build.cmd release-examples
-          #   build_dir: build-release
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+            build_cmd: ./build.sh release-tests && ./build.sh release-examples
+            build_dir: build-release
+          - os: macos-latest
+            name: macos-arm64
+            build_cmd: ./build.sh release-tests && ./build.sh release-examples
+            build_dir: build-release
+          - os: macos-latest
+            name: macos-x64
+            build_cmd: ./build.sh release-tests && ./build.sh release-examples --macos-arch x86_64
+            build_dir: build-release
+          - os: windows-latest
+            name: windows-x64
+            build_cmd: .\build.cmd release-tests && .\build.cmd release-examples
+            build_dir: build-release
 
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
-          fetch-depth: 0
+          fetch-depth: 1
+
+      - name: Pull LFS files
+        run: git lfs pull
 
       # ---------- vcpkg caching for Windows ----------
       - name: Export GitHub Actions cache environment variables
         if: runner.os == 'Windows'
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
@@ -93,7 +108,7 @@ jobs:
 
       - name: Setup vcpkg (Windows only)
         if: runner.os == 'Windows'
-        uses: lukka/run-vcpkg@v11
+        uses: lukka/run-vcpkg@6fe69898af670ac05f4a8427cc5cff4fb361cee5 # v11.5
         with:
           vcpkgGitCommitId: 'fb87e2bb3fe69e16c224989acb5a61349166c782'
 
@@ -125,7 +140,9 @@ jobs:
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
 
       - name: Install Rust cross-compilation target
         if: matrix.name == 'macos-x64'
@@ -133,7 +150,7 @@ jobs:
 
       # ---------- Cache Cargo ----------
       - name: Cache Cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -142,7 +159,7 @@ jobs:
           restore-keys: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-
 
       - name: Cache Cargo target
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: client-sdk-rust/target
           key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
@@ -171,28 +188,46 @@ jobs:
         shell: pwsh
         run: ${{ matrix.build_cmd }}
 
-      # ---------- Smoke test examples ----------
+      # ---------- Smoke test cpp-example-collection binaries ----------
+      # Built under cpp-example-collection-build/ (not build-dir/bin). Visual Studio
+      # multi-config places executables in per-target Release/ (or Debug/) subdirs.
       - name: Smoke test examples (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           set -x
           failed=false
-          for exe in SimpleRoom SimpleRpc SimpleDataStream; do
-            exe_path="${{ matrix.build_dir }}/bin/${exe}"
-            if [[ -x "${exe_path}" ]]; then
-              echo "Testing ${exe}..."
-              output=$("${exe_path}" --help 2>&1) || true
-              if [[ -z "${output}" ]]; then
-                echo "ERROR: ${exe} produced no output"
-                failed=true
-              else
-                echo "${output}"
-                echo "${exe} ran successfully"
-              fi
-            else
-              echo "ERROR: ${exe_path} not found or not executable"
+          examples_base="${{ matrix.build_dir }}/cpp-example-collection-build"
+          resolve_exe() {
+            local dir="$1" name="$2"
+            local p="${examples_base}/${dir}/${name}"
+            if [[ -x "${p}" ]]; then
+              printf '%s' "${p}"
+              return 0
+            fi
+            p="${examples_base}/${dir}/Release/${name}"
+            if [[ -x "${p}" ]]; then
+              printf '%s' "${p}"
+              return 0
+            fi
+            return 1
+          }
+          for pair in "SimpleRoom:simple_room" "SimpleRpc:simple_rpc" "SimpleDataStream:simple_data_stream"; do
+            exe="${pair%%:*}"
+            dir="${pair#*:}"
+            if ! exe_path="$(resolve_exe "${dir}" "${exe}")"; then
+              echo "ERROR: ${exe} not found under ${examples_base}/${dir}/"
               failed=true
+              continue
+            fi
+            echo "Testing ${exe}..."
+            output=$("${exe_path}" --help 2>&1) || true
+            if [[ -z "${output}" ]]; then
+              echo "ERROR: ${exe} produced no output"
+              failed=true
+            else
+              echo "${output}"
+              echo "${exe} ran successfully"
             fi
           done
           if [[ "$failed" == "true" ]]; then exit 1; fi
@@ -202,12 +237,30 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Continue'
-          $examples = @('SimpleRoom', 'SimpleRpc', 'SimpleDataStream')
+          $examplesBase = "${{ matrix.build_dir }}/cpp-example-collection-build"
+          $examples = @(
+            @{ Name = 'SimpleRoom'; Dir = 'simple_room' },
+            @{ Name = 'SimpleRpc'; Dir = 'simple_rpc' },
+            @{ Name = 'SimpleDataStream'; Dir = 'simple_data_stream' }
+          )
           $failed = $false
-          foreach ($exe in $examples) {
-            $exePath = "${{ matrix.build_dir }}/bin/${exe}.exe"
-            if (Test-Path $exePath) {
-              Write-Host "Testing ${exe}..."
+          foreach ($ex in $examples) {
+            $name = $ex.Name
+            $dir = $ex.Dir
+            $inDir = Join-Path $examplesBase $dir
+            $candidates = @(
+              (Join-Path $inDir "$name.exe"),
+              (Join-Path (Join-Path $inDir 'Release') "$name.exe")
+            )
+            $exePath = $null
+            foreach ($p in $candidates) {
+              if (Test-Path -LiteralPath $p) {
+                $exePath = $p
+                break
+              }
+            }
+            if ($null -ne $exePath) {
+              Write-Host "Testing ${name}..."
               $pinfo = New-Object System.Diagnostics.ProcessStartInfo
               $pinfo.FileName = $exePath
               $pinfo.Arguments = "--help"
@@ -222,22 +275,45 @@ jobs:
               $p.WaitForExit()
               $output = $stdout + $stderr
               if ([string]::IsNullOrWhiteSpace($output)) {
-                Write-Host "ERROR: ${exe} produced no output"
+                Write-Host "ERROR: ${name} produced no output"
                 $failed = $true
               } else {
                 Write-Host $output
-                Write-Host "${exe} ran successfully"
+                Write-Host "${name} ran successfully"
               }
             } else {
-              Write-Host "ERROR: ${exePath} not found"
+              Write-Host "ERROR: ${name} not found under ${examplesBase}/${dir}/"
               $failed = $true
             }
           }
           if ($failed) { exit 1 } else { exit 0 }
 
+      # ---------- Run unit tests ----------
+      - name: Run unit tests (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          ${{ matrix.build_dir }}/bin/livekit_unit_tests \
+            --gtest_output=xml:${{ matrix.build_dir }}/unit-test-results.xml
+
+      - name: Run unit tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "${{ matrix.build_dir }}/bin/livekit_unit_tests.exe" `
+            --gtest_output=xml:${{ matrix.build_dir }}/unit-test-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-results-${{ matrix.name }}
+          path: ${{ matrix.build_dir }}/unit-test-results.xml
+          retention-days: 7
+
       # ---------- Upload artifacts ----------
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: livekit-sdk-${{ matrix.name }}
           path: |
@@ -270,25 +346,41 @@ jobs:
   docker-build-x64:
     name: Build (docker-linux-x64)
     runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
 
-      - name: Build Docker image
+      - name: Build base Docker image
         run: |
-          docker buildx build \
-            --platform linux/amd64 \
-            --load \
+          docker build \
+            --build-arg TARGETARCH=amd64 \
+            -t livekit-cpp-sdk-base-x64:${{ github.sha }} \
+            -f docker/Dockerfile.base \
+            docker
+
+      - name: Build SDK Docker image
+        run: |
+          docker build \
+            --build-arg BASE_IMAGE=livekit-cpp-sdk-base-x64:${{ github.sha }} \
             -t livekit-cpp-sdk-x64:${{ github.sha }} \
             . \
-            -f docker/Dockerfile
+            -f docker/Dockerfile.sdk
 
       - name: Verify installed SDK inside image
         run: |
@@ -300,7 +392,7 @@ jobs:
           docker save livekit-cpp-sdk-x64:${{ github.sha }} | gzip > livekit-cpp-sdk-x64-docker.tar.gz
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: livekit-cpp-sdk-docker-x64
           path: livekit-cpp-sdk-x64-docker.tar.gz
@@ -309,25 +401,41 @@ jobs:
   docker-build-linux-arm64:
     name: Build (docker-linux-arm64)
     runs-on: ubuntu-24.04-arm
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
 
-      - name: Build Docker image
+      - name: Build base Docker image
         run: |
-          docker buildx build \
-            --platform linux/arm64 \
-            --load \
+          docker build \
+            --build-arg TARGETARCH=arm64 \
+            -t livekit-cpp-sdk-base-arm64:${{ github.sha }} \
+            -f docker/Dockerfile.base \
+            docker
+
+      - name: Build SDK Docker image
+        run: |
+          docker build \
+            --build-arg BASE_IMAGE=livekit-cpp-sdk-base-arm64:${{ github.sha }} \
             -t livekit-cpp-sdk:${{ github.sha }} \
             . \
-            -f docker/Dockerfile
+            -f docker/Dockerfile.sdk
 
       - name: Verify installed SDK inside image
         run: |
@@ -339,7 +447,7 @@ jobs:
           docker save livekit-cpp-sdk:${{ github.sha }} | gzip > livekit-cpp-sdk-arm64-docker.tar.gz
 
       - name: Upload Docker image artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: livekit-cpp-sdk-docker-arm64
           path: livekit-cpp-sdk-arm64-docker.tar.gz
@@ -349,10 +457,11 @@ jobs:
     name: Build (cpp-example-collection-linux-arm64)
     runs-on: ubuntu-24.04-arm
     needs: docker-build-linux-arm64
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Download Docker image artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: livekit-cpp-sdk-docker-arm64
 
@@ -361,11 +470,12 @@ jobs:
 
       - name: Build cpp-example-collection against installed SDK
         run: |
-          docker run --rm livekit-cpp-sdk:${{ github.sha }} bash -lc '
+          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm livekit-cpp-sdk:${{ github.sha }} bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
-            git checkout sderosa/examples-migration
+            git fetch --depth 1 origin "$CPP_EX_REF"
+            git checkout "$CPP_EX_REF"
             cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
             cmake --build build --parallel
           '
@@ -374,10 +484,11 @@ jobs:
     name: Build (cpp-example-collection-x64)
     runs-on: ubuntu-latest
     needs: docker-build-x64
+    if: github.event_name == 'pull_request'
 
     steps:
       - name: Download Docker image artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: livekit-cpp-sdk-docker-x64
 
@@ -386,11 +497,12 @@ jobs:
 
       - name: Build cpp-example-collection against installed SDK
         run: |
-          docker run --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -lc '
+          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
-            git checkout sderosa/examples-migration
+            git fetch --depth 1 origin "$CPP_EX_REF"
+            git checkout "$CPP_EX_REF"
             cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
             cmake --build build --parallel
           '

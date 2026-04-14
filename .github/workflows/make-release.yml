@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
           fetch-depth: 0
@@ -87,7 +87,7 @@ jobs:
       # ---------- vcpkg for Windows ----------
       - name: Export GitHub Actions cache environment variables
         if: runner.os == 'Windows'
-        uses: actions/github-script@v7
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
@@ -95,7 +95,7 @@ jobs:
 
       - name: Setup vcpkg (Windows only)
         if: runner.os == 'Windows'
-        uses: lukka/run-vcpkg@v11
+        uses: lukka/run-vcpkg@6fe69898af670ac05f4a8427cc5cff4fb361cee5 # v11.5
         with:
           vcpkgGitCommitId: 'fb87e2bb3fe69e16c224989acb5a61349166c782'
 
@@ -126,7 +126,9 @@ jobs:
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
 
       - name: Install Rust cross-compilation target
         if: matrix.name == 'macos-x64'
@@ -134,7 +136,7 @@ jobs:
 
       # ---------- Cache Cargo ----------
       - name: Cache Cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/registry
@@ -199,7 +201,7 @@ jobs:
 
       # ---------- Upload artifact (raw directory, no pre-compression) ----------
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
           path: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
@@ -215,7 +217,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Extract version
         id: version
@@ -247,7 +249,7 @@ jobs:
           echo "SDK Version: $VERSION"
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: ${{ github.workspace }}/artifacts
 
@@ -290,7 +292,7 @@ jobs:
         run: ls -la ${{ github.workspace }}/release-assets/
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: LiveKit C++ SDK v${{ steps.version.outputs.version }}

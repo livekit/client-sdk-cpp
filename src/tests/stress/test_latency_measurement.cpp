@@ -293,8 +293,19 @@ TEST_F(LatencyMeasurementTest, ConnectionTime) {
       double latency_ms =
           std::chrono::duration<double, std::milli>(end - start).count();
       stats.addMeasurement(latency_ms);
+
+      // Get room and participant session IDs for debugging
+      auto room_info = room->room_info();
+      std::string room_sid =
+          room_info.sid.has_value() ? room_info.sid.value() : "unknown";
+      std::string participant_sid = room->localParticipant()
+                                        ? room->localParticipant()->sid()
+                                        : "unknown";
+
       std::cout << "  Iteration " << (i + 1) << ": " << std::fixed
-                << std::setprecision(2) << latency_ms << " ms" << std::endl;
+                << std::setprecision(2) << latency_ms << " ms"
+                << " | participant_sid=" << participant_sid
+                << " | room_sid=" << room_sid << std::endl;
 
     } else {
       std::cout << "  Iteration " << (i + 1) << ": FAILED to connect"
@@ -840,8 +851,12 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
     std::cout << "Response timeouts: " << timeouts << std::endl;
   }
 
-  room_a->localParticipant()->unpublishTrack(track_a->sid());
-  room_b->localParticipant()->unpublishTrack(track_b->sid());
+  if (track_a->publication()) {
+    room_a->localParticipant()->unpublishTrack(track_a->publication()->sid());
+  }
+  if (track_b->publication()) {
+    room_b->localParticipant()->unpublishTrack(track_b->publication()->sid());
+  }
 
   EXPECT_GT(round_trip_stats.count(), 0)
       << "At least one round-trip latency measurement should be recorded";
