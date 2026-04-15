@@ -278,6 +278,32 @@
         "LIVEKIT_BUILD_EXAMPLES": "OFF",
         "LIVEKIT_BUILD_TESTS": "ON"
       }
+    },
+    {
+      "name": "linux-debug-asan",
+      "displayName": "Linux Debug with AddressSanitizer",
+      "description": "Build for Linux Debug with ASan + UBSan and tests",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build-debug-asan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_SANITIZER": "address"
+      }
+    },
+    {
+      "name": "linux-debug-tsan",
+      "displayName": "Linux Debug with ThreadSanitizer",
+      "description": "Build for Linux Debug with TSan and tests",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build-debug-tsan",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_SANITIZER": "thread"
+      }
     }
   ],
   "buildPresets": [
@@ -358,6 +384,14 @@
     {
       "name": "macos-debug-tests",
       "configurePreset": "macos-debug-tests"
+    },
+    {
+      "name": "linux-debug-asan",
+      "configurePreset": "linux-debug-asan"
+    },
+    {
+      "name": "linux-debug-tsan",
+      "configurePreset": "linux-debug-tsan"
     }
   ],
   "testPresets": [
@@ -401,6 +435,20 @@
     {
       "name": "macos-debug-tests",
       "configurePreset": "macos-debug-tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-debug-asan",
+      "configurePreset": "linux-debug-asan",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-debug-tsan",
+      "configurePreset": "linux-debug-tsan",
       "output": {
         "outputOnFailure": true
       }

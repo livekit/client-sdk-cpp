@@ -331,6 +331,103 @@ jobs:
             ./build.sh clean-all || true
           fi
 
+  sanitizers:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: asan
+            preset: linux-debug-asan
+            build_dir: build-debug-asan
+            env_vars: ""
+          - name: tsan
+            preset: linux-debug-tsan
+            build_dir: build-debug-tsan
+            env_vars: "TSAN_OPTIONS=suppressions=tsan_suppressions.txt:halt_on_error=1"
+
+    name: Sanitizer (${{ matrix.name }})
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Pull LFS files
+        run: git lfs pull
+
+      - name: Install deps (Ubuntu)
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            llvm-dev libclang-dev clang \
+            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+            libxrandr-dev libxi-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev \
+            libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libabsl-dev \
+            libwayland-dev libdecor-0-dev \
+            libspdlog-dev
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: Linux-sanitizer-${{ matrix.name }}-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: Linux-sanitizer-${{ matrix.name }}-cargo-reg-
+
+      - name: Cache Cargo target
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: client-sdk-rust/target
+          key: Linux-sanitizer-${{ matrix.name }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            Linux-sanitizer-${{ matrix.name }}-cargo-target-
+
+      - name: Set build environment
+        run: |
+          echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          echo "CFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Run unit tests
+        run: |
+          ${{ matrix.env_vars }} \
+          ${{ matrix.build_dir }}/bin/livekit_unit_tests \
+            --gtest_output=xml:${{ matrix.build_dir }}/unit-test-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-results-sanitizer-${{ matrix.name }}
+          path: ${{ matrix.build_dir }}/unit-test-results.xml
+          retention-days: 7
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf ${{ matrix.build_dir }} || true
+
   docker-build-x64:
     name: Build (docker-linux-x64)
     runs-on: ubuntu-latest
