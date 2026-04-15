@@ -22,6 +22,7 @@
 
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -31,14 +32,34 @@ namespace livekit {
 namespace test {
 namespace {
 
+// Helper to get cross-platform temp directory
+std::string GetTempDir() {
+#ifdef _WIN32
+  const char *temp = std::getenv("TEMP");
+  if (!temp)
+    temp = std::getenv("TMP");
+  if (!temp)
+    temp = ".";
+  return std::string(temp);
+#else
+  return "/tmp";
+#endif
+}
+
 // Helper to generate unique temp file paths
 std::string GetTempTracePath(const std::string &test_name) {
   auto now = std::chrono::steady_clock::now();
   auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
                 now.time_since_epoch())
                 .count();
-  return "/tmp/livekit_test_trace_" + test_name + "_" + std::to_string(ns) +
-         ".json";
+  std::string temp_dir = GetTempDir();
+#ifdef _WIN32
+  return temp_dir + "\\livekit_test_trace_" + test_name + "_" +
+         std::to_string(ns) + ".json";
+#else
+  return temp_dir + "/livekit_test_trace_" + test_name + "_" +
+         std::to_string(ns) + ".json";
+#endif
 }
 
 // Helper to read file contents
