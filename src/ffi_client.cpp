@@ -676,21 +676,13 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
                                     "FfiResponse missing publish_data_track"}));
       return pr.get_future();
     }
-  } catch (...) {
+  } catch (const std::exception &e) {
     cancelPendingByAsyncId(async_id);
     std::promise<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> pr;
-    try {
-      throw;
-    } catch (const std::exception &e) {
-      pr.set_value(
-          Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
-              PublishDataTrackError{PublishDataTrackErrorCode::INTERNAL,
-                                    e.what()}));
-    } catch(...) {
-      pr.set_value(
-          Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
-              PublishDataTrackError{PublishDataTrackErrorCode::INTERNAL, "unknown exception"}));
-    } 
+    pr.set_value(
+        Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
+            PublishDataTrackError{PublishDataTrackErrorCode::INTERNAL,
+                                  e.what()}));
     return pr.get_future();
   }
 
