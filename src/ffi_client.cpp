@@ -686,7 +686,11 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
           Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
               PublishDataTrackError{PublishDataTrackErrorCode::INTERNAL,
                                     e.what()}));
-    }
+    } catch(...) {
+      pr.set_value(
+          Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
+              PublishDataTrackError{PublishDataTrackErrorCode::INTERNAL, "unknown exception"}));
+    } 
     return pr.get_future();
   }
 
@@ -728,7 +732,11 @@ FfiClient::subscribeDataTrack(std::uint64_t track_handle,
       return Result<proto::OwnedDataTrackStream,
                     SubscribeDataTrackError>::failure(SubscribeDataTrackError{
           SubscribeDataTrackErrorCode::INTERNAL, e.what()});
-    }
+    } catch(...) {
+      return Result<proto::OwnedDataTrackStream,
+                    SubscribeDataTrackError>::failure(SubscribeDataTrackError{
+          SubscribeDataTrackErrorCode::INTERNAL, "unknown exception"});
+    } 
   }
 }
 
