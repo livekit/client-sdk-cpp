@@ -717,7 +717,7 @@ FfiClient::subscribeDataTrack(std::uint64_t track_handle,
     proto::OwnedDataTrackStream sub = resp.subscribe_data_track().stream();
     return Result<proto::OwnedDataTrackStream,
                   SubscribeDataTrackError>::success(std::move(sub));
-  } catch (const std::exception &e) {
+  } catch (const std::exception &e) { // NOLINT(bugprone-empty-catch)
     return Result<proto::OwnedDataTrackStream,
                   SubscribeDataTrackError>::failure(SubscribeDataTrackError{
         SubscribeDataTrackErrorCode::INTERNAL, e.what()});
