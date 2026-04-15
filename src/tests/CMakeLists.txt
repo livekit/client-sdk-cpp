@@ -60,6 +60,7 @@ if(UNIT_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+      ${LIVEKIT_ROOT_DIR}/src/trace
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
   )
 
