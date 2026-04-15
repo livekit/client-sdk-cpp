@@ -56,7 +56,11 @@ if not defined LIBCLANG_PATH (
     echo ==^> Using existing LIBCLANG_PATH: %LIBCLANG_PATH%
 )
 
-if "%1"=="" goto usage
+if "%1"=="" (
+    echo ERROR: No command specified
+    call :usage
+    exit /b 1
+)
 if /I "%1"=="help" goto usage
 if "%1"=="-h" goto usage
 if "%1"=="--help" goto usage
@@ -94,7 +98,8 @@ goto parse_all
 :after_parse
 if not defined CMD (
     echo ERROR: No command specified
-    goto usage
+    call :usage
+    exit /b 1
 )
 
 if defined LIVEKIT_VERSION (
@@ -146,11 +151,26 @@ if "%CMD%"=="release-tests" (
     goto configure_build
 )
 
+if "%CMD%"=="release-all" (
+    set "BUILD_TYPE=Release"
+    set "PRESET=windows-release-all"
+    set "BUILD_DIR=%PROJECT_ROOT%\build-release"
+    goto configure_build
+)
+
+if "%CMD%"=="debug-all" (
+    set "BUILD_TYPE=Debug"
+    set "PRESET=windows-debug-all"
+    set "BUILD_DIR=%PROJECT_ROOT%\build-debug"
+    goto configure_build
+)
+
 if "%CMD%"=="clean" goto clean
 if "%CMD%"=="clean-all" goto clean_all
 
-echo Unknown command: %CMD%
-goto usage
+echo ERROR: Unknown command: %CMD%
+call :usage
+exit /b 1
 
 :usage
 echo Usage: build.cmd [command]
@@ -159,9 +179,11 @@ echo Commands:
 echo   debug             Configure + build Debug version (build-debug/)
 echo   debug-examples    Configure + build Debug version with examples
 echo   debug-tests       Configure + build Debug version with tests
+echo   debug-all         Configure + build Debug version with tests + examples
 echo   release           Configure + build Release version (build-release/)
 echo   release-examples  Configure + build Release version with examples
 echo   release-tests     Configure + build Release version with tests
+echo   release-all       Configure + build Release version with tests + examples
 echo   clean             Clean both Debug and Release build directories
 echo   clean-all         Full clean (build dirs + Rust targets)
 echo   help              Show this help
@@ -172,6 +194,7 @@ echo   build.cmd release
 echo   build.cmd release-examples
 echo   build.cmd debug-tests
 echo   build.cmd release-tests
+echo   build.cmd release-all
 echo   build.cmd clean
 echo   build.cmd clean-all
 goto :eof
