@@ -119,7 +119,7 @@ jobs:
           set -eux
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential cmake ninja-build pkg-config ccache \
+            build-essential cmake ninja-build pkg-config \
             llvm-dev libclang-dev clang \
             libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
             libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
@@ -166,26 +166,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-target-
 
-      # ---------- ccache ----------
-      - name: Cache ccache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.cache/ccache
-          key: ${{ runner.os }}-${{ matrix.name }}-ccache-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-${{ matrix.name }}-ccache-
-
-      - name: Configure ccache
-        run: |
-          ccache --set-config=max_size=500M
-          ccache --set-config=compression=true
-          ccache -z
-
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
         if: runner.os == 'Linux'
         run: |
-          echo "CMAKE_C_COMPILER_LAUNCHER=ccache" >> $GITHUB_ENV
-          echo "CMAKE_CXX_COMPILER_LAUNCHER=ccache" >> $GITHUB_ENV
           echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
           echo "CFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
@@ -337,10 +321,6 @@ jobs:
             ${{ matrix.build_dir }}/include/
             ${{ matrix.build_dir }}/bin/
           retention-days: 7
-
-      - name: Print ccache stats
-        if: always()
-        run: ccache -s
 
       # ---------- Cleanup ----------
       - name: Clean after build (best-effort)

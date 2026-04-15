@@ -139,6 +139,9 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent &event) {
 
 } // namespace
 
+// clang-tidy flags this as a trivial destructor in release mode
+// due to the assert being pre-processed out
+// NOLINTNEXTLINE(modernize-use-equals-default)
 FfiClient::~FfiClient() {
   assert(!initialized_.load() &&
          "LiveKit SDK was not shut down before process exit. "
