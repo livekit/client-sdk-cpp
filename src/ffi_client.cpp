@@ -725,18 +725,10 @@ FfiClient::subscribeDataTrack(std::uint64_t track_handle,
     proto::OwnedDataTrackStream sub = resp.subscribe_data_track().stream();
     return Result<proto::OwnedDataTrackStream,
                   SubscribeDataTrackError>::success(std::move(sub));
-  } catch (...) {
-    try {
-      throw;
-    } catch (const std::exception &e) {
-      return Result<proto::OwnedDataTrackStream,
-                    SubscribeDataTrackError>::failure(SubscribeDataTrackError{
-          SubscribeDataTrackErrorCode::INTERNAL, e.what()});
-    } catch(...) {
-      return Result<proto::OwnedDataTrackStream,
-                    SubscribeDataTrackError>::failure(SubscribeDataTrackError{
-          SubscribeDataTrackErrorCode::INTERNAL, "unknown exception"});
-    } 
+  } catch (const std::exception &e) {
+    return Result<proto::OwnedDataTrackStream,
+                  SubscribeDataTrackError>::failure(SubscribeDataTrackError{
+        SubscribeDataTrackErrorCode::INTERNAL, e.what()});
   }
 }
 

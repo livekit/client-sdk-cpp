@@ -3,13 +3,14 @@ Checks: >
   bugprone-*,
   performance-*,
   modernize-*,
-  -readability-braces-around-statements,
   readability-misleading-indentation,
   readability-redundant-smartptr-get,
+  -bugprone-easily-swappable-parameters,
   -modernize-use-trailing-return-type,
   -modernize-avoid-c-arrays,
   -modernize-use-nodiscard,
-  -bugprone-easily-swappable-parameters
+  -performance-enum-size,
+  -readability-braces-around-statements,
 
 # These warnings have determined to be critical and are as such treated as errors
 WarningsAsErrors: >
