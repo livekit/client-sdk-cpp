@@ -20,6 +20,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <mutex>
@@ -37,8 +38,7 @@
 #include <unistd.h>
 #endif
 
-namespace livekit {
-namespace trace {
+namespace livekit::trace {
 
 namespace {
 
@@ -176,15 +176,15 @@ std::string ArgValueToJson(unsigned char type, uint64_t value,
 std::string FormatEventJson(const TraceEventData &event, uint64_t start_time) {
   std::ostringstream oss;
   oss << "{";
-  oss << "\"ph\":\"" << event.phase << "\",";
-  oss << "\"cat\":\"" << JsonEscape(event.category) << "\",";
-  oss << "\"name\":\"" << JsonEscape(event.name) << "\",";
+  oss << R"("ph":")" << event.phase << "\",";
+  oss << R"("cat":")" << JsonEscape(event.category) << "\",";
+  oss << R"("name":")" << JsonEscape(event.name) << "\",";
   oss << "\"ts\":" << (event.timestamp_us - start_time) << ",";
   oss << "\"pid\":" << event.pid << ",";
   oss << "\"tid\":" << event.tid;
 
   if (event.id != 0) {
-    oss << ",\"id\":\"0x" << std::hex << event.id << std::dec << "\"";
+    oss << R"(,"id":"0x)" << std::hex << event.id << std::dec << "\"";
   }
 
   if (event.num_args > 0) {
@@ -355,7 +355,8 @@ void EventTracer::AddTraceEvent(char phase,
 
       // Handle string arguments
       if (arg_types && (arg_types[i] == 6 || arg_types[i] == 7)) {
-        const char *str_val = reinterpret_cast<const char *>(arg_values[i]);
+        const char *str_val =
+            reinterpret_cast<const char *>(arg_values[i]);  // NOLINT(performance-no-int-to-ptr)
         if (str_val) {
           event.arg_string_values[i] = str_val;
         }
@@ -427,7 +428,7 @@ void StopTracing() {
   // Close the file with JSON footer
   std::lock_guard<std::mutex> lock(g_mutex);
   if (g_trace_file.is_open()) {
-    g_trace_file << "],\"displayTimeUnit\":\"ms\"}";
+    g_trace_file << R"(],"displayTimeUnit":"ms"})";
     g_trace_file.close();
   }
 
@@ -441,5 +442,4 @@ bool IsTracingEnabled() {
 
 } // namespace internal
 
-} // namespace trace
-} // namespace livekit
+} // namespace livekit::trace
