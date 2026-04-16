@@ -50,7 +50,6 @@ QualityLimitationReason fromProto(livekit::proto::QualityLimitationReason r) {
   case P::LIMITATION_BANDWIDTH:
     return QualityLimitationReason::Bandwidth;
   case P::LIMITATION_OTHER:
-    return QualityLimitationReason::Other;
   default:
     return QualityLimitationReason::Other;
   }

@@ -104,7 +104,8 @@ void fillBaseInfo(BaseStreamInfo &dst, const std::string &stream_id,
 // Reader implementation
 // =====================================================================
 
-TextStreamReader::TextStreamReader(const TextStreamInfo &info) : info_(info) {}
+TextStreamReader::TextStreamReader(TextStreamInfo info)
+    : info_(std::move(info)) {}
 
 void TextStreamReader::onChunkUpdate(const std::string &text) {
   {
@@ -148,7 +149,8 @@ std::string TextStreamReader::readAll() {
   return result;
 }
 
-ByteStreamReader::ByteStreamReader(const ByteStreamInfo &info) : info_(info) {}
+ByteStreamReader::ByteStreamReader(ByteStreamInfo info)
+    : info_(std::move(info)) {}
 
 void ByteStreamReader::onChunkUpdate(const std::vector<std::uint8_t> &bytes) {
   {
@@ -189,21 +191,22 @@ bool ByteStreamReader::readNext(std::vector<std::uint8_t> &out) {
 // =====================================================================
 
 BaseStreamWriter::BaseStreamWriter(
-    LocalParticipant &local_participant, const std::string &topic,
-    const std::map<std::string, std::string> &attributes,
-    const std::string &stream_id, std::optional<std::size_t> total_size,
-    const std::string &mime_type,
-    const std::vector<std::string> &destination_identities,
-    const std::string &sender_identity)
+    LocalParticipant &local_participant, std::string topic,
+    std::map<std::string, std::string> attributes,
+    std::string stream_id, std::optional<std::size_t> total_size,
+    std::string mime_type,
+    std::vector<std::string> destination_identities,
+    std::string sender_identity)
     : local_participant_(local_participant),
-      stream_id_(stream_id.empty() ? generateRandomId() : stream_id),
-      mime_type_(mime_type), topic_(topic),
+      stream_id_(stream_id.empty() ? generateRandomId()
+                                   : std::move(stream_id)),
+      mime_type_(std::move(mime_type)), topic_(std::move(topic)),
       timestamp_ms_(std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::system_clock::now().time_since_epoch())
                         .count()),
-      total_size_(total_size), attributes_(attributes),
-      destination_identities_(destination_identities),
-      sender_identity_(sender_identity) {
+      total_size_(total_size), attributes_(std::move(attributes)),
+      destination_identities_(std::move(destination_identities)),
+      sender_identity_(std::move(sender_identity)) {
   if (sender_identity_.empty()) {
     sender_identity_ = local_participant_.identity();
   }
