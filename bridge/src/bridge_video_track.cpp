@@ -24,7 +24,8 @@
 #include "livekit/video_frame.h"
 #include "livekit/video_source.h"
 
-#include <iostream>
+#include "lk_log.h"
+
 #include <stdexcept>
 
 namespace livekit_bridge {
@@ -55,7 +56,7 @@ bool BridgeVideoTrack::pushFrame(const std::vector<std::uint8_t> &rgba,
   try {
     source_->captureFrame(frame, timestamp_us);
   } catch (const std::exception &e) {
-    std::cerr << "[error] BridgeVideoTrack captureFrame error: " << e.what() << "\n";
+    LK_LOG_ERROR("BridgeVideoTrack captureFrame error: {}", e.what());
     return false;
   }
   return true;
@@ -75,7 +76,7 @@ bool BridgeVideoTrack::pushFrame(const std::uint8_t *rgba,
   try {
     source_->captureFrame(frame, timestamp_us);
   } catch (const std::exception &e) {
-    std::cerr << "[error] BridgeVideoTrack captureFrame error: " << e.what() << "\n";
+    LK_LOG_ERROR("BridgeVideoTrack captureFrame error: {}", e.what());
     return false;
   }
   return true;
@@ -113,8 +114,8 @@ void BridgeVideoTrack::release() {
       participant_->unpublishTrack(track_->publication()->sid());
     } catch (...) {
       // Best-effort cleanup; ignore errors during teardown
-      std::cerr << "[warn] BridgeVideoTrack unpublishTrack error, continuing "
-                   "with cleanup\n";
+      LK_LOG_WARN("BridgeVideoTrack unpublishTrack error, continuing "
+                  "with cleanup");
     }
   }
 

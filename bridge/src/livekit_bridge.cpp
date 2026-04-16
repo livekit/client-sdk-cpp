@@ -33,8 +33,10 @@
 #include "livekit/video_frame.h"
 #include "livekit/video_source.h"
 
+#include "livekit/rpc_error.h"
+#include "lk_log.h"
+
 #include <cassert>
-#include <iostream>
 #include <stdexcept>
 
 namespace livekit_bridge {
@@ -123,8 +125,8 @@ void LiveKitBridge::disconnect() {
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (!connected_) {
-      std::cerr << "[warn] Attempting to disconnect an already disconnected "
-                   "bridge. Things may not disconnect properly.\n";
+      LK_LOG_WARN("Attempting to disconnect an already disconnected "
+                  "bridge. Things may not disconnect properly.");
     }
 
     connected_ = false;
@@ -242,8 +244,8 @@ void LiveKitBridge::setOnAudioFrameCallback(
     AudioFrameCallback callback) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!room_) {
-    std::cerr << "[warn] setOnAudioFrameCallback called before connect(); "
-                 "ignored\n";
+    LK_LOG_WARN("setOnAudioFrameCallback called before connect(); "
+                "ignored");
     return;
   }
   room_->setOnAudioFrameCallback(participant_identity, source,
@@ -255,8 +257,8 @@ void LiveKitBridge::setOnVideoFrameCallback(
     VideoFrameCallback callback) {
   std::lock_guard<std::mutex> lock(mutex_);
   if (!room_) {
-    std::cerr << "[warn] setOnVideoFrameCallback called before connect(); "
-                 "ignored\n";
+    LK_LOG_WARN("setOnVideoFrameCallback called before connect(); "
+                "ignored");
     return;
   }
   room_->setOnVideoFrameCallback(participant_identity, source,
@@ -297,14 +299,11 @@ LiveKitBridge::performRpc(const std::string &destination_identity,
   try {
     return rpc_controller_->performRpc(destination_identity, method, payload,
                                        response_timeout);
-  } catch (const std::exception &e) {
-    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
-    return std::nullopt;
-  } catch (const std::runtime_error &e) {
-    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
-    return std::nullopt;
   } catch (const livekit::RpcError &e) {
-    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
+    LK_LOG_ERROR("performRpc RPC error (code {}): {}", e.code(), e.message());
+    return std::nullopt;
+  } catch (const std::exception &e) {
+    LK_LOG_ERROR("performRpc exception: {}", e.what());
     return std::nullopt;
   }
 }
@@ -319,14 +318,11 @@ bool LiveKitBridge::registerRpcMethod(
   try {
     rpc_controller_->registerRpcMethod(method_name, std::move(handler));
     return true;
-  } catch (const std::exception &e) {
-    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
-    return false;
-  } catch (const std::runtime_error &e) {
-    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
-    return false;
   } catch (const livekit::RpcError &e) {
-    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
+    LK_LOG_ERROR("registerRpcMethod RPC error (code {}): {}", e.code(), e.message());
+    return false;
+  } catch (const std::exception &e) {
+    LK_LOG_ERROR("registerRpcMethod exception: {}", e.what());
     return false;
   }
 }
@@ -338,14 +334,11 @@ bool LiveKitBridge::unregisterRpcMethod(const std::string &method_name) {
   try {
     rpc_controller_->unregisterRpcMethod(method_name);
     return true;
-  } catch (const std::exception &e) {
-    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
-    return false;
-  } catch (const std::runtime_error &e) {
-    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
-    return false;
   } catch (const livekit::RpcError &e) {
-    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
+    LK_LOG_ERROR("unregisterRpcMethod RPC error (code {}): {}", e.code(), e.message());
+    return false;
+  } catch (const std::exception &e) {
+    LK_LOG_ERROR("unregisterRpcMethod exception: {}", e.what());
     return false;
   }
 }
@@ -358,14 +351,11 @@ bool LiveKitBridge::requestRemoteTrackMute(
   try {
     rpc_controller_->requestRemoteTrackMute(destination_identity, track_name);
     return true;
-  } catch (const std::exception &e) {
-    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
-    return false;
-  } catch (const std::runtime_error &e) {
-    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
-    return false;
   } catch (const livekit::RpcError &e) {
-    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
+    LK_LOG_ERROR("requestRemoteTrackMute RPC error (code {}): {}", e.code(), e.message());
+    return false;
+  } catch (const std::exception &e) {
+    LK_LOG_ERROR("requestRemoteTrackMute exception: {}", e.what());
     return false;
   }
 }
@@ -378,14 +368,11 @@ bool LiveKitBridge::requestRemoteTrackUnmute(
   try {
     rpc_controller_->requestRemoteTrackUnmute(destination_identity, track_name);
     return true;
-  } catch (const std::exception &e) {
-    std::cerr << "[LiveKitBridge] Exception: " << e.what() << "\n";
-    return false;
-  } catch (const std::runtime_error &e) {
-    std::cerr << "[LiveKitBridge] Runtime error: " << e.what() << "\n";
-    return false;
   } catch (const livekit::RpcError &e) {
-    std::cerr << "[LiveKitBridge] RPC error: " << e.what() << "\n";
+    LK_LOG_ERROR("requestRemoteTrackUnmute RPC error (code {}): {}", e.code(), e.message());
+    return false;
+  } catch (const std::exception &e) {
+    LK_LOG_ERROR("requestRemoteTrackUnmute exception: {}", e.what());
     return false;
   }
 }

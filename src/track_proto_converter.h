@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#pragma once
+
 #include "livekit/participant.h"
 #include "livekit/track.h"
 #include "livekit/track_publication.h"
