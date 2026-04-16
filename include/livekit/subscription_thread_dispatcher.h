@@ -404,7 +404,7 @@ private:
   /// is extracted and returned to the caller for joining outside the lock.
   std::thread startAudioReaderLocked(const CallbackKey &key,
                                      const std::shared_ptr<Track> &track,
-                                     AudioFrameCallback cb,
+                                     const AudioFrameCallback &cb,
                                      const AudioStream::Options &opts);
 
   /// Start a video reader thread for \p key using \p track.
@@ -413,7 +413,7 @@ private:
   /// is extracted and returned to the caller for joining outside the lock.
   std::thread startVideoReaderLocked(const CallbackKey &key,
                                      const std::shared_ptr<Track> &track,
-                                     VideoFrameCallback cb,
+                                     const VideoFrameCallback &cb,
                                      const VideoStream::Options &opts);
 
   /// Extract and close the data reader for a given callback ID, returning its
@@ -429,7 +429,7 @@ private:
   std::thread
   startDataReaderLocked(DataFrameCallbackId id, const DataCallbackKey &key,
                         const std::shared_ptr<RemoteDataTrack> &track,
-                        DataFrameCallback cb);
+                        const DataFrameCallback &cb);
 
   /// Protects callback registration maps and active reader state.
   mutable std::mutex lock_;
