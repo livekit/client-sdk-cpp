@@ -297,7 +297,7 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    VideoStream::Options opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnVideoFrameCallback(
-        participant_identity, source, std::move(callback), std::move(opts));
+        participant_identity, source, std::move(callback), opts);
   }
 }
 
@@ -307,7 +307,7 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    VideoStream::Options opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnVideoFrameCallback(
-        participant_identity, track_name, std::move(callback), std::move(opts));
+        participant_identity, track_name, std::move(callback), opts);
   }
 }
 

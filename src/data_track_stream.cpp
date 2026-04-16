@@ -58,7 +58,7 @@ bool DataTrackStream::read(DataTrackFrame &out) {
   std::unique_lock<std::mutex> lock(mutex_);
   cv_.wait(lock, [this] { return frame_.has_value() || eof_ || closed_; });
 
-  if (closed_ || (!frame_.has_value() && eof_)) {
+  if (closed_ || !frame_.has_value()) {
     return false;
   }
 

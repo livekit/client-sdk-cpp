@@ -400,7 +400,7 @@ SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived &in,
                                       RemoteParticipant *participant) {
   SipDtmfReceivedEvent ev;
   ev.participant = participant;
-  ev.code = in.sip_dtmf().code();
+  ev.code = static_cast<int>(in.sip_dtmf().code());
   ev.digit = in.sip_dtmf().digit();
   return ev;
 }

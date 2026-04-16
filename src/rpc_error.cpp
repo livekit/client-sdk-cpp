@@ -49,12 +49,12 @@ proto::RpcError RpcError::toProto() const {
 
 RpcError RpcError::fromProto(const proto::RpcError &err) {
   // proto::RpcError.data() will return empty string if unset, which is fine.
-  return RpcError(err.code(), err.message(), err.data());
+  return {err.code(), err.message(), err.data()};
 }
 
 RpcError RpcError::builtIn(ErrorCode code, const std::string &data) {
   const char *msg = defaultMessageFor(code);
-  return RpcError(code, msg ? std::string(msg) : std::string{}, data);
+  return {code, msg ? std::string(msg) : std::string{}, data};
 }
 
 const char *RpcError::defaultMessageFor(ErrorCode code) {
