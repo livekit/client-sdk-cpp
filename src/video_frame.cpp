@@ -46,11 +46,8 @@ std::size_t computeBufferSize(int width, int height, VideoBufferType type) {
     return w * h * 4;
 
   case VideoBufferType::RGB24:
-    // 3 bytes per pixel
-    return w * h * 3;
-
   case VideoBufferType::I444:
-    // Y, U, V all full resolution
+    // 3 bytes per pixel (RGB24: packed; I444: Y+U+V all full resolution)
     return w * h * 3;
 
   case VideoBufferType::I420:
@@ -295,7 +292,7 @@ VideoFrame::VideoFrame(int width, int height, VideoBufferType type,
 VideoFrame VideoFrame::create(int width, int height, VideoBufferType type) {
   const std::size_t size = computeBufferSize(width, height, type);
   std::vector<std::uint8_t> buffer(size, 0);
-  return VideoFrame(width, height, type, std::move(buffer));
+  return {width, height, type, std::move(buffer)};
 }
 
 std::vector<VideoPlaneInfo> VideoFrame::planeInfos() const {
@@ -315,7 +312,7 @@ VideoFrame VideoFrame::convert(VideoBufferType dst, bool flip_y) const {
     LK_LOG_WARN("VideoFrame::convert: converting to the same format");
     // copy pixel data
     std::vector<std::uint8_t> buf = data_;
-    return VideoFrame(width_, height_, type_, std::move(buf));
+    return {width_, height_, type_, std::move(buf)};
   }
 
   // General path: delegate to the FFI-based conversion helper.
@@ -342,7 +339,7 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
     std::size_t offset = 0;
     for (const auto &comp : info.components()) {
       const auto sz = static_cast<std::size_t>(comp.size());
-      const auto src_ptr = reinterpret_cast<const std::uint8_t *>(
+      const auto src_ptr = reinterpret_cast<const std::uint8_t *>( // NOLINT(performance-no-int-to-ptr)
           static_cast<std::uintptr_t>(comp.data_ptr()));
 
       std::memcpy(buffer.data() + offset, src_ptr, sz);
@@ -350,7 +347,7 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
     }
   } else {
     // Packed format: treat top-level data_ptr as a single contiguous buffer.
-    const auto src_ptr = reinterpret_cast<const std::uint8_t *>(
+    const auto src_ptr = reinterpret_cast<const std::uint8_t *>( // NOLINT(performance-no-int-to-ptr)
         static_cast<std::uintptr_t>(info.data_ptr()));
 
     std::size_t total_size = 0;
@@ -373,7 +370,7 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
     // owned_handle destroyed at end of scope → native buffer disposed.
   }
 
-  return VideoFrame(width, height, type, std::move(buffer));
+  return {width, height, type, std::move(buffer)};
 }
 
 } // namespace livekit

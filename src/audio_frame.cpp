@@ -68,7 +68,7 @@ AudioFrame::fromOwnedInfo(const proto::OwnedAudioFrameBuffer &owned) {
   const std::size_t count = static_cast<std::size_t>(num_channels) *
                             static_cast<std::size_t>(samples_per_channel);
 
-  const auto *ptr =
+  const std::int16_t *ptr =
       reinterpret_cast<const std::int16_t *>(info.data_ptr()); // NOLINT(performance-no-int-to-ptr)
 
   if (ptr == nullptr && count > 0) {

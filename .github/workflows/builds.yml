@@ -669,7 +669,7 @@ jobs:
       - name: Check warning thresholds
         env:
           TIDY_FINDINGS: ${{ steps.linter.outputs.clang-tidy-checks-failed }}
-          MAX_TIDY_FINDINGS: '396'
+          MAX_TIDY_FINDINGS: '0'
         run: |
           echo "clang-tidy findings: ${TIDY_FINDINGS}"
           if [ "${TIDY_FINDINGS}" -gt "${MAX_TIDY_FINDINGS}" ]; then

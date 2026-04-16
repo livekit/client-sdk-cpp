@@ -8,6 +8,7 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -modernize-use-trailing-return-type,
   -modernize-avoid-c-arrays,
+  -modernize-use-auto,
   -modernize-use-nodiscard,
   -performance-enum-size,
   -readability-braces-around-statements,
