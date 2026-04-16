@@ -256,6 +256,22 @@
       }
     },
     {
+      "name": "linux-coverage-tests",
+      "displayName": "Linux Debug with Tests and Coverage",
+      "description": "Build for Linux Debug with test suite and gcov coverage instrumentation",
+      "inherits": "linux-base",
+      "binaryDir": "${sourceDir}/build-coverage",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "LIVEKIT_BUILD_EXAMPLES": "OFF",
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "CMAKE_C_FLAGS": "--coverage -Wno-deprecated-declarations",
+        "CMAKE_CXX_FLAGS": "--coverage -Wno-deprecated-declarations",
+        "CMAKE_EXE_LINKER_FLAGS": "--coverage",
+        "CMAKE_SHARED_LINKER_FLAGS": "--coverage"
+      }
+    },
+    {
       "name": "macos-release-tests",
       "displayName": "macOS Release with Tests",
       "description": "Build for macOS Release with test suite",
@@ -352,6 +368,10 @@
       "configurePreset": "linux-debug-tests"
     },
     {
+      "name": "linux-coverage-tests",
+      "configurePreset": "linux-coverage-tests"
+    },
+    {
       "name": "macos-release-tests",
       "configurePreset": "macos-release-tests"
     },
@@ -387,6 +407,13 @@
     {
       "name": "linux-debug-tests",
       "configurePreset": "linux-debug-tests",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux-coverage-tests",
+      "configurePreset": "linux-coverage-tests",
       "output": {
         "outputOnFailure": true
       }
