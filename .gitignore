@@ -32,4 +32,5 @@ lib/
 *.exe
 livekit.log
 web/
+*trace.json
 compile_commands.json

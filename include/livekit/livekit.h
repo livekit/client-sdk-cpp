@@ -33,6 +33,7 @@
 #include "room.h"
 #include "room_delegate.h"
 #include "room_event_types.h"
+#include "tracing.h"
 #include "track_publication.h"
 #include "video_frame.h"
 #include "video_source.h"

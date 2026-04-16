@@ -25,9 +25,19 @@ enable_testing()
 include(GoogleTest)
 
 # ============================================================================
+# Benchmark Utilities (shared by all test types)
+# ============================================================================
+
+set(BENCHMARK_UTILS_SOURCES
+  "${CMAKE_CURRENT_SOURCE_DIR}/benchmark/benchmark_utils.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/benchmark/benchmark_utils.h"
+)
+
+# ============================================================================
 # Unit Tests
 # ============================================================================
 
+# Collect all unit test sources
 file(GLOB UNIT_TEST_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/unit/*.cpp"
 )
@@ -35,6 +45,7 @@ file(GLOB UNIT_TEST_SOURCES
 if(UNIT_TEST_SOURCES)
   add_executable(livekit_unit_tests
     ${UNIT_TEST_SOURCES}
+    ${BENCHMARK_UTILS_SOURCES}
   )
 
   target_link_libraries(livekit_unit_tests
@@ -49,6 +60,8 @@ if(UNIT_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+      ${LIVEKIT_ROOT_DIR}/src/trace
+      ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
   )
 
   target_compile_definitions(livekit_unit_tests
@@ -59,6 +72,7 @@ if(UNIT_TEST_SOURCES)
       $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
   )
 
+  # Copy shared libraries to test executable directory
   if(WIN32)
     add_custom_command(TARGET livekit_unit_tests POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -91,6 +105,7 @@ if(UNIT_TEST_SOURCES)
     )
   endif()
 
+  # Register tests with CTest
   gtest_discover_tests(livekit_unit_tests
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     DISCOVERY_MODE PRE_TEST
@@ -111,6 +126,7 @@ file(GLOB INTEGRATION_TEST_SOURCES
 if(INTEGRATION_TEST_SOURCES)
   add_executable(livekit_integration_tests
     ${INTEGRATION_TEST_SOURCES}
+    ${BENCHMARK_UTILS_SOURCES}
   )
 
   # On Windows, protobuf default-instance symbols (constinit globals) are not
@@ -133,6 +149,7 @@ if(INTEGRATION_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+      ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
       ${LIVEKIT_BINARY_DIR}/generated
       ${Protobuf_INCLUDE_DIRS}
   )
@@ -207,6 +224,7 @@ file(GLOB STRESS_TEST_SOURCES
 if(STRESS_TEST_SOURCES)
   add_executable(livekit_stress_tests
     ${STRESS_TEST_SOURCES}
+    ${BENCHMARK_UTILS_SOURCES}
   )
 
   target_link_libraries(livekit_stress_tests
@@ -220,6 +238,7 @@ if(STRESS_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+      ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
   )
 
   target_compile_definitions(livekit_stress_tests
