@@ -20,8 +20,8 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 - **Git LFS** (required for examples)
   Some example data files (e.g., audio assets) are stored using Git LFS.
   You must install Git LFS before cloning or pulling the repo if you want to run the examples.
-- **livekit-cli** install livekit-cli by following the (official livekit docs)[https://docs.livekit.io/intro/basics/cli/start/]
-- **livekit-server** install livekit-server by following the (official livekit docs)[https://docs.livekit.io/transport/self-hosting/local/]
+- **livekit-cli** install livekit-cli by following the [official livekit docs](https://docs.livekit.io/intro/basics/cli/start/)
+- **livekit-server** install livekit-server by following the [official livekit docs](https://docs.livekit.io/transport/self-hosting/local/)
 
 **Platform-Specific Requirements:**
 

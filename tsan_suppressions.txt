@@ -1,0 +1,16 @@
+# ThreadSanitizer suppressions for livekit client-sdk-cpp
+#
+# Rust FFI layer may trigger false positives in TSan because
+# TSan cannot see synchronization inside the Rust runtime.
+# Add specific suppressions here as needed.
+#
+# Syntax:
+#   race:<function_or_source_pattern>
+#   deadlock:<function_or_source_pattern>
+#   mutex:<function_or_source_pattern>
+
+# Rust standard library internals
+race:libstd-*.so
+
+# Rust FFI bridge (livekit_ffi)
+race:livekit_ffi_*
