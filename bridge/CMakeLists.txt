@@ -32,6 +32,13 @@ target_include_directories(livekit_bridge
 target_link_libraries(livekit_bridge
   PUBLIC
     livekit
+  PRIVATE
+    spdlog::spdlog
+)
+
+target_compile_definitions(livekit_bridge
+  PRIVATE
+    SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
 )
 
 if(MSVC)
