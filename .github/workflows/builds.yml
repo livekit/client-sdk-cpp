@@ -343,7 +343,7 @@ jobs:
           - name: tsan
             preset: linux-debug-tsan
             build_dir: build-debug-tsan
-            env_vars: "TSAN_OPTIONS=suppressions=tsan_suppressions.txt:halt_on_error=1"
+            env_vars: "TSAN_OPTIONS=suppressions=$GITHUB_WORKSPACE/tsan_suppressions.txt:halt_on_error=1"
 
     name: Sanitizer (${{ matrix.name }})
     runs-on: ubuntu-latest
