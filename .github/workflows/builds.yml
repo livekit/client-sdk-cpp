@@ -547,11 +547,13 @@ jobs:
             cmake --build build --parallel
           '
 
-  # Lightweight job: configure-only to produce compile_commands.json + generated
-  # protobuf headers for clang-tidy, without waiting for the full build.
-  configure:
-    name: Configure (compile database)
+  clang-tidy:
+    name: clang-tidy
     runs-on: ubuntu-latest
+    continue-on-error: false
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       - name: Checkout (with submodules)
@@ -560,13 +562,13 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Install deps (Ubuntu)
+      - name: Install dependencies
         run: |
           set -eux
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
-            llvm-dev libclang-dev clang \
+            llvm-dev libclang-dev clang clang-tidy \
             libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
             libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
             libxrandr-dev libxi-dev libxkbcommon-dev \
@@ -595,56 +597,6 @@ jobs:
       - name: Generate protobuf headers
         run: cmake --build build-release --target livekit_proto
 
-      - name: Upload compile database
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: compile-database
-          path: |
-            build-release/compile_commands.json
-            build-release/generated/
-            build-release/_deps/*-src/
-            include/livekit/build.h
-          retention-days: 1
-
-  clang-tidy:
-    name: clang-tidy
-    needs: configure
-    runs-on: ubuntu-latest
-    continue-on-error: false
-    if: ${{ !cancelled() }}
-    permissions:
-      contents: read
-      pull-requests: write
-
-    steps:
-      - name: Checkout (with submodules)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          submodules: recursive
-          fetch-depth: 1
-
-      - name: Install dependencies
-        run: |
-          set -eux
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang-tidy \
-            llvm-dev libclang-dev clang \
-            libssl-dev \
-            libprotobuf-dev protobuf-compiler \
-            libabsl-dev \
-            libspdlog-dev \
-            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
-            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
-            libxrandr-dev libxi-dev libxkbcommon-dev \
-            libasound2-dev libpulse-dev \
-            libwayland-dev libdecor-0-dev
-
-      - name: Download compile database
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: compile-database
-
       - name: Run clang-tidy
         uses: cpp-linter/cpp-linter-action@77c390c5ba9c947ebc185a3e49cc754f1558abb5 # v2.18.0
         id: linter
@@ -664,7 +616,7 @@ jobs:
           tidy-review: true
           passive-reviews: true
           no-lgtm: true
-          jobs: 0   # use all available CPU cores
+          jobs: 0   # 0 == use all available CPU cores
 
       - name: Check warning thresholds
         env:
