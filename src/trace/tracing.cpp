@@ -14,24 +14,18 @@
  * limitations under the License.
  */
 
-#include "livekit/data_track_frame.h"
-
-#include "data_track.pb.h"
+#include "livekit/tracing.h"
+#include "trace/event_tracer_internal.h"
 
 namespace livekit {
 
-DataTrackFrame
-DataTrackFrame::fromOwnedInfo(const proto::DataTrackFrame &owned) {
-  DataTrackFrame frame;
-  const auto &payload_str = owned.payload();
-  frame.payload.assign(
-      reinterpret_cast<const std::uint8_t *>(payload_str.data()),
-      reinterpret_cast<const std::uint8_t *>(payload_str.data()) +
-          payload_str.size());
-  if (owned.has_user_timestamp()) {
-    frame.user_timestamp = owned.user_timestamp();
-  }
-  return frame;
+bool startTracing(const std::string &trace_file_path,
+                  const std::vector<std::string> &categories) {
+  return trace::internal::StartTracing(trace_file_path, categories);
 }
+
+void stopTracing() { trace::internal::StopTracing(); }
+
+bool isTracingEnabled() { return trace::internal::IsTracingEnabled(); }
 
 } // namespace livekit

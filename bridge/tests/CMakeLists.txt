@@ -93,6 +93,7 @@ if(BRIDGE_TEST_SOURCES)
   # Register tests with CTest
   gtest_discover_tests(livekit_bridge_tests
     WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+    DISCOVERY_MODE PRE_TEST
     PROPERTIES
       LABELS "bridge_unit"
   )

@@ -359,6 +359,12 @@ add_library(livekit SHARED
   src/remote_video_track.cpp
   src/video_utils.cpp
   src/video_utils.h
+  # Tracing support (Chrome trace format)
+  src/trace/event_tracer.cpp
+  src/trace/event_tracer.h
+  src/trace/event_tracer_internal.h
+  src/trace/trace_event.h
+  src/trace/tracing.cpp
 )
 if(WIN32)
   set_target_properties(livekit PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -373,14 +379,14 @@ target_include_directories(livekit
     $<INSTALL_INTERFACE:include>
   PRIVATE
     ${LIVEKIT_ROOT_DIR}/src
+    ${LIVEKIT_ROOT_DIR}/src/trace
     ${RUST_ROOT}/livekit-ffi/include
     ${PROTO_BINARY_DIR}
 )
 
 target_link_libraries(livekit
-  PUBLIC
-    $<BUILD_INTERFACE:spdlog::spdlog>
   PRIVATE
+    spdlog::spdlog
     livekit_ffi
     ${LIVEKIT_PROTOBUF_TARGET}
 )
@@ -690,7 +696,8 @@ install(FILES
 add_subdirectory(bridge)
 
 if(LIVEKIT_BUILD_EXAMPLES)
-  add_subdirectory(examples)
+  include(cpp-example-collection)
+  livekit_configure_cpp_example_collection()
 endif()
 
 if(LIVEKIT_BUILD_TESTS)

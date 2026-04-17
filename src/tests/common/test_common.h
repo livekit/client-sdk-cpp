@@ -34,10 +34,20 @@
 #include <thread>
 #include <vector>
 
+// Include benchmark utilities for trace file analysis
+#include "../benchmark/benchmark_utils.h"
+
 namespace livekit {
 namespace test {
 
 using namespace std::chrono_literals;
+
+// =============================================================================
+// Tracing Configuration
+// =============================================================================
+
+// Set to 0 to disable tracing in tests, 1 to enable
+#define LIVEKIT_TEST_ENABLE_TRACING 1
 
 // =============================================================================
 // Common Constants
@@ -413,16 +423,88 @@ private:
 // =============================================================================
 
 /**
- * Base test fixture that handles SDK initialization and configuration loading.
+ * Base test fixture that handles SDK initialization, configuration loading,
+ * and automatic tracing.
+ *
+ * ## Tracing Overview
+ *
+ * Tracing uses Chrome's trace event format to capture timing information.
+ * When enabled, the test automatically:
+ *   1. Generates a trace filename from test name in SetUp()
+ *   2. Starts tracing with a background writer thread
+ *   3. In TearDown(), stops tracing (flushes to file) and analyzes results
+ *
+ * ## Trace Event Types
+ *
+ * The SDK uses two types of trace events:
+ *
+ * 1. Scoped events (TRACE_EVENT0): Automatically record begin/end within a
+ *    scope. Used for synchronous operations like Room::Connect().
+ *    - Phase 'B' = begin, Phase 'E' = end
+ *    - Events are matched by thread ID
+ *
+ * 2. Async events (TRACE_EVENT_ASYNC_BEGIN/END): For operations that span
+ *    threads or have explicit start/end points.
+ *    - Phase 'S' = async start, Phase 'F' = async finish
+ *    - Events are matched by a unique ID
+ *
+ * ## Output Files
+ *
+ * Trace files are saved as: <TestSuiteName>_<TestName>_trace.json
+ * These can be viewed in:
+ *   - Chrome: chrome://tracing
+ *   - Perfetto: https://ui.perfetto.dev
+ *
+ * ## Enabling/Disabling Tracing
+ *
+ * Tracing is controlled by LIVEKIT_TEST_ENABLE_TRACING macro at the top of
+ * this file. Set to 0 to disable, 1 to enable.
+ *
+ * ## Default Events Analyzed
+ *
+ * The following events are automatically analyzed if present:
+ *   - Room::Connect - Time to establish room connection
+ *   - FfiClient::initialize - SDK initialization time
+ *
+ * Tests can add custom events to analyze via addTraceEventToAnalyze().
  */
 class LiveKitTestBase : public ::testing::Test {
 protected:
   void SetUp() override {
     livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
     config_ = TestConfig::fromEnv();
+
+    // Tracing is controlled by compile-time macro LIVEKIT_TEST_ENABLE_TRACING
+    tracing_enabled_ = LIVEKIT_TEST_ENABLE_TRACING;
+
+    if (tracing_enabled_) {
+      // Generate trace filename from test name: TestSuite_TestName_trace.json
+      const ::testing::TestInfo *test_info =
+          ::testing::UnitTest::GetInstance()->current_test_info();
+      trace_filename_ = std::string(test_info->test_suite_name()) + "_" +
+                        std::string(test_info->name()) + "_trace.json";
+
+      // Start tracing with background file writer
+      // Events are written to file asynchronously, so memory usage is bounded
+      livekit::startTracing(trace_filename_, {"livekit", "livekit.*"});
+    }
   }
 
-  void TearDown() override { livekit::shutdown(); }
+  void TearDown() override {
+    if (tracing_enabled_) {
+      // Stop tracing - this flushes all pending events to the file
+      livekit::stopTracing();
+
+      std::cout << "\nTrace saved to: " << trace_filename_ << std::endl;
+      std::cout << "View in Chrome: chrome://tracing or https://ui.perfetto.dev"
+                << std::endl;
+
+      // Analyze the trace file and print statistics
+      analyzeTraceFile();
+    }
+
+    livekit::shutdown();
+  }
 
   /// Skip the test if the required environment variables are not set
   void skipIfNotConfigured() {
@@ -432,7 +514,57 @@ protected:
     }
   }
 
+  /**
+   * Register a custom trace event to analyze in TearDown().
+   *
+   * In addition to the default events (Room::Connect, FfiClient::initialize),
+   * tests can register their own events to get statistics printed.
+   *
+   * Example:
+   *   addTraceEventToAnalyze("audio_latency");
+   *
+   * @param name The event name to analyze (e.g., "audio_latency")
+   */
+  void addTraceEventToAnalyze(const std::string &name) {
+    custom_trace_events_.push_back(name);
+  }
+
   TestConfig config_;
+  bool tracing_enabled_ = false;
+  std::string trace_filename_;
+
+private:
+  /**
+   * Analyze the trace file and print statistics.
+   *
+   * Loads the saved trace file, calculates durations for paired events,
+   * and prints statistics for default SDK events plus any custom events.
+   */
+  void analyzeTraceFile() {
+    // Build list of events to analyze
+    std::vector<std::string> events_to_analyze = {"Room::Connect",
+                                                  "FfiClient::initialize"};
+
+    // Add custom events
+    for (const auto &name : custom_trace_events_) {
+      events_to_analyze.push_back(name);
+    }
+
+    // Analyze the trace file
+    auto results =
+        benchmark::analyzeTraceFile(trace_filename_, events_to_analyze);
+
+    // Print statistics for events that have data
+    std::cout << "\n=== Trace Statistics ===" << std::endl;
+    for (const auto &[name, stats] : results) {
+      if (stats.count > 0) {
+        benchmark::printStats(stats);
+      }
+    }
+  }
+
+  /// Custom trace event names to analyze, in addition to defaults
+  std::vector<std::string> custom_trace_events_;
 };
 
 } // namespace test

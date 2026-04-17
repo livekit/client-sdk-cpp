@@ -38,7 +38,8 @@
       "hidden": true,
       "generator": "Ninja",
       "cacheVariables": {
-        "LIVEKIT_USE_VCPKG": "OFF"
+        "LIVEKIT_USE_VCPKG": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       },
       "condition": {
         "type": "equals",
@@ -51,7 +52,8 @@
       "hidden": true,
       "generator": "Ninja",
       "cacheVariables": {
-        "LIVEKIT_USE_VCPKG": "OFF"
+        "LIVEKIT_USE_VCPKG": "OFF",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       },
       "condition": {
         "type": "equals",

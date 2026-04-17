@@ -21,6 +21,16 @@
 
 #include <string>
 
+#ifdef _WIN32
+#ifdef livekit_bridge_EXPORTS
+#define LIVEKIT_BRIDGE_API __declspec(dllexport)
+#else
+#define LIVEKIT_BRIDGE_API __declspec(dllimport)
+#endif
+#else
+#define LIVEKIT_BRIDGE_API
+#endif
+
 namespace livekit_bridge {
 namespace rpc {
 
@@ -34,20 +44,21 @@ namespace track_control {
 enum class Action { kActionMute, kActionUnmute };
 
 /// RPC method name registered by the bridge for remote track control.
-extern const char *const kMethod;
+LIVEKIT_BRIDGE_API extern const char *const kMethod;
 
 /// Payload action strings.
-extern const char *const kActionMute;
-extern const char *const kActionUnmute;
+LIVEKIT_BRIDGE_API extern const char *const kActionMute;
+LIVEKIT_BRIDGE_API extern const char *const kActionUnmute;
 
 /// Delimiter between action and track name in the payload (e.g. "mute:cam").
-extern const char kDelimiter;
+LIVEKIT_BRIDGE_API extern const char kDelimiter;
 
 /// Response payload returned on success.
-extern const char *const kResponseOk;
+LIVEKIT_BRIDGE_API extern const char *const kResponseOk;
 
 /// Build a track-control RPC payload: "<action>:<track_name>".
-std::string formatPayload(const char *action, const std::string &track_name);
+LIVEKIT_BRIDGE_API std::string formatPayload(const char *action,
+                                             const std::string &track_name);
 
 } // namespace track_control
 } // namespace rpc

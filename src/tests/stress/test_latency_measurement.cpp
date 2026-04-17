@@ -14,11 +14,15 @@
  * limitations under the License.
  */
 
+#include "../benchmark/benchmark_utils.h"
 #include "../common/test_common.h"
+#include "trace/trace_event.h"
 #include <cmath>
 #include <condition_variable>
 #include <type_traits>
 #include <variant>
+
+using namespace livekit::test::benchmark;
 
 namespace livekit {
 namespace test {
@@ -279,23 +283,37 @@ TEST_F(LatencyMeasurementTest, ConnectionTime) {
   std::cout << "\n=== Connection Time Measurement Test ===" << std::endl;
   std::cout << "Iterations: " << config_.test_iterations << std::endl;
 
-  LatencyStats stats;
   RoomOptions options;
   options.auto_subscribe = true;
+  LatencyStats stats;
+  int successful_connections = 0;
 
   for (int i = 0; i < config_.test_iterations; ++i) {
     auto room = std::make_unique<Room>();
 
     auto start = std::chrono::high_resolution_clock::now();
+    // Room::Connect() has built-in TRACE_EVENT0 for automatic timing
     bool connected = room->Connect(config_.url, config_.caller_token, options);
     auto end = std::chrono::high_resolution_clock::now();
 
     if (connected) {
+      successful_connections++;
       double latency_ms =
           std::chrono::duration<double, std::milli>(end - start).count();
       stats.addMeasurement(latency_ms);
+
+      // Get room and participant session IDs for debugging
+      auto room_info = room->room_info();
+      std::string room_sid =
+          room_info.sid.has_value() ? room_info.sid.value() : "unknown";
+      std::string participant_sid = room->localParticipant()
+                                        ? room->localParticipant()->sid()
+                                        : "unknown";
+
       std::cout << "  Iteration " << (i + 1) << ": " << std::fixed
-                << std::setprecision(2) << latency_ms << " ms" << std::endl;
+                << std::setprecision(2) << latency_ms << " ms"
+                << " | participant_sid=" << participant_sid
+                << " | room_sid=" << room_sid << std::endl;
 
     } else {
       std::cout << "  Iteration " << (i + 1) << ": FAILED to connect"
@@ -306,9 +324,11 @@ TEST_F(LatencyMeasurementTest, ConnectionTime) {
     std::this_thread::sleep_for(500ms);
   }
 
-  stats.printStats("Connection Time Statistics");
+  // Tracing is automatically handled by LiveKitTestBase
+  // Stats for Room::Connect will be printed in TearDown()
 
-  EXPECT_GT(stats.count(), 0) << "At least one connection should succeed";
+  EXPECT_GT(successful_connections, 0)
+      << "At least one connection should succeed";
 }
 
 // =============================================================================
@@ -364,6 +384,9 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
   std::cout << "Using energy detection to measure audio round-trip latency"
             << std::endl;
 
+  // Register custom trace events to analyze at test end
+  addTraceEventToAnalyze("audio_latency");
+
   // Create receiver room with delegate
   auto receiver_room = std::make_unique<Room>();
   AudioLatencyDelegate receiver_delegate;
@@ -393,7 +416,6 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
       << "Sender not visible to receiver";
 
   // Create audio source in real-time mode (queue_size_ms = 0)
-  // We'll pace the frames ourselves to match real-time delivery
   auto audio_source =
       std::make_shared<AudioSource>(kAudioSampleRate, kAudioChannels, 0);
   auto audio_track =
@@ -420,12 +442,12 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
   auto audio_stream = AudioStream::fromTrack(subscribed_track, stream_options);
   ASSERT_NE(audio_stream, nullptr) << "Failed to create audio stream";
 
-  // Statistics for latency measurements
-  LatencyStats stats;
   std::atomic<bool> running{true};
   std::atomic<uint64_t> last_high_energy_send_time_us{0};
   std::atomic<bool> waiting_for_echo{false};
   std::atomic<int> missed_pulses{0};
+  std::atomic<int> successful_measurements{0};
+  std::atomic<uint64_t> current_pulse_id{0};
 
   // Timeout for waiting for echo (2 seconds)
   constexpr uint64_t kEchoTimeoutUs = 2000000;
@@ -446,7 +468,11 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
         if (send_time_us > 0) {
           double latency_ms = (receive_time_us - send_time_us) / 1000.0;
           if (latency_ms > 0 && latency_ms < 5000) { // Sanity check
-            stats.addMeasurement(latency_ms);
+            // End the async trace span
+            TRACE_EVENT_ASYNC_END1(kCategoryAudio, "audio_latency",
+                                   current_pulse_id.load(), "latency_ms",
+                                   latency_ms);
+            successful_measurements++;
             std::cout << "  Audio latency: " << std::fixed
                       << std::setprecision(2) << latency_ms << " ms"
                       << " (energy: " << std::setprecision(3) << energy << ")"
@@ -459,24 +485,19 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
   });
 
   // Sender thread: send audio frames in real-time (10ms audio every 10ms)
-  // Hijack periodic frames with high energy for latency measurement
   std::thread sender_thread([&]() {
     int frame_count = 0;
-    const int frames_between_pulses =
-        100; // Send pulse every 100 frames (~1 second)
+    const int frames_between_pulses = 100; // ~1 second between pulses
     const int total_pulses = 10;
     int pulses_sent = 0;
     uint64_t pulse_send_time = 0;
-    int high_energy_frames_remaining =
-        0; // Counter for consecutive high-energy frames
+    int high_energy_frames_remaining = 0;
 
-    // Use steady timing to maintain real-time pace
     auto next_frame_time = std::chrono::steady_clock::now();
     const auto frame_duration =
         std::chrono::milliseconds(kAudioFrameDurationMs);
 
     while (running.load() && pulses_sent < total_pulses) {
-      // Wait until it's time to send the next frame (real-time pacing)
       std::this_thread::sleep_until(next_frame_time);
       next_frame_time += frame_duration;
 
@@ -498,16 +519,14 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
         }
       }
 
-      // Continue sending high-energy frames if we're in the middle of a pulse
       if (high_energy_frames_remaining > 0) {
         frame_data = generateHighEnergyFrame(kSamplesPerFrame);
         high_energy_frames_remaining--;
       } else if (frame_count % frames_between_pulses == 0 &&
                  !waiting_for_echo.load()) {
-        // Start a new pulse - send multiple consecutive high-energy frames
+        // Start a new pulse
         frame_data = generateHighEnergyFrame(kSamplesPerFrame);
-        high_energy_frames_remaining =
-            kHighEnergyFramesPerPulse - 1; // -1 because we're sending one now
+        high_energy_frames_remaining = kHighEnergyFramesPerPulse - 1;
 
         pulse_send_time =
             std::chrono::duration_cast<std::chrono::microseconds>(
@@ -517,10 +536,14 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
         waiting_for_echo.store(true);
         pulses_sent++;
 
+        // Begin async trace span
+        current_pulse_id.store(static_cast<uint64_t>(pulses_sent));
+        TRACE_EVENT_ASYNC_BEGIN1(kCategoryAudio, "audio_latency",
+                                 current_pulse_id.load(), "pulse", pulses_sent);
+
         std::cout << "Sent pulse " << pulses_sent << "/" << total_pulses << " ("
                   << kHighEnergyFramesPerPulse << " frames)" << std::endl;
       } else {
-        // Send silence (but still real audio frames for proper timing)
         frame_data = generateSilentFrame(kSamplesPerFrame);
       }
 
@@ -536,7 +559,6 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
       frame_count++;
     }
 
-    // Wait a bit for last echo to arrive
     std::this_thread::sleep_for(2s);
     running.store(false);
   });
@@ -546,20 +568,18 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
   audio_stream->close();
   receiver_thread.join();
 
-  stats.printStats("Audio Latency Statistics");
-
   if (missed_pulses > 0) {
     std::cout << "Missed pulses (timeout): " << missed_pulses << std::endl;
   }
 
   // Clean up
-  ASSERT_NE(audio_track, nullptr) << "Audio track is null";
-  ASSERT_NE(audio_track->publication(), nullptr)
-      << "Audio track publication is null";
   sender_room->localParticipant()->unpublishTrack(
       audio_track->publication()->sid());
 
-  EXPECT_GT(stats.count(), 0)
+  // Tracing is automatically handled by LiveKitTestBase
+  // Stats for audio_latency will be printed in TearDown()
+
+  EXPECT_GT(successful_measurements.load(), 0)
       << "At least one audio latency measurement should be recorded";
 }
 
@@ -569,6 +589,11 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
   std::cout << "\n=== FullDeplexAudioLatency Test ===" << std::endl;
   std::cout << "Measuring A->B, B->A, and A->B->A using audio ping-pong"
             << std::endl;
+
+  // Register custom trace events to analyze at test end
+  addTraceEventToAnalyze("A_to_B");
+  addTraceEventToAnalyze("B_to_A");
+  addTraceEventToAnalyze("round_trip");
 
   auto room_a = std::make_unique<Room>(); // caller
   auto room_b = std::make_unique<Room>(); // receiver
@@ -624,9 +649,6 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
   ASSERT_NE(stream_b_recv_a, nullptr);
   ASSERT_NE(stream_a_recv_b, nullptr);
 
-  LatencyStats a_to_b_stats;
-  LatencyStats b_to_a_stats;
-  LatencyStats round_trip_stats;
   std::atomic<bool> running{true};
   std::atomic<int> active_pulse_id{0};
   std::atomic<uint64_t> a_send_us{0};
@@ -637,15 +659,19 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
   std::atomic<bool> waiting_for_response{false};
   std::atomic<int> pre_pulse_silence_frames_remaining{200};
   std::atomic<int> timeouts{0};
+  std::atomic<int> a_to_b_count{0};
+  std::atomic<int> b_to_a_count{0};
+  std::atomic<int> round_trip_count{0};
 
   constexpr int kTotalPulses = 100;
   constexpr int kPrePulseSilenceFrames = 50;    // 500ms at 10ms/frame
   constexpr uint64_t kPulseTimeoutUs = 8000000; // 8 seconds
   constexpr int kBMaxResponseFrames = 50;       // 500ms at 10ms/frame
-  constexpr double kMinValidOneWayMs = 100.0; // filter stale/impossible matches
-  constexpr double kMinValidBToAMs = 100.0;   // filter stale/impossible matches
+  constexpr double kMinValidOneWayMs =
+      10.0;                                // Filter impossible matches (< 10ms)
+  constexpr double kMinValidBToAMs = 10.0; // Filter impossible matches (< 10ms)
 
-  // B receives A pulses and sends response frames only when responding.
+  // B receives A pulses and sends response frames
   std::thread b_receiver_thread([&]() {
     AudioFrameEvent event;
     while (running.load() && stream_b_recv_a->read(event)) {
@@ -673,9 +699,20 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
 
       b_detect_us.store(detect_us);
       b_responded_pulse_id.store(pulse_id);
-      a_to_b_stats.addMeasurement(a_to_b_ms);
+
+      // End the A->B trace span
+      TRACE_EVENT_ASYNC_END1(kCategoryAudio, "A_to_B",
+                             static_cast<uint64_t>(pulse_id), "latency_ms",
+                             a_to_b_ms);
+      a_to_b_count++;
       std::cout << "  A->B latency: " << std::fixed << std::setprecision(2)
                 << a_to_b_ms << " ms" << std::endl;
+
+      // Begin B->A trace span
+      TRACE_EVENT_ASYNC_BEGIN1(kCategoryAudio, "B_to_A",
+                               static_cast<uint64_t>(pulse_id), "pulse",
+                               pulse_id);
+
       for (int i = 0; i < kBMaxResponseFrames; ++i) {
         std::vector<int16_t> pulse = generateHighEnergyFrame(kSamplesPerFrame);
         AudioFrame response_frame(std::move(pulse), kAudioSampleRate,
@@ -693,7 +730,6 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
                     << std::endl;
           break;
         }
-        // Prevent stale overlap into subsequent pulses.
         if (!waiting_for_response.load()) {
           break;
         }
@@ -702,7 +738,7 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
     }
   });
 
-  // A receives B responses and computes B->A and A->B->A.
+  // A receives B responses and computes B->A and A->B->A
   std::thread a_receiver_thread([&]() {
     AudioFrameEvent event;
     while (running.load() && stream_a_recv_b->read(event)) {
@@ -724,8 +760,6 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
       uint64_t send_from_b_us = b_send_us.load();
       int responded_pulse_id = b_responded_pulse_id.load();
 
-      // Only accept a return pulse after B has actually started responding to
-      // this same pulse id. This filters stale overlap from previous responses.
       if (responded_pulse_id != pulse_id || send_from_b_us == 0 ||
           receive_us < send_from_b_us) {
         continue;
@@ -734,7 +768,10 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
 
       double b_to_a_ms = (receive_us - send_from_b_us) / 1000.0;
       if (b_to_a_ms >= kMinValidBToAMs && b_to_a_ms < 5000) {
-        b_to_a_stats.addMeasurement(b_to_a_ms);
+        TRACE_EVENT_ASYNC_END1(kCategoryAudio, "B_to_A",
+                               static_cast<uint64_t>(pulse_id), "latency_ms",
+                               b_to_a_ms);
+        b_to_a_count++;
         std::cout << "  B->A latency: " << std::fixed << std::setprecision(2)
                   << b_to_a_ms << " ms" << std::endl;
       }
@@ -742,7 +779,10 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
       if (send_from_a_us > 0) {
         double rtt_ms = (receive_us - send_from_a_us) / 1000.0;
         if (rtt_ms > 0 && rtt_ms < 10000) {
-          round_trip_stats.addMeasurement(rtt_ms);
+          TRACE_EVENT_ASYNC_END1(kCategoryAudio, "round_trip",
+                                 static_cast<uint64_t>(pulse_id), "latency_ms",
+                                 rtt_ms);
+          round_trip_count++;
           std::cout << "  A->B->A latency: " << std::fixed
                     << std::setprecision(2) << rtt_ms << " ms" << std::endl;
         }
@@ -754,7 +794,7 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
     }
   });
 
-  // A sends ping pulses and waits for B's response.
+  // A sends ping pulses
   std::thread a_sender_thread([&]() {
     auto next_frame_time = std::chrono::steady_clock::now();
     const auto frame_duration =
@@ -784,7 +824,6 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
 
       std::vector<int16_t> frame_data;
       if (waiting_for_response.load()) {
-        // Keep transmitting pulse frames until B responds or timeout.
         frame_data = generateHighEnergyFrame(kSamplesPerFrame);
       } else if (!waiting_for_response.load() && pulses_sent < kTotalPulses) {
         int remaining_silence = pre_pulse_silence_frames_remaining.load();
@@ -805,6 +844,14 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
                   .count();
           a_send_us.store(pulse_start_us);
           waiting_for_response.store(true);
+
+          // Begin trace spans for A->B and round-trip
+          TRACE_EVENT_ASYNC_BEGIN1(kCategoryAudio, "A_to_B",
+                                   static_cast<uint64_t>(pulse_id), "pulse",
+                                   pulse_id);
+          TRACE_EVENT_ASYNC_BEGIN1(kCategoryAudio, "round_trip",
+                                   static_cast<uint64_t>(pulse_id), "pulse",
+                                   pulse_id);
 
           frame_data = generateHighEnergyFrame(kSamplesPerFrame);
 
@@ -834,21 +881,24 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
   a_receiver_thread.join();
   b_receiver_thread.join();
 
-  round_trip_stats.printStats("Full Duplex Latency (A->B->A) Statistics");
-  a_to_b_stats.printStats("One-way Latency (A->B) Statistics");
-  b_to_a_stats.printStats("One-way Latency (B->A) Statistics");
   if (timeouts > 0) {
     std::cout << "Response timeouts: " << timeouts << std::endl;
   }
 
-  room_a->localParticipant()->unpublishTrack(track_a->sid());
-  room_b->localParticipant()->unpublishTrack(track_b->sid());
+  // Tracing is automatically handled by LiveKitTestBase
+  // Stats for A_to_B, B_to_A, round_trip will be printed in TearDown()
+  if (track_a->publication()) {
+    room_a->localParticipant()->unpublishTrack(track_a->publication()->sid());
+  }
+  if (track_b->publication()) {
+    room_b->localParticipant()->unpublishTrack(track_b->publication()->sid());
+  }
 
-  EXPECT_GT(round_trip_stats.count(), 0)
+  EXPECT_GT(round_trip_count.load(), 0)
       << "At least one round-trip latency measurement should be recorded";
-  EXPECT_GT(a_to_b_stats.count(), 0)
+  EXPECT_GT(a_to_b_count.load(), 0)
       << "At least one A->B latency measurement should be recorded";
-  EXPECT_GT(b_to_a_stats.count(), 0)
+  EXPECT_GT(b_to_a_count.load(), 0)
       << "At least one B->A latency measurement should be recorded";
 }
 

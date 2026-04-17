@@ -32,10 +32,11 @@
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
-#include "livekit/lk_log.h"
+#include "lk_log.h"
 #include "livekit_ffi.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
+#include "trace/trace_event.h"
 #include "track.pb.h"
 #include "track_proto_converter.h"
 #include <functional>
@@ -107,6 +108,8 @@ void Room::setDelegate(RoomDelegate *delegate) {
 
 bool Room::Connect(const std::string &url, const std::string &token,
                    const RoomOptions &options) {
+  TRACE_EVENT0("livekit", "Room::Connect");
+
   {
     std::lock_guard<std::mutex> g(lock_);
     if (connection_state_ != ConnectionState::Disconnected) {

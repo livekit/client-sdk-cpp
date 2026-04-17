@@ -49,6 +49,9 @@ git clone --recurse-submodules https://github.com/livekit/client-sdk-cpp.git
 git clone https://github.com/livekit/client-sdk-cpp.git
 cd client-sdk-cpp
 git submodule update --init --recursive
+
+# Note: If running tests, pull Git LFS to bring in test data:
+git lfs pull
 ```
 
 ## ⚙️ BUILD
@@ -158,22 +161,22 @@ lk token create -r test -i your_own_identity  --join --valid-for 99999h --dev --
 
 ### SimpleRoom
 
-```bash
-./build-<configuration>/bin/SimpleRoom --url $URL --token <jwt-token>
+```bash`
+./build-release/cpp-example-collection-build/simple_room/SimpleRoom --url $URL --token <jwt-token>
 ```
 
 You can also provide the URL and token via environment variables:
 ```bash
 export LIVEKIT_URL=ws://localhost:7880
 export LIVEKIT_TOKEN=<jwt-token>
-./build-<configuration>/bin/SimpleRoom
+./build-release/cpp-example-collection-build/simple_room/SimpleRoom
 ```
 
 **End-to-End Encryption (E2EE)**
 You can enable E2E encryption for the streams via --enable_e2ee and --e2ee_key flags,
 by running the following cmds in two terminals or computers. **Note, jwt_token needs to be different identity**
 ```bash
-./build-<configuration>/bin/SimpleRoom --url $URL --token <jwt-token> --enable_e2ee --e2ee_key="your_key"
+./build-release/cpp-example-collection-build/simple_room/SimpleRoom --url $URL --token <jwt-token> --enable_e2ee --e2ee_key="your_key"
 ```
 **Note**, **all participants must use the exact same E2EE configuration and shared key.**
 If the E2EE keys do not match between participants:
@@ -203,7 +206,7 @@ lk token create -r test -i math-genius --join --valid-for 99999h --dev --room=yo
 #### ▶ Start Participants
 Every participant is run as a separate terminal process, note --role needs to match the token identity.
 ```bash
-./build-<configuration>/bin/SimpleRpc --url $URL --token <jwt-token> --role=math-genius
+./build-release/cpp-example-collection-build/simple_rpc/SimpleRpc --url $URL --token <jwt-token> --role=math-genius
 ```
 The caller will automatically:
 - Wait for the greeter and math-genius to join
@@ -231,11 +234,11 @@ lk token create -r test -i greeter --join --valid-for 99999h --dev --room=your_o
 #### ▶ Start Participants
 Start the receiver first (so it registers stream handlers before messages arrive):
 ```bash
-./build-<configuration>/bin/SimpleDataStream --url $URL --token <jwt-token>
+./build-release/cpp-example-collection-build/simple_data_stream/SimpleDataStream --url $URL --token <jwt-token>
 ```
 On another terminal or computer, start the sender
 ```bash
-./build-<configuration>/bin/SimpleDataStream --url $URL --token <jwt-token>
+./build-release/cpp-example-collection-build/simple_data_stream/SimpleDataStream --url $URL --token <jwt-token>
 ```
 
 **Sender** (e.g. greeter)
@@ -314,7 +317,7 @@ livekit::setLogCallback(
 livekit::setLogCallback(nullptr);
 ```
 
-See [`examples/logging_levels/custom_sinks.cpp`](examples/logging_levels/custom_sinks.cpp)
+See [`cpp-example-collection/logging_levels/custom_sinks.cpp`](cpp-example-collection/logging_levels/custom_sinks.cpp)
 for three copy-paste-ready patterns: **file logger**, **JSON structured lines**,
 and a **ROS2 bridge** that maps `LogLevel` to `RCLCPP_*` macros.
 
@@ -329,6 +332,42 @@ and a **ROS2 bridge** that maps `LogLevel` to `RCLCPP_*` macros.
 | `Error` | Failures that affect functionality |
 | `Critical` | Unrecoverable errors |
 | `Off` | Suppress all output |
+
+---
+
+## Tracing
+
+The SDK includes built-in support for [Chromium tracing](https://www.chromium.org/developers/how-tos/trace-event-profiling-tool/), allowing you to capture detailed performance traces for debugging and optimization.
+
+### Basic Usage
+
+```cpp
+#include <livekit/livekit.h>
+
+// Start tracing to a file
+livekit::startTracing("trace.json");
+
+// ... run your application ...
+
+// Stop tracing and flush to file
+livekit::stopTracing();
+```
+
+### Filtering by Category
+
+You can optionally filter which categories to trace:
+
+```cpp
+// Trace only specific categories (supports wildcards)
+livekit::startTracing("trace.json", {"livekit.*", "webrtc.*"});
+```
+
+### Viewing Traces
+
+Open the generated trace file in one of these viewers:
+
+1. **Chrome**: Navigate to `chrome://tracing` and click "Load" to open the trace file
+2. **Perfetto**: Go to https://ui.perfetto.dev and drag-drop your trace file
 
 ---
 

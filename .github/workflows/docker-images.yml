@@ -1,0 +1,363 @@
+name: Docker Images
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - src/**
+      - include/**
+      - bridge/**
+      - client-sdk-rust/**
+      - CMakeLists.txt
+      - build.sh
+      - build.cmd
+      - build.h.in
+      - CMakePresets.json
+      - cmake/**
+      - data/**
+      - docker/Dockerfile.base
+      - docker/Dockerfile.sdk
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  detect-changes:
+    name: Detect Docker image changes
+    runs-on: ubuntu-latest
+    outputs:
+      base_changed: ${{ steps.changes.outputs.base_changed }}
+      sdk_changed: ${{ steps.changes.outputs.sdk_changed }}
+      base_hash: ${{ steps.hash.outputs.base_hash }}
+      base_image: ${{ steps.refs.outputs.base_image }}
+      sdk_image: ${{ steps.refs.outputs.sdk_image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Resolve GHCR image names
+        id: refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "base_image=ghcr.io/${owner}/client-sdk-cpp-base" >> "$GITHUB_OUTPUT"
+          echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp" >> "$GITHUB_OUTPUT"
+
+      - name: Hash base Dockerfile
+        id: hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_hash="$(shasum -a 256 docker/Dockerfile.base | awk '{print substr($1,1,12)}')"
+          echo "base_hash=${base_hash}" >> "$GITHUB_OUTPUT"
+
+      - name: Detect changed inputs
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
+            changed_files="$(git ls-tree -r --name-only "${{ github.sha }}")"
+          else
+            changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
+          fi
+
+          echo "Changed files:"
+          if [[ -n "${changed_files}" ]]; then
+            while IFS= read -r path; do
+              [[ -z "${path}" ]] && continue
+              echo "  ${path}"
+            done <<< "${changed_files}"
+          else
+            echo "  <none>"
+          fi
+
+          base_changed=false
+          sdk_changed=false
+
+          while IFS= read -r path; do
+            [[ -z "${path}" ]] && continue
+
+            if [[ "${path}" == "docker/Dockerfile.base" ]]; then
+              base_changed=true
+              sdk_changed=true
+            fi
+
+            case "${path}" in
+              docker/Dockerfile.sdk|src/*|include/*|bridge/*|client-sdk-rust/*|cmake/*|data/*|CMakeLists.txt|build.sh|build.cmd|build.h.in|CMakePresets.json)
+                sdk_changed=true
+                ;;
+            esac
+          done <<< "${changed_files}"
+
+          echo "base_changed=${base_changed}" >> "$GITHUB_OUTPUT"
+          echo "sdk_changed=${sdk_changed}" >> "$GITHUB_OUTPUT"
+
+  build-base-amd64:
+    name: Publish base image (amd64)
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.base_changed == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push base image
+        shell: bash
+        run: |
+          set -euxo pipefail
+          docker buildx build \
+            --platform linux/amd64 \
+            --push \
+            -t "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-amd64" \
+            -t "${{ needs.detect-changes.outputs.base_image }}:base-main-amd64" \
+            -f docker/Dockerfile.base \
+            docker
+
+  build-base-arm64:
+    name: Publish base image (arm64)
+    runs-on: ubuntu-24.04-arm
+    needs: detect-changes
+    if: needs.detect-changes.outputs.base_changed == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push base image
+        shell: bash
+        run: |
+          set -euxo pipefail
+          docker buildx build \
+            --platform linux/arm64 \
+            --push \
+            -t "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-arm64" \
+            -t "${{ needs.detect-changes.outputs.base_image }}:base-main-arm64" \
+            -f docker/Dockerfile.base \
+            docker
+
+  publish-base-manifest:
+    name: Publish base manifest
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - build-base-amd64
+      - build-base-arm64
+    if: needs.detect-changes.outputs.base_changed == 'true'
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Publish base manifest tags
+        shell: bash
+        run: |
+          set -euxo pipefail
+          docker buildx imagetools create \
+            -t "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}" \
+            -t "${{ needs.detect-changes.outputs.base_image }}:base-main" \
+            "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-amd64" \
+            "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-arm64"
+
+  build-sdk-amd64:
+    name: Publish SDK image (amd64)
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - build-base-amd64
+    if: |
+      always() &&
+      needs.detect-changes.outputs.sdk_changed == 'true' &&
+      needs.build-base-amd64.result != 'failure' &&
+      needs.build-base-amd64.result != 'cancelled'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push SDK image
+        shell: bash
+        run: |
+          set -euxo pipefail
+          docker buildx build \
+            --platform linux/amd64 \
+            --build-arg BASE_IMAGE="${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-amd64" \
+            --push \
+            -t "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}-amd64" \
+            -t "${{ needs.detect-changes.outputs.sdk_image }}:main-amd64" \
+            . \
+            -f docker/Dockerfile.sdk
+
+  build-sdk-arm64:
+    name: Publish SDK image (arm64)
+    runs-on: ubuntu-24.04-arm
+    needs:
+      - detect-changes
+      - build-base-arm64
+    if: |
+      always() &&
+      needs.detect-changes.outputs.sdk_changed == 'true' &&
+      needs.build-base-arm64.result != 'failure' &&
+      needs.build-base-arm64.result != 'cancelled'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push SDK image
+        shell: bash
+        run: |
+          set -euxo pipefail
+          docker buildx build \
+            --platform linux/arm64 \
+            --build-arg BASE_IMAGE="${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-arm64" \
+            --push \
+            -t "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}-arm64" \
+            -t "${{ needs.detect-changes.outputs.sdk_image }}:main-arm64" \
+            . \
+            -f docker/Dockerfile.sdk
+
+  publish-sdk-manifest:
+    name: Publish SDK manifest
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - build-sdk-amd64
+      - build-sdk-arm64
+    if: |
+      always() &&
+      needs.detect-changes.outputs.sdk_changed == 'true' &&
+      needs.build-sdk-amd64.result != 'failure' &&
+      needs.build-sdk-amd64.result != 'cancelled' &&
+      needs.build-sdk-arm64.result != 'failure' &&
+      needs.build-sdk-arm64.result != 'cancelled'
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Publish SDK manifest tags
+        shell: bash
+        run: |
+          set -euxo pipefail
+          docker buildx imagetools create \
+            -t "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}" \
+            -t "${{ needs.detect-changes.outputs.sdk_image }}:main" \
+            "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}-amd64" \
+            "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}-arm64"
