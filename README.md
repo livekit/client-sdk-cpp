@@ -480,15 +480,48 @@ In some cases, you may need to perform a full clean that deletes all build artif
 ./build.sh clean-all
 ```
 
-### Clang format
-CPP SDK is using clang C++ format
+## Quality Checks
+
+This SDK leverages various tools and checks to ensure the highest quality of the code.
+
+### Clang Tools
+
+- `clang-tidy`: static analysis checks to catch common C++ pitfalls. See [.clang-tidy](./.clang-tidy) for the list of current checks (enforced in CI on PR)
+- `clang-format`: (coming soon) code formatting and style consistency
+
+> **Note**: clang-tidy is not currently supported on Windows for this project because the Visual Studio CMake generator does not produce the compile_commands.json database that clang-tidy requires.
+
+To run locally, first install the following:
+
+**macOS:**
+
 ```bash
-brew install clang-format
+# macOS
+brew install llvm
 ```
 
+This installs `clang-format`, `clang-tidy`, and `run-clang-tidy`. Homebrew may ask you to add `/opt/homebrew/opt/llvm/bin` to your `PATH`.
 
-#### Memory Checks
+**Linux:**
+
+```bash
+# Ubuntu / Debian:
+sudo apt-get install clang-format clang-tidy clang-tools
+```
+
+To run:
+
+1. Run a build script command, such that `compile_command.json` is present at the root of the repository
+2. Run:
+
+```bash
+clang-tidy -p . src/*.cpp
+```
+
+### Memory Checks
+
 Run valgrind on various examples or tests to check for memory leaks and other issues.
+
 ```bash
 valgrind --leak-check=full ./build-debug/bin/livekit_integration_tests
 valgrind --leak-check=full ./build-debug/bin/livekit_stress_tests
