@@ -488,7 +488,7 @@ std::thread SubscriptionThreadDispatcher::startAudioReaderLocked(
     return old_thread;
   }
 
-  auto stream = AudioStream::fromTrack(track, opts);
+  const auto stream = AudioStream::fromTrack(track, opts);
   if (!stream) {
     LK_LOG_ERROR("Failed to create AudioStream for {} source={}",
                  key.participant_identity, static_cast<int>(key.source));

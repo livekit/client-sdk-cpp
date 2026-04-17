@@ -142,17 +142,17 @@ inline bool waitForParticipant(Room *room, const std::string &identity,
 }
 
 inline std::array<std::string, 2> getDataTrackTestTokens() {
-  const char *token_a = std::getenv("LK_TOKEN_TEST_A");
+  const char *token_a = std::getenv("LIVEKIT_CALLER_TOKEN");
   if (token_a == nullptr || std::string(token_a).empty()) {
     throw std::runtime_error(
-        "LK_TOKEN_TEST_A must be present and non-empty for data track E2E "
+        "LIVEKIT_CALLER_TOKEN must be present and non-empty for data track E2E "
         "tests");
   }
 
-  const char *token_b = std::getenv("LK_TOKEN_TEST_B");
+  const char *token_b = std::getenv("LIVEKIT_RECEIVER_TOKEN");
   if (token_b == nullptr || std::string(token_b).empty()) {
     throw std::runtime_error(
-        "LK_TOKEN_TEST_B must be present and non-empty for data track E2E "
+        "LIVEKIT_RECEIVER_TOKEN must be present and non-empty for data track E2E "
         "tests");
   }
 
@@ -216,7 +216,7 @@ testRooms(const std::vector<TestRoomConnectionOptions> &room_configs) {
 
   if (room_configs.size() > 2) {
     throw std::invalid_argument(
-        "testRooms supports at most two rooms with LK_TOKEN_TEST_A/B");
+        "testRooms supports at most two rooms with LIVEKIT_CALLER_TOKEN/B");
   }
 
   auto tokens = getDataTrackTestTokens();
