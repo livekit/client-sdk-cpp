@@ -547,10 +547,11 @@ jobs:
             cmake --build build --parallel
           '
 
-  # Lightweight job: configure-only to produce compile_commands.json + generated
-  # protobuf headers for clang-tidy, without waiting for the full build.
-  configure:
-    name: Configure (compile database)
+  # ---------- Quality Checks ----------
+  # Full linux-x64 build that produces the compile database and runs unit tests.
+  # Downstream quality jobs (clang-tidy, coverage, sanitizers) depend on this.
+  quality-build:
+    name: Quality Build (linux-x64)
     runs-on: ubuntu-latest
 
     steps:
@@ -559,6 +560,9 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
+
+      - name: Pull LFS files
+        run: git lfs pull
 
       - name: Install deps (Ubuntu)
         run: |
@@ -582,6 +586,23 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Cache Cargo registry
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-quality-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-quality-cargo-reg-
+
+      - name: Cache Cargo target
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: client-sdk-rust/target
+          key: ${{ runner.os }}-quality-cargo-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-quality-cargo-target-
+
       - name: Set Linux build environment
         run: |
           echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
@@ -589,26 +610,42 @@ jobs:
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
           echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
 
-      - name: CMake configure
-        run: cmake --preset linux-release-all
+      - name: Build
+        run: |
+          chmod +x build.sh
+          ./build.sh debug-all
 
-      - name: Generate protobuf headers
-        run: cmake --build build-release --target livekit_proto
+      - name: Run unit tests
+        run: |
+          build-debug/bin/livekit_unit_tests \
+            --gtest_output=xml:build-debug/unit-test-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results-quality-linux-x64
+          path: build-debug/unit-test-results.xml
+          retention-days: 7
 
       - name: Upload compile database
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: compile-database
           path: |
-            build-release/compile_commands.json
-            build-release/generated/
-            build-release/_deps/*-src/
+            build-debug/compile_commands.json
+            build-debug/generated/
+            build-debug/_deps/*-src/
             include/livekit/build.h
           retention-days: 1
 
+      - name: Clean after build (best-effort)
+        if: always()
+        run: ./build.sh clean-all || true
+
   clang-tidy:
     name: clang-tidy
-    needs: configure
+    needs: quality-build
     runs-on: ubuntu-latest
     continue-on-error: false
     if: ${{ !cancelled() }}
@@ -653,7 +690,7 @@ jobs:
         with:
           style: ''
           tidy-checks: ''
-          database: build-release
+          database: build-debug
           files-changed-only: false
           lines-changed-only: false
           extensions: 'c,cpp,cc,cxx'
