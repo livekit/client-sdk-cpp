@@ -605,8 +605,7 @@ jobs:
           file-annotations: true
           thread-comments: update
           step-summary: true
-          tidy-review: true
-          passive-reviews: true
+          tidy-review: false
           no-lgtm: true
           jobs: 0   # 0 == use all available CPU cores
 

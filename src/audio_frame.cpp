@@ -54,7 +54,8 @@ AudioFrame AudioFrame::create(int sample_rate, int num_channels,
   const std::size_t count = static_cast<std::size_t>(num_channels) *
                             static_cast<std::size_t>(samples_per_channel);
   std::vector<std::int16_t> data(count, 0);
-  return {std::move(data), sample_rate, num_channels, samples_per_channel};
+  return AudioFrame(std::move(data), sample_rate, num_channels,
+                    samples_per_channel);
 }
 
 AudioFrame
@@ -87,7 +88,8 @@ AudioFrame::fromOwnedInfo(const proto::OwnedAudioFrameBuffer &owned) {
     // drop the OwnedAudioFrameBuffer.
   }
 
-  return {std::move(data), sample_rate, num_channels, samples_per_channel};
+  return AudioFrame(std::move(data), sample_rate, num_channels,
+                    samples_per_channel);
 }
 
 proto::AudioFrameBufferInfo AudioFrame::toProto() const {

@@ -29,11 +29,11 @@ namespace livekit {
 namespace {
 
 std::string bytesToString(const std::vector<std::uint8_t> &v) {
-  return {reinterpret_cast<const char *>(v.data()), v.size()};
+  return std::string(reinterpret_cast<const char *>(v.data()), v.size());
 }
 
 std::vector<std::uint8_t> stringToBytes(const std::string &s) {
-  return {s.begin(), s.end()};
+  return std::vector<std::uint8_t>(s.begin(), s.end());
 }
 
 } // namespace

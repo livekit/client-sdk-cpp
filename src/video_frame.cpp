@@ -292,7 +292,7 @@ VideoFrame::VideoFrame(int width, int height, VideoBufferType type,
 VideoFrame VideoFrame::create(int width, int height, VideoBufferType type) {
   const std::size_t size = computeBufferSize(width, height, type);
   std::vector<std::uint8_t> buffer(size, 0);
-  return {width, height, type, std::move(buffer)};
+  return VideoFrame(width, height, type, std::move(buffer));
 }
 
 std::vector<VideoPlaneInfo> VideoFrame::planeInfos() const {
@@ -312,7 +312,7 @@ VideoFrame VideoFrame::convert(VideoBufferType dst, bool flip_y) const {
     LK_LOG_WARN("VideoFrame::convert: converting to the same format");
     // copy pixel data
     std::vector<std::uint8_t> buf = data_;
-    return {width_, height_, type_, std::move(buf)};
+    return VideoFrame(width_, height_, type_, std::move(buf));
   }
 
   // General path: delegate to the FFI-based conversion helper.
@@ -370,7 +370,7 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
     // owned_handle destroyed at end of scope → native buffer disposed.
   }
 
-  return {width, height, type, std::move(buffer)};
+  return VideoFrame(width, height, type, std::move(buffer));
 }
 
 } // namespace livekit

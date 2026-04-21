@@ -10,6 +10,7 @@ Checks: >
   -modernize-avoid-c-arrays,
   -modernize-use-auto,
   -modernize-use-nodiscard,
+  -modernize-return-braced-init-list,
   -performance-enum-size,
   -readability-braces-around-statements,
 

@@ -37,7 +37,7 @@ namespace livekit {
 namespace {
 
 std::string bytesToString(const std::vector<std::uint8_t> &b) {
-  return {reinterpret_cast<const char *>(b.data()), b.size()};
+  return std::string(reinterpret_cast<const char *>(b.data()), b.size());
 }
 
 inline void logAndThrow(const std::string &error_msg) {
