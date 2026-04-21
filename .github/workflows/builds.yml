@@ -569,15 +569,7 @@ jobs:
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
             llvm-dev libclang-dev clang clang-tidy \
-            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
-            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
-            libxrandr-dev libxi-dev libxkbcommon-dev \
-            libasound2-dev libpulse-dev \
-            libssl-dev \
-            libprotobuf-dev protobuf-compiler \
-            libabsl-dev \
-            libwayland-dev libdecor-0-dev \
-            libspdlog-dev
+            libssl-dev
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
@@ -592,7 +584,7 @@ jobs:
           echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
 
       - name: CMake configure
-        run: cmake --preset linux-release-all
+        run: cmake --preset linux-release
 
       - name: Generate protobuf headers
         run: cmake --build build-release --target livekit_proto
