@@ -481,9 +481,10 @@ In some cases, you may need to perform a full clean that deletes all build artif
 ```
 
 ### Clang format
-CPP SDK is using clang C++ format
+CPP SDK is using clang C++ format, and set up the pre-commit hook (run once):
 ```bash
 brew install clang-format
+printf '#!/bin/sh\necho "Running clang-format..."\nFILES=$(git diff --cached --name-only -- "*.cpp" "*.cc" "*.h" "*.hpp")\n[ -z "$FILES" ] && exit 0\nfor f in $FILES; do clang-format -i "$f"; git add "$f"; done\necho "clang-format completed."\n' > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 ```
 
 
