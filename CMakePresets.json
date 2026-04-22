@@ -263,6 +263,8 @@
       "binaryDir": "${sourceDir}/build-coverage",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
         "LIVEKIT_BUILD_EXAMPLES": "OFF",
         "LIVEKIT_BUILD_TESTS": "ON",
         "CMAKE_C_FLAGS": "--coverage -Wno-deprecated-declarations",

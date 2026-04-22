@@ -403,6 +403,8 @@ jobs:
         run: |
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
           echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+          GCC_VER=$(gcc -dumpversion | cut -d. -f1)
+          echo "GCOV_EXECUTABLE=gcov-${GCC_VER}" >> $GITHUB_ENV
 
       - name: Configure (coverage preset)
         run: cmake --preset linux-coverage-tests
@@ -422,6 +424,8 @@ jobs:
           mkdir -p coverage-html
           gcovr build-coverage \
             --root . \
+            --gcov-executable "${GCOV_EXECUTABLE}" \
+            --gcov-ignore-parse-errors=warn \
             --filter 'src/' \
             --exclude 'src/tests/' \
             --exclude '.*\.pb\.' \
