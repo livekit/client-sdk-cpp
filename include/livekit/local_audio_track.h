@@ -85,9 +85,12 @@ public:
   }
 
   /// Sets the publication that owns this track.
+  /// Note: std::move on a const& silently falls back to a copy, so we assign
+  /// directly. Changing the virtual signature to take by value would enable
+  /// a true move but is an API-breaking change left for a future revision.
   void setPublication(const std::shared_ptr<LocalTrackPublication>
                           &publication) noexcept override {
-    local_publication_ = std::move(publication);
+    local_publication_ = publication;
   }
 
 private:
