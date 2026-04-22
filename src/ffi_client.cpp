@@ -501,7 +501,7 @@ FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
           return;
         }
 
-        const proto::OwnedTrackPublication pub = cb.publication();
+        const proto::OwnedTrackPublication &pub = cb.publication();
         pr.set_value(std::move(pub));
       });
 
