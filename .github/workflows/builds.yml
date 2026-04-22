@@ -332,6 +332,134 @@ jobs:
             ./build.sh clean-all || true
           fi
 
+  # ============================================================================
+  # Code Coverage (Linux only)
+  # ============================================================================
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+      statuses: write
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Pull LFS files
+        run: git lfs pull
+
+      # ---------- OS deps ----------
+      - name: Install deps
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            llvm-dev libclang-dev clang \
+            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+            libxrandr-dev libxi-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev \
+            libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libabsl-dev \
+            libwayland-dev libdecor-0-dev \
+            libspdlog-dev
+          pip install --break-system-packages gcovr
+
+      # ---------- Rust toolchain ----------
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
+
+      # ---------- Cache Cargo ----------
+      - name: Cache Cargo registry
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-coverage-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-coverage-cargo-reg-
+
+      - name: Cache Cargo target
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: client-sdk-rust/target
+          key: ${{ runner.os }}-coverage-cargo-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-coverage-cargo-target-
+
+      # ---------- Build with coverage ----------
+      - name: Set build environment
+        run: |
+          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+          GCC_VER=$(gcc -dumpversion | cut -d. -f1)
+          echo "GCOV_EXECUTABLE=gcov-${GCC_VER}" >> $GITHUB_ENV
+
+      - name: Configure (coverage preset)
+        run: cmake --preset linux-coverage-tests
+
+      - name: Build
+        run: cmake --build build-coverage --parallel
+
+      # ---------- Run tests ----------
+      - name: Run unit tests
+        run: |
+          build-coverage/bin/livekit_unit_tests \
+            --gtest_output=xml:build-coverage/unit-test-results.xml
+
+      # ---------- Generate coverage reports ----------
+      - name: Generate coverage reports
+        run: |
+          mkdir -p coverage-html
+          gcovr build-coverage \
+            --root . \
+            --gcov-executable "${GCOV_EXECUTABLE}" \
+            --gcov-ignore-parse-errors=all \
+            --filter 'src/' \
+            --exclude 'src/tests/' \
+            --exclude '.*\.pb\.' \
+            --exclude-unreachable-branches \
+            --exclude-throw-branches \
+            --cobertura coverage.xml \
+            --html-details coverage-html/index.html \
+            --txt coverage-summary.txt
+
+      - name: Add coverage summary to job
+        run: |
+          {
+            echo '## Code Coverage Summary'
+            echo ''
+            echo '```'
+            cat coverage-summary.txt
+            echo '```'
+            echo ''
+            echo '*Full HTML report available in the **coverage-report** artifact.*'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ---------- Upload reports ----------
+      - name: Upload coverage HTML report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-report
+          path: coverage-html/
+          retention-days: 14
+
+      - name: Upload coverage to Codecov
+        uses: getsentry/codecov-action@03112cc3b486a3397dc8d17a58680008721fc86f # v0.3.7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   docker-build-x64:
     name: Build (docker-linux-x64)
     runs-on: ubuntu-latest
