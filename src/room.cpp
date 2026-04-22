@@ -280,7 +280,7 @@ void Room::setOnAudioFrameCallback(const std::string &participant_identity,
                                    AudioStream::Options opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnAudioFrameCallback(
-        participant_identity, source, std::move(callback), std::move(opts));
+        participant_identity, source, std::move(callback), opts);
   }
 }
 
@@ -290,7 +290,7 @@ void Room::setOnAudioFrameCallback(const std::string &participant_identity,
                                    AudioStream::Options opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnAudioFrameCallback(
-        participant_identity, track_name, std::move(callback), std::move(opts));
+        participant_identity, track_name, std::move(callback), opts);
   }
 }
 
@@ -310,7 +310,7 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    VideoStream::Options opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnVideoFrameCallback(
-        participant_identity, track_name, std::move(callback), std::move(opts));
+        participant_identity, track_name, std::move(callback), opts);
   }
 }
 
@@ -320,7 +320,7 @@ void Room::setOnVideoFrameEventCallback(const std::string &participant_identity,
                                         VideoStream::Options opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnVideoFrameEventCallback(
-        participant_identity, source, std::move(callback), std::move(opts));
+        participant_identity, source, std::move(callback), opts);
   }
 }
 
