@@ -56,7 +56,8 @@ TrackKind fromProto(proto::TrackKind in) {
   case proto::TrackKind::KIND_VIDEO:
     return TrackKind::KIND_VIDEO;
   case proto::TrackKind::KIND_UNKNOWN:
-  default:
+    return TrackKind::KIND_UNKNOWN;
+  default: // NOLINT(bugprone-branch-clone)
     return TrackKind::KIND_UNKNOWN;
   }
 }
@@ -68,7 +69,8 @@ StreamState fromProto(proto::StreamState in) {
   case proto::StreamState::STATE_PAUSED:
     return StreamState::STATE_PAUSED;
   case proto::StreamState::STATE_UNKNOWN:
-  default:
+    return StreamState::STATE_UNKNOWN;
+  default: // NOLINT(bugprone-branch-clone)
     return StreamState::STATE_UNKNOWN;
   }
 }
@@ -84,7 +86,8 @@ TrackSource fromProto(proto::TrackSource in) {
   case proto::TrackSource::SOURCE_SCREENSHARE_AUDIO:
     return TrackSource::SOURCE_SCREENSHARE_AUDIO;
   case proto::TrackSource::SOURCE_UNKNOWN:
-  default:
+    return TrackSource::SOURCE_UNKNOWN;
+  default: // NOLINT(bugprone-branch-clone)
     return TrackSource::SOURCE_UNKNOWN;
   }
 }

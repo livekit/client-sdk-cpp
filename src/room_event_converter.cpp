@@ -56,7 +56,7 @@ DataPacketKind toDataPacketKind(proto::DataPacketKind src) {
     return DataPacketKind::Lossy;
   case proto::KIND_RELIABLE:
     return DataPacketKind::Reliable;
-  default:
+  default: // NOLINT(bugprone-branch-clone)
     return DataPacketKind::Reliable;
   }
 }

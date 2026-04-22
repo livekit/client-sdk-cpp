@@ -27,9 +27,6 @@ namespace {
 
 const char *kLoggerName = "livekit";
 
-// clang-tidy complains about these switches, only known workaround
-// is an awkward static_cast
-// NOLINTBEGIN(bugprone-branch-clone)
 spdlog::level::level_enum toSpdlogLevel(LogLevel level) {
   switch (level) {
   case LogLevel::Trace:
@@ -66,11 +63,10 @@ LogLevel fromSpdlogLevel(spdlog::level::level_enum level) {
     return LogLevel::Critical;
   case spdlog::level::off:
     return LogLevel::Off;
-  default:
+  default: // NOLINT(bugprone-branch-clone)
     return LogLevel::Info;
   }
 }
-// NOLINTEND(bugprone-branch-clone)
 
 std::mutex &loggerMutex() {
   static std::mutex mtx;
