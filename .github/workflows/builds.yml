@@ -599,7 +599,7 @@ jobs:
           tidy-checks: ''
           database: build-release
           files-changed-only: false
-          lines-changed-only: true
+          lines-changed-only: false
           extensions: 'c,cpp,cc,cxx'
           ignore: 'build-*|cpp-example-collection|client-sdk-rust|vcpkg_installed|src/tests|bridge|src/room_event_converter.cpp'
           file-annotations: true
