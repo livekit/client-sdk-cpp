@@ -50,7 +50,7 @@ AudioSource::AudioSource(int sample_rate, int num_channels, int queue_size_ms)
   msg->set_num_channels(static_cast<std::uint32_t>(num_channels_));
   msg->set_queue_size_ms(static_cast<std::uint32_t>(queue_size_ms_));
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
 
   const auto &source_info = resp.new_audio_source().source();
   // Wrap FFI handle in RAII FfiHandle
@@ -62,9 +62,9 @@ double AudioSource::queuedDuration() const noexcept {
     return 0.0;
   }
 
-  double now = now_seconds();
-  double elapsed = now - last_capture_;
-  double remaining = q_size_ - elapsed;
+  const double now = now_seconds();
+  const double elapsed = now - last_capture_;
+  const double remaining = q_size_ - elapsed;
   return remaining > 0.0 ? remaining : 0.0;
 }
 
@@ -100,9 +100,9 @@ void AudioSource::captureFrame(const AudioFrame &frame, int timeout_ms) {
   }
 
   // Queue tracking, same logic as before
-  double now = now_seconds();
-  double elapsed = (last_capture_ == 0.0) ? 0.0 : (now - last_capture_);
-  double frame_duration = static_cast<double>(frame.samples_per_channel()) /
+  const double now = now_seconds();
+  const double elapsed = (last_capture_ == 0.0) ? 0.0 : (now - last_capture_);
+  const double frame_duration = static_cast<double>(frame.samples_per_channel()) /
                           static_cast<double>(sample_rate_);
   q_size_ += frame_duration - elapsed;
   if (q_size_ < 0.0) {
@@ -111,7 +111,7 @@ void AudioSource::captureFrame(const AudioFrame &frame, int timeout_ms) {
   last_capture_ = now;
 
   // Build AudioFrameBufferInfo from the wrapper
-  proto::AudioFrameBufferInfo buf = frame.toProto();
+  const proto::AudioFrameBufferInfo buf = frame.toProto();
   // Use async FFI API and block until the callback completes
   auto fut = FfiClient::instance().captureAudioFrameAsync(handle_.get(), buf);
   if (timeout_ms == 0) {

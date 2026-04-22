@@ -152,7 +152,7 @@ VideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned) {
 
   // Drop the owned FFI handle to let the core free its side.
   {
-    FfiHandle tmp(owned.handle().id());
+    const FfiHandle tmp(owned.handle().id());
     // tmp destructor will dispose the handle via FFI.
   }
 
@@ -167,7 +167,7 @@ VideoFrame convertViaFfi(const VideoFrame &frame, VideoBufferType dst,
   vc->set_dst_type(toProto(dst));
   vc->mutable_buffer()->CopyFrom(toProto(frame));
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   if (!resp.has_video_convert()) {
     throw std::runtime_error(
         "convertViaFfi: FfiResponse missing video_convert");

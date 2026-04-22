@@ -200,7 +200,7 @@ FfiClient::sendRequest(const proto::FfiRequest &request) const {
   }
 
   // Ensure we drop the handle exactly once on all paths
-  FfiHandle handle_guard(static_cast<uintptr_t>(handle));
+  const FfiHandle handle_guard(static_cast<uintptr_t>(handle));
   if (!resp_ptr || resp_len == 0) {
     throw std::runtime_error("FFI returned empty response bytes");
   }
@@ -403,7 +403,7 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
   }
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_connect()) {
       logAndThrow("FfiResponse missing connect");
     }
@@ -501,7 +501,7 @@ FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
           return;
         }
 
-        proto::OwnedTrackPublication pub = cb.publication();
+        const proto::OwnedTrackPublication pub = cb.publication();
         pr.set_value(std::move(pub));
       });
 
@@ -515,7 +515,7 @@ FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
   msg->mutable_options()->CopyFrom(optionProto);
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_publish_track()) {
       logAndThrow("FfiResponse missing publish_track");
     }
@@ -560,7 +560,7 @@ FfiClient::unpublishTrackAsync(std::uint64_t local_participant_handle,
   msg->set_request_async_id(async_id);
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_unpublish_track()) {
       logAndThrow("FfiResponse missing unpublish_track");
     }
@@ -611,7 +611,7 @@ std::future<void> FfiClient::publishDataAsync(
   }
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_publish_data()) {
       logAndThrow("FfiResponse missing publish_data");
     }
@@ -665,7 +665,7 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
   msg->set_request_async_id(async_id);
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_publish_data_track()) {
       cancelPendingByAsyncId(async_id);
       std::promise<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>
@@ -760,7 +760,7 @@ std::future<void> FfiClient::publishSipDtmfAsync(
   }
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_publish_sip_dtmf()) {
       logAndThrow("FfiResponse missing publish_sip_dtmf");
     }
@@ -803,7 +803,7 @@ FfiClient::setLocalMetadataAsync(std::uint64_t local_participant_handle,
   msg->set_request_async_id(async_id);
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_set_local_metadata()) {
       logAndThrow("FfiResponse missing set_local_metadata");
     }
@@ -848,7 +848,7 @@ FfiClient::captureAudioFrameAsync(std::uint64_t source_handle,
   msg->mutable_buffer()->CopyFrom(buffer);
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_capture_audio_frame()) {
       logAndThrow("FfiResponse missing capture_audio_frame");
     }
@@ -902,7 +902,7 @@ FfiClient::performRpcAsync(std::uint64_t local_participant_handle,
   }
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_perform_rpc()) {
       logAndThrow("FfiResponse missing perform_rpc");
     }
@@ -951,7 +951,7 @@ std::future<void> FfiClient::sendStreamHeaderAsync(
   }
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_send_stream_header()) {
       logAndThrow("FfiResponse missing send_stream_header");
     }
@@ -1000,7 +1000,7 @@ std::future<void> FfiClient::sendStreamChunkAsync(
   }
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_send_stream_chunk()) {
       logAndThrow("FfiResponse missing send_stream_chunk");
     }
@@ -1045,7 +1045,7 @@ FfiClient::sendStreamTrailerAsync(std::uint64_t local_participant_handle,
   msg->set_request_async_id(async_id);
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_send_stream_trailer()) {
       logAndThrow("FfiResponse missing send_stream_trailer");
     }

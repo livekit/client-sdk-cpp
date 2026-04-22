@@ -130,19 +130,19 @@ computePlaneInfos(uintptr_t base, int width, int height, VideoBufferType type) {
     // Y
     const uint32_t y_stride = w;
     const uint32_t y_size = w * h;
-    uintptr_t y_ptr = base;
+    const uintptr_t y_ptr = base;
     pushPlane(y_ptr, y_stride, y_size);
 
     // U
     const uint32_t u_stride = chroma_w;
     const uint32_t u_size = chroma_w * chroma_h;
-    uintptr_t u_ptr = y_ptr + y_size;
+    const uintptr_t u_ptr = y_ptr + y_size;
     pushPlane(u_ptr, u_stride, u_size);
 
     // V
     const uint32_t v_stride = chroma_w;
     const uint32_t v_size = chroma_w * chroma_h;
-    uintptr_t v_ptr = u_ptr + u_size;
+    const uintptr_t v_ptr = u_ptr + u_size;
     pushPlane(v_ptr, v_stride, v_size);
     break;
   }
@@ -154,25 +154,25 @@ computePlaneInfos(uintptr_t base, int width, int height, VideoBufferType type) {
     // Y
     const uint32_t y_stride = w;
     const uint32_t y_size = w * h;
-    uintptr_t y_ptr = base;
+    const uintptr_t y_ptr = base;
     pushPlane(y_ptr, y_stride, y_size);
 
     // U
     const uint32_t u_stride = chroma_w;
     const uint32_t u_size = chroma_w * chroma_h;
-    uintptr_t u_ptr = y_ptr + y_size;
+    const uintptr_t u_ptr = y_ptr + y_size;
     pushPlane(u_ptr, u_stride, u_size);
 
     // V
     const uint32_t v_stride = chroma_w;
     const uint32_t v_size = chroma_w * chroma_h;
-    uintptr_t v_ptr = u_ptr + u_size;
+    const uintptr_t v_ptr = u_ptr + u_size;
     pushPlane(v_ptr, v_stride, v_size);
 
     // A (full res)
     const uint32_t a_stride = w;
     const uint32_t a_size = w * h;
-    uintptr_t a_ptr = v_ptr + v_size;
+    const uintptr_t a_ptr = v_ptr + v_size;
     pushPlane(a_ptr, a_stride, a_size);
     break;
   }
@@ -183,19 +183,19 @@ computePlaneInfos(uintptr_t base, int width, int height, VideoBufferType type) {
     // Y
     const uint32_t y_stride = w;
     const uint32_t y_size = w * h;
-    uintptr_t y_ptr = base;
+    const uintptr_t y_ptr = base;
     pushPlane(y_ptr, y_stride, y_size);
 
     // U
     const uint32_t u_stride = chroma_w;
     const uint32_t u_size = chroma_w * h;
-    uintptr_t u_ptr = y_ptr + y_size;
+    const uintptr_t u_ptr = y_ptr + y_size;
     pushPlane(u_ptr, u_stride, u_size);
 
     // V
     const uint32_t v_stride = chroma_w;
     const uint32_t v_size = chroma_w * h;
-    uintptr_t v_ptr = u_ptr + u_size;
+    const uintptr_t v_ptr = u_ptr + u_size;
     pushPlane(v_ptr, v_stride, v_size);
     break;
   }
@@ -204,17 +204,17 @@ computePlaneInfos(uintptr_t base, int width, int height, VideoBufferType type) {
     // All planes full-res
     const uint32_t y_stride = w;
     const uint32_t y_size = w * h;
-    uintptr_t y_ptr = base;
+    const uintptr_t y_ptr = base;
     pushPlane(y_ptr, y_stride, y_size);
 
     const uint32_t u_stride = w;
     const uint32_t u_size = w * h;
-    uintptr_t u_ptr = y_ptr + y_size;
+    const uintptr_t u_ptr = y_ptr + y_size;
     pushPlane(u_ptr, u_stride, u_size);
 
     const uint32_t v_stride = w;
     const uint32_t v_size = w * h;
-    uintptr_t v_ptr = u_ptr + u_size;
+    const uintptr_t v_ptr = u_ptr + u_size;
     pushPlane(v_ptr, v_stride, v_size);
     break;
   }
@@ -227,19 +227,19 @@ computePlaneInfos(uintptr_t base, int width, int height, VideoBufferType type) {
     // Y
     const uint32_t y_stride = w * 2;
     const uint32_t y_size = w * h * 2;
-    uintptr_t y_ptr = base;
+    const uintptr_t y_ptr = base;
     pushPlane(y_ptr, y_stride, y_size);
 
     // U
     const uint32_t u_stride = chroma_w * 2;
     const uint32_t u_size = chroma_w * chroma_h * 2;
-    uintptr_t u_ptr = y_ptr + y_size;
+    const uintptr_t u_ptr = y_ptr + y_size;
     pushPlane(u_ptr, u_stride, u_size);
 
     // V
     const uint32_t v_stride = chroma_w * 2;
     const uint32_t v_size = chroma_w * chroma_h * 2;
-    uintptr_t v_ptr = u_ptr + u_size;
+    const uintptr_t v_ptr = u_ptr + u_size;
     pushPlane(v_ptr, v_stride, v_size);
     break;
   }
@@ -251,13 +251,13 @@ computePlaneInfos(uintptr_t base, int width, int height, VideoBufferType type) {
     // Y
     const uint32_t y_stride = w;
     const uint32_t y_size = w * h;
-    uintptr_t y_ptr = base;
+    const uintptr_t y_ptr = base;
     pushPlane(y_ptr, y_stride, y_size);
 
     // UV interleaved
     const uint32_t uv_stride = chroma_w * 2;
     const uint32_t uv_size = chroma_w * chroma_h * 2;
-    uintptr_t uv_ptr = y_ptr + y_size;
+    const uintptr_t uv_ptr = y_ptr + y_size;
     pushPlane(uv_ptr, uv_stride, uv_size);
     break;
   }

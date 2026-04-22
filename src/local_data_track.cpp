@@ -52,7 +52,7 @@ LocalDataTrack::tryPush(const DataTrackFrame &frame) {
       pf->set_user_timestamp(frame.user_timestamp.value());
     }
 
-    proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+    const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
     const auto &r = resp.local_data_track_try_push();
     if (r.has_error()) {
       return Result<void, LocalDataTrackTryPushError>::failure(
@@ -84,7 +84,7 @@ bool LocalDataTrack::isPublished() const {
   auto *msg = req.mutable_local_data_track_is_published();
   msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   return resp.local_data_track_is_published().is_published();
 }
 
