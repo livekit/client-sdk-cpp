@@ -419,6 +419,7 @@ jobs:
       # ---------- Generate coverage reports ----------
       - name: Generate coverage reports
         run: |
+          mkdir -p coverage-html
           gcovr build-coverage \
             --root . \
             --filter 'src/' \
