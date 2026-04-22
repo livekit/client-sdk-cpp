@@ -157,6 +157,10 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 
 ### Readability and Performance
 Code should be easy to read and understand. If a sacrifice is made for performance or readability, it should be documented.
+
+### Static Analysis
+Adhere to clang-tidy checks configured in `.clang-tidy`.
+
 ## Dependencies
 
 | Dependency | Scope | Notes |
