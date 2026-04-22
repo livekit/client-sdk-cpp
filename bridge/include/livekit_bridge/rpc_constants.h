@@ -20,6 +20,7 @@
 #pragma once
 
 #include <string>
+
 #ifdef _WIN32
 #ifdef livekit_bridge_EXPORTS
 #define LIVEKIT_BRIDGE_API __declspec(dllexport)
@@ -30,12 +31,15 @@
 #define LIVEKIT_BRIDGE_API
 #endif
 
+namespace livekit_bridge {
+namespace rpc {
+
 /// Built-in RPC method name used by remote track control.
 /// Allows remote participants to mute or unmute tracks
 /// published by this bridge. Must be called after connect().
 /// Audio/video tracks support mute and unmute. Data tracks
 /// only support mute and unmute.
-namespace livekit_bridge::rpc::track_control {
+namespace track_control {
 
 enum class Action { kActionMute, kActionUnmute };
 
@@ -56,4 +60,6 @@ LIVEKIT_BRIDGE_API extern const char *const kResponseOk;
 LIVEKIT_BRIDGE_API std::string formatPayload(const char *action,
                                              const std::string &track_name);
 
-} // namespace livekit_bridge::rpc::track_control
+} // namespace track_control
+} // namespace rpc
+} // namespace livekit_bridge

@@ -17,7 +17,8 @@
 #include "../common/bridge_test_common.h"
 #include <livekit/rpc_error.h>
 
-namespace livekit_bridge::test {
+namespace livekit_bridge {
+namespace test {
 
 class BridgeRpcRoundtripTest : public BridgeTestBase {};
 
@@ -266,4 +267,5 @@ TEST_F(BridgeRemoteTrackControlTest, RemoteMuteNonexistentTrack) {
   }
 }
 
-} // namespace livekit_bridge::test
+} // namespace test
+} // namespace livekit_bridge

@@ -28,7 +28,8 @@
 #include <string>
 #include <vector>
 
-namespace livekit_bridge::test {
+namespace livekit_bridge {
+namespace test {
 
 // Records (action, track_name) pairs passed to the TrackActionFn callback.
 struct TrackActionRecord {
@@ -268,4 +269,5 @@ TEST_F(RpcControllerTest, FormatPayloadRoundTrip) {
   EXPECT_EQ(recorded_actions_[0].track_name, track_name);
 }
 
-} // namespace livekit_bridge::test
+} // namespace test
+} // namespace livekit_bridge
