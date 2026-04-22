@@ -124,7 +124,7 @@ private:
   FfiHandle subscription_handle_;
 
   /** FfiClient listener id for routing FfiEvent callbacks to this object. */
-  std::int64_t listener_id_{0};
+  std::int32_t listener_id_{0};
 };
 
 } // namespace livekit

@@ -22,8 +22,7 @@
 
 using namespace livekit::test::benchmark;
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 // Maximum RPC payload size (15KB)
 constexpr size_t kMaxRpcPayloadSize = 15 * 1024;
@@ -119,7 +118,8 @@ std::string generateRandomPayload(size_t size) {
   loadTestData();
 
   static thread_local std::random_device rd;
-  static thread_local std::mt19937 gen(rd());
+  static thread_local std::mt19937 gen(
+      static_cast<std::mt19937::result_type>(rd()));
 
   if (gTestDataLines.empty()) {
     // Should not happen, but return empty string if no data
@@ -924,5 +924,4 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   receiver_room.reset();
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

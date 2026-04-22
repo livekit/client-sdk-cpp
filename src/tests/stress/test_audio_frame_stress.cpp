@@ -22,8 +22,7 @@
 #include <thread>
 #include <vector>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 class AudioFrameStressTest : public ::testing::Test {
 protected:
@@ -283,5 +282,4 @@ TEST_F(AudioFrameStressTest, SimulatedRealtimeProcessing) {
       << "Processing takes longer than real-time allows";
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

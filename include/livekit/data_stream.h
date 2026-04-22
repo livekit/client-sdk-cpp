@@ -78,7 +78,7 @@ struct ByteStreamInfo : BaseStreamInfo {
 class TextStreamReader {
 public:
   /// Construct a reader from initial stream metadata.
-  explicit TextStreamReader(const TextStreamInfo &info);
+  explicit TextStreamReader(TextStreamInfo info);
 
   TextStreamReader(const TextStreamReader &) = delete;
   TextStreamReader &operator=(const TextStreamReader &) = delete;
@@ -118,7 +118,7 @@ private:
 class ByteStreamReader {
 public:
   /// Construct a reader from initial stream metadata.
-  explicit ByteStreamReader(const ByteStreamInfo &info);
+  explicit ByteStreamReader(ByteStreamInfo info);
 
   ByteStreamReader(const ByteStreamReader &) = delete;
   ByteStreamReader &operator=(const ByteStreamReader &) = delete;
@@ -177,13 +177,13 @@ public:
 
 protected:
   BaseStreamWriter(LocalParticipant &local_participant,
-                   const std::string &topic = "",
-                   const std::map<std::string, std::string> &attributes = {},
-                   const std::string &stream_id = "",
+                   std::string topic = "",
+                   std::map<std::string, std::string> attributes = {},
+                   std::string stream_id = "",
                    std::optional<std::size_t> total_size = std::nullopt,
-                   const std::string &mime_type = "",
-                   const std::vector<std::string> &destination_identities = {},
-                   const std::string &sender_identity = "");
+                   std::string mime_type = "",
+                   std::vector<std::string> destination_identities = {},
+                   std::string sender_identity = "");
 
   enum class StreamKind { kUnknown, kText, kByte };
 

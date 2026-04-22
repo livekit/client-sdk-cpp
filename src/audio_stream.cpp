@@ -212,8 +212,7 @@ void AudioStream::onFfiEvent(const FfiEvent &event) {
   }
   if (ase.has_frame_received()) {
     const auto &fr = ase.frame_received();
-    AudioFrame frame = AudioFrame::fromOwnedInfo(fr.frame());
-    AudioFrameEvent ev{std::move(frame)};
+    AudioFrameEvent ev{AudioFrame::fromOwnedInfo(fr.frame())};
     pushFrame(std::move(ev));
   } else if (ase.has_eos()) {
     pushEos();

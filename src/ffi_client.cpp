@@ -139,6 +139,9 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent &event) {
 
 } // namespace
 
+// clang-tidy flags this as a trivial destructor in release mode
+// due to the assert being pre-processed out
+// NOLINTNEXTLINE(modernize-use-equals-default)
 FfiClient::~FfiClient() {
   assert(!initialized_.load() &&
          "LiveKit SDK was not shut down before process exit. "
@@ -244,7 +247,7 @@ void FfiClient::PushEvent(const proto::FfiEvent &event) const {
 
 void LivekitFfiCallback(const uint8_t *buf, size_t len) {
   proto::FfiEvent event;
-  event.ParseFromArray(buf, len);
+  event.ParseFromArray(buf, static_cast<int>(len)); // TODO: this fixes for now, what if len exceeds int?
 
   FfiClient::instance().PushEvent(event);
 }
@@ -651,10 +654,8 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
                   "PublishDataTrackCallback missing track"}));
           return;
         }
-        proto::OwnedLocalDataTrack track = cb.track();
         pr.set_value(
-            Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::success(
-                std::move(track)));
+            Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::success(cb.track()));
       });
 
   proto::FfiRequest req;
@@ -675,17 +676,13 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
                                     "FfiResponse missing publish_data_track"}));
       return pr.get_future();
     }
-  } catch (...) {
+  } catch (const std::exception &e) {
     cancelPendingByAsyncId(async_id);
     std::promise<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> pr;
-    try {
-      throw;
-    } catch (const std::exception &e) {
-      pr.set_value(
-          Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
-              PublishDataTrackError{PublishDataTrackErrorCode::INTERNAL,
-                                    e.what()}));
-    }
+    pr.set_value(
+        Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
+            PublishDataTrackError{PublishDataTrackErrorCode::INTERNAL,
+                                  e.what()}));
     return pr.get_future();
   }
 
@@ -720,14 +717,10 @@ FfiClient::subscribeDataTrack(std::uint64_t track_handle,
     proto::OwnedDataTrackStream sub = resp.subscribe_data_track().stream();
     return Result<proto::OwnedDataTrackStream,
                   SubscribeDataTrackError>::success(std::move(sub));
-  } catch (...) {
-    try {
-      throw;
-    } catch (const std::exception &e) {
-      return Result<proto::OwnedDataTrackStream,
-                    SubscribeDataTrackError>::failure(SubscribeDataTrackError{
-          SubscribeDataTrackErrorCode::INTERNAL, e.what()});
-    }
+  } catch (const std::exception &e) { // NOLINT(bugprone-empty-catch)
+    return Result<proto::OwnedDataTrackStream,
+                  SubscribeDataTrackError>::failure(SubscribeDataTrackError{
+        SubscribeDataTrackErrorCode::INTERNAL, e.what()});
   }
 }
 

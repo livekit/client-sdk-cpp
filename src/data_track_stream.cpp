@@ -62,13 +62,13 @@ bool DataTrackStream::read(DataTrackFrame &out) {
     return false;
   }
 
-  out = std::move(*frame_);
+  out = std::move(*frame_); // NOLINT(bugprone-unchecked-optional-access)
   frame_.reset();
   return true;
 }
 
 void DataTrackStream::close() {
-  std::int64_t listener_id = -1;
+  std::int32_t listener_id = -1;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (closed_) {

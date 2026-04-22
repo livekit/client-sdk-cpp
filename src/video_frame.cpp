@@ -46,29 +46,25 @@ std::size_t computeBufferSize(int width, int height, VideoBufferType type) {
     return w * h * 4;
 
   case VideoBufferType::RGB24:
-    // 3 bytes per pixel
-    return w * h * 3;
-
   case VideoBufferType::I444:
-    // Y, U, V all full resolution
+    // 3 bytes per pixel (RGB24: packed; I444: Y+U+V all full resolution)
     return w * h * 3;
 
   case VideoBufferType::I420:
-  case VideoBufferType::NV12:
-  case VideoBufferType::I010: {
-    // Y full, U and V subsampled 2x2
+    // Y (1 byte) + U (1 byte) + V (1 byte)
+  case VideoBufferType::NV12: {
+    // Y (1 byte) + UV interleaved (2 bytes per chroma sample)
     const std::size_t chroma_w = (w + 1) / 2;
     const std::size_t chroma_h = (h + 1) / 2;
-    if (type == VideoBufferType::I420) {
-      // Y (1 byte) + U (1 byte) + V (1 byte)
-      return w * h + chroma_w * chroma_h * 2;
-    } else if (type == VideoBufferType::NV12) {
-      // Y (1 byte), UV interleaved (2 bytes per chroma sample)
-      return w * h + chroma_w * chroma_h * 2;
-    } else { // I010, 16 bits per sample in memory
-      // Y: 2 bytes per sample, U & V: 2 bytes per sample
-      return w * h * 2 + chroma_w * chroma_h * 4;
-    }
+    return w * h + chroma_w * chroma_h * 2;
+  }
+
+  case VideoBufferType::I010: {
+    // 16 bits per sample in memory
+    // Y: 2 bytes per sample, U & V: 2 bytes per sample
+    const std::size_t chroma_w = (w + 1) / 2;
+    const std::size_t chroma_h = (h + 1) / 2;
+    return w * h * 2 + chroma_w * chroma_h * 4;
   }
 
   case VideoBufferType::I420A: {
@@ -343,7 +339,7 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
     std::size_t offset = 0;
     for (const auto &comp : info.components()) {
       const auto sz = static_cast<std::size_t>(comp.size());
-      const auto src_ptr = reinterpret_cast<const std::uint8_t *>(
+      const auto src_ptr = reinterpret_cast<const std::uint8_t *>( // NOLINT(performance-no-int-to-ptr)
           static_cast<std::uintptr_t>(comp.data_ptr()));
 
       std::memcpy(buffer.data() + offset, src_ptr, sz);
@@ -351,7 +347,7 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
     }
   } else {
     // Packed format: treat top-level data_ptr as a single contiguous buffer.
-    const auto src_ptr = reinterpret_cast<const std::uint8_t *>(
+    const auto src_ptr = reinterpret_cast<const std::uint8_t *>( // NOLINT(performance-no-int-to-ptr)
         static_cast<std::uintptr_t>(info.data_ptr()));
 
     std::size_t total_size = 0;

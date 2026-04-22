@@ -17,8 +17,7 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 class RoomTest : public ::testing::Test {
 protected:
@@ -160,5 +159,4 @@ TEST_F(RoomServerTest, ConnectWithInvalidUrl) {
   EXPECT_FALSE(connected) << "Should fail to connect to invalid URL";
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

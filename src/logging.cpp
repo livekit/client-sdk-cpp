@@ -61,7 +61,7 @@ LogLevel fromSpdlogLevel(spdlog::level::level_enum level) {
     return LogLevel::Error;
   case spdlog::level::critical:
     return LogLevel::Critical;
-  case spdlog::level::off:
+  case spdlog::level::off: // NOLINT(bugprone-branch-clone)
     return LogLevel::Off;
   default:
     return LogLevel::Info;

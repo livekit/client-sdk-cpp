@@ -87,7 +87,7 @@ void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
   std::lock_guard<std::mutex> lock(lock_);
   const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
   video_callbacks_[key] =
-      RegisteredVideoCallback{std::move(callback), std::move(opts)};
+      RegisteredVideoCallback{std::move(callback), opts};
   LK_LOG_DEBUG("Registered video frame callback for participant={} source={} "
                "replacing_existing={} total_video_callbacks={}",
                participant_identity, static_cast<int>(source), replacing,
@@ -102,7 +102,7 @@ void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
   std::lock_guard<std::mutex> lock(lock_);
   const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
   video_callbacks_[key] =
-      RegisteredVideoCallback{std::move(callback), std::move(opts)};
+      RegisteredVideoCallback{std::move(callback), opts};
   LK_LOG_DEBUG(
       "Registered video frame callback for participant={} track_name={} "
       "replacing_existing={} total_video_callbacks={}",
@@ -212,11 +212,10 @@ void SubscriptionThreadDispatcher::handleTrackSubscribed(
   std::thread old_thread;
   {
     std::lock_guard<std::mutex> lock(lock_);
-    if (track->kind() == TrackKind::KIND_AUDIO &&
-        audio_callbacks_.find(key) == audio_callbacks_.end()) {
-      key = fallback_key;
-    } else if (track->kind() == TrackKind::KIND_VIDEO &&
-               video_callbacks_.find(key) == video_callbacks_.end()) {
+    if ((track->kind() == TrackKind::KIND_AUDIO &&
+         audio_callbacks_.find(key) == audio_callbacks_.end()) ||
+        (track->kind() == TrackKind::KIND_VIDEO &&
+         video_callbacks_.find(key) == video_callbacks_.end())) {
       key = fallback_key;
     }
     old_thread = startReaderLocked(key, track);
@@ -475,7 +474,7 @@ std::thread SubscriptionThreadDispatcher::startReaderLocked(
 
 std::thread SubscriptionThreadDispatcher::startAudioReaderLocked(
     const CallbackKey &key, const std::shared_ptr<Track> &track,
-    AudioFrameCallback cb, const AudioStream::Options &opts) {
+    const AudioFrameCallback &cb, const AudioStream::Options &opts) {
   LK_LOG_DEBUG("Starting audio reader for participant={} source={}",
                key.participant_identity, static_cast<int>(key.source));
   auto old_thread = extractReaderThreadLocked(key);
@@ -489,7 +488,7 @@ std::thread SubscriptionThreadDispatcher::startAudioReaderLocked(
     return old_thread;
   }
 
-  auto stream = AudioStream::fromTrack(track, opts);
+  const auto stream = AudioStream::fromTrack(track, opts);
   if (!stream) {
     LK_LOG_ERROR("Failed to create AudioStream for {} source={}",
                  key.participant_identity, static_cast<int>(key.source));
@@ -498,15 +497,15 @@ std::thread SubscriptionThreadDispatcher::startAudioReaderLocked(
 
   ActiveReader reader;
   reader.audio_stream = stream;
-  auto stream_copy = stream;
   const std::string participant_identity = key.participant_identity;
   const TrackSource source = key.source;
+  // NOLINTBEGIN(bugprone-lambda-function-name)
   reader.thread =
-      std::thread([stream_copy, cb, participant_identity, source]() {
+      std::thread([stream, cb, participant_identity, source]() {
         LK_LOG_DEBUG("Audio reader thread started for participant={} source={}",
                      participant_identity, static_cast<int>(source));
         AudioFrameEvent ev;
-        while (stream_copy->read(ev)) {
+        while (stream->read(ev)) {
           try {
             cb(ev.frame);
           } catch (const std::exception &e) {
@@ -516,6 +515,7 @@ std::thread SubscriptionThreadDispatcher::startAudioReaderLocked(
         LK_LOG_DEBUG("Audio reader thread exiting for participant={} source={}",
                      participant_identity, static_cast<int>(source));
       });
+  // NOLINTEND(bugprone-lambda-function-name)
   active_readers_[key] = std::move(reader);
   LK_LOG_DEBUG("Started audio reader for participant={} source={} "
                "active_readers={}",
@@ -526,7 +526,7 @@ std::thread SubscriptionThreadDispatcher::startAudioReaderLocked(
 
 std::thread SubscriptionThreadDispatcher::startVideoReaderLocked(
     const CallbackKey &key, const std::shared_ptr<Track> &track,
-    VideoFrameCallback cb, const VideoStream::Options &opts) {
+    const VideoFrameCallback &cb, const VideoStream::Options &opts) {
   LK_LOG_DEBUG("Starting video reader for participant={} source={}",
                key.participant_identity, static_cast<int>(key.source));
   auto old_thread = extractReaderThreadLocked(key);
@@ -549,15 +549,15 @@ std::thread SubscriptionThreadDispatcher::startVideoReaderLocked(
 
   ActiveReader reader;
   reader.video_stream = stream;
-  auto stream_copy = stream;
   const std::string participant_identity = key.participant_identity;
   const TrackSource source = key.source;
+  // NOLINTBEGIN(bugprone-lambda-function-name)
   reader.thread =
-      std::thread([stream_copy, cb, participant_identity, source]() {
+      std::thread([stream, cb, participant_identity, source]() {
         LK_LOG_DEBUG("Video reader thread started for participant={} source={}",
                      participant_identity, static_cast<int>(source));
         VideoFrameEvent ev;
-        while (stream_copy->read(ev)) {
+        while (stream->read(ev)) {
           try {
             cb(ev.frame, ev.timestamp_us);
           } catch (const std::exception &e) {
@@ -567,6 +567,7 @@ std::thread SubscriptionThreadDispatcher::startVideoReaderLocked(
         LK_LOG_DEBUG("Video reader thread exiting for participant={} source={}",
                      participant_identity, static_cast<int>(source));
       });
+  // NOLINTEND(bugprone-lambda-function-name)
   active_readers_[key] = std::move(reader);
   LK_LOG_DEBUG("Started video reader for participant={} source={} "
                "active_readers={}",
@@ -620,7 +621,7 @@ std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(
 
 std::thread SubscriptionThreadDispatcher::startDataReaderLocked(
     DataFrameCallbackId id, const DataCallbackKey &key,
-    const std::shared_ptr<RemoteDataTrack> &track, DataFrameCallback cb) {
+    const std::shared_ptr<RemoteDataTrack> &track, const DataFrameCallback &cb) {
   auto old_thread = extractDataReaderThreadLocked(id);
 
   int total_active = static_cast<int>(active_readers_.size()) +
@@ -639,6 +640,7 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(
   reader->remote_track = track;
   auto identity = key.participant_identity;
   auto track_name = key.track_name;
+  // NOLINTBEGIN(bugprone-lambda-function-name)
   reader->thread = std::thread([reader, track, cb, identity, track_name]() {
     LK_LOG_INFO("Data reader thread: subscribing to \"{}\" track=\"{}\"",
                 identity, track_name);
@@ -673,6 +675,7 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(
     LK_LOG_INFO("Data reader thread exiting for \"{}\" track=\"{}\"", identity,
                 track_name);
   });
+  // NOLINTEND(bugprone-lambda-function-name)
   active_data_readers_[id] = reader;
   return old_thread;
 }

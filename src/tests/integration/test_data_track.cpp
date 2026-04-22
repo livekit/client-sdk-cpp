@@ -34,8 +34,7 @@
 #include <livekit/remote_data_track.h>
 #include <tuple>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 using namespace std::chrono_literals;
 
@@ -844,5 +843,4 @@ INSTANTIATE_TEST_SUITE_P(DataTrackScenarios, DataTrackTransportTest,
                                                            size_t{196608})),
                          dataTrackParamName);
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

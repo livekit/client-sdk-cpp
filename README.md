@@ -67,7 +67,9 @@ git lfs pull
 ./build.sh debug-examples     # Build Debug with examples
 ./build.sh release-examples   # Build Release with examples
 ./build.sh debug-tests        # Build Debug with tests
+./build.sh debug-all          # Build Debug with tests + examples
 ./build.sh release-tests      # Build Release with tests
+./build.sh release-all        # Build Release with tests + examples
 ```
 **Windows**
 Using build scripts:
@@ -79,7 +81,9 @@ Using build scripts:
 .\build.cmd debug-examples    # Build Debug with examples
 .\build.cmd release-examples  # Build Release with examples
 .\build.cmd debug-tests       # Build Debug with tests
+.\build.cmd debug-all         # Build Debug with tests + examples
 .\build.cmd release-tests     # Build Release with tests
+.\build.cmd release-all       # Build Release with tests + examples
 ```
 
 ### Windows build using cmake/vcpkg
@@ -488,15 +492,47 @@ In some cases, you may need to perform a full clean that deletes all build artif
 ./build.sh clean-all
 ```
 
-### Clang format
-CPP SDK is using clang C++ format
+## Quality Checks
+
+This SDK leverages various tools and checks to ensure the highest quality of the code.
+
+### Clang Tools
+
+- `clang-tidy`: static analysis checks to catch common C++ pitfalls. See [.clang-tidy](./.clang-tidy) for the list of current checks (enforced in CI on PR)
+- `clang-format`: (coming soon) code formatting and style consistency
+
+> **Note**: clang-tidy is not currently supported on Windows for this project because the Visual Studio CMake generator does not produce the compile_commands.json database that clang-tidy requires.
+
+To run locally, first install the following:
+
+**macOS:**
+
 ```bash
-brew install clang-format
+brew install llvm
 ```
 
+This installs `clang-format`, `clang-tidy`, and `run-clang-tidy`. Homebrew may ask you to add `/opt/homebrew/opt/llvm/bin` to your `PATH`.
 
-#### Memory Checks
+**Linux:**
+
+```bash
+# Ubuntu / Debian:
+sudo apt-get install clang-format clang-tidy clang-tools
+```
+
+To run:
+
+1. Run a build script command, such that `compile_command.json` is present at the root of the repository
+2. Run:
+
+```bash
+clang-tidy -p . src/*.cpp
+```
+
+### Memory Checks
+
 Run valgrind on various examples or tests to check for memory leaks and other issues.
+
 ```bash
 valgrind --leak-check=full ./build-debug/bin/livekit_integration_tests
 valgrind --leak-check=full ./build-debug/bin/livekit_stress_tests

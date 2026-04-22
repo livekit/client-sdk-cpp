@@ -24,8 +24,7 @@
 
 using namespace livekit::test::benchmark;
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 // Audio configuration for latency test
 constexpr int kAudioSampleRate = 48000;
@@ -466,7 +465,8 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
         uint64_t send_time_us = last_high_energy_send_time_us.load();
 
         if (send_time_us > 0) {
-          double latency_ms = (receive_time_us - send_time_us) / 1000.0;
+          double latency_ms =
+              static_cast<double>(receive_time_us - send_time_us) / 1000.0;
           if (latency_ms > 0 && latency_ms < 5000) { // Sanity check
             // End the async trace span
             TRACE_EVENT_ASYNC_END1(kCategoryAudio, "audio_latency",
@@ -692,7 +692,8 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
       if (send_from_a_us == 0 || detect_us <= send_from_a_us) {
         continue;
       }
-      double a_to_b_ms = (detect_us - send_from_a_us) / 1000.0;
+      double a_to_b_ms =
+          static_cast<double>(detect_us - send_from_a_us) / 1000.0;
       if (a_to_b_ms < kMinValidOneWayMs || a_to_b_ms > 5000) {
         continue;
       }
@@ -766,7 +767,8 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
       }
       a_received_pulse_id.store(pulse_id);
 
-      double b_to_a_ms = (receive_us - send_from_b_us) / 1000.0;
+      double b_to_a_ms =
+          static_cast<double>(receive_us - send_from_b_us) / 1000.0;
       if (b_to_a_ms >= kMinValidBToAMs && b_to_a_ms < 5000) {
         TRACE_EVENT_ASYNC_END1(kCategoryAudio, "B_to_A",
                                static_cast<uint64_t>(pulse_id), "latency_ms",
@@ -777,7 +779,8 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
       }
 
       if (send_from_a_us > 0) {
-        double rtt_ms = (receive_us - send_from_a_us) / 1000.0;
+        double rtt_ms =
+            static_cast<double>(receive_us - send_from_a_us) / 1000.0;
         if (rtt_ms > 0 && rtt_ms < 10000) {
           TRACE_EVENT_ASYNC_END1(kCategoryAudio, "round_trip",
                                  static_cast<uint64_t>(pulse_id), "latency_ms",
@@ -902,5 +905,4 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
       << "At least one B->A latency measurement should be recorded";
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

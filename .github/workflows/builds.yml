@@ -37,6 +37,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   packages: read
 
 env:
@@ -64,23 +65,23 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
-            build_cmd: ./build.sh release-tests && ./build.sh release-examples
+            build_cmd: ./build.sh release-all
             build_dir: build-release
           - os: ubuntu-24.04-arm
             name: linux-arm64
-            build_cmd: ./build.sh release-tests && ./build.sh release-examples
+            build_cmd: ./build.sh release-all
             build_dir: build-release
           - os: macos-latest
             name: macos-arm64
-            build_cmd: ./build.sh release-tests && ./build.sh release-examples
+            build_cmd: ./build.sh release-all
             build_dir: build-release
           - os: macos-latest
             name: macos-x64
-            build_cmd: ./build.sh release-tests && ./build.sh release-examples --macos-arch x86_64
+            build_cmd: ./build.sh release-all --macos-arch x86_64
             build_dir: build-release
           - os: windows-latest
             name: windows-x64
-            build_cmd: .\build.cmd release-tests && .\build.cmd release-examples
+            build_cmd: .\build.cmd release-all
             build_dir: build-release
 
     name: Build (${{ matrix.name }})
@@ -545,3 +546,77 @@ jobs:
             cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
             cmake --build build --parallel
           '
+
+  clang-tidy:
+    name: clang-tidy
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install dependencies
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            llvm-dev libclang-dev clang clang-tidy \
+            libssl-dev
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
+
+      - name: Set Linux build environment
+        run: |
+          echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          echo "CFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+
+      - name: CMake configure
+        run: cmake --preset linux-release
+
+      - name: Generate protobuf headers
+        run: cmake --build build-release --target livekit_proto
+
+      - name: Run clang-tidy
+        uses: cpp-linter/cpp-linter-action@77c390c5ba9c947ebc185a3e49cc754f1558abb5 # v2.18.0
+        id: linter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          style: ''
+          tidy-checks: ''
+          database: build-release
+          files-changed-only: false
+          lines-changed-only: true
+          extensions: 'c,cpp,cc,cxx'
+          ignore: 'build-*|cpp-example-collection|client-sdk-rust|vcpkg_installed|src/tests|bridge|src/room_event_converter.cpp'
+          file-annotations: true
+          thread-comments: update
+          step-summary: true
+          tidy-review: false
+          no-lgtm: true
+          jobs: 0   # 0 == use all available CPU cores
+
+      - name: Check warning thresholds
+        env:
+          TIDY_FINDINGS: ${{ steps.linter.outputs.clang-tidy-checks-failed }}
+          MAX_TIDY_FINDINGS: '0'
+        run: |
+          echo "clang-tidy findings: ${TIDY_FINDINGS}"
+          if [ "${TIDY_FINDINGS}" -gt "${MAX_TIDY_FINDINGS}" ]; then
+            echo "::warning::clang-tidy found ${TIDY_FINDINGS} issue(s), threshold is ${MAX_TIDY_FINDINGS}"
+            exit 1
+          fi
+          echo "clang-tidy findings within threshold"

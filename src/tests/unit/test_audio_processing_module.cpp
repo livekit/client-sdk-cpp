@@ -28,8 +28,7 @@
 #include <string>
 #include <vector>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 class AudioProcessingModuleTest : public ::testing::Test {
 protected:
@@ -66,7 +65,8 @@ protected:
   // Helper to fill frame with random noise
   static void fillWithNoise(AudioFrame &frame, double amplitude = 5000.0,
                             unsigned int seed = 0) {
-    std::mt19937 gen(seed == 0 ? std::random_device{}() : seed);
+    std::mt19937 gen(static_cast<std::mt19937::result_type>(
+        seed == 0 ? std::random_device{}() : seed));
     std::uniform_real_distribution<> dis(-amplitude, amplitude);
 
     auto &data = frame.data();
@@ -894,7 +894,7 @@ TEST_F(AudioProcessingModuleTest, AGCWithNoiseSuppressionCombined) {
 
     // Add noise on top
     auto &data = frame.data();
-    std::mt19937 gen(kSeed + 50 + i);
+    std::mt19937 gen(static_cast<std::mt19937::result_type>(kSeed + 50 + i));
     std::uniform_real_distribution<> dis(-kNoiseAmplitude, kNoiseAmplitude);
     for (auto &sample : data) {
       sample = static_cast<std::int16_t>(std::clamp(
@@ -920,5 +920,4 @@ TEST_F(AudioProcessingModuleTest, AGCWithNoiseSuppressionCombined) {
       << "Combined AGC+NS should produce reasonable output";
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

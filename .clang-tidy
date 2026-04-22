@@ -1,0 +1,37 @@
+Checks: >
+  -*,
+  bugprone-*,
+  performance-*,
+  modernize-*,
+  readability-misleading-indentation,
+  readability-redundant-smartptr-get,
+  -bugprone-easily-swappable-parameters,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-use-auto,
+  -modernize-use-nodiscard,
+  -modernize-return-braced-init-list,
+  -performance-enum-size,
+  -readability-braces-around-statements,
+
+# These warnings have determined to be critical and are as such treated as errors
+WarningsAsErrors: >
+  clang-analyzer-*,
+  bugprone-use-after-move,
+  bugprone-dangling-handle,
+  bugprone-infinite-loop,
+  bugprone-narrowing-conversions,
+  bugprone-undefined-memory-manipulation,
+  bugprone-move-forwarding-reference,
+  bugprone-incorrect-roundings,
+  bugprone-sizeof-expression,
+  bugprone-string-literal-with-embedded-nul,
+  bugprone-suspicious-memset-usage,
+
+HeaderFilterRegex: '(include/livekit|src|examples)'
+
+FormatStyle: file
+
+CheckOptions:
+  - key: modernize-use-nullptr.NullMacros
+    value: 'NULL'

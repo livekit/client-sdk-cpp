@@ -26,8 +26,7 @@
 #include <thread>
 #include <vector>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 using namespace std::chrono_literals;
 
@@ -71,7 +70,7 @@ static const std::vector<std::string> kSampleSentences = {
 // Generate a payload of specified size using repeating sentences (compressible)
 std::string generateRandomPayload(size_t size) {
   static std::random_device rd;
-  static std::mt19937 gen(rd());
+  static std::mt19937 gen(static_cast<std::mt19937::result_type>(rd()));
   static std::uniform_int_distribution<size_t> dis(0,
                                                    kSampleSentences.size() - 1);
 
@@ -532,5 +531,4 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   receiver_room.reset();
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

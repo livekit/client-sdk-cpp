@@ -146,7 +146,7 @@ VideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned) {
   if (src_ptr == 0) {
     throw std::runtime_error("fromOwnedProto: info.data_ptr is null");
   }
-  const auto *src = reinterpret_cast<const std::uint8_t *>(src_ptr);
+  const auto *src = reinterpret_cast<const std::uint8_t *>(src_ptr); // NOLINT(performance-no-int-to-ptr)
 
   std::memcpy(dst, src, dst_size);
 

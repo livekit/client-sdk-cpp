@@ -56,7 +56,7 @@ DataPacketKind toDataPacketKind(proto::DataPacketKind in) {
   switch (in) {
   case proto::KIND_LOSSY:
     return DataPacketKind::Lossy;
-  case proto::KIND_RELIABLE:
+  case proto::KIND_RELIABLE: // NOLINT(bugprone-branch-clone)
     return DataPacketKind::Reliable;
   default:
     return DataPacketKind::Reliable;
@@ -74,7 +74,7 @@ UserPacketData fromProto(const proto::UserPacket &in) {
   UserPacketData out;
   // TODO, double check following code is safe
   const auto &buf = in.data().data();
-  auto ptr = reinterpret_cast<const std::uint8_t *>(buf.data_ptr());
+  auto ptr = reinterpret_cast<const std::uint8_t *>(buf.data_ptr()); // NOLINT(performance-no-int-to-ptr)
   auto len = static_cast<std::size_t>(buf.data_len());
   out.data.assign(ptr, ptr + len);
   if (in.has_topic()) {
@@ -386,7 +386,7 @@ UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived &in,
   const auto &owned = in.user().data();
   const auto &info = owned.data();
   if (info.data_ptr() != 0 && info.data_len() > 0) {
-    auto ptr = reinterpret_cast<const std::uint8_t *>(info.data_ptr());
+    auto ptr = reinterpret_cast<const std::uint8_t *>(info.data_ptr()); // NOLINT(performance-no-int-to-ptr)
     auto len = static_cast<std::size_t>(info.data_len());
     ev.data.assign(ptr, ptr + len);
   } else {
@@ -400,7 +400,7 @@ SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived &in,
                                       RemoteParticipant *participant) {
   SipDtmfReceivedEvent ev;
   ev.participant = participant;
-  ev.code = in.sip_dtmf().code();
+  ev.code = static_cast<int>(in.sip_dtmf().code());
   ev.digit = in.sip_dtmf().digit();
   return ev;
 }

@@ -23,8 +23,7 @@
 #include <memory>
 #include <thread>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 // Default video dimensions for tests
 constexpr int kDefaultVideoWidth = 640;
@@ -125,5 +124,4 @@ inline void runVideoLoop(
   }
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

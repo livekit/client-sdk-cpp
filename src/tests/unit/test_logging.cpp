@@ -25,8 +25,7 @@
 #include <thread>
 #include <vector>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 class LoggingTest : public ::testing::Test {
 protected:
@@ -293,5 +292,4 @@ TEST_F(LoggingTest, ConcurrentLogEmissionDoesNotCrash) {
   EXPECT_GE(call_count.load(), kThreads * kIterations);
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

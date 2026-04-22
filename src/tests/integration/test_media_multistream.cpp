@@ -26,8 +26,7 @@
 #include <thread>
 #include <vector>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 using namespace std::chrono_literals;
 
@@ -254,5 +253,4 @@ TEST_F(MediaMultiStreamIntegrationTest,
   runPublishTwoVideoAndTwoAudioTracks(true);
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test
