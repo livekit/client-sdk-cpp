@@ -338,7 +338,6 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
-    needs: build
     permissions:
       contents: read
       actions: read
@@ -425,7 +424,7 @@ jobs:
           gcovr build-coverage \
             --root . \
             --gcov-executable "${GCOV_EXECUTABLE}" \
-            --gcov-ignore-parse-errors=warn \
+            --gcov-ignore-parse-errors=all \
             --filter 'src/' \
             --exclude 'src/tests/' \
             --exclude '.*\.pb\.' \
