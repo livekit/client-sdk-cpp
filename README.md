@@ -496,7 +496,6 @@ To run locally, first install the following:
 **macOS:**
 
 ```bash
-# macOS
 brew install llvm
 ```
 
