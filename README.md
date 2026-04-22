@@ -20,8 +20,8 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 - **Git LFS** (required for examples)
   Some example data files (e.g., audio assets) are stored using Git LFS.
   You must install Git LFS before cloning or pulling the repo if you want to run the examples.
-- **livekit-cli** install livekit-cli by following the (official livekit docs)[https://docs.livekit.io/intro/basics/cli/start/]
-- **livekit-server** install livekit-server by following the (official livekit docs)[https://docs.livekit.io/transport/self-hosting/local/]
+- **livekit-cli** install livekit-cli by following the [official LiveKit docs](https://docs.livekit.io/intro/basics/cli/start/)
+- **livekit-server** install livekit-server by following the [official LiveKit docs](https://docs.livekit.io/transport/self-hosting/local/)
 
 **Platform-Specific Requirements:**
 
@@ -60,22 +60,26 @@ git lfs pull
 
 **Linux/macOS:**
 ```bash
-./build.sh clean          # Clean CMake build artifacts
-./build.sh clean-all      # Deep clean (C++ + Rust + generated files)
-./build.sh debug          # Build Debug version
-./build.sh release        # Build Release version
-./build.sh debug-tests    # Build Debug with tests
-./build.sh release-tests  # Build Release with tests
+./build.sh clean              # Clean CMake build artifacts
+./build.sh clean-all          # Deep clean (C++ + Rust + generated files)
+./build.sh debug              # Build Debug version
+./build.sh release            # Build Release version
+./build.sh debug-examples     # Build Debug with examples
+./build.sh release-examples   # Build Release with examples
+./build.sh debug-tests        # Build Debug with tests
+./build.sh release-tests      # Build Release with tests
 ```
 **Windows**
 Using build scripts:
 ```powershell
-.\build.cmd clean          # Clean CMake build artifacts
-.\build.cmd clean-all      # Deep clean (C++ + Rust + generated files)
-.\build.cmd debug          # Build Debug version
-.\build.cmd release        # Build Release version
-.\build.cmd debug-tests    # Build Debug with tests
-.\build.cmd release-tests  # Build Release with tests
+.\build.cmd clean             # Clean CMake build artifacts
+.\build.cmd clean-all         # Deep clean (C++ + Rust + generated files)
+.\build.cmd debug             # Build Debug version
+.\build.cmd release           # Build Release version
+.\build.cmd debug-examples    # Build Debug with examples
+.\build.cmd release-examples  # Build Release with examples
+.\build.cmd debug-tests       # Build Debug with tests
+.\build.cmd release-tests     # Build Release with tests
 ```
 
 ### Windows build using cmake/vcpkg
@@ -144,6 +148,10 @@ export PATH=$HOME/cmake-3.31/bin:$PATH
 ```
 
 ## 🧪 Run Example
+
+### Prerequisites
+
+Ensure one of the `*-examples` build script options was run prior.
 
 ### Generate Tokens
 Before running any participant, create JWT tokens with the proper identity and room name, example
