@@ -67,7 +67,9 @@ git lfs pull
 ./build.sh debug-examples     # Build Debug with examples
 ./build.sh release-examples   # Build Release with examples
 ./build.sh debug-tests        # Build Debug with tests
+./build.sh debug-all          # Build Debug with tests + examples
 ./build.sh release-tests      # Build Release with tests
+./build.sh release-all        # Build Release with tests + examples
 ```
 **Windows**
 Using build scripts:
@@ -79,7 +81,9 @@ Using build scripts:
 .\build.cmd debug-examples    # Build Debug with examples
 .\build.cmd release-examples  # Build Release with examples
 .\build.cmd debug-tests       # Build Debug with tests
+.\build.cmd debug-all         # Build Debug with tests + examples
 .\build.cmd release-tests     # Build Release with tests
+.\build.cmd release-all       # Build Release with tests + examples
 ```
 
 ### Windows build using cmake/vcpkg
