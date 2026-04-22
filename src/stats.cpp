@@ -49,9 +49,9 @@ QualityLimitationReason fromProto(livekit::proto::QualityLimitationReason r) {
     return QualityLimitationReason::Cpu;
   case P::LIMITATION_BANDWIDTH:
     return QualityLimitationReason::Bandwidth;
-  case P::LIMITATION_OTHER:
+  case P::LIMITATION_OTHER: // NOLINT(bugprone-branch-clone)
     return QualityLimitationReason::Other;
-  default: // NOLINT(bugprone-branch-clone)
+  default:
     return QualityLimitationReason::Other;
   }
 }

@@ -55,9 +55,9 @@ TrackKind fromProto(proto::TrackKind in) {
     return TrackKind::KIND_AUDIO;
   case proto::TrackKind::KIND_VIDEO:
     return TrackKind::KIND_VIDEO;
-  case proto::TrackKind::KIND_UNKNOWN:
+  case proto::TrackKind::KIND_UNKNOWN: // NOLINT(bugprone-branch-clone)
     return TrackKind::KIND_UNKNOWN;
-  default: // NOLINT(bugprone-branch-clone)
+  default:
     return TrackKind::KIND_UNKNOWN;
   }
 }
@@ -68,9 +68,9 @@ StreamState fromProto(proto::StreamState in) {
     return StreamState::STATE_ACTIVE;
   case proto::StreamState::STATE_PAUSED:
     return StreamState::STATE_PAUSED;
-  case proto::StreamState::STATE_UNKNOWN:
+  case proto::StreamState::STATE_UNKNOWN: // NOLINT(bugprone-branch-clone)
     return StreamState::STATE_UNKNOWN;
-  default: // NOLINT(bugprone-branch-clone)
+  default:
     return StreamState::STATE_UNKNOWN;
   }
 }
@@ -85,9 +85,9 @@ TrackSource fromProto(proto::TrackSource in) {
     return TrackSource::SOURCE_SCREENSHARE;
   case proto::TrackSource::SOURCE_SCREENSHARE_AUDIO:
     return TrackSource::SOURCE_SCREENSHARE_AUDIO;
-  case proto::TrackSource::SOURCE_UNKNOWN:
+  case proto::TrackSource::SOURCE_UNKNOWN: // NOLINT(bugprone-branch-clone)
     return TrackSource::SOURCE_UNKNOWN;
-  default: // NOLINT(bugprone-branch-clone)
+  default:
     return TrackSource::SOURCE_UNKNOWN;
   }
 }

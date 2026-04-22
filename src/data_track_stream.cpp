@@ -62,7 +62,7 @@ bool DataTrackStream::read(DataTrackFrame &out) {
     return false;
   }
 
-  out = std::move(*frame_);
+  out = std::move(*frame_); // NOLINT(bugprone-unchecked-optional-access)
   frame_.reset();
   return true;
 }
