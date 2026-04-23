@@ -149,9 +149,9 @@ if(INTEGRATION_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+      ${LIVEKIT_BINARY_DIR}/generated
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
       ${Protobuf_INCLUDE_DIRS}
-      ${LIVEKIT_BINARY_DIR}/generated
   )
   if(TARGET absl::base)
     get_target_property(_livekit_test_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)

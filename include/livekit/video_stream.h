@@ -44,8 +44,6 @@ struct VideoFrameEvent {
   std::optional<VideoFrameMetadata> metadata;
 };
 
-using VideoFrameEventCallback = std::function<void(const VideoFrameEvent &)>;
-
 namespace proto {
 class FfiEvent;
 }

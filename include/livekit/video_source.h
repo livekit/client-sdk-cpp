@@ -54,6 +54,7 @@ struct VideoFrameMetadata {
 struct VideoCaptureOptions {
   std::int64_t timestamp_us = 0;
   VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0;
+  // Populate meta data when you want to send user timestamps or frame IDs.
   std::optional<VideoFrameMetadata> metadata;
 };
 
@@ -93,7 +94,8 @@ public:
    * @param frame    Video frame to send.
    * @param options  Timestamp, rotation, and optional metadata for this frame.
    */
-  void captureFrame(const VideoFrame &frame, const VideoCaptureOptions &options);
+  void captureFrame(const VideoFrame &frame,
+                    const VideoCaptureOptions &options);
 
   /**
    * Backward-compatible convenience overload for timestamp + rotation only.

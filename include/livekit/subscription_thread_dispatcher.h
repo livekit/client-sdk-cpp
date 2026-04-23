@@ -47,6 +47,10 @@ using AudioFrameCallback = std::function<void(const AudioFrame &)>;
 using VideoFrameCallback =
     std::function<void(const VideoFrame &frame, std::int64_t timestamp_us)>;
 
+/// Callback type for incoming video frame events.
+/// Invoked on a dedicated reader thread per (participant, track_name) pair.
+using VideoFrameEventCallback = std::function<void(const VideoFrameEvent &)>;
+
 /// Callback type for incoming data track frames.
 /// Invoked on a dedicated reader thread per subscription.
 /// @param payload        Raw binary data received.

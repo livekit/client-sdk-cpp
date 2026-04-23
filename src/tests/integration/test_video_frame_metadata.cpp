@@ -24,8 +24,7 @@
 #include <mutex>
 #include <optional>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 TEST(VideoFrameMetadataTest, EmptyMetadataIsOmittedFromProto) {
   std::optional<VideoFrameMetadata> metadata = VideoFrameMetadata{};
@@ -184,5 +183,4 @@ TEST_F(VideoFrameMetadataServerTest,
   }
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test
