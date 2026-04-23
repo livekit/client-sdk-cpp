@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "livekit/ffi_handle.h"
 
@@ -34,6 +35,27 @@ enum class VideoRotation {
   VIDEO_ROTATION_90 = 90,
   VIDEO_ROTATION_180 = 180,
   VIDEO_ROTATION_270 = 270,
+};
+
+/**
+ * Optional packet-trailer metadata carried alongside a video frame.
+ *
+ * Each field is independently optional because the corresponding transport
+ * feature can be negotiated separately.
+ */
+struct VideoFrameMetadata {
+  std::optional<std::uint64_t> user_timestamp_us;
+  std::optional<std::uint32_t> frame_id;
+};
+
+/**
+ * Capture options for a single outbound video frame.
+ */
+struct VideoCaptureOptions {
+  std::int64_t timestamp_us = 0;
+  VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0;
+  // Populate meta data when you want to send user timestamps or frame IDs.
+  std::optional<VideoFrameMetadata> metadata;
 };
 
 /**
@@ -69,14 +91,14 @@ public:
   /**
    * Push a VideoFrame into the FFI video source.
    *
-   * @param frame         Video frame to send.
-   * @param timestamp_us  Optional timestamp in microseconds.
-   * @param rotation      Video rotation enum.
-   * @param timeout_ms    Controls waiting behavior:
-   *
-   * Notes:
-   *   - Fire-and-forget to send a frame to FFI
-   *     lifetime correctly (e.g., persistent frame pools, GPU buffers, etc.).
+   * @param frame    Video frame to send.
+   * @param options  Timestamp, rotation, and optional metadata for this frame.
+   */
+  void captureFrame(const VideoFrame &frame,
+                    const VideoCaptureOptions &options);
+
+  /**
+   * Backward-compatible convenience overload for timestamp + rotation only.
    */
   void captureFrame(const VideoFrame &frame, std::int64_t timestamp_us = 0,
                     VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0);

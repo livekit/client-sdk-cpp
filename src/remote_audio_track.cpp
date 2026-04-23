@@ -18,7 +18,6 @@
 
 #include "ffi.pb.h"
 #include "ffi_client.h"
-#include "livekit/audio_source.h"
 #include "track.pb.h"
 #include "track_proto_converter.h"
 

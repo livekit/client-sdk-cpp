@@ -336,16 +336,14 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
     std::size_t offset = 0;
     for (const auto &comp : info.components()) {
       const auto sz = static_cast<std::size_t>(comp.size());
-      const auto src_ptr = reinterpret_cast<const std::uint8_t *>( // NOLINT(performance-no-int-to-ptr)
-          static_cast<std::uintptr_t>(comp.data_ptr()));
+      const auto *src_ptr = reinterpret_cast<const std::uint8_t *>(comp.data_ptr()); // NOLINT(performance-no-int-to-ptr)
 
       std::memcpy(buffer.data() + offset, src_ptr, sz);
       offset += sz;
     }
   } else {
     // Packed format: treat top-level data_ptr as a single contiguous buffer.
-    const auto src_ptr = reinterpret_cast<const std::uint8_t *>( // NOLINT(performance-no-int-to-ptr)
-        static_cast<std::uintptr_t>(info.data_ptr()));
+    const auto *src_ptr = reinterpret_cast<const std::uint8_t *>(info.data_ptr()); // NOLINT(performance-no-int-to-ptr)
 
     std::size_t total_size = 0;
     if (info.has_stride()) {
@@ -363,7 +361,8 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
 
   // Release the FFI-owned buffer after copying the data.
   {
-    const FfiHandle owned_handle(static_cast<std::uintptr_t>(owned.handle().id()));
+    const FfiHandle owned_handle(
+        static_cast<std::uintptr_t>(owned.handle().id()));
     // owned_handle destroyed at end of scope → native buffer disposed.
   }
 

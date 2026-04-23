@@ -19,6 +19,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -34,8 +35,13 @@ namespace livekit {
 // A single video frame event delivered by VideoStream::read().
 struct VideoFrameEvent {
   VideoFrame frame;
+  // WebRTC frame timestamp in microseconds.
+  // This may be translated onto WebRTC's internal capture-time timeline and
+  // should not be expected to match application-provided metadata such as
+  // VideoFrameMetadata::user_timestamp_us exactly.
   std::int64_t timestamp_us;
   VideoRotation rotation;
+  std::optional<VideoFrameMetadata> metadata;
 };
 
 namespace proto {
@@ -47,8 +53,8 @@ class FfiEvent;
 //
 // Typical usage:
 //
-//   AudioStream::Options opts;
-//   auto stream = AudioStream::fromTrack(remoteAudioTrack, opts);
+//   VideoStream::Options opts;
+//   auto stream = VideoStream::fromTrack(remoteVideoTrack, opts);
 //
 //   AudioFrameEvent ev;
 //   while (stream->read(ev)) {
