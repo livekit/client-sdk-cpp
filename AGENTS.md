@@ -145,6 +145,13 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 - Use `LK_LOG_WARN` for non-fatal unexpected conditions.
 - Use `Result<T, E>` for operations that can fail with typed errors (e.g., data track publish/subscribe).
 
+### Integer Types
+
+- Prefer fixed-width integer types from `<cstdint>` (`std::int32_t`, `std::uint64_t`, etc.) over raw primitive integer types when size or signedness matters.
+- This applies in public APIs, FFI/protobuf-facing code, serialized payloads, handles, timestamps, IDs, and any cross-platform boundary where integer width must be explicit.
+- Use raw primitive integer types only when the value is intentionally platform-sized or when preserving an existing public API is necessary for backwards compatibility.
+- Do not change an existing public API from a raw primitive integer type to a fixed-width type for style consistency alone unless the compatibility impact has been reviewed.
+
 ### Git Practices
 
 - Use `git mv` when moving or renaming files.

@@ -27,6 +27,7 @@ namespace {
 std::vector<proto::PacketTrailerFeature>
 toProto(const PacketTrailerFeatures &features) {
   std::vector<proto::PacketTrailerFeature> out;
+  out.reserve(2);
   if (features.user_timestamp) {
     out.push_back(proto::PacketTrailerFeature::PTF_USER_TIMESTAMP);
   }
@@ -38,9 +39,9 @@ toProto(const PacketTrailerFeatures &features) {
 
 PacketTrailerFeatures
 fromProto(const google::protobuf::RepeatedField<int> &features) {
-  PacketTrailerFeatures out;
+  PacketTrailerFeatures out{};
   for (const int feature : features) {
-    switch (static_cast<proto::PacketTrailerFeature>(feature)) {
+    switch (feature) {
     case proto::PacketTrailerFeature::PTF_USER_TIMESTAMP:
       out.user_timestamp = true;
       break;
