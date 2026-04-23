@@ -567,16 +567,28 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
-            llvm-dev libclang-dev clang clang-tidy clang-tools \
-            libssl-dev
-          # run-clang-tidy ships as run-clang-tidy-<N> on apt; expose an
-          # unsuffixed name so tidy.sh works unchanged across environments.
-          if ! command -v run-clang-tidy >/dev/null 2>&1; then
-            rct_versioned=$(ls /usr/bin/run-clang-tidy-* 2>/dev/null | sort -V | tail -1)
-            if [ -n "${rct_versioned}" ]; then
-              sudo ln -sf "${rct_versioned}" /usr/local/bin/run-clang-tidy
-            fi
-          fi
+            llvm-dev libclang-dev clang \
+            libssl-dev wget ca-certificates gnupg
+
+      - name: Install clang-tidy 19 (for ExcludeHeaderFilterRegex support)
+        run: |
+          set -eux
+          # Ubuntu 24.04 apt ships clang-tidy 18, which doesn't understand
+          # ExcludeHeaderFilterRegex (added in 19). Pull clang-tidy 19 from
+          # the upstream LLVM apt repository and pin the unversioned names.
+          sudo install -m 0755 -d /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
+          sudo chmod a+r /etc/apt/keyrings/llvm.asc
+          codename=$(lsb_release -cs)
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-19 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-19.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy-19 clang-tools-19
+          sudo ln -sf /usr/bin/clang-tidy-19 /usr/local/bin/clang-tidy
+          sudo ln -sf /usr/bin/run-clang-tidy-19 /usr/local/bin/run-clang-tidy
+          clang-tidy --version
+          run-clang-tidy --help | head -1 || true
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9

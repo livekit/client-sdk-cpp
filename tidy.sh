@@ -105,16 +105,41 @@ emit_annotations() {
   done < "${log}"
 }
 
-# Append a small markdown summary (counts + top checks) to $GITHUB_STEP_SUMMARY
-# so the GitHub job page surfaces totals without needing to scan the log.
+# Append a markdown summary (counts + top checks + full finding list) to
+# $GITHUB_STEP_SUMMARY so the GitHub job page surfaces every finding without
+# needing to scan the raw log. Counts require a [check-name] suffix so
+# clang-tidy's own config-parse errors can't inflate the totals.
 write_step_summary() {
   local log="$1"
   local summary_file="${GITHUB_STEP_SUMMARY:-}"
   [[ -n "${summary_file}" ]] || return 0
 
-  local warnings errors
-  warnings=$(grep -Ec '^.+:[0-9]+:[0-9]+:[[:space:]]+warning:[[:space:]]' "${log}" || true)
-  errors=$(grep -Ec '^.+:[0-9]+:[0-9]+:[[:space:]]+error:[[:space:]]' "${log}" || true)
+  local workspace="${GITHUB_WORKSPACE:-${PWD}}"
+  local findings_tsv
+  findings_tsv="$(mktemp -t tidy-findings.XXXXXX)"
+
+  # Extract every real finding (severity must be followed by [check-name])
+  # as tab-separated severity\tpath\tline\tcol\tcheck\tmessage. Use bash's
+  # regex engine (same as emit_annotations) for portability -- BSD awk and
+  # mawk don't support gawk's 3-argument match().
+  local sline spath slineno scol sseverity smessage scheck
+  while IFS= read -r sline; do
+    [[ "${sline}" =~ ^(.+):([0-9]+):([0-9]+):[[:space:]]+(warning|error):[[:space:]]+(.+)[[:space:]]\[([^]]+)\][[:space:]]*$ ]] || continue
+    spath="${BASH_REMATCH[1]#${workspace}/}"
+    slineno="${BASH_REMATCH[2]}"
+    scol="${BASH_REMATCH[3]}"
+    sseverity="${BASH_REMATCH[4]}"
+    smessage="${BASH_REMATCH[5]}"
+    scheck="${BASH_REMATCH[6]}"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${sseverity}" "${spath}" "${slineno}" "${scol}" "${scheck}" "${smessage}" \
+      >> "${findings_tsv}"
+  done < "${log}"
+
+  local warnings errors total
+  warnings=$(awk -F'\t' '$1=="warning"{c++} END{print c+0}' "${findings_tsv}")
+  errors=$(awk -F'\t' '$1=="error"{c++} END{print c+0}' "${findings_tsv}")
+  total=$((warnings + errors))
 
   {
     echo "## clang-tidy results"
@@ -125,17 +150,33 @@ write_step_summary() {
     echo "| Warnings | ${warnings} |"
     echo
 
-    if (( warnings + errors > 0 )); then
+    if (( total > 0 )); then
       echo "### Top checks"
       echo
       echo '| Check | Count |'
       echo '|-------|-------|'
-      grep -Eo '\[[a-zA-Z0-9._,-]+\]$' "${log}" \
+      awk -F'\t' '{print $5}' "${findings_tsv}" \
         | sort | uniq -c | sort -rn | head -5 \
-        | awk '{ n = $1; $1 = ""; sub(/^ /, ""); gsub(/[\[\]]/, "", $0); printf("| `%s` | %d |\n", $0, n) }'
+        | awk '{ n = $1; $1 = ""; sub(/^ /, ""); printf("| `%s` | %d |\n", $0, n) }'
+      echo
+
+      echo "<details><summary>All ${total} findings</summary>"
+      echo
+      echo '| Severity | File | Check | Message |'
+      echo '|----------|------|-------|---------|'
+      awk -F'\t' '{
+        sev = $1; path = $2; lineno = $3; check = $5; msg = $6
+        gsub(/\|/, "\\|", msg)
+        icon = (sev == "error") ? "error" : "warning"
+        printf("| %s | `%s:%s` | `%s` | %s |\n", icon, path, lineno, check, msg)
+      }' "${findings_tsv}"
+      echo
+      echo "</details>"
       echo
     fi
   } >> "${summary_file}"
+
+  rm -f "${findings_tsv}"
 }
 
 log="$(mktemp -t tidy-log.XXXXXX)"
