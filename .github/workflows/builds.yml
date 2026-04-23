@@ -553,7 +553,6 @@ jobs:
     continue-on-error: false
     permissions:
       contents: read
-      pull-requests: write
 
     steps:
       - name: Checkout (with submodules)
@@ -568,8 +567,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
-            llvm-dev libclang-dev clang clang-tidy \
+            llvm-dev libclang-dev clang clang-tidy clang-tools \
             libssl-dev
+          # run-clang-tidy ships as run-clang-tidy-<N> on apt; expose an
+          # unsuffixed name so tidy.sh works unchanged across environments.
+          if ! command -v run-clang-tidy >/dev/null 2>&1; then
+            rct_versioned=$(ls /usr/bin/run-clang-tidy-* 2>/dev/null | sort -V | tail -1)
+            if [ -n "${rct_versioned}" ]; then
+              sudo ln -sf "${rct_versioned}" /usr/local/bin/run-clang-tidy
+            fi
+          fi
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
@@ -590,33 +597,9 @@ jobs:
         run: cmake --build build-release --target livekit_proto
 
       - name: Run clang-tidy
-        uses: cpp-linter/cpp-linter-action@77c390c5ba9c947ebc185a3e49cc754f1558abb5 # v2.18.0
-        id: linter
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          style: ''
-          tidy-checks: ''
-          database: build-release
-          files-changed-only: false
-          lines-changed-only: false
-          extensions: 'c,cpp,cc,cxx'
-          ignore: 'build-*|cpp-example-collection|client-sdk-rust|vcpkg_installed|src/tests|bridge|examples|docker|data|docs'
-          file-annotations: true
-          thread-comments: update
-          step-summary: true
-          tidy-review: false
-          no-lgtm: true
-          jobs: 0   # 0 == use all available CPU cores
-
-      - name: Check warning thresholds
-        env:
-          TIDY_FINDINGS: ${{ steps.linter.outputs.clang-tidy-checks-failed }}
-          MAX_TIDY_FINDINGS: '0'
-        run: |
-          echo "clang-tidy findings: ${TIDY_FINDINGS}"
-          if [ "${TIDY_FINDINGS}" -gt "${MAX_TIDY_FINDINGS}" ]; then
-            echo "::warning::clang-tidy found ${TIDY_FINDINGS} issue(s), threshold is ${MAX_TIDY_FINDINGS}"
-            exit 1
-          fi
-          echo "clang-tidy findings within threshold"
+        # tidy.sh auto-detects $GITHUB_ACTIONS and emits ::warning/::error
+        # workflow commands so findings surface as PR file annotations.
+        # It exits non-zero only when a finding is promoted to an error via
+        # WarningsAsErrors in .clang-tidy; pure warnings annotate but don't
+        # fail the build.
+        run: ./tidy.sh
