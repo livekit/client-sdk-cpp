@@ -603,7 +603,7 @@ jobs:
           extensions: 'c,cpp,cc,cxx'
           ignore: 'build-*|cpp-example-collection|client-sdk-rust|vcpkg_installed|src/tests|bridge|src/room_event_converter.cpp'
           file-annotations: true
-          thread-comments: update
+          thread-comments: false
           step-summary: true
           tidy-review: false
           no-lgtm: true
