@@ -1,6 +1,7 @@
 Checks: >
   -*,
   bugprone-*,
+  misc-const-correctness,
   performance-*,
   modernize-*,
   readability-misleading-indentation,

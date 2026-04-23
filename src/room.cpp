@@ -1065,11 +1065,11 @@ void Room::OnEvent(const FfiEvent &event) {
       }
       const auto which_val = dp.value_case();
       if (which_val == proto::DataPacketReceived::kUser && delegate_snapshot) {
-        UserDataPacketEvent ev = userDataPacketFromProto(dp, rp);
+        const UserDataPacketEvent ev = userDataPacketFromProto(dp, rp);
         delegate_snapshot->onUserPacketReceived(*this, ev);
       } else if (which_val == proto::DataPacketReceived::kSipDtmf &&
                  delegate_snapshot) {
-        SipDtmfReceivedEvent ev = sipDtmfFromProto(dp, rp);
+        const SipDtmfReceivedEvent ev = sipDtmfFromProto(dp, rp);
         delegate_snapshot->onSipDtmfReceived(*this, ev);
       }
       break;
@@ -1140,14 +1140,14 @@ void Room::OnEvent(const FfiEvent &event) {
       break;
     }
     case proto::RoomEvent::kReconnecting: {
-      ReconnectingEvent ev;
+      const ReconnectingEvent ev;
       if (delegate_snapshot) {
         delegate_snapshot->onReconnecting(*this, ev);
       }
       break;
     }
     case proto::RoomEvent::kReconnected: {
-      ReconnectedEvent ev;
+      const ReconnectedEvent ev;
       if (delegate_snapshot) {
         delegate_snapshot->onReconnected(*this, ev);
       }
@@ -1196,7 +1196,7 @@ void Room::OnEvent(const FfiEvent &event) {
 
       // Old state will be destroyed here when going out of scope
 
-      RoomEosEvent ev;
+      const RoomEosEvent ev;
       if (delegate_snapshot) {
         delegate_snapshot->onRoomEos(*this, ev);
       }
@@ -1231,7 +1231,7 @@ void Room::OnEvent(const FfiEvent &event) {
           }
           text_cb = it->second;
 
-          TextStreamInfo info = makeTextInfo(header);
+          const TextStreamInfo info = makeTextInfo(header);
           text_reader = std::make_shared<TextStreamReader>(info);
           text_stream_readers_[header.stream_id()] = text_reader;
 
@@ -1241,7 +1241,7 @@ void Room::OnEvent(const FfiEvent &event) {
             break;
           }
           byte_cb = it->second;
-          ByteStreamInfo info = makeByteInfo(header);
+          const ByteStreamInfo info = makeByteInfo(header);
           byte_reader = std::make_shared<ByteStreamReader>(info);
           byte_stream_readers_[header.stream_id()] = byte_reader;
 

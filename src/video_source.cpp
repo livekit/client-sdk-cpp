@@ -51,14 +51,14 @@ void VideoSource::captureFrame(const VideoFrame &frame,
     return;
   }
 
-  proto::VideoBufferInfo buf = toProto(frame);
+  const proto::VideoBufferInfo buf = toProto(frame);
   proto::FfiRequest req;
   auto *msg = req.mutable_capture_video_frame();
   msg->set_source_handle(handle_.get());
   msg->mutable_buffer()->CopyFrom(buf);
   msg->set_timestamp_us(timestamp_us);
   msg->set_rotation(static_cast<proto::VideoRotation>(rotation));
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   if (!resp.has_capture_video_frame()) {
     throw std::runtime_error("FfiResponse missing capture_video_frame");
   }

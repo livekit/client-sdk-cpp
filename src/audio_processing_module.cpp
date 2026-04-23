@@ -35,7 +35,7 @@ AudioProcessingModule::AudioProcessingModule(const Options &options) {
   msg->set_high_pass_filter_enabled(options.high_pass_filter);
   msg->set_gain_controller_enabled(options.auto_gain_control);
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
 
   if (!resp.has_new_apm()) {
     throw std::runtime_error(
@@ -69,7 +69,7 @@ void AudioProcessingModule::processStream(AudioFrame &frame) {
   msg->set_sample_rate(static_cast<std::uint32_t>(frame.sample_rate()));
   msg->set_num_channels(static_cast<std::uint32_t>(frame.num_channels()));
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
 
   if (!resp.has_apm_process_stream()) {
     throw std::runtime_error(
@@ -101,7 +101,7 @@ void AudioProcessingModule::processReverseStream(AudioFrame &frame) {
   msg->set_sample_rate(static_cast<std::uint32_t>(frame.sample_rate()));
   msg->set_num_channels(static_cast<std::uint32_t>(frame.num_channels()));
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
 
   if (!resp.has_apm_process_reverse_stream()) {
     throw std::runtime_error(
@@ -125,7 +125,7 @@ void AudioProcessingModule::setStreamDelayMs(int delay_ms) {
   msg->set_apm_handle(static_cast<std::uint64_t>(handle_.get()));
   msg->set_delay_ms(delay_ms);
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
 
   if (!resp.has_apm_set_stream_delay()) {
     throw std::runtime_error(

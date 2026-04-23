@@ -38,7 +38,7 @@ std::shared_ptr<LocalAudioTrack> LocalAudioTrack::createLocalAudioTrack(
   msg->set_name(name);
   msg->set_source_handle(static_cast<uint64_t>(source->ffi_handle_id()));
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   const proto::OwnedTrack &owned = resp.create_audio_track().track();
   FfiHandle handle(static_cast<uintptr_t>(owned.handle().id()));
   return std::shared_ptr<LocalAudioTrack>(

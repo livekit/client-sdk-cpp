@@ -42,7 +42,7 @@ bool RemoteDataTrack::isPublished() const {
   auto *msg = req.mutable_remote_data_track_is_published();
   msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   return resp.remote_data_track_is_published().is_published();
 }
 
@@ -63,7 +63,7 @@ RemoteDataTrack::subscribe(const DataTrackStream::Options &options) {
                   SubscribeDataTrackError>::failure(std::move(result).error());
   }
 
-  proto::OwnedDataTrackStream owned_sub = result.value();
+  const proto::OwnedDataTrackStream owned_sub = result.value();
 
   FfiHandle sub_handle(static_cast<uintptr_t>(owned_sub.handle().id()));
 

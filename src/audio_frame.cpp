@@ -83,7 +83,7 @@ AudioFrame::fromOwnedInfo(const proto::OwnedAudioFrameBuffer &owned) {
   }
 
   {
-    FfiHandle guard(static_cast<uintptr_t>(owned.handle().id()));
+    const FfiHandle guard(static_cast<uintptr_t>(owned.handle().id()));
     // guard is destroyed at end of scope, which should call into the FFI to
     // drop the OwnedAudioFrameBuffer.
   }

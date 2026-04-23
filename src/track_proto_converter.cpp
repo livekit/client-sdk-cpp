@@ -118,7 +118,7 @@ std::vector<AudioTrackFeature>
 convertAudioFeatures(const google::protobuf::RepeatedField<int> &features) {
   std::vector<AudioTrackFeature> out;
   out.reserve(features.size());
-  for (int v : features) {
+  for (const int v : features) {
     out.push_back(fromProto(static_cast<proto::AudioTrackFeature>(v)));
   }
   return out;
