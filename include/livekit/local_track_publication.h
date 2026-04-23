@@ -28,7 +28,7 @@ class Track;
 
 class LocalTrackPublication : public TrackPublication {
 public:
-  /// Note, this RemoteTrackPublication is constructed internally only;
+  /// Note, this LocalTrackPublication is constructed internally only;
   /// safe to accept proto::OwnedTrackPublication.
   explicit LocalTrackPublication(const proto::OwnedTrackPublication &owned);
 
