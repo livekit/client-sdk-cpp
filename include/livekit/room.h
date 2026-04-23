@@ -245,7 +245,7 @@ public:
    */
   void setOnAudioFrameCallback(const std::string &participant_identity,
                                TrackSource source, AudioFrameCallback callback,
-                               AudioStream::Options opts = {});
+                               const AudioStream::Options &opts = {});
 
   /**
    * @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
@@ -253,14 +253,14 @@ public:
   void setOnAudioFrameCallback(const std::string &participant_identity,
                                const std::string &track_name,
                                AudioFrameCallback callback,
-                               AudioStream::Options opts = {});
+                               const AudioStream::Options &opts = {});
 
   /**
    * @brief Sets the video frame callback via SubscriptionThreadDispatcher.
    */
   void setOnVideoFrameCallback(const std::string &participant_identity,
                                TrackSource source, VideoFrameCallback callback,
-                               VideoStream::Options opts = {});
+                               const VideoStream::Options &opts = {});
 
   /**
    * @brief Sets the video frame callback via SubscriptionThreadDispatcher.
@@ -268,7 +268,7 @@ public:
   void setOnVideoFrameCallback(const std::string &participant_identity,
                                const std::string &track_name,
                                VideoFrameCallback callback,
-                               VideoStream::Options opts = {});
+                               const VideoStream::Options &opts = {});
 
   /**
    * @brief Sets the video frame event callback via
@@ -277,7 +277,7 @@ public:
   void setOnVideoFrameEventCallback(const std::string &participant_identity,
                                     const std::string &track_name,
                                     VideoFrameEventCallback callback,
-                                    VideoStream::Options opts = {});
+                                    const VideoStream::Options &opts = {});
 
   /**
    * @brief Clears the audio frame callback via SubscriptionThreadDispatcher.

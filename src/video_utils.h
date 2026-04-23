@@ -27,10 +27,11 @@ proto::VideoBufferInfo toProto(const VideoFrame &frame);
 VideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned);
 VideoFrame convertViaFfi(const VideoFrame &frame, VideoBufferType dst,
                          bool flip_y);
-proto::VideoBufferType toProto(VideoBufferType t);
-VideoBufferType fromProto(proto::VideoBufferType t);
+proto::VideoBufferType toProto(const VideoBufferType t);
+VideoBufferType fromProto(const proto::VideoBufferType t);
 std::optional<proto::FrameMetadata>
 toProto(const std::optional<VideoFrameMetadata> &metadata);
-std::optional<VideoFrameMetadata> fromProto(const proto::FrameMetadata &metadata);
+std::optional<VideoFrameMetadata>
+fromProto(const proto::FrameMetadata &metadata);
 
 } // namespace livekit

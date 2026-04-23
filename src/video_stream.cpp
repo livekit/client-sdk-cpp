@@ -198,10 +198,8 @@ void VideoStream::onFfiEvent(const proto::FfiEvent &event) {
 
     // Convert owned buffer->VideoFrame via a helper.
     // You should implement this static function in your VideoFrame class.
-    VideoFrame frame = VideoFrame::fromOwnedInfo(fr.buffer());
-
     VideoFrameEvent ev;
-    ev.frame = std::move(frame);
+    ev.frame = VideoFrame::fromOwnedInfo(fr.buffer());
     ev.timestamp_us = fr.timestamp_us();
     ev.rotation = static_cast<VideoRotation>(fr.rotation());
     if (fr.has_metadata()) {

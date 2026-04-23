@@ -27,7 +27,7 @@
 
 namespace livekit {
 
-proto::VideoBufferType toProto(VideoBufferType t) {
+proto::VideoBufferType toProto(const VideoBufferType t) {
   switch (t) {
   case VideoBufferType::ARGB:
     return proto::VideoBufferType::ARGB;
@@ -57,7 +57,7 @@ proto::VideoBufferType toProto(VideoBufferType t) {
 }
 
 // Map proto enum -> SDK enum
-VideoBufferType fromProto(proto::VideoBufferType t) {
+VideoBufferType fromProto(const proto::VideoBufferType t) {
   switch (t) {
   case proto::VideoBufferType::ARGB:
     return VideoBufferType::ARGB;
@@ -107,7 +107,8 @@ toProto(const std::optional<VideoFrameMetadata> &metadata) {
   return proto_metadata;
 }
 
-std::optional<VideoFrameMetadata> fromProto(const proto::FrameMetadata &metadata) {
+std::optional<VideoFrameMetadata>
+fromProto(const proto::FrameMetadata &metadata) {
   VideoFrameMetadata out;
   if (metadata.has_user_timestamp()) {
     out.user_timestamp = metadata.user_timestamp();
@@ -133,11 +134,11 @@ proto::VideoBufferInfo toProto(const VideoFrame &frame) {
   info.set_type(toProto(frame.type()));
 
   // Backing data pointer for the whole buffer
-  auto base_ptr = reinterpret_cast<std::uint64_t>(frame.data());
+  const auto base_ptr = reinterpret_cast<std::uint64_t>(frame.data());
   info.set_data_ptr(base_ptr);
 
   // Compute plane layout for the current format
-  auto planes = frame.planeInfos();
+  const auto planes = frame.planeInfos();
   for (const auto &plane : planes) {
     auto *cmpt = info.add_components();
     cmpt->set_data_ptr(static_cast<std::uint64_t>(plane.data_ptr));
@@ -183,7 +184,8 @@ VideoFrame fromOwnedProto(const proto::OwnedVideoBuffer &owned) {
   if (src_ptr == 0) {
     throw std::runtime_error("fromOwnedProto: info.data_ptr is null");
   }
-  const auto *src = reinterpret_cast<const std::uint8_t *>(src_ptr); // NOLINT(performance-no-int-to-ptr)
+  const auto *src = reinterpret_cast<const std::uint8_t *>(
+      src_ptr); // NOLINT(performance-no-int-to-ptr)
 
   std::memcpy(dst, src, dst_size);
 

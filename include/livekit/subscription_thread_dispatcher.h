@@ -108,7 +108,7 @@ public:
    */
   void setOnAudioFrameCallback(const std::string &participant_identity,
                                TrackSource source, AudioFrameCallback callback,
-                               AudioStream::Options opts = {});
+                               const AudioStream::Options &opts = {});
 
   /**
    * Register or replace an audio frame callback for a remote subscription.
@@ -126,7 +126,7 @@ public:
   void setOnAudioFrameCallback(const std::string &participant_identity,
                                const std::string &track_name,
                                AudioFrameCallback callback,
-                               AudioStream::Options opts = {});
+                               const AudioStream::Options &opts = {});
 
   /**
    * Register or replace a video frame callback for a remote subscription.
@@ -143,7 +143,7 @@ public:
    */
   void setOnVideoFrameCallback(const std::string &participant_identity,
                                TrackSource source, VideoFrameCallback callback,
-                               VideoStream::Options opts = {});
+                               const VideoStream::Options &opts = {});
 
   /**
    * Register or replace a video frame callback for a remote subscription.
@@ -161,7 +161,7 @@ public:
   void setOnVideoFrameCallback(const std::string &participant_identity,
                                const std::string &track_name,
                                VideoFrameCallback callback,
-                               VideoStream::Options opts = {});
+                               const VideoStream::Options &opts = {});
 
   /**
    * Register or replace a rich video frame event callback for a remote
@@ -181,7 +181,7 @@ public:
   void setOnVideoFrameEventCallback(const std::string &participant_identity,
                                     const std::string &track_name,
                                     VideoFrameEventCallback callback,
-                                    VideoStream::Options opts = {});
+                                    const VideoStream::Options &opts = {});
 
   /**
    * Remove an audio callback registration and stop any active reader.

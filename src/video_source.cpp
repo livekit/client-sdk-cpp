@@ -35,7 +35,7 @@ VideoSource::VideoSource(int width, int height)
   msg->mutable_resolution()->set_width(width_);
   msg->mutable_resolution()->set_height(height_);
 
-  auto resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   if (!resp.has_new_video_source()) {
     throw std::runtime_error("VideoSource: missing new_video_source");
   }
@@ -59,7 +59,7 @@ void VideoSource::captureFrame(const VideoFrame &frame,
   if (auto metadata = toProto(options.metadata)) {
     msg->mutable_metadata()->CopyFrom(*metadata);
   }
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   if (!resp.has_capture_video_frame()) {
     throw std::runtime_error("FfiResponse missing capture_video_frame");
   }
