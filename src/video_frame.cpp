@@ -336,8 +336,7 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
     std::size_t offset = 0;
     for (const auto &comp : info.components()) {
       const auto sz = static_cast<std::size_t>(comp.size());
-      const auto src_ptr = reinterpret_cast<
-          const std::uint8_t *>( // NOLINT(performance-no-int-to-ptr)
+      const auto *src_ptr = reinterpret_cast<const std::uint8_t *>(
           static_cast<std::uintptr_t>(comp.data_ptr()));
 
       std::memcpy(buffer.data() + offset, src_ptr, sz);
@@ -345,8 +344,7 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
     }
   } else {
     // Packed format: treat top-level data_ptr as a single contiguous buffer.
-    const auto src_ptr = reinterpret_cast<
-        const std::uint8_t *>( // NOLINT(performance-no-int-to-ptr)
+    const auto *src_ptr = reinterpret_cast<const std::uint8_t *>(
         static_cast<std::uintptr_t>(info.data_ptr()));
 
     std::size_t total_size = 0;
