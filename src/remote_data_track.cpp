@@ -63,7 +63,7 @@ RemoteDataTrack::subscribe(const DataTrackStream::Options &options) {
                   SubscribeDataTrackError>::failure(std::move(result).error());
   }
 
-  proto::OwnedDataTrackStream owned_sub = result.value();
+  const proto::OwnedDataTrackStream owned_sub = result.value();
 
   FfiHandle sub_handle(static_cast<uintptr_t>(owned_sub.handle().id()));
 

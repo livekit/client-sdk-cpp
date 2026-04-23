@@ -98,10 +98,7 @@ computePlaneInfos(uintptr_t base, int width, int height, VideoBufferType type) {
   const auto w = static_cast<uint32_t>(width);
   const auto h = static_cast<uint32_t>(height);
   auto pushPlane = [&](uintptr_t ptr, uint32_t stride, uint32_t size) {
-    VideoPlaneInfo info;
-    info.data_ptr = ptr;
-    info.stride = stride;
-    info.size = size;
+    const VideoPlaneInfo info{ptr, stride, size};
     planes.push_back(info);
   };
 
@@ -300,7 +297,7 @@ std::vector<VideoPlaneInfo> VideoFrame::planeInfos() const {
     return {};
   }
 
-  uintptr_t base = reinterpret_cast<uintptr_t>(data_.data());
+  const uintptr_t base = reinterpret_cast<uintptr_t>(data_.data());
   return computePlaneInfos(base, width_, height_, type_);
 }
 
@@ -366,7 +363,7 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer &owned) {
 
   // Release the FFI-owned buffer after copying the data.
   {
-    FfiHandle owned_handle(static_cast<std::uintptr_t>(owned.handle().id()));
+    const FfiHandle owned_handle(static_cast<std::uintptr_t>(owned.handle().id()));
     // owned_handle destroyed at end of scope → native buffer disposed.
   }
 

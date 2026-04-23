@@ -40,7 +40,7 @@ void FfiHandle::reset(uintptr_t new_handle) noexcept {
 }
 
 uintptr_t FfiHandle::release() noexcept {
-  uintptr_t old = handle_;
+  const uintptr_t old = handle_;
   handle_ = 0;
   return old;
 }
