@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "livekit/video_frame.h"
+#include "video_utils.h"
 
 #include <cstring>
 #include <stdexcept>
@@ -27,7 +27,7 @@
 
 namespace livekit {
 
-proto::VideoBufferType toProto(VideoBufferType t) {
+proto::VideoBufferType toProto(const VideoBufferType t) {
   switch (t) {
   case VideoBufferType::ARGB:
     return proto::VideoBufferType::ARGB;
@@ -57,7 +57,7 @@ proto::VideoBufferType toProto(VideoBufferType t) {
 }
 
 // Map proto enum -> SDK enum
-VideoBufferType fromProto(proto::VideoBufferType t) {
+VideoBufferType fromProto(const proto::VideoBufferType t) {
   switch (t) {
   case proto::VideoBufferType::ARGB:
     return VideoBufferType::ARGB;
@@ -86,6 +86,44 @@ VideoBufferType fromProto(proto::VideoBufferType t) {
   }
 }
 
+std::optional<proto::FrameMetadata>
+toProto(const std::optional<VideoFrameMetadata> &metadata) {
+  if (!metadata.has_value()) {
+    return std::nullopt;
+  }
+
+  proto::FrameMetadata proto_metadata;
+  if (metadata->user_timestamp_us.has_value()) {
+    proto_metadata.set_user_timestamp(*metadata->user_timestamp_us);
+  }
+  if (metadata->frame_id.has_value()) {
+    proto_metadata.set_frame_id(*metadata->frame_id);
+  }
+
+  if (!proto_metadata.has_user_timestamp() && !proto_metadata.has_frame_id()) {
+    return std::nullopt;
+  }
+
+  return proto_metadata;
+}
+
+std::optional<VideoFrameMetadata>
+fromProto(const proto::FrameMetadata &metadata) {
+  VideoFrameMetadata out;
+  if (metadata.has_user_timestamp()) {
+    out.user_timestamp_us = metadata.user_timestamp();
+  }
+  if (metadata.has_frame_id()) {
+    out.frame_id = metadata.frame_id();
+  }
+
+  if (!out.user_timestamp_us.has_value() && !out.frame_id.has_value()) {
+    return std::nullopt;
+  }
+
+  return out;
+}
+
 proto::VideoBufferInfo toProto(const VideoFrame &frame) {
   proto::VideoBufferInfo info;
 
@@ -96,11 +134,11 @@ proto::VideoBufferInfo toProto(const VideoFrame &frame) {
   info.set_type(toProto(frame.type()));
 
   // Backing data pointer for the whole buffer
-  auto base_ptr = reinterpret_cast<std::uint64_t>(frame.data());
+  const auto base_ptr = reinterpret_cast<std::uint64_t>(frame.data());
   info.set_data_ptr(base_ptr);
 
   // Compute plane layout for the current format
-  auto planes = frame.planeInfos();
+  const auto planes = frame.planeInfos();
   for (const auto &plane : planes) {
     auto *cmpt = info.add_components();
     cmpt->set_data_ptr(static_cast<std::uint64_t>(plane.data_ptr));

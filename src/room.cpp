@@ -32,8 +32,8 @@
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
-#include "lk_log.h"
 #include "livekit_ffi.h"
+#include "lk_log.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
 #include "trace/trace_event.h"
@@ -277,27 +277,27 @@ void Room::unregisterByteStreamHandler(const std::string &topic) {
 void Room::setOnAudioFrameCallback(const std::string &participant_identity,
                                    TrackSource source,
                                    AudioFrameCallback callback,
-                                   AudioStream::Options opts) {
+                                   const AudioStream::Options &opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnAudioFrameCallback(
-        participant_identity, source, std::move(callback), std::move(opts));
+        participant_identity, source, std::move(callback), opts);
   }
 }
 
 void Room::setOnAudioFrameCallback(const std::string &participant_identity,
                                    const std::string &track_name,
                                    AudioFrameCallback callback,
-                                   AudioStream::Options opts) {
+                                   const AudioStream::Options &opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnAudioFrameCallback(
-        participant_identity, track_name, std::move(callback), std::move(opts));
+        participant_identity, track_name, std::move(callback), opts);
   }
 }
 
 void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    TrackSource source,
                                    VideoFrameCallback callback,
-                                   VideoStream::Options opts) {
+                                   const VideoStream::Options &opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnVideoFrameCallback(
         participant_identity, source, std::move(callback), opts);
@@ -307,9 +307,19 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
 void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    const std::string &track_name,
                                    VideoFrameCallback callback,
-                                   VideoStream::Options opts) {
+                                   const VideoStream::Options &opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnVideoFrameCallback(
+        participant_identity, track_name, std::move(callback), opts);
+  }
+}
+
+void Room::setOnVideoFrameEventCallback(const std::string &participant_identity,
+                                        const std::string &track_name,
+                                        VideoFrameEventCallback callback,
+                                        const VideoStream::Options &opts) {
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->setOnVideoFrameEventCallback(
         participant_identity, track_name, std::move(callback), opts);
   }
 }

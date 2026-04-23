@@ -50,8 +50,6 @@ public:
   /// Returns a concise, human-readable string summarizing the track,
   /// including its SID and name. Useful for debugging and logging.
   std::string to_string() const;
-
-private:
 };
 
 } // namespace livekit
