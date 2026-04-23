@@ -66,7 +66,7 @@ void SubscriptionThreadDispatcher::setOnAudioFrameCallback(
 
 void SubscriptionThreadDispatcher::setOnAudioFrameCallback(
     const std::string &participant_identity, const std::string &track_name,
-    AudioFrameCallback callback, AudioStream::Options opts) {
+    AudioFrameCallback callback, const AudioStream::Options &opts) {
   const CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
                         track_name};
   const std::lock_guard<std::mutex> lock(lock_);
