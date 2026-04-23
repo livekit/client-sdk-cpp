@@ -47,8 +47,8 @@ class FfiEvent;
 //
 // Typical usage:
 //
-//   AudioStream::Options opts;
-//   auto stream = AudioStream::fromTrack(remoteAudioTrack, opts);
+//   VideoStream::Options opts;
+//   auto stream = VideoStream::fromTrack(remoteVideoTrack, opts);
 //
 //   AudioFrameEvent ev;
 //   while (stream->read(ev)) {
