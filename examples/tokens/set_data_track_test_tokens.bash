@@ -47,6 +47,8 @@ fi
 LIVEKIT_ROOM="cpp_data_track_test"
 LIVEKIT_IDENTITY_A="cpp-test-a"
 LIVEKIT_IDENTITY_B="cpp-test-b"
+LIVEKIT_CALLER_IDENTITY="caller"
+LIVEKIT_RECEIVER_IDENTITY="receiver"
 
 if [[ $# -ne 0 ]]; then
   _fail "this script is hard-coded and does not accept arguments" 2
@@ -104,22 +106,27 @@ _create_token() {
 
 LK_TOKEN_TEST_A="$(_create_token "$LIVEKIT_IDENTITY_A")"
 LK_TOKEN_TEST_B="$(_create_token "$LIVEKIT_IDENTITY_B")"
-
+LIVEKIT_CALLER_TOKEN="$(_create_token "$LIVEKIT_CALLER_IDENTITY")"
+LIVEKIT_RECEIVER_TOKEN="$(_create_token "$LIVEKIT_RECEIVER_IDENTITY")"
 _apply() {
   export LK_TOKEN_TEST_A
   export LK_TOKEN_TEST_B
+  export LIVEKIT_CALLER_TOKEN
+  export LIVEKIT_RECEIVER_TOKEN
   export LIVEKIT_URL
 }
 
 _emit_eval() {
   printf 'export LK_TOKEN_TEST_A=%q\n' "$LK_TOKEN_TEST_A"
   printf 'export LK_TOKEN_TEST_B=%q\n' "$LK_TOKEN_TEST_B"
+  printf 'export LIVEKIT_CALLER_TOKEN=%q\n' "$LIVEKIT_CALLER_TOKEN"
+  printf 'export LIVEKIT_RECEIVER_TOKEN=%q\n' "$LIVEKIT_RECEIVER_TOKEN"
   printf 'export LIVEKIT_URL=%q\n' "$LIVEKIT_URL"
 }
 
 if [[ "$_sourced" -eq 1 ]]; then
   _apply
-  echo "LK_TOKEN_TEST_A, LK_TOKEN_TEST_B, and LIVEKIT_URL set for this shell." >&2
+  echo "LK_TOKEN_TEST_A, LK_TOKEN_TEST_B, LIVEKIT_CALLER_TOKEN, LIVEKIT_RECEIVER_TOKEN, and LIVEKIT_URL set for this shell." >&2
 else
   _emit_eval
   echo "set_data_track_test_tokens.bash: for this shell run: source $0   or: eval \"\$(bash $0 ...)\"" >&2
