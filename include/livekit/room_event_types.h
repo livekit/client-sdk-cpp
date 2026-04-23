@@ -308,6 +308,17 @@ struct AudioEncodingOptions {
 };
 
 /**
+ * Optional RTP packet-trailer features for published video tracks.
+ */
+struct PacketTrailerFeatures {
+  /** Embed a user-supplied wall-clock timestamp. */
+  bool user_timestamp = false;
+
+  /** Embed a monotonically increasing frame identifier. */
+  bool frame_id = false;
+};
+
+/**
  * Options for publishing a track to the room.
  */
 struct TrackPublishOptions {
@@ -337,6 +348,9 @@ struct TrackPublishOptions {
 
   /** Enable pre-connect buffering for lower startup latency. */
   std::optional<bool> preconnect_buffer;
+
+  /** Optional packet-trailer features to enable for published video. */
+  PacketTrailerFeatures packet_trailer_features{};
 };
 
 // ---------------------------------------------------------
