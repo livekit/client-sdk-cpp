@@ -38,7 +38,7 @@ void DataTrackStream::init(FfiHandle subscription_handle) {
 
 bool DataTrackStream::read(DataTrackFrame &out) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_ || eof_) {
       return false;
     }
@@ -70,7 +70,7 @@ bool DataTrackStream::read(DataTrackFrame &out) {
 void DataTrackStream::close() {
   std::int32_t listener_id = -1;
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_) {
       return;
     }
@@ -94,7 +94,7 @@ void DataTrackStream::onFfiEvent(const FfiEvent &event) {
 
   const auto &dts = event.data_track_stream_event();
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_ || dts.stream_handle() !=
                        static_cast<std::uint64_t>(subscription_handle_.get())) {
       return;
@@ -111,7 +111,7 @@ void DataTrackStream::onFfiEvent(const FfiEvent &event) {
 }
 
 void DataTrackStream::pushFrame(DataTrackFrame &&frame) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  const std::scoped_lock<std::mutex> lock(mutex_);
 
   if (closed_ || eof_) {
     return;
@@ -128,7 +128,7 @@ void DataTrackStream::pushFrame(DataTrackFrame &&frame) {
 
 void DataTrackStream::pushEos() {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (eof_) {
       return;
     }

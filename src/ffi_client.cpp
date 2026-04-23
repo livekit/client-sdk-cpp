@@ -172,14 +172,14 @@ bool FfiClient::isInitialized() const noexcept {
 
 FfiClient::ListenerId
 FfiClient::AddListener(const FfiClient::Listener &listener) {
-  std::lock_guard<std::mutex> guard(lock_);
+  const std::scoped_lock<std::mutex> guard(lock_);
   FfiClient::ListenerId id = next_listener_id++;
   listeners_[id] = listener;
   return id;
 }
 
 void FfiClient::RemoveListener(ListenerId id) {
-  std::lock_guard<std::mutex> guard(lock_);
+  const std::scoped_lock<std::mutex> guard(lock_);
   listeners_.erase(id);
 }
 
@@ -216,7 +216,7 @@ void FfiClient::PushEvent(const proto::FfiEvent &event) const {
   std::unique_ptr<PendingBase> to_complete;
   std::vector<Listener> listeners_copy;
   {
-    std::lock_guard<std::mutex> guard(lock_);
+    const std::scoped_lock<std::mutex> guard(lock_);
 
     // Complete pending future if this event is a callback with async_id
     if (auto async_id = ExtractAsyncId(event)) {
@@ -259,7 +259,7 @@ FfiClient::AsyncId FfiClient::generateAsyncId() {
 bool FfiClient::cancelPendingByAsyncId(AsyncId async_id) {
   std::unique_ptr<PendingBase> to_cancel;
   {
-    std::lock_guard<std::mutex> guard(lock_);
+    const std::scoped_lock<std::mutex> guard(lock_);
     auto it = pending_by_id_.find(async_id);
     if (it != pending_by_id_.end()) {
       to_cancel = std::move(it->second);
@@ -283,7 +283,7 @@ std::future<T> FfiClient::registerAsync(
   pending->match = std::move(match);
   pending->handler = std::move(handler);
   {
-    std::lock_guard<std::mutex> guard(lock_);
+    const std::scoped_lock<std::mutex> guard(lock_);
     pending_by_id_.emplace(async_id, std::move(pending));
   }
   return fut;

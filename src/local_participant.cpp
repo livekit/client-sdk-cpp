@@ -416,7 +416,7 @@ void LocalParticipant::handleRpcMethodInvocation(
 
   // Track this invocation and check if we're shutting down
   {
-    std::lock_guard<std::mutex> lock(state->mutex);
+    const std::scoped_lock<std::mutex> lock(state->mutex);
     if (state->shutting_down) {
       // Already shutting down, don't process new invocations
       return;
@@ -430,7 +430,7 @@ void LocalParticipant::handleRpcMethodInvocation(
   struct InvocationGuard {
     std::shared_ptr<RpcInvocationState> state;
     ~InvocationGuard() {
-      std::lock_guard<std::mutex> lock(state->mutex);
+      const std::scoped_lock<std::mutex> lock(state->mutex);
       state->active_invocations--;
       if (state->active_invocations == 0) {
         state->cv.notify_all();
@@ -465,7 +465,7 @@ void LocalParticipant::handleRpcMethodInvocation(
 
   // Check again if shutdown started during handler execution
   {
-    std::lock_guard<std::mutex> lock(state->mutex);
+    const std::scoped_lock<std::mutex> lock(state->mutex);
     if (state->shutting_down) {
       // Shutdown started, don't send response - handle may be invalid
       return;

@@ -257,7 +257,7 @@ void WriterThreadFunc() {
 
     // Exit if shutdown requested and queue is empty
     if (g_shutdown_requested.load()) {
-      std::lock_guard<std::mutex> lock(g_mutex);
+      const std::scoped_lock<std::mutex> lock(g_mutex);
       if (g_event_queue.empty()) {
         break;
       }
@@ -269,7 +269,7 @@ void WriterThreadFunc() {
 
 void SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr,
                       AddTraceEventPtr add_trace_event_ptr) {
-  std::lock_guard<std::mutex> lock(g_mutex);
+  const std::scoped_lock<std::mutex> lock(g_mutex);
   g_custom_get_category_enabled = get_category_enabled_ptr;
   g_custom_add_trace_event = add_trace_event_ptr;
 }
@@ -286,7 +286,7 @@ const unsigned char *EventTracer::GetCategoryEnabled(const char *name) {
   }
 
   // Check if category is enabled
-  std::lock_guard<std::mutex> lock(g_mutex);
+  const std::scoped_lock<std::mutex> lock(g_mutex);
 
   // Empty enabled set means all categories are enabled
   if (g_enabled_categories.empty()) {
@@ -366,7 +366,7 @@ void EventTracer::AddTraceEvent(char phase,
 
   // Queue the event for the writer thread
   {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    const std::scoped_lock<std::mutex> lock(g_mutex);
     g_event_queue.push(std::move(event));
   }
   g_cv.notify_one();
@@ -376,7 +376,7 @@ namespace internal {
 
 bool StartTracing(const std::string &file_path,
                   const std::vector<std::string> &categories) {
-  std::lock_guard<std::mutex> lock(g_mutex);
+  const std::scoped_lock<std::mutex> lock(g_mutex);
 
   // Don't start if already running
   if (g_tracing_enabled.load()) {
@@ -426,7 +426,7 @@ void StopTracing() {
   }
 
   // Close the file with JSON footer
-  std::lock_guard<std::mutex> lock(g_mutex);
+  const std::scoped_lock<std::mutex> lock(g_mutex);
   if (g_trace_file.is_open()) {
     g_trace_file << R"(],"displayTimeUnit":"ms"})";
     g_trace_file.close();

@@ -109,7 +109,7 @@ TextStreamReader::TextStreamReader(TextStreamInfo info)
 
 void TextStreamReader::onChunkUpdate(const std::string &text) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_)
       return;
     queue_.push_back(text);
@@ -120,7 +120,7 @@ void TextStreamReader::onChunkUpdate(const std::string &text) {
 void TextStreamReader::onStreamClose(
     const std::map<std::string, std::string> &trailer_attrs) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     for (const auto &kv : trailer_attrs) {
       info_.attributes[kv.first] = kv.second;
     }
@@ -154,7 +154,7 @@ ByteStreamReader::ByteStreamReader(ByteStreamInfo info)
 
 void ByteStreamReader::onChunkUpdate(const std::vector<std::uint8_t> &bytes) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_)
       return;
     queue_.push_back(bytes);
@@ -165,7 +165,7 @@ void ByteStreamReader::onChunkUpdate(const std::vector<std::uint8_t> &bytes) {
 void ByteStreamReader::onStreamClose(
     const std::map<std::string, std::string> &trailer_attrs) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     for (const auto &kv : trailer_attrs) {
       info_.attributes[kv.first] = kv.second;
     }
@@ -308,7 +308,7 @@ TextStreamWriter::TextStreamWriter(
 }
 
 void TextStreamWriter::write(const std::string &text) {
-  std::lock_guard<std::mutex> lock(write_mutex_);
+  const std::scoped_lock<std::mutex> lock(write_mutex_);
   if (closed_)
     throw std::runtime_error("Cannot write to closed TextStreamWriter");
 
@@ -339,7 +339,7 @@ ByteStreamWriter::ByteStreamWriter(
 }
 
 void ByteStreamWriter::write(const std::vector<std::uint8_t> &data) {
-  std::lock_guard<std::mutex> lock(write_mutex_);
+  const std::scoped_lock<std::mutex> lock(write_mutex_);
   if (closed_)
     throw std::runtime_error("Cannot write to closed ByteStreamWriter");
 

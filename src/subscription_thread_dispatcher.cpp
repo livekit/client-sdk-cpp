@@ -55,7 +55,7 @@ void SubscriptionThreadDispatcher::setOnAudioFrameCallback(
     const std::string &participant_identity, TrackSource source,
     AudioFrameCallback callback, AudioStream::Options opts) {
   const CallbackKey key{participant_identity, source, ""};
-  const std::lock_guard<std::mutex> lock(lock_);
+  const std::scoped_lock<std::mutex> lock(lock_);
   const bool replacing = audio_callbacks_.find(key) != audio_callbacks_.end();
   audio_callbacks_[key] =
       RegisteredAudioCallback{std::move(callback), std::move(opts)};
@@ -70,7 +70,7 @@ void SubscriptionThreadDispatcher::setOnAudioFrameCallback(
     AudioFrameCallback callback, AudioStream::Options opts) {
   const CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
                         track_name};
-  const std::lock_guard<std::mutex> lock(lock_);
+  const std::scoped_lock<std::mutex> lock(lock_);
   const bool replacing = audio_callbacks_.find(key) != audio_callbacks_.end();
   audio_callbacks_[key] =
       RegisteredAudioCallback{std::move(callback), std::move(opts)};
@@ -84,7 +84,7 @@ void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
     const std::string &participant_identity, TrackSource source,
     VideoFrameCallback callback, VideoStream::Options opts) {
   const CallbackKey key{participant_identity, source, ""};
-  const std::lock_guard<std::mutex> lock(lock_);
+  const std::scoped_lock<std::mutex> lock(lock_);
   const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
   video_callbacks_[key] =
       RegisteredVideoCallback{std::move(callback), opts};
@@ -99,7 +99,7 @@ void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
     VideoFrameCallback callback, VideoStream::Options opts) {
   const CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
                         track_name};
-  const std::lock_guard<std::mutex> lock(lock_);
+  const std::scoped_lock<std::mutex> lock(lock_);
   const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
   video_callbacks_[key] =
       RegisteredVideoCallback{std::move(callback), opts};
@@ -115,7 +115,7 @@ void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(
   std::thread old_thread;
   bool removed_callback = false;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     removed_callback = audio_callbacks_.erase(key) > 0;
     old_thread = extractReaderThreadLocked(key);
     LK_LOG_DEBUG(
@@ -136,7 +136,7 @@ void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(
   std::thread old_thread;
   bool removed_callback = false;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     removed_callback = audio_callbacks_.erase(key) > 0;
     old_thread = extractReaderThreadLocked(key);
     LK_LOG_DEBUG(
@@ -156,7 +156,7 @@ void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(
   std::thread old_thread;
   bool removed_callback = false;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     removed_callback = video_callbacks_.erase(key) > 0;
     old_thread = extractReaderThreadLocked(key);
     LK_LOG_DEBUG(
@@ -177,7 +177,7 @@ void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(
   std::thread old_thread;
   bool removed_callback = false;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     removed_callback = video_callbacks_.erase(key) > 0;
     old_thread = extractReaderThreadLocked(key);
     LK_LOG_DEBUG(
@@ -211,7 +211,7 @@ void SubscriptionThreadDispatcher::handleTrackSubscribed(
   const CallbackKey fallback_key{participant_identity, source, ""};
   std::thread old_thread;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     if ((track->kind() == TrackKind::KIND_AUDIO &&
          audio_callbacks_.find(key) == audio_callbacks_.end()) ||
         (track->kind() == TrackKind::KIND_VIDEO &&
@@ -234,7 +234,7 @@ void SubscriptionThreadDispatcher::handleTrackUnsubscribed(
   std::thread old_thread;
   std::thread fallback_old_thread;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     old_thread = extractReaderThreadLocked(key);
     fallback_old_thread = extractReaderThreadLocked(fallback_key);
     LK_LOG_DEBUG("Handling unsubscribed track for participant={} source={} "
@@ -260,7 +260,7 @@ DataFrameCallbackId SubscriptionThreadDispatcher::addOnDataFrameCallback(
   std::thread old_thread;
   DataFrameCallbackId id;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     id = next_data_callback_id_++;
     const DataCallbackKey key{participant_identity, track_name};
     data_callbacks_[id] = RegisteredDataCallback{key, std::move(callback)};
@@ -281,7 +281,7 @@ void SubscriptionThreadDispatcher::removeOnDataFrameCallback(
     DataFrameCallbackId id) {
   std::thread old_thread;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     data_callbacks_.erase(id);
     old_thread = extractDataReaderThreadLocked(id);
   }
@@ -303,7 +303,7 @@ void SubscriptionThreadDispatcher::handleDataTrackPublished(
 
   std::vector<std::thread> old_threads;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     const DataCallbackKey key{track->publisherIdentity(), track->info().name};
     remote_data_tracks_[key] = track;
 
@@ -327,13 +327,13 @@ void SubscriptionThreadDispatcher::handleDataTrackUnpublished(
 
   std::vector<std::thread> old_threads;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     for (auto it = active_data_readers_.begin();
          it != active_data_readers_.end();) {
       auto &reader = it->second;
       if (reader->remote_track && reader->remote_track->info().sid == sid) {
         {
-          const std::lock_guard<std::mutex> sub_guard(reader->sub_mutex);
+          const std::scoped_lock<std::mutex> sub_guard(reader->sub_mutex);
           if (reader->stream) {
             reader->stream->close();
           }
@@ -362,7 +362,7 @@ void SubscriptionThreadDispatcher::handleDataTrackUnpublished(
 void SubscriptionThreadDispatcher::stopAll() {
   std::vector<std::thread> threads;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     LK_LOG_DEBUG("Stopping all subscription readers active_readers={} "
                  "active_data_readers={} audio_callbacks={} "
                  "video_callbacks={} data_callbacks={}",
@@ -387,7 +387,7 @@ void SubscriptionThreadDispatcher::stopAll() {
 
     for (auto &[id, reader] : active_data_readers_) {
       {
-        const std::lock_guard<std::mutex> sub_guard(reader->sub_mutex);
+        const std::scoped_lock<std::mutex> sub_guard(reader->sub_mutex);
         if (reader->stream) {
           reader->stream->close();
         }
@@ -589,7 +589,7 @@ std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(
   auto reader = std::move(it->second);
   active_data_readers_.erase(it);
   {
-    const std::lock_guard<std::mutex> guard(reader->sub_mutex);
+    const std::scoped_lock<std::mutex> guard(reader->sub_mutex);
     if (reader->stream) {
       reader->stream->close();
     }
@@ -608,7 +608,7 @@ std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(
       auto reader = std::move(it->second);
       active_data_readers_.erase(it);
       {
-        const std::lock_guard<std::mutex> guard(reader->sub_mutex);
+        const std::scoped_lock<std::mutex> guard(reader->sub_mutex);
         if (reader->stream) {
           reader->stream->close();
         }
@@ -660,7 +660,7 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(
                 identity, track_name);
 
     {
-      const std::lock_guard<std::mutex> guard(reader->sub_mutex);
+      const std::scoped_lock<std::mutex> guard(reader->sub_mutex);
       reader->stream = stream;
     }
 

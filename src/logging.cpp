@@ -91,7 +91,7 @@ std::shared_ptr<spdlog::logger> createDefaultLogger() {
 namespace detail {
 
 std::shared_ptr<spdlog::logger> getLogger() {
-  std::lock_guard<std::mutex> lock(loggerMutex());
+  const std::scoped_lock<std::mutex> lock(loggerMutex());
   auto &logger = loggerStorage();
   if (!logger) {
     logger = createDefaultLogger();
@@ -101,7 +101,7 @@ std::shared_ptr<spdlog::logger> getLogger() {
 }
 
 void shutdownLogger() {
-  std::lock_guard<std::mutex> lock(loggerMutex());
+  const std::scoped_lock<std::mutex> lock(loggerMutex());
   auto &logger = loggerStorage();
   if (logger) {
     spdlog::drop(kLoggerName);
@@ -118,7 +118,7 @@ void setLogLevel(LogLevel level) {
 LogLevel getLogLevel() { return fromSpdlogLevel(detail::getLogger()->level()); }
 
 void setLogCallback(LogCallback callback) {
-  std::lock_guard<std::mutex> lock(loggerMutex());
+  const std::scoped_lock<std::mutex> lock(loggerMutex());
   auto &logger = loggerStorage();
   auto current_level = logger ? logger->level() : spdlog::level::info;
 
