@@ -109,8 +109,7 @@ UserPacketData fromProto(const proto::UserPacket &in) {
   UserPacketData out;
   // TODO, double check following code is safe
   const auto &buf = in.data().data();
-  const auto *ptr = reinterpret_cast<const std::uint8_t *>(
-      static_cast<std::uintptr_t>(buf.data_ptr()));
+  const auto *ptr = reinterpret_cast<const std::uint8_t *>(buf.data_ptr()); // NOLINT(performance-no-int-to-ptr)
   auto len = static_cast<std::size_t>(buf.data_len());
   out.data.assign(ptr, ptr + len);
   if (in.has_topic()) {
@@ -427,8 +426,7 @@ UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived &in,
   const auto &owned = in.user().data();
   const auto &info = owned.data();
   if (info.data_ptr() != 0 && info.data_len() > 0) {
-    const auto *ptr = reinterpret_cast<const std::uint8_t *>(
-        static_cast<std::uintptr_t>(info.data_ptr()));
+    const auto *ptr = reinterpret_cast<const std::uint8_t *>(info.data_ptr()); // NOLINT(performance-no-int-to-ptr)
     auto len = static_cast<std::size_t>(info.data_len());
     ev.data.assign(ptr, ptr + len);
   } else {
