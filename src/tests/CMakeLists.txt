@@ -48,10 +48,18 @@ if(UNIT_TEST_SOURCES)
     ${BENCHMARK_UTILS_SOURCES}
   )
 
+  # On Windows, protobuf default-instance symbols (constinit globals) are not
+  # auto-exported from livekit.dll by WINDOWS_EXPORT_ALL_SYMBOLS.  Link the
+  # proto object library directly so the test binary has its own copy.
+  if(WIN32 AND TARGET livekit_proto)
+    target_sources(livekit_unit_tests PRIVATE $<TARGET_OBJECTS:livekit_proto>)
+  endif()
+
   target_link_libraries(livekit_unit_tests
     PRIVATE
       livekit
       spdlog::spdlog
+      $<$<PLATFORM_ID:Windows>:${LIVEKIT_PROTOBUF_TARGET}>
       GTest::gtest_main
       GTest::gmock
   )
@@ -61,8 +69,18 @@ if(UNIT_TEST_SOURCES)
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
       ${LIVEKIT_ROOT_DIR}/src/trace
+      ${LIVEKIT_BINARY_DIR}/generated
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
+      ${Protobuf_INCLUDE_DIRS}
   )
+  if(TARGET absl::base)
+    get_target_property(_livekit_unit_test_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
+    if(_livekit_unit_test_absl_inc)
+      target_include_directories(livekit_unit_tests PRIVATE
+        ${_livekit_unit_test_absl_inc}
+      )
+    endif()
+  endif()
 
   target_compile_definitions(livekit_unit_tests
     PRIVATE
