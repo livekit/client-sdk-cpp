@@ -71,6 +71,40 @@ TEST_F(VideoFrameMetadataServerTest,
   ASSERT_NO_THROW(
       sender_room.localParticipant()->publishTrack(track, publish_options));
 
+  const auto track_ready_deadline = std::chrono::steady_clock::now() + 10s;
+  bool receiver_track_ready = false;
+  while (std::chrono::steady_clock::now() < track_ready_deadline) {
+    auto *sender_on_receiver = receiver_room.remoteParticipant(sender_identity);
+    if (sender_on_receiver != nullptr) {
+      for (const auto &[sid, publication] :
+           sender_on_receiver->trackPublications()) {
+        (void)sid;
+        if (publication == nullptr) {
+          continue;
+        }
+
+        if (publication->name() != track_name ||
+            publication->kind() != TrackKind::KIND_VIDEO) {
+          continue;
+        }
+
+        if (publication->subscribed() && publication->track() != nullptr) {
+          receiver_track_ready = true;
+          break;
+        }
+      }
+    }
+
+    if (receiver_track_ready) {
+      break;
+    }
+
+    std::this_thread::sleep_for(10ms);
+  }
+
+  ASSERT_TRUE(receiver_track_ready)
+      << "Timed out waiting for receiver video track subscription";
+
   VideoFrame frame = VideoFrame::create(16, 16, VideoBufferType::RGBA);
   std::fill(frame.data(), frame.data() + frame.dataSize(), 0x7f);
 
@@ -81,21 +115,13 @@ TEST_F(VideoFrameMetadataServerTest,
   capture_options.metadata = VideoFrameMetadata{};
   capture_options.metadata->user_timestamp = expected_user_timestamp_us;
 
-  const auto deadline = std::chrono::steady_clock::now() + 10s;
-  while (std::chrono::steady_clock::now() < deadline) {
-    source->captureFrame(frame, capture_options);
-
-    std::unique_lock<std::mutex> lock(mutex);
-    if (cv.wait_for(lock, 100ms, [&received_user_timestamp_us] {
-          return received_user_timestamp_us.has_value();
-        })) {
-      break;
-    }
-  }
+  source->captureFrame(frame, capture_options);
 
   {
     std::unique_lock<std::mutex> lock(mutex);
-    ASSERT_TRUE(received_user_timestamp_us.has_value())
+    ASSERT_TRUE(cv.wait_for(lock, 10s, [&received_user_timestamp_us] {
+      return received_user_timestamp_us.has_value();
+    }))
         << "Timed out waiting for user timestamp metadata";
     EXPECT_EQ(*received_user_timestamp_us, expected_user_timestamp_us);
   }
