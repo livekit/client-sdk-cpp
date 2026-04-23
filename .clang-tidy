@@ -29,7 +29,8 @@ WarningsAsErrors: >
   bugprone-string-literal-with-embedded-nul,
   bugprone-suspicious-memset-usage,
 
-HeaderFilterRegex: '(include/livekit|src|examples)'
+HeaderFilterRegex: '.*/(include/livekit|src)/.*\.(h|hpp)$'
+ExcludeHeaderFilterRegex: '(.*/src/tests/.*)|(.*/_deps/.*)|(.*/build-[^/]*/.*)'
 
 FormatStyle: file
 

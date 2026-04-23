@@ -601,7 +601,7 @@ jobs:
           files-changed-only: false
           lines-changed-only: false
           extensions: 'c,cpp,cc,cxx'
-          # ignore:
+          ignore: 'build-*|cpp-example-collection|client-sdk-rust|vcpkg_installed|src/tests|bridge|examples|docker|data|docs'
           file-annotations: true
           thread-comments: update
           step-summary: true
