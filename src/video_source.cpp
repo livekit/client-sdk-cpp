@@ -68,10 +68,7 @@ void VideoSource::captureFrame(const VideoFrame &frame,
 void VideoSource::captureFrame(const VideoFrame &frame,
                                std::int64_t timestamp_us,
                                VideoRotation rotation) {
-  VideoCaptureOptions options;
-  options.timestamp_us = timestamp_us;
-  options.rotation = rotation;
-  captureFrame(frame, options);
+  captureFrame(frame, VideoCaptureOptions{timestamp_us, rotation});
 }
 
 } // namespace livekit

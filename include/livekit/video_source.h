@@ -44,7 +44,7 @@ enum class VideoRotation {
  * feature can be negotiated separately.
  */
 struct VideoFrameMetadata {
-  std::optional<std::uint64_t> user_timestamp;
+  std::optional<std::uint64_t> user_timestamp_us;
   std::optional<std::uint32_t> frame_id;
 };
 

@@ -93,8 +93,8 @@ toProto(const std::optional<VideoFrameMetadata> &metadata) {
   }
 
   proto::FrameMetadata proto_metadata;
-  if (metadata->user_timestamp.has_value()) {
-    proto_metadata.set_user_timestamp(*metadata->user_timestamp);
+  if (metadata->user_timestamp_us.has_value()) {
+    proto_metadata.set_user_timestamp(*metadata->user_timestamp_us);
   }
   if (metadata->frame_id.has_value()) {
     proto_metadata.set_frame_id(*metadata->frame_id);
@@ -111,13 +111,13 @@ std::optional<VideoFrameMetadata>
 fromProto(const proto::FrameMetadata &metadata) {
   VideoFrameMetadata out;
   if (metadata.has_user_timestamp()) {
-    out.user_timestamp = metadata.user_timestamp();
+    out.user_timestamp_us = metadata.user_timestamp();
   }
   if (metadata.has_frame_id()) {
     out.frame_id = metadata.frame_id();
   }
 
-  if (!out.user_timestamp.has_value() && !out.frame_id.has_value()) {
+  if (!out.user_timestamp_us.has_value() && !out.frame_id.has_value()) {
     return std::nullopt;
   }
 

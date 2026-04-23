@@ -54,8 +54,8 @@ TEST_F(VideoFrameMetadataServerTest,
       sender_identity, track_name,
       [&mutex, &cv, &received_user_timestamp_us](const VideoFrameEvent &event) {
         std::lock_guard<std::mutex> lock(mutex);
-        if (event.metadata && event.metadata->user_timestamp.has_value()) {
-          received_user_timestamp_us = event.metadata->user_timestamp;
+        if (event.metadata && event.metadata->user_timestamp_us.has_value()) {
+          received_user_timestamp_us = event.metadata->user_timestamp_us;
           cv.notify_all();
         }
       });
@@ -113,7 +113,7 @@ TEST_F(VideoFrameMetadataServerTest,
   capture_options.timestamp_us =
       static_cast<std::int64_t>(expected_user_timestamp_us);
   capture_options.metadata = VideoFrameMetadata{};
-  capture_options.metadata->user_timestamp = expected_user_timestamp_us;
+  capture_options.metadata->user_timestamp_us = expected_user_timestamp_us;
 
   source->captureFrame(frame, capture_options);
 

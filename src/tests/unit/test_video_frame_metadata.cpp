@@ -28,7 +28,7 @@ TEST(VideoFrameMetadataTest, EmptyMetadataIsOmittedFromProto) {
 
 TEST(VideoFrameMetadataTest, UserTimestampOnlyIsPreserved) {
   VideoFrameMetadata metadata;
-  metadata.user_timestamp = 123;
+  metadata.user_timestamp_us = 123;
 
   auto proto_metadata = toProto(metadata);
   ASSERT_TRUE(proto_metadata.has_value());
@@ -38,7 +38,7 @@ TEST(VideoFrameMetadataTest, UserTimestampOnlyIsPreserved) {
 
   auto round_trip = fromProto(*proto_metadata);
   ASSERT_TRUE(round_trip.has_value());
-  EXPECT_EQ(round_trip->user_timestamp, std::optional<std::uint64_t>(123));
+  EXPECT_EQ(round_trip->user_timestamp_us, std::optional<std::uint64_t>(123));
   EXPECT_EQ(round_trip->frame_id, std::nullopt);
 }
 
@@ -54,13 +54,13 @@ TEST(VideoFrameMetadataTest, FrameIdOnlyIsPreserved) {
 
   auto round_trip = fromProto(*proto_metadata);
   ASSERT_TRUE(round_trip.has_value());
-  EXPECT_EQ(round_trip->user_timestamp, std::nullopt);
+  EXPECT_EQ(round_trip->user_timestamp_us, std::nullopt);
   EXPECT_EQ(round_trip->frame_id, std::optional<std::uint32_t>(456));
 }
 
 TEST(VideoFrameMetadataTest, BothFieldsArePreserved) {
   VideoFrameMetadata metadata;
-  metadata.user_timestamp = 123;
+  metadata.user_timestamp_us = 123;
   metadata.frame_id = 456;
 
   auto proto_metadata = toProto(metadata);
@@ -70,7 +70,7 @@ TEST(VideoFrameMetadataTest, BothFieldsArePreserved) {
 
   auto round_trip = fromProto(*proto_metadata);
   ASSERT_TRUE(round_trip.has_value());
-  EXPECT_EQ(round_trip->user_timestamp, std::optional<std::uint64_t>(123));
+  EXPECT_EQ(round_trip->user_timestamp_us, std::optional<std::uint64_t>(123));
   EXPECT_EQ(round_trip->frame_id, std::optional<std::uint32_t>(456));
 }
 
