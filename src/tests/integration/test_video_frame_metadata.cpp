@@ -127,8 +127,9 @@ TEST_F(VideoFrameMetadataServerTest,
   std::condition_variable cv;
   std::optional<std::uint64_t> received_user_timestamp_us;
 
+  const std::string track_name = "metadata-track";
   receiver_room.setOnVideoFrameEventCallback(
-      sender_identity, TrackSource::SOURCE_CAMERA,
+      sender_identity, track_name,
       [&mutex, &cv, &received_user_timestamp_us](const VideoFrameEvent &event) {
         std::lock_guard<std::mutex> lock(mutex);
         if (event.metadata && event.metadata->user_timestamp.has_value()) {
@@ -138,7 +139,7 @@ TEST_F(VideoFrameMetadataServerTest,
       });
 
   auto source = std::make_shared<VideoSource>(16, 16);
-  auto track = LocalVideoTrack::createLocalVideoTrack("metadata-track", source);
+  auto track = LocalVideoTrack::createLocalVideoTrack(track_name, source);
 
   TrackPublishOptions publish_options;
   publish_options.source = TrackSource::SOURCE_CAMERA;
@@ -177,8 +178,7 @@ TEST_F(VideoFrameMetadataServerTest,
     EXPECT_EQ(*received_user_timestamp_us, expected_user_timestamp_us);
   }
 
-  receiver_room.clearOnVideoFrameCallback(sender_identity,
-                                          TrackSource::SOURCE_CAMERA);
+  receiver_room.clearOnVideoFrameCallback(sender_identity, track_name);
   if (track->publication()) {
     sender_room.localParticipant()->unpublishTrack(track->publication()->sid());
   }

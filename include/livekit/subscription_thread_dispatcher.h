@@ -163,19 +163,19 @@ public:
    * Register or replace a rich video frame event callback for a remote
    * subscription.
    *
-   * The callback is keyed by remote participant identity plus \p source.
+   * The callback is keyed by remote participant identity plus \p track_name.
    * If the matching remote video track is already subscribed, \ref Room may
    * immediately call \ref handleTrackSubscribed to start a reader.
    *
    * @param participant_identity Identity of the remote participant.
-   * @param source               Track source to match.
+   * @param track_name           Track name to match.
    * @param callback             Function invoked for each decoded video frame
    *                             event, including optional metadata.
    * @param opts                 Options used when creating the backing
    *                             \ref VideoStream.
    */
   void setOnVideoFrameEventCallback(const std::string &participant_identity,
-                                    TrackSource source,
+                                    const std::string &track_name,
                                     VideoFrameEventCallback callback,
                                     VideoStream::Options opts = {});
 

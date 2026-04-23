@@ -275,7 +275,7 @@ public:
    * SubscriptionThreadDispatcher.
    */
   void setOnVideoFrameEventCallback(const std::string &participant_identity,
-                                    TrackSource source,
+                                    const std::string &track_name,
                                     VideoFrameEventCallback callback,
                                     VideoStream::Options opts = {});
 

@@ -98,9 +98,10 @@ void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
 }
 
 void SubscriptionThreadDispatcher::setOnVideoFrameEventCallback(
-    const std::string &participant_identity, TrackSource source,
+    const std::string &participant_identity, const std::string &track_name,
     VideoFrameEventCallback callback, VideoStream::Options opts) {
-  CallbackKey key{participant_identity, source, ""};
+  CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
+                  track_name};
   std::lock_guard<std::mutex> lock(lock_);
   const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
   video_callbacks_[key] = RegisteredVideoCallback{
@@ -108,10 +109,10 @@ void SubscriptionThreadDispatcher::setOnVideoFrameEventCallback(
       std::move(callback),
       std::move(opts),
   };
-  LK_LOG_DEBUG("Registered video frame callback for participant={} source={} "
-               "replacing_existing={} total_video_callbacks={}",
-               participant_identity, static_cast<int>(source), replacing,
-               video_callbacks_.size());
+  LK_LOG_DEBUG(
+      "Registered video frame event callback for participant={} track_name={} "
+      "replacing_existing={} total_video_callbacks={}",
+      participant_identity, track_name, replacing, video_callbacks_.size());
 }
 
 void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
@@ -576,9 +577,8 @@ std::thread SubscriptionThreadDispatcher::startVideoReaderLocked(
   const std::string participant_identity = key.participant_identity;
   const TrackSource source = key.source;
   // NOLINTBEGIN(bugprone-lambda-function-name)
-  reader.thread =
-      std::thread([stream_copy, legacy_cb, event_cb, participant_identity,
-                   source]() {
+  reader.thread = std::thread(
+      [stream_copy, legacy_cb, event_cb, participant_identity, source]() {
         LK_LOG_DEBUG("Video reader thread started for participant={} source={}",
                      participant_identity, static_cast<int>(source));
         VideoFrameEvent ev;
