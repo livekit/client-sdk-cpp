@@ -51,7 +51,28 @@ done
 
 if [[ ! -f "${BUILD_DIR}/compile_commands.json" ]]; then
   echo "ERROR: ${BUILD_DIR}/compile_commands.json not found." >&2
-  echo "Run: cmake --preset macos-release  (or linux-release)" >&2
+  echo "Run: ./build.sh release   (configures + builds, generates protobuf headers)" >&2
+  exit 1
+fi
+
+# Protobuf sanity check. `cmake --preset` only configures -- it doesn't invoke
+# the Rust/protoc chain that writes livekit's generated headers into
+# build-release/generated/. If those headers are missing or stale, every TU
+# that #includes "room.pb.h" / "ffi.pb.h" / etc. fails with dozens of
+# clang-diagnostic-error diagnostics (e.g. "no member named 'FrameMetadata' in
+# namespace 'livekit::proto'") that drown out the real findings. Detect the
+# "configured but never built" state early and point the user at ./build.sh.
+proto_dir="${BUILD_DIR}/generated"
+if [[ ! -d "${proto_dir}" ]] || ! compgen -G "${proto_dir}/*.pb.h" >/dev/null; then
+  echo "ERROR: no generated protobuf headers found in ${proto_dir}/." >&2
+  echo "clang-tidy needs .pb.h files that are produced during the build step," >&2
+  echo "not by 'cmake --preset' alone. To generate them, run:" >&2
+  echo "" >&2
+  echo "  ./build.sh release       # or release-tests / release-all, as needed" >&2
+  echo "" >&2
+  echo "If you previously bumped client-sdk-rust, also run 'clean-all' first:" >&2
+  echo "" >&2
+  echo "  ./build.sh clean-all && ./build.sh release" >&2
   exit 1
 fi
 
@@ -62,6 +83,14 @@ if ! command -v run-clang-tidy >/dev/null 2>&1; then
   exit 1
 fi
 
+# On macOS, the C++ standard library headers (<cstdint>, <string>, ...) live
+# inside the active Xcode / Command Line Tools SDK rather than on the default
+# include path. Homebrew's clang-tidy doesn't know where that SDK is, so
+# without -isysroot it fails every TU with "'cstdint' file not found" before
+# any real check runs. `xcrun --show-sdk-path` resolves the currently selected
+# SDK and we forward it to every clang-tidy invocation via --extra-arg. Linux
+# CI doesn't need this -- the system clang-tidy already finds libstdc++/libc++
+# through its built-in resource dir.
 extra_args=()
 if [[ "$(uname)" == "Darwin" ]]; then
   sdk_path="$(xcrun --show-sdk-path 2>/dev/null || true)"
@@ -70,11 +99,18 @@ if [[ "$(uname)" == "Darwin" ]]; then
   fi
 fi
 
+# run-clang-tidy parallelizes across TUs via -j. Default to one worker per
+# logical CPU so local runs aren't artificially slow. `nproc` is the Linux
+# coreutils tool; macOS doesn't ship it, so fall back to `sysctl hw.ncpu`,
+# and finally to a conservative 4 if neither is available (e.g. a minimal
+# container).
 if command -v nproc >/dev/null 2>&1; then
   jobs=$(nproc)
 else
   jobs=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
 fi
+
+# -------- Begin GitHub Actions annotations --------
 
 # Emit GitHub Actions workflow commands for each clang-tidy diagnostic line
 # in the given log. Notes (`path:L:C: note: ...`) are deliberately skipped --
@@ -179,8 +215,14 @@ write_step_summary() {
   rm -f "${findings_tsv}"
 }
 
-log="$(mktemp -t tidy-log.XXXXXX)"
-trap 'rm -f "${log}"' EXIT
+# --------- End GitHub Actions annotations ---------
+
+# Capture clang-tidy's combined stdout+stderr to a stable, repo-local path so
+# it can be re-parsed after the run (for annotations and the step summary) and
+# re-read by the user afterwards (e.g. `grep misc-const tidy.log`). `*.log` is
+# gitignored so this file never gets committed. Each run overwrites the
+# previous log via `tee` (no -a), keeping the path predictable.
+log="tidy.log"
 
 set +e
 run-clang-tidy \
@@ -198,5 +240,7 @@ if [[ "${CI_MODE}" == "1" ]]; then
   emit_annotations "${log}"
   write_step_summary "${log}"
 fi
+
+echo "Results written to: $(cd "$(dirname "${log}")" && pwd)/$(basename "${log}")"
 
 exit "${rc}"
