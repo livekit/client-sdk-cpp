@@ -177,6 +177,32 @@ write_step_summary() {
   errors=$(awk -F'\t' '$1=="error"{c++} END{print c+0}' "${findings_tsv}")
   total=$((warnings + errors))
 
+  # Render a check name as a markdown link to its official clang-tidy docs page
+  # (mirrors what cpp-linter-action used to do). The canonical URL layout is
+  #   https://clang.llvm.org/extra/clang-tidy/checks/<module>/<rest>.html
+  # where <module> is everything up to the first '-'. Two categories don't
+  # follow that layout:
+  #   * clang-diagnostic-*  -- compiler diagnostics, no per-check doc page
+  #   * clang-analyzer-*    -- static analyzer, documented on a single page
+  # Those fall back to plain code formatting / the analyzer index page.
+  check_link() {
+    local name="$1"
+    local module="${name%%-*}"
+    local rest="${name#*-}"
+    case "${name}" in
+      clang-diagnostic-*)
+        printf '`%s`' "${name}"
+        ;;
+      clang-analyzer-*)
+        printf '[`%s`](https://clang.llvm.org/docs/analyzer/checkers.html)' "${name}"
+        ;;
+      *)
+        printf '[`%s`](https://clang.llvm.org/extra/clang-tidy/checks/%s/%s.html)' \
+          "${name}" "${module}" "${rest}"
+        ;;
+    esac
+  }
+
   {
     echo "## clang-tidy results"
     echo
@@ -193,19 +219,22 @@ write_step_summary() {
       echo '|-------|-------|'
       awk -F'\t' '{print $5}' "${findings_tsv}" \
         | sort | uniq -c | sort -rn | head -5 \
-        | awk '{ n = $1; $1 = ""; sub(/^ /, ""); printf("| `%s` | %d |\n", $0, n) }'
+        | while read -r count name; do
+            printf '| %s | %d |\n' "$(check_link "${name}")" "${count}"
+          done
       echo
 
       echo "<details><summary>All ${total} findings</summary>"
       echo
       echo '| Severity | File | Check | Message |'
       echo '|----------|------|-------|---------|'
-      awk -F'\t' '{
-        sev = $1; path = $2; lineno = $3; check = $5; msg = $6
-        gsub(/\|/, "\\|", msg)
-        icon = (sev == "error") ? "error" : "warning"
-        printf("| %s | `%s:%s` | `%s` | %s |\n", icon, path, lineno, check, msg)
-      }' "${findings_tsv}"
+      while IFS=$'\t' read -r sev path lineno col check msg; do
+        msg="${msg//|/\\|}"
+        local icon
+        icon=$([[ "${sev}" == "error" ]] && echo error || echo warning)
+        printf '| %s | `%s:%s` | %s | %s |\n' \
+          "${icon}" "${path}" "${lineno}" "$(check_link "${check}")" "${msg}"
+      done < "${findings_tsv}"
       echo
       echo "</details>"
       echo
