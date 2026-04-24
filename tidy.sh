@@ -177,6 +177,22 @@ write_step_summary() {
   errors=$(awk -F'\t' '$1=="error"{c++} END{print c+0}' "${findings_tsv}")
   total=$((warnings + errors))
 
+  # Resolve a blob URL prefix so findings in the table below become clickable
+  # links to github.com. Prefer TIDY_BLOB_SHA (set by the workflow to the PR
+  # head SHA) over GITHUB_SHA -- on pull_request events GITHUB_SHA points at
+  # the ephemeral refs/pull/N/merge commit, whose blob URLs stop resolving
+  # once the PR closes. On push / workflow_dispatch / schedule runs
+  # TIDY_BLOB_SHA is unset and we fall through to GITHUB_SHA, which is the
+  # pushed / selected commit respectively. When neither is set (local runs),
+  # repo_url stays empty and the file column renders as plain code.
+  local repo_url=""
+  if [[ -n "${GITHUB_SERVER_URL:-}" && -n "${GITHUB_REPOSITORY:-}" ]]; then
+    local blob_sha="${TIDY_BLOB_SHA:-${GITHUB_SHA:-}}"
+    if [[ -n "${blob_sha}" ]]; then
+      repo_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/${blob_sha}"
+    fi
+  fi
+
   # Render a check name as a markdown link to its official clang-tidy docs page
   # (mirrors what cpp-linter-action used to do). The canonical URL layout is
   #   https://clang.llvm.org/extra/clang-tidy/checks/<module>/<rest>.html
@@ -230,10 +246,20 @@ write_step_summary() {
       echo '|----------|------|-------|---------|'
       while IFS=$'\t' read -r sev path lineno col check msg; do
         msg="${msg//|/\\|}"
-        local icon
+        local icon file_cell
         icon=$([[ "${sev}" == "error" ]] && echo error || echo warning)
-        printf '| %s | `%s:%s` | %s | %s |\n' \
-          "${icon}" "${path}" "${lineno}" "$(check_link "${check}")" "${msg}"
+        # Link to github.com when we have a blob URL and a repo-relative path.
+        # Absolute paths (leading '/') are system headers that leaked past the
+        # note filter -- rendering them as a github.com link would 404, so
+        # fall back to plain code formatting. GitHub blob anchors support
+        # #L<line> but not columns, so the column is kept in the label only.
+        if [[ -n "${repo_url}" && "${path}" != /* ]]; then
+          file_cell="[\`${path}:${lineno}\`](${repo_url}/${path}#L${lineno})"
+        else
+          file_cell="\`${path}:${lineno}\`"
+        fi
+        printf '| %s | %s | %s | %s |\n' \
+          "${icon}" "${file_cell}" "$(check_link "${check}")" "${msg}"
       done < "${findings_tsv}"
       echo
       echo "</details>"

@@ -614,4 +614,12 @@ jobs:
         # It exits non-zero only when a finding is promoted to an error via
         # WarningsAsErrors in .clang-tidy; pure warnings annotate but don't
         # fail the build.
+        env:
+          # Linkify findings in the step summary against the PR head commit
+          # rather than GITHUB_SHA. On pull_request events GITHUB_SHA is the
+          # ephemeral refs/pull/N/merge commit, whose blob URLs 404 once the
+          # PR closes; the head SHA stays resolvable. For push /
+          # workflow_dispatch / schedule runs this expression resolves to
+          # github.sha, which is the pushed/selected commit.
+          TIDY_BLOB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: ./tidy.sh
