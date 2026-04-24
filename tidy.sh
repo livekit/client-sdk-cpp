@@ -280,7 +280,13 @@ write_step_summary() {
 log="tidy.log"
 
 set +e
-run-clang-tidy \
+# run-clang-tidy is a Python script that doesn't flush stdout in its per-file
+# loop; it only flushes once at exit. When its stdout is a pipe (the `| tee`
+# below), Python's stdio defaults to block-buffered mode, so diagnostics
+# accumulate in an ~8 KB buffer and the user sees nothing until the run is
+# essentially over. PYTHONUNBUFFERED=1 forces line/unbuffered writes so each
+# file's findings appear as soon as that file's clang-tidy finishes.
+PYTHONUNBUFFERED=1 run-clang-tidy \
   -p "${BUILD_DIR}" \
   -quiet \
   -j "${jobs}" \

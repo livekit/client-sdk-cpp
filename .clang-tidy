@@ -9,6 +9,7 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -modernize-use-trailing-return-type,
   -modernize-avoid-c-arrays,
+  -modernize-type-traits,
   -modernize-use-auto,
   -modernize-use-nodiscard,
   -modernize-return-braced-init-list,

@@ -918,7 +918,7 @@ void Room::OnEvent(const FfiEvent &event) {
               identity);
           break;
         }
-        std::string old_metadata = participant->metadata();
+        const std::string old_metadata = participant->metadata();
         participant->set_metadata(pm.metadata());
         ev.participant = participant;
         ev.old_metadata = old_metadata;
@@ -950,7 +950,7 @@ void Room::OnEvent(const FfiEvent &event) {
                       identity);
           break;
         }
-        std::string old_name = participant->name();
+        const std::string old_name = participant->name();
         participant->set_name(pn.name());
         ev.participant = participant;
         ev.old_name = old_name;
@@ -1292,7 +1292,7 @@ void Room::OnEvent(const FfiEvent &event) {
       } else if (byte_reader) {
         // Convert string bytes -> vector<uint8_t>
         const std::string &s = chunk.content();
-        std::vector<std::uint8_t> bytes(s.begin(), s.end());
+        const std::vector<std::uint8_t> bytes(s.begin(), s.end());
         byte_reader->onChunkUpdate(bytes);
       }
       break;

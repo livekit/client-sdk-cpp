@@ -38,7 +38,7 @@ std::string generateRandomId(std::size_t bytes = 16) {
   out.reserve(bytes * 2);
   const char *hex = "0123456789abcdef";
   for (std::size_t i = 0; i < bytes; ++i) {
-    int v = dist(rng);
+    const int v = dist(rng);
     out.push_back(hex[(v >> 4) & 0xF]);
     out.push_back(hex[v & 0xF]);
   }
@@ -314,7 +314,7 @@ void TextStreamWriter::write(const std::string &text) {
 
   for (const auto &chunk_str : splitUtf8(text, kStreamChunkSize)) {
     const auto *p = reinterpret_cast<const std::uint8_t *>(chunk_str.data());
-    std::vector<std::uint8_t> bytes(p, p + chunk_str.size());
+    const std::vector<std::uint8_t> bytes(p, p + chunk_str.size());
     LK_LOG_DEBUG("sending chunk");
     sendChunk(bytes);
   }
@@ -348,7 +348,7 @@ void ByteStreamWriter::write(const std::vector<std::uint8_t> &data) {
     const std::size_t n =
         std::min<std::size_t>(kStreamChunkSize, data.size() - offset);
     auto it = data.begin() + static_cast<std::ptrdiff_t>(offset);
-    std::vector<std::uint8_t> chunk(it, it + static_cast<std::ptrdiff_t>(n));
+    const std::vector<std::uint8_t> chunk(it, it + static_cast<std::ptrdiff_t>(n));
     sendChunk(chunk);
     offset += n;
   }

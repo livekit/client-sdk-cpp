@@ -173,7 +173,7 @@ bool FfiClient::isInitialized() const noexcept {
 FfiClient::ListenerId
 FfiClient::AddListener(const FfiClient::Listener &listener) {
   const std::scoped_lock<std::mutex> guard(lock_);
-  FfiClient::ListenerId id = next_listener_id++;
+  const FfiClient::ListenerId id = next_listener_id++;
   listeners_[id] = listener;
   return id;
 }
@@ -191,7 +191,7 @@ FfiClient::sendRequest(const proto::FfiRequest &request) const {
   }
   const uint8_t *resp_ptr = nullptr;
   size_t resp_len = 0;
-  FfiHandleId handle =
+  const FfiHandleId handle =
       livekit_ffi_request(reinterpret_cast<const uint8_t *>(bytes.data()),
                           bytes.size(), &resp_ptr, &resp_len);
   if (handle == INVALID_HANDLE) {
@@ -455,7 +455,7 @@ FfiClient::getTrackStatsAsync(uintptr_t track_handle) {
   get_stats_req->set_request_async_id(async_id);
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_get_stats()) {
       logAndThrow("FfiResponse missing get_stats");
     }
@@ -502,7 +502,7 @@ FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
         }
 
         const proto::OwnedTrackPublication &pub = cb.publication();
-        pr.set_value(std::move(pub));
+        pr.set_value(pub);
       });
 
   // Build and send the request
@@ -701,7 +701,7 @@ FfiClient::subscribeDataTrack(std::uint64_t track_handle,
   }
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_subscribe_data_track()) {
       return Result<proto::OwnedDataTrackStream,
                     SubscribeDataTrackError>::failure(SubscribeDataTrackError{

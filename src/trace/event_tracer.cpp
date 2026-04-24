@@ -92,7 +92,7 @@ struct TraceEventData {
 // Escape a string for JSON
 std::string JsonEscape(const std::string &s) {
   std::ostringstream oss;
-  for (char c : s) {
+  for (const char c : s) {
     switch (c) {
     case '"':
       oss << "\\\"";
@@ -294,7 +294,7 @@ const unsigned char *EventTracer::GetCategoryEnabled(const char *name) {
   }
 
   // Check if this specific category is enabled
-  std::string category_name(name);
+  const std::string category_name(name);
   if (g_enabled_categories.count(category_name) > 0) {
     return &g_enabled_byte;
   }
@@ -302,7 +302,7 @@ const unsigned char *EventTracer::GetCategoryEnabled(const char *name) {
   // Check for wildcard matches (e.g., "livekit.*" matches "livekit.connect")
   for (const auto &pattern : g_enabled_categories) {
     if (pattern.back() == '*') {
-      std::string prefix = pattern.substr(0, pattern.size() - 1);
+      const std::string prefix = pattern.substr(0, pattern.size() - 1);
       if (category_name.compare(0, prefix.size(), prefix) == 0) {
         return &g_enabled_byte;
       }

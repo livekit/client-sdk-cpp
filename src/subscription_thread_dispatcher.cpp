@@ -118,7 +118,7 @@ void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
     VideoFrameCallback callback, const VideoStream::Options &opts) {
   const CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
                         track_name};
-  const std::lock_guard<std::mutex> lock(lock_);
+  const std::scoped_lock<std::mutex> lock(lock_);
   const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
   video_callbacks_[key] = RegisteredVideoCallback{
       std::move(callback),
@@ -651,8 +651,8 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(
     const DataFrameCallback &cb) {
   auto old_thread = extractDataReaderThreadLocked(id);
 
-  int total_active = static_cast<int>(active_readers_.size()) +
-                     static_cast<int>(active_data_readers_.size());
+  const int total_active = static_cast<int>(active_readers_.size()) +
+                           static_cast<int>(active_data_readers_.size());
   if (total_active >= kMaxActiveReaders) {
     LK_LOG_ERROR("Cannot start data reader for {} track={}: active reader "
                  "limit ({}) reached",
