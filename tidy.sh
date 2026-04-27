@@ -231,7 +231,7 @@ write_step_summary() {
   }
 
   {
-    echo "## clang-tidy results"
+    echo "## Analysis results"
     echo
     echo "| Severity | Count |"
     echo "|----------|-------|"
@@ -255,10 +255,20 @@ write_step_summary() {
       echo
       echo '| Severity | File | Check | Message |'
       echo '|----------|------|-------|---------|'
-      while IFS=$'\t' read -r sev path lineno col check msg; do
+      # Stream errors first, then warnings, by running two awk passes over the
+      # TSV. This preserves log-discovery order within each severity bucket
+      # without relying on `sort -s` (whose stable-sort semantics differ
+      # subtly between GNU and BSD coreutils).
+      {
+        awk -F'\t' '$1=="error"' "${findings_tsv}"
+        awk -F'\t' '$1=="warning"' "${findings_tsv}"
+      } | while IFS=$'\t' read -r sev path lineno col check msg; do
         msg="${msg//|/\\|}"
         local icon file_cell
-        icon=$([[ "${sev}" == "error" ]] && echo error || echo warning)
+        # GFM emoji shortcodes render in step summaries; :x: (red X) and
+        # :warning: (yellow triangle) are the closest visual analogs to
+        # GitHub's native annotation pills shown in the PR review UI.
+        icon=$([[ "${sev}" == "error" ]] && echo ':x:' || echo ':warning:')
         # Link to github.com when we have a blob URL and a repo-relative path.
         # Absolute paths (leading '/') are system headers that leaked past the
         # note filter -- rendering them as a github.com link would 404, so
@@ -269,9 +279,9 @@ write_step_summary() {
         else
           file_cell="\`${path}:${lineno}\`"
         fi
-        printf '| %s | %s | %s | %s |\n' \
-          "${icon}" "${file_cell}" "$(check_link "${check}")" "${msg}"
-      done < "${findings_tsv}"
+        printf '| %s %s | %s | %s | %s |\n' \
+          "${icon}" "${sev}" "${file_cell}" "$(check_link "${check}")" "${msg}"
+      done
       echo
       echo "</details>"
       echo
