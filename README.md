@@ -522,12 +522,27 @@ sudo apt-get install clang-format clang-tidy clang-tools
 
 To run:
 
-1. Run a build script command, such that `compile_command.json` is present at the root of the repository
-2. Run:
+1. Generate `compile_commands.json` and the protobuf headers via a release build:
 
 ```bash
-clang-tidy -p . src/*.cpp
+./build.sh release
 ```
+
+2. Run the clang-tidy wrapper, which uses the same file set, regex filters, and `.clang-tidy` config as CI:
+
+```bash
+./scripts/clang-tidy.sh
+```
+
+The wrapper forwards extra arguments to `run-clang-tidy`, so you can narrow the run, change parallelism, or auto-apply fixes:
+
+```bash
+./scripts/clang-tidy.sh -j 4
+./scripts/clang-tidy.sh -checks='-*,misc-const-correctness'
+./scripts/clang-tidy.sh -fix
+```
+
+Findings are captured to `clang-tidy.log` at the repo root for `grep`-friendly post-run inspection.
 
 ### Memory Checks
 

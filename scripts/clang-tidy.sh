@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# tidy.sh -- Run clang-tidy locally and in CI using the same file set and
-# config. Picks up checks from the repo-root .clang-tidy automatically.
+# clang-tidy.sh -- Run clang-tidy locally and in CI using the same file set
+# and config. Picks up checks from the repo-root .clang-tidy automatically.
 #
-# Usage:
-#   ./tidy.sh                  # run on full src/ tree
-#   ./tidy.sh -j 4             # override parallelism
-#   ./tidy.sh --github-actions # force GitHub Actions annotation mode
-#   ./tidy.sh -fix             # forwarded to run-clang-tidy
+# Usage (from anywhere; the script self-anchors to the repo root):
+#   ./scripts/clang-tidy.sh                  # run on full src/ tree
+#   ./scripts/clang-tidy.sh -j 4             # override parallelism
+#   ./scripts/clang-tidy.sh --github-actions # force GitHub Actions annotation mode
+#   ./scripts/clang-tidy.sh -fix             # forwarded to run-clang-tidy
 #
 # In GitHub Actions (auto-detected via $GITHUB_ACTIONS=true, or forced with
 # --github-actions), this script additionally:
@@ -20,9 +20,16 @@
 #     warnings annotate but do not fail the build.
 #
 # Requires CMake to have generated build-release/compile_commands.json.
-# Run once:  cmake --preset macos-release   (or linux-release)
+# Run once:  ./build.sh release   (configures, builds, generates protobuf headers)
 
 set -euo pipefail
+
+# Anchor every relative path (BUILD_DIR, clang-tidy.log, etc.) to the repo root
+# regardless of how/where this script is invoked. Without this, calling the
+# script from a subdirectory or via an absolute path would break the
+# compile_commands.json / generated/ checks below.
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+cd "${script_dir}/.."
 
 BUILD_DIR="build-release"
 # Positive match for top-level src/*.{c,cpp,cc,cxx}; negative lookahead excludes
@@ -235,8 +242,10 @@ write_step_summary() {
     echo
     echo "| Severity | Count |"
     echo "|----------|-------|"
-    echo "| Errors   | ${errors} |"
-    echo "| Warnings | ${warnings} |"
+    # Same GFM shortcodes used in the detailed findings table below, so the
+    # count summary and per-finding severity column read consistently.
+    echo "| :x: Error | ${errors} |"
+    echo "| :warning: Warning | ${warnings} |"
     echo
 
     if (( total > 0 )); then
@@ -264,11 +273,18 @@ write_step_summary() {
         awk -F'\t' '$1=="warning"' "${findings_tsv}"
       } | while IFS=$'\t' read -r sev path lineno col check msg; do
         msg="${msg//|/\\|}"
-        local icon file_cell
+        local icon label file_cell
         # GFM emoji shortcodes render in step summaries; :x: (red X) and
         # :warning: (yellow triangle) are the closest visual analogs to
-        # GitHub's native annotation pills shown in the PR review UI.
-        icon=$([[ "${sev}" == "error" ]] && echo ':x:' || echo ':warning:')
+        # GitHub's native annotation pills shown in the PR review UI. The
+        # title-cased label matches the count table at the top of the summary.
+        if [[ "${sev}" == "error" ]]; then
+          icon=':x:'
+          label='Error'
+        else
+          icon=':warning:'
+          label='Warning'
+        fi
         # Link to github.com when we have a blob URL and a repo-relative path.
         # Absolute paths (leading '/') are system headers that leaked past the
         # note filter -- rendering them as a github.com link would 404, so
@@ -280,7 +296,7 @@ write_step_summary() {
           file_cell="\`${path}:${lineno}\`"
         fi
         printf '| %s %s | %s | %s | %s |\n' \
-          "${icon}" "${sev}" "${file_cell}" "$(check_link "${check}")" "${msg}"
+          "${icon}" "${label}" "${file_cell}" "$(check_link "${check}")" "${msg}"
       done
       echo
       echo "</details>"
@@ -295,10 +311,10 @@ write_step_summary() {
 
 # Capture clang-tidy's combined stdout+stderr to a stable, repo-local path so
 # it can be re-parsed after the run (for annotations and the step summary) and
-# re-read by the user afterwards (e.g. `grep misc-const tidy.log`). `*.log` is
-# gitignored so this file never gets committed. Each run overwrites the
-# previous log via `tee` (no -a), keeping the path predictable.
-log="tidy.log"
+# re-read by the user afterwards (e.g. `grep misc-const clang-tidy.log`).
+# `*.log` is gitignored so this file never gets committed. Each run overwrites
+# the previous log via `tee` (no -a), keeping the path predictable.
+log="clang-tidy.log"
 
 set +e
 # run-clang-tidy is a Python script that doesn't flush stdout in its per-file
