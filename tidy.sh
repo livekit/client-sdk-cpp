@@ -31,6 +31,7 @@ BUILD_DIR="build-release"
 FILE_REGEX='^(?!.*/(_deps|build-[^/]*|bridge|examples|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$'
 
 CI_MODE=0
+# Automatically detect CI mode if in GitHub actions environment
 if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
   CI_MODE=1
 fi
@@ -129,6 +130,12 @@ emit_annotations() {
     severity="${BASH_REMATCH[4]}"
     message="${BASH_REMATCH[5]}"
     check="${BASH_REMATCH[6]}"
+    # clang-tidy appends ",-warnings-as-errors" to the bracket suffix when a
+    # diagnostic is promoted from warning to error via WarningsAsErrors. Strip
+    # it so the title, docs link, and Top-checks bucket are identical for the
+    # warning and error code paths -- severity is already conveyed by the
+    # ::warning / ::error workflow command prefix below.
+    check="${check%,-warnings-as-errors}"
 
     rel_path="${path#${workspace}/}"
 
@@ -167,6 +174,10 @@ write_step_summary() {
     sseverity="${BASH_REMATCH[4]}"
     smessage="${BASH_REMATCH[5]}"
     scheck="${BASH_REMATCH[6]}"
+    # Strip the ",-warnings-as-errors" promotion marker so error rows bucket
+    # under the same check name as their warning counterparts (see
+    # emit_annotations for the rationale).
+    scheck="${scheck%,-warnings-as-errors}"
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' \
       "${sseverity}" "${spath}" "${slineno}" "${scol}" "${scheck}" "${smessage}" \
       >> "${findings_tsv}"
