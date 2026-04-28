@@ -190,11 +190,8 @@ private:
         promise.set_exception(std::make_exception_ptr(
             std::runtime_error("Async operation cancelled")));
       } catch (const std::future_error &e) {
-        // The promise was already satisfied -- the async op completed (or its
-        // exception was already set) just before this cancel() arrived. This
-        // race is benign and intentionally not propagated; logging at DEBUG
-        // surfaces it for diagnostics without polluting the default log
-        // level. See bugprone-empty-catch.
+        // Unlikely to throw here as the promise should be satisfied before cancel()
+        // Logging a debug message to avoid clang empty catch warning
         LK_LOG_DEBUG("FfiClient::cancel: promise already satisfied: {}",
                      e.what());
       }

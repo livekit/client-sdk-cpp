@@ -29,12 +29,7 @@ public:
   /// Note, this RemoteTrackPublication is constructed internally only;
   /// safe to accept proto::OwnedTrackPublication.
   explicit RemoteTrackPublication(const proto::OwnedTrackPublication &owned);
-
-  // The track accessor is inherited from `TrackPublication::track()`. It
-  // returns `std::shared_ptr<Track>`; if a typed `RemoteTrack` accessor is
-  // ever needed, add a differently-named method (e.g. `remoteTrack()`) so the
-  // base accessor remains source-stable for existing consumers.
-
+  
   bool subscribed() const noexcept { return subscribed_; }
 
   void setSubscribed(bool subscribed);

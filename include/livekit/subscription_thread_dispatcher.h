@@ -470,9 +470,8 @@ private:
   std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash>
       active_readers_;
 
-  /// Next auto-increment ID for data frame callbacks. Starts at 1 so 0 can
-  /// remain a sentinel "unset" value if needed downstream.
-  DataFrameCallbackId next_data_callback_id_{1};
+  /// Next auto-increment ID for data frame callbacks.
+  DataFrameCallbackId next_data_callback_id_{0};
 
   /// Registered data frame callbacks keyed by opaque callback ID.
   std::unordered_map<DataFrameCallbackId, RegisteredDataCallback>

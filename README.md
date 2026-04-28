@@ -528,21 +528,21 @@ To run:
 ./build.sh release
 ```
 
-2. Run the clang-tidy wrapper, which uses the same file set, regex filters, and `.clang-tidy` config as CI:
+1. Run the clang-tidy wrapper, which uses the same file set, regex filters, and `.clang-tidy` config as CI:
 
 ```bash
 ./scripts/clang-tidy.sh
 ```
 
-The wrapper forwards extra arguments to `run-clang-tidy`, so you can narrow the run, change parallelism, or auto-apply fixes:
+The wrapper forwards extra arguments to `run-clang-tidy`, examples below:
 
 ```bash
-./scripts/clang-tidy.sh -j 4
-./scripts/clang-tidy.sh -checks='-*,misc-const-correctness'
-./scripts/clang-tidy.sh -fix
+./scripts/clang-tidy.sh -j 4                                # Change number of cores used
+./scripts/clang-tidy.sh -checks='-*,misc-const-correctness' # Only run certain checks
+./scripts/clang-tidy.sh -fix                                # Apply fixes automatically
 ```
 
-Findings are captured to `clang-tidy.log` at the repo root for `grep`-friendly post-run inspection.
+Output is captured to `clang-tidy.log` at the repo root. This is done as a convenience feature, as often times the terminal buffer is not large enough for all the output.
 
 ### Memory Checks
 

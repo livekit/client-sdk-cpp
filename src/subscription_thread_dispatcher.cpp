@@ -46,18 +46,11 @@ const char *trackKindName(TrackKind kind) {
 SubscriptionThreadDispatcher::SubscriptionThreadDispatcher() = default;
 
 // NOLINTBEGIN(bugprone-exception-escape)
-// spdlog can throw in this desctuctor, and clang flags as an exception escape
-// suppressing for now
+// Exceptions can be thrown by stopAll() in this desctuctor, and clang flags as
+// an exception escape suppressing for now
 SubscriptionThreadDispatcher::~SubscriptionThreadDispatcher() {
-  try {
-    LK_LOG_DEBUG("Destroying SubscriptionThreadDispatcher");
-    stopAll();
-  } catch (const std::exception &e) {
-    LK_LOG_ERROR("Exception during ~SubscriptionThreadDispatcher: {}",
-                 e.what());
-  } catch (...) {
-    LK_LOG_ERROR("Unknown exception during ~SubscriptionThreadDispatcher");
-  }
+  LK_LOG_DEBUG("Destroying SubscriptionThreadDispatcher");
+  stopAll();
 }
 // NOLINTEND(bugprone-exception-escape)
 

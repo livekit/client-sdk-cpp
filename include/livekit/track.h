@@ -85,12 +85,7 @@ public:
   std::optional<bool> simulcasted() const noexcept { return simulcasted_; }
   std::optional<uint32_t> width() const noexcept { return width_; }
   std::optional<uint32_t> height() const noexcept { return height_; }
-  // Returns by value (a string copy) rather than const-ref to keep the
-  // shape of the surrounding optional<T> accessors. The string copy can
-  // theoretically throw std::bad_alloc, so the noexcept qualifier is a
-  // mild lie; preserved here for source/ABI compatibility with existing
-  // consumers that may query noexcept(t.mime_type()) or take the address
-  // of this overload.
+  // std::string can actually throw, suppressing for now to maintain API compatibility
   // NOLINTNEXTLINE(bugprone-exception-escape)
   std::optional<std::string> mime_type() const noexcept { return mime_type_; }
 
