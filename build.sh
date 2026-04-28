@@ -140,6 +140,7 @@ configure() {
     echo "==> Injecting LIVEKIT_VERSION=${LIVEKIT_VERSION}"
     extra_args+=("-DLIVEKIT_VERSION=${LIVEKIT_VERSION}")
   fi
+  extra_args+=("-DLIVEKIT_ENABLE_ENCODED_VIDEO=ON")
   if [[ -n "${MACOS_ARCH}" ]]; then
     echo "==> Setting CMAKE_OSX_ARCHITECTURES=${MACOS_ARCH}"
     extra_args+=("-DCMAKE_OSX_ARCHITECTURES=${MACOS_ARCH}")
