@@ -22,6 +22,7 @@
 #include "livekit/audio_stream.h"
 #include "livekit/build.h"
 #include "livekit/e2ee.h"
+#include "livekit/encoded_tcp_ingest.h"
 #include "livekit/local_audio_track.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
