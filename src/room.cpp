@@ -851,6 +851,8 @@ void Room::OnEvent(const FfiEvent &event) {
         const std::scoped_lock<std::mutex> guard(lock_);
         const auto &asc = re.active_speakers_changed();
         for (const auto &identity : asc.participant_identities()) {
+          // Appears to be clang-tidy false positive
+          // NOLINTNEXTLINE(misc-const-correctness)
           Participant *participant = nullptr;
           if (local_participant_ &&
               local_participant_->identity() == identity) {

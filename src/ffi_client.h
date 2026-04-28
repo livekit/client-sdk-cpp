@@ -32,6 +32,7 @@
 #include "livekit/data_track_error.h"
 #include "livekit/result.h"
 #include "livekit/stats.h"
+#include "lk_log.h"
 #include "room.pb.h"
 
 namespace livekit {
@@ -188,8 +189,14 @@ private:
       try {
         promise.set_exception(std::make_exception_ptr(
             std::runtime_error("Async operation cancelled")));
-      } catch (const std::future_error &) {
-        // already satisfied
+      } catch (const std::future_error &e) {
+        // The promise was already satisfied -- the async op completed (or its
+        // exception was already set) just before this cancel() arrived. This
+        // race is benign and intentionally not propagated; logging at DEBUG
+        // surfaces it for diagnostics without polluting the default log
+        // level. See bugprone-empty-catch.
+        LK_LOG_DEBUG("FfiClient::cancel: promise already satisfied: {}",
+                     e.what());
       }
     }
   };

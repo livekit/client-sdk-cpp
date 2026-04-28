@@ -323,12 +323,17 @@ set +e
 # accumulate in an ~8 KB buffer and the user sees nothing until the run is
 # essentially over. PYTHONUNBUFFERED=1 forces line/unbuffered writes so each
 # file's findings appear as soon as that file's clang-tidy finishes.
+# Empty-array expansion under `set -u` is treated as "unbound" on bash <4.4
+# (notably macOS's system /bin/bash 3.2 and minimal Linux containers). The
+# `${arr[@]+"${arr[@]}"}` idiom expands to nothing when the array is empty
+# and to the quoted elements when non-empty, sidestepping the issue
+# portably back to bash 3.2.
 PYTHONUNBUFFERED=1 run-clang-tidy \
   -p "${BUILD_DIR}" \
   -quiet \
   -j "${jobs}" \
-  "${extra_args[@]}" \
-  "${forward_args[@]}" \
+  ${extra_args[@]+"${extra_args[@]}"} \
+  ${forward_args[@]+"${forward_args[@]}"} \
   "${FILE_REGEX}" \
   2>&1 | tee "${log}"
 rc="${PIPESTATUS[0]}"

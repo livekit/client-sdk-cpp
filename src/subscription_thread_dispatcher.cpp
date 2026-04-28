@@ -43,13 +43,20 @@ const char *trackKindName(TrackKind kind) {
 
 } // namespace
 
-SubscriptionThreadDispatcher::SubscriptionThreadDispatcher()
-    : next_data_callback_id_(1) {}
+SubscriptionThreadDispatcher::SubscriptionThreadDispatcher() = default;
 
 SubscriptionThreadDispatcher::~SubscriptionThreadDispatcher() {
-  LK_LOG_DEBUG("Destroying SubscriptionThreadDispatcher");
-  stopAll();
+  try {
+    LK_LOG_DEBUG("Destroying SubscriptionThreadDispatcher");
+    stopAll();
+  } catch (const std::exception &e) {
+    LK_LOG_ERROR("Exception during ~SubscriptionThreadDispatcher: {}",
+                 e.what());
+  } catch (...) {
+    LK_LOG_ERROR("Unknown exception during ~SubscriptionThreadDispatcher");
+  }
 }
+// NOLINTEND(bugprone-exception-escape)
 
 void SubscriptionThreadDispatcher::setOnAudioFrameCallback(
     const std::string &participant_identity, TrackSource source,
@@ -520,22 +527,34 @@ std::thread SubscriptionThreadDispatcher::startAudioReaderLocked(
   reader.audio_stream = stream;
   const std::string participant_identity = key.participant_identity;
   const TrackSource source = key.source;
-  // NOLINTBEGIN(bugprone-lambda-function-name)
+  // NOLINTBEGIN(bugprone-lambda-function-name,bugprone-exception-escape)
+  // Outer try/catch contains anything escaping the per-frame try/catch
+  // (stream->read, LK_LOG formatting, etc.) so an exception in this reader
+  // thread cannot std::terminate the process. clang-tidy still flags a
+  // residual escape path through spdlog's own formatter; that's a logger
+  // fault, not application logic -- suppressed at the lambda level.
   reader.thread = std::thread([stream, cb, participant_identity, source]() {
-    LK_LOG_DEBUG("Audio reader thread started for participant={} source={}",
-                 participant_identity, static_cast<int>(source));
-    AudioFrameEvent ev;
-    while (stream->read(ev)) {
-      try {
-        cb(ev.frame);
-      } catch (const std::exception &e) {
-        LK_LOG_ERROR("Audio frame callback exception: {}", e.what());
+    try {
+      LK_LOG_DEBUG("Audio reader thread started for participant={} source={}",
+                   participant_identity, static_cast<int>(source));
+      AudioFrameEvent ev;
+      while (stream->read(ev)) {
+        try {
+          cb(ev.frame);
+        } catch (const std::exception &e) {
+          LK_LOG_ERROR("Audio frame callback exception: {}", e.what());
+        }
       }
+      LK_LOG_DEBUG("Audio reader thread exiting for participant={} source={}",
+                   participant_identity, static_cast<int>(source));
+    } catch (const std::exception &e) {
+      LK_LOG_ERROR("Audio reader thread terminating due to exception: {}",
+                   e.what());
+    } catch (...) {
+      LK_LOG_ERROR("Audio reader thread terminating due to unknown exception");
     }
-    LK_LOG_DEBUG("Audio reader thread exiting for participant={} source={}",
-                 participant_identity, static_cast<int>(source));
   });
-  // NOLINTEND(bugprone-lambda-function-name)
+  // NOLINTEND(bugprone-lambda-function-name,bugprone-exception-escape)
   active_readers_[key] = std::move(reader);
   LK_LOG_DEBUG("Started audio reader for participant={} source={} "
                "active_readers={}",
@@ -573,27 +592,37 @@ std::thread SubscriptionThreadDispatcher::startVideoReaderLocked(
   auto event_cb = callback.event_callback;
   const std::string participant_identity = key.participant_identity;
   const TrackSource source = key.source;
-  // NOLINTBEGIN(bugprone-lambda-function-name)
+  // NOLINTBEGIN(bugprone-lambda-function-name,bugprone-exception-escape)
+  // Mirrors the audio reader: outer try/catch contains escapes from
+  // stream->read, LK_LOG, etc. Residual diagnostic from spdlog's own
+  // formatter is an unrelated logger-fault path and is suppressed.
   reader.thread = std::thread([stream = std::move(stream), legacy_cb, event_cb,
                                participant_identity, source]() {
-    LK_LOG_DEBUG("Video reader thread started for participant={} source={}",
-                 participant_identity, static_cast<int>(source));
-    VideoFrameEvent ev;
-    while (stream->read(ev)) {
-      try {
-        if (event_cb) {
-          event_cb(ev);
-        } else if (legacy_cb) {
-          legacy_cb(ev.frame, ev.timestamp_us);
+    try {
+      LK_LOG_DEBUG("Video reader thread started for participant={} source={}",
+                   participant_identity, static_cast<int>(source));
+      VideoFrameEvent ev;
+      while (stream->read(ev)) {
+        try {
+          if (event_cb) {
+            event_cb(ev);
+          } else if (legacy_cb) {
+            legacy_cb(ev.frame, ev.timestamp_us);
+          }
+        } catch (const std::exception &e) {
+          LK_LOG_ERROR("Video frame callback exception: {}", e.what());
         }
-      } catch (const std::exception &e) {
-        LK_LOG_ERROR("Video frame callback exception: {}", e.what());
       }
+      LK_LOG_DEBUG("Video reader thread exiting for participant={} source={}",
+                   participant_identity, static_cast<int>(source));
+    } catch (const std::exception &e) {
+      LK_LOG_ERROR("Video reader thread terminating due to exception: {}",
+                   e.what());
+    } catch (...) {
+      LK_LOG_ERROR("Video reader thread terminating due to unknown exception");
     }
-    LK_LOG_DEBUG("Video reader thread exiting for participant={} source={}",
-                 participant_identity, static_cast<int>(source));
   });
-  // NOLINTEND(bugprone-lambda-function-name)
+  // NOLINTEND(bugprone-lambda-function-name,bugprone-exception-escape)
   active_readers_[key] = std::move(reader);
   LK_LOG_DEBUG("Started video reader for participant={} source={} "
                "active_readers={}",

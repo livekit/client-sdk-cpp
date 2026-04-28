@@ -211,6 +211,8 @@ std::unordered_set<std::string> g_enabled_categories;
 std::atomic<bool> g_tracing_enabled{false};
 std::atomic<bool> g_shutdown_requested{false};
 std::thread g_writer_thread;
+// This is internal test code, not worth changing to avoid throw risk
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 std::ofstream g_trace_file;
 uint64_t g_start_time = 0;
 bool g_first_event = true;

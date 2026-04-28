@@ -24,16 +24,16 @@ namespace proto {
 class OwnedTrackPublication;
 }
 
-class Track;
-
 class LocalTrackPublication : public TrackPublication {
 public:
   /// Note, this LocalTrackPublication is constructed internally only;
   /// safe to accept proto::OwnedTrackPublication.
   explicit LocalTrackPublication(const proto::OwnedTrackPublication &owned);
 
-  /// Typed accessor for the attached LocalTrack (if any).
-  std::shared_ptr<Track> track() const noexcept;
+  // The track accessor is inherited from `TrackPublication::track()`. It
+  // returns `std::shared_ptr<Track>`; if a typed `LocalTrack` accessor is
+  // ever needed, add a differently-named method (e.g. `localTrack()`) so the
+  // base accessor remains source-stable for existing consumers.
 };
 
 } // namespace livekit

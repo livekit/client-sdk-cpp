@@ -45,44 +45,6 @@ inline void logAndThrow(const std::string &error_msg) {
   throw std::runtime_error(error_msg);
 }
 
-// TEMP: INTENTIONAL clang-tidy triggers to demo how GitHub CI renders red
-// (error-level) annotations. Each line below hits a check promoted to
-// WarningsAsErrors in .clang-tidy. Revert this block before merging.
-// NOLINTBEGIN(misc-const-correctness)
-[[maybe_unused]] void debug_tidy_error_markers() {
-  std::string s = "hello";
-  std::string t = std::move(s);
-  (void)s.size(); // bugprone-use-after-move
-  (void)t;
-
-  int i = 0;
-  while (i < 10) { // bugprone-infinite-loop
-    (void)t;
-  }
-
-  (void)sizeof(sizeof(int)); // bugprone-sizeof-expression
-}
-// NOLINTEND(misc-const-correctness)
-
-// TEMP: INTENTIONAL clang-tidy triggers to demo how GitHub CI renders yellow
-// (warning-level) annotations alongside the error block above. Each line
-// below hits a check that is enabled in .clang-tidy but NOT promoted to
-// WarningsAsErrors. Revert this block before merging.
-[[maybe_unused]] void debug_tidy_warning_markers() {
-  typedef int LegacyInt; // modernize-use-using
-  LegacyInt n = 0;
-  ++n;
-  (void)n;
-
-  // NOLINTNEXTLINE(misc-const-correctness)
-  void *p = NULL; // modernize-use-nullptr (NULL is a configured NullMacro)
-  p = &n;
-  (void)p;
-
-  int unmodified = 42; // misc-const-correctness
-  (void)unmodified;
-}
-
 std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent &event) {
   using E = proto::FfiEvent;
   switch (event.message_case()) {

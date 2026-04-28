@@ -31,7 +31,12 @@ WarningsAsErrors: >
   bugprone-suspicious-memset-usage,
 
 HeaderFilterRegex: '.*/(include/livekit|src)/.*\.(h|hpp)$'
-ExcludeHeaderFilterRegex: '(.*/src/tests/.*)|(.*/_deps/.*)|(.*/build-[^/]*/.*)'
+# src/trace/{trace_event,event_tracer}.h are derived from Chromium and WebRTC
+# (see "Based on" notice in their headers). Per AGENTS.md we don't restyle
+# externally-pulled files, so they're excluded from clang-tidy entirely.
+# event_tracer_internal.h and event_tracer.cpp are LiveKit-authored and
+# remain in scope.
+ExcludeHeaderFilterRegex: '(.*/src/tests/.*)|(.*/_deps/.*)|(.*/build-[^/]*/.*)|(.*/src/trace/(trace_event|event_tracer)\.h$)'
 
 FormatStyle: file
 

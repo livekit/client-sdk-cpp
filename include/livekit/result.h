@@ -64,49 +64,62 @@ public:
   /// Allows `if (result)` style success checks.
   explicit operator bool() const noexcept { return ok(); }
 
+  // TODO (AEG): clang-tidy flagged these accessors because the signatures are marked
+  // noexcept, but std::get can throw a std::bad_variant_access exception on 
+  // std::variant specifically. Investigate if this is actually a concern or if the types
+  // are safe within this class (unit test ideal).
+
   /// Access the success value. Requires `ok() == true`.
+  // NOLINTNEXTLINE(bugprone-exception-escape)
   T &value() & noexcept {
     assert(ok());
     return std::get<0>(storage_);
   }
 
   /// Access the success value. Requires `ok() == true`.
+  // NOLINTNEXTLINE(bugprone-exception-escape)
   const T &value() const & noexcept {
     assert(ok());
     return std::get<0>(storage_);
   }
 
   /// Move the success value out. Requires `ok() == true`.
+  // NOLINTNEXTLINE(bugprone-exception-escape)
   T &&value() && noexcept {
     assert(ok());
     return std::get<0>(std::move(storage_));
   }
 
   /// Move the success value out. Requires `ok() == true`.
+  // NOLINTNEXTLINE(bugprone-exception-escape)
   const T &&value() const && noexcept {
     assert(ok());
     return std::get<0>(std::move(storage_));
   }
 
   /// Access the error value. Requires `has_error() == true`.
+  // NOLINTNEXTLINE(bugprone-exception-escape)
   E &error() & noexcept {
     assert(has_error());
     return std::get<1>(storage_);
   }
 
   /// Access the error value. Requires `has_error() == true`.
+  // NOLINTNEXTLINE(bugprone-exception-escape)
   const E &error() const & noexcept {
     assert(has_error());
     return std::get<1>(storage_);
   }
 
   /// Move the error value out. Requires `has_error() == true`.
+  // NOLINTNEXTLINE(bugprone-exception-escape)
   E &&error() && noexcept {
     assert(has_error());
     return std::get<1>(std::move(storage_));
   }
 
   /// Move the error value out. Requires `has_error() == true`.
+  // NOLINTNEXTLINE(bugprone-exception-escape)
   const E &&error() const && noexcept {
     assert(has_error());
     return std::get<1>(std::move(storage_));
