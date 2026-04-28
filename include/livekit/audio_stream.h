@@ -41,9 +41,13 @@ class FfiEvent;
  * This struct wraps an AudioFrame and is used as the output type when
  * reading from an AudioStream.
  */
+// NOLINTBEGIN(bugprone-exception-escape)
+// AudioFrame can throw in various places monitored by bugprone-exception-escape
+// Suppressing for now, would require significant refactor to fix
 struct AudioFrameEvent {
   AudioFrame frame; ///< The decoded PCM audio frame.
 };
+// NOLINTEND(bugprone-exception-escape)
 
 /**
  * Represents a pull-based stream of decoded PCM audio frames coming from

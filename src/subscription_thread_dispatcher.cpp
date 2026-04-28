@@ -45,6 +45,9 @@ const char *trackKindName(TrackKind kind) {
 
 SubscriptionThreadDispatcher::SubscriptionThreadDispatcher() = default;
 
+// NOLINTBEGIN(bugprone-exception-escape)
+// spdlog can throw in this desctuctor, and clang flags as an exception escape
+// suppressing for now
 SubscriptionThreadDispatcher::~SubscriptionThreadDispatcher() {
   try {
     LK_LOG_DEBUG("Destroying SubscriptionThreadDispatcher");

@@ -4,10 +4,14 @@
 # and config. Picks up checks from the repo-root .clang-tidy automatically.
 #
 # Usage (from anywhere; the script self-anchors to the repo root):
-#   ./scripts/clang-tidy.sh                  # run on full src/ tree
-#   ./scripts/clang-tidy.sh -j 4             # override parallelism
-#   ./scripts/clang-tidy.sh --github-actions # force GitHub Actions annotation mode
-#   ./scripts/clang-tidy.sh -fix             # forwarded to run-clang-tidy
+#   ./scripts/clang-tidy.sh                    # run on full src/ tree
+#   ./scripts/clang-tidy.sh -j 4               # override parallelism
+#   ./scripts/clang-tidy.sh --github-actions   # force GitHub Actions annotation mode
+#   ./scripts/clang-tidy.sh --fail-on-warning  # exit non-zero on any finding (warning OR error)
+#   ./scripts/clang-tidy.sh -fix               # forwarded to run-clang-tidy
+#
+# Every run prints a concise stdout summary at the end with the warning and
+# error counts (and a per-check breakdown when there are findings).
 #
 # In GitHub Actions (auto-detected via $GITHUB_ACTIONS=true, or forced with
 # --github-actions), this script additionally:
@@ -15,9 +19,15 @@
 #     annotations (yellow for warnings, red for errors). Severity comes from
 #     clang-tidy itself -- errors are findings promoted by WarningsAsErrors
 #     in .clang-tidy.
-#   - Writes a short markdown summary to $GITHUB_STEP_SUMMARY.
-#   - Exits non-zero only when run-clang-tidy does (i.e. only on errors);
-#     warnings annotate but do not fail the build.
+#   - Writes a markdown summary to $GITHUB_STEP_SUMMARY.
+#
+# Exit code:
+#   - Non-zero when run-clang-tidy itself reports errors (findings promoted
+#     to errors via WarningsAsErrors in .clang-tidy).
+#   - Also non-zero when --fail-on-warning is set and at least one warning
+#     was emitted. This is what CI uses to gate merges so warning-level
+#     tech debt cannot accumulate silently.
+#   - Zero otherwise.
 #
 # Requires CMake to have generated build-release/compile_commands.json.
 # Run once:  ./build.sh release   (configures, builds, generates protobuf headers)
@@ -43,11 +53,20 @@ if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
   CI_MODE=1
 fi
 
+# When set, the script exits non-zero on any finding (warning or error),
+# not just on errors. Off by default so local edit/run cycles aren't blocked
+# by in-progress code; CI opts in via the workflow file.
+FAIL_ON_WARNING=0
+
 forward_args=()
 while (($#)); do
   case "$1" in
     --github-actions|--gh)
       CI_MODE=1
+      shift
+      ;;
+    --fail-on-warning|--strict)
+      FAIL_ON_WARNING=1
       shift
       ;;
     *)
@@ -307,6 +326,54 @@ write_step_summary() {
   rm -f "${findings_tsv}"
 }
 
+# Print a one-line summary plus a small per-check breakdown to stdout. Always
+# runs (regardless of CI_MODE) so local invocations get the same headline view
+# the GitHub step summary provides. Sets two globals consumed by the exit-code
+# logic below: __TIDY_WARNINGS and __TIDY_ERRORS. The parsing regex matches
+# the one used by emit_annotations / write_step_summary so the three views
+# can't drift apart.
+print_stdout_summary() {
+  local log="$1"
+  local workspace="${GITHUB_WORKSPACE:-${PWD}}"
+  local checks_tsv
+  checks_tsv="$(mktemp -t tidy-stdout.XXXXXX)"
+
+  local line severity check
+  while IFS= read -r line; do
+    [[ "${line}" =~ ^(.+):([0-9]+):([0-9]+):[[:space:]]+(warning|error):[[:space:]]+(.+)[[:space:]]\[([^]]+)\][[:space:]]*$ ]] || continue
+    severity="${BASH_REMATCH[4]}"
+    check="${BASH_REMATCH[6]}"
+    # Match the annotation/summary normalization: strip the
+    # ",-warnings-as-errors" promotion suffix so a check buckets under one
+    # name regardless of severity.
+    check="${check%,-warnings-as-errors}"
+    printf '%s\t%s\n' "${severity}" "${check}" >> "${checks_tsv}"
+  done < "${log}"
+
+  local warnings errors
+  warnings=$(awk -F'\t' '$1=="warning"{c++} END{print c+0}' "${checks_tsv}")
+  errors=$(awk -F'\t' '$1=="error"{c++} END{print c+0}' "${checks_tsv}")
+
+  echo "------------------------------------------------------------"
+  if (( warnings == 0 && errors == 0 )); then
+    echo "clang-tidy summary: clean (0 warnings, 0 errors)"
+  else
+    printf 'clang-tidy summary: %d warning(s), %d error(s)\n' \
+      "${warnings}" "${errors}"
+    echo "  by check:"
+    awk -F'\t' '{print $2}' "${checks_tsv}" \
+      | sort | uniq -c | sort -rn \
+      | while read -r count name; do
+          printf '    %-50s %d\n' "${name}" "${count}"
+        done
+  fi
+  echo "------------------------------------------------------------"
+
+  rm -f "${checks_tsv}"
+  __TIDY_WARNINGS="${warnings}"
+  __TIDY_ERRORS="${errors}"
+}
+
 # --------- End GitHub Actions annotations ---------
 
 # Capture clang-tidy's combined stdout+stderr to a stable, repo-local path so
@@ -345,5 +412,19 @@ if [[ "${CI_MODE}" == "1" ]]; then
 fi
 
 echo "Results written to: $(cd "$(dirname "${log}")" && pwd)/$(basename "${log}")"
+
+# Always emit the concise headline summary to stdout. Sets __TIDY_WARNINGS /
+# __TIDY_ERRORS globals which the strict-mode escalation below consumes.
+__TIDY_WARNINGS=0
+__TIDY_ERRORS=0
+print_stdout_summary "${log}"
+
+# Strict mode: any warning escalates to a non-zero exit. Errors already make
+# run-clang-tidy itself exit non-zero (rc != 0), so this only changes the
+# warnings-only case. Used by CI to gate merges on a clean clang-tidy result.
+if [[ "${FAIL_ON_WARNING}" == "1" && "${rc}" == "0" && "${__TIDY_WARNINGS}" -gt 0 ]]; then
+  echo "clang-tidy: --fail-on-warning is set and ${__TIDY_WARNINGS} warning(s) were emitted; exiting non-zero." >&2
+  rc=1
+fi
 
 exit "${rc}"

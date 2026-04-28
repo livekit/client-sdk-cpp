@@ -611,9 +611,9 @@ jobs:
       - name: Run clang-tidy
         # scripts/clang-tidy.sh auto-detects $GITHUB_ACTIONS and emits
         # ::warning/::error workflow commands so findings surface as PR file
-        # annotations. It exits non-zero only when a finding is promoted to
-        # an error via WarningsAsErrors in .clang-tidy; pure warnings
-        # annotate but don't fail the build.
+        # annotations. --fail-on-warning escalates any finding (warning or
+        # error) to a non-zero exit so the job fails -- this prevents
+        # warning-level tech debt from accumulating silently.
         env:
           # Linkify findings in the step summary against the PR head commit
           # rather than GITHUB_SHA. On pull_request events GITHUB_SHA is the
@@ -622,4 +622,4 @@ jobs:
           # workflow_dispatch / schedule runs this expression resolves to
           # github.sha, which is the pushed/selected commit.
           TIDY_BLOB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: ./scripts/clang-tidy.sh
+        run: ./scripts/clang-tidy.sh --fail-on-warning
