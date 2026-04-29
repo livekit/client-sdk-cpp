@@ -45,7 +45,9 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
-          - os: macos-latest
+          # macos-latest currently maps to a lower-spec 3-core/7GB arm64 image;
+          # macos-26 gives us 4 cores/14GB on the standard free runner tier.
+          - os: macos-26
             name: macos-arm64
 
     name: Test (${{ matrix.name }})
@@ -95,25 +97,10 @@ jobs:
           toolchain: stable
 
       # ---------- Cache Cargo ----------
-      # Share cache keys with builds.yml so the two workflows reuse each
-      # other's cargo registry / target output instead of doubling network
-      # and disk I/O.
-      - name: Cache Cargo registry
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-
-
-      - name: Cache Cargo target
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: client-sdk-rust/target
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.name }}-cargo-target-
+          workspaces: client-sdk-rust -> target
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
