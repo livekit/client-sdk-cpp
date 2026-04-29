@@ -120,6 +120,7 @@ jobs:
 
       # ---------- Run unit tests ----------
       - name: Run unit tests
+        timeout-minutes: 1
         shell: bash
         run: |
           build-release/bin/livekit_unit_tests \
@@ -166,6 +167,7 @@ jobs:
           exit 1
 
       - name: Run integration tests
+        timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
