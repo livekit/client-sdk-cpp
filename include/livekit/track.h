@@ -85,6 +85,8 @@ public:
   std::optional<bool> simulcasted() const noexcept { return simulcasted_; }
   std::optional<uint32_t> width() const noexcept { return width_; }
   std::optional<uint32_t> height() const noexcept { return height_; }
+  // std::string can actually throw, suppressing for now to maintain API compatibility
+  // NOLINTNEXTLINE(bugprone-exception-escape)
   std::optional<std::string> mime_type() const noexcept { return mime_type_; }
 
   // Handle access

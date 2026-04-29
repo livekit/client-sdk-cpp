@@ -99,7 +99,7 @@ void LocalParticipant::publishDtmf(int code, const std::string &digit) {
   }
 
   // TODO, should we take destination as inputs?
-  std::vector<std::string> destination_identities;
+  const std::vector<std::string> destination_identities;
   auto fut = FfiClient::instance().publishSipDtmfAsync(
       static_cast<std::uint64_t>(handle_id), static_cast<std::uint32_t>(code),
       digit, destination_identities);
@@ -212,7 +212,7 @@ void LocalParticipant::publishTrack(const std::shared_ptr<Track> &track,
       static_cast<std::uint64_t>(track_handle), options);
 
   // Will throw if the async op fails (error in callback).
-  proto::OwnedTrackPublication owned_pub = fut.get();
+  const proto::OwnedTrackPublication owned_pub = fut.get();
 
   // Construct a LocalTrackPublication from the proto publication.
   auto publication = std::make_shared<LocalTrackPublication>(owned_pub);
@@ -416,7 +416,7 @@ void LocalParticipant::handleRpcMethodInvocation(
 
   // Track this invocation and check if we're shutting down
   {
-    std::lock_guard<std::mutex> lock(state->mutex);
+    const std::scoped_lock<std::mutex> lock(state->mutex);
     if (state->shutting_down) {
       // Already shutting down, don't process new invocations
       return;
@@ -430,18 +430,18 @@ void LocalParticipant::handleRpcMethodInvocation(
   struct InvocationGuard {
     std::shared_ptr<RpcInvocationState> state;
     ~InvocationGuard() {
-      std::lock_guard<std::mutex> lock(state->mutex);
+      const std::scoped_lock<std::mutex> lock(state->mutex);
       state->active_invocations--;
       if (state->active_invocations == 0) {
         state->cv.notify_all();
       }
     }
-  } guard{state};
+  } const guard{state};
 
   std::optional<RpcError> response_error;
   std::optional<std::string> response_payload;
-  RpcInvocationData params{request_id, caller_identity, payload,
-                           response_timeout_sec};
+  const RpcInvocationData params{request_id, caller_identity, payload,
+                                 response_timeout_sec};
   auto it = rpc_handlers_.find(method);
   if (it == rpc_handlers_.end()) {
     // No handler registered → built-in UNSUPPORTED_METHOD
@@ -465,7 +465,7 @@ void LocalParticipant::handleRpcMethodInvocation(
 
   // Check again if shutdown started during handler execution
   {
-    std::lock_guard<std::mutex> lock(state->mutex);
+    const std::scoped_lock<std::mutex> lock(state->mutex);
     if (state->shutting_down) {
       // Shutdown started, don't send response - handle may be invalid
       return;

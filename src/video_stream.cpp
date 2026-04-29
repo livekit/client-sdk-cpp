@@ -50,7 +50,7 @@ VideoStream::fromParticipant(Participant &participant, TrackSource track_source,
 VideoStream::~VideoStream() { close(); }
 
 VideoStream::VideoStream(VideoStream &&other) noexcept {
-  std::lock_guard<std::mutex> lock(other.mutex_);
+  const std::scoped_lock<std::mutex> lock(other.mutex_);
   queue_ = std::move(other.queue_);
   capacity_ = other.capacity_;
   eof_ = other.eof_;
@@ -69,8 +69,8 @@ VideoStream &VideoStream::operator=(VideoStream &&other) noexcept {
   close();
 
   {
-    std::lock_guard<std::mutex> lock_this(mutex_);
-    std::lock_guard<std::mutex> lock_other(other.mutex_);
+    const std::scoped_lock<std::mutex> lock_this(mutex_);
+    const std::scoped_lock<std::mutex> lock_other(other.mutex_);
 
     queue_ = std::move(other.queue_);
     capacity_ = other.capacity_;
@@ -104,7 +104,7 @@ bool VideoStream::read(VideoFrameEvent &out) {
 
 void VideoStream::close() {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_) {
       return;
     }
@@ -213,7 +213,7 @@ void VideoStream::onFfiEvent(const proto::FfiEvent &event) {
 
 void VideoStream::pushFrame(VideoFrameEvent &&ev) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
 
     if (closed_ || eof_) {
       return;
@@ -231,7 +231,7 @@ void VideoStream::pushFrame(VideoFrameEvent &&ev) {
 
 void VideoStream::pushEos() {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (eof_) {
       return;
     }

@@ -43,19 +43,22 @@ const char *trackKindName(TrackKind kind) {
 
 } // namespace
 
-SubscriptionThreadDispatcher::SubscriptionThreadDispatcher()
-    : next_data_callback_id_(1) {}
+SubscriptionThreadDispatcher::SubscriptionThreadDispatcher() = default;
 
+// NOLINTBEGIN(bugprone-exception-escape)
+// Exceptions can be thrown by stopAll() in this desctuctor, and clang flags as
+// an exception escape suppressing for now
 SubscriptionThreadDispatcher::~SubscriptionThreadDispatcher() {
   LK_LOG_DEBUG("Destroying SubscriptionThreadDispatcher");
   stopAll();
 }
+// NOLINTEND(bugprone-exception-escape)
 
 void SubscriptionThreadDispatcher::setOnAudioFrameCallback(
     const std::string &participant_identity, TrackSource source,
     AudioFrameCallback callback, const AudioStream::Options &opts) {
   const CallbackKey key{participant_identity, source, ""};
-  const std::lock_guard<std::mutex> lock(lock_);
+  const std::scoped_lock<std::mutex> lock(lock_);
   const bool replacing = audio_callbacks_.find(key) != audio_callbacks_.end();
   audio_callbacks_[key] = RegisteredAudioCallback{std::move(callback), opts};
   LK_LOG_DEBUG("Registered audio frame callback for participant={} source={} "
@@ -69,7 +72,7 @@ void SubscriptionThreadDispatcher::setOnAudioFrameCallback(
     AudioFrameCallback callback, const AudioStream::Options &opts) {
   const CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
                         track_name};
-  const std::lock_guard<std::mutex> lock(lock_);
+  const std::scoped_lock<std::mutex> lock(lock_);
   const bool replacing = audio_callbacks_.find(key) != audio_callbacks_.end();
   audio_callbacks_[key] = RegisteredAudioCallback{std::move(callback), opts};
   LK_LOG_DEBUG(
@@ -82,7 +85,7 @@ void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
     const std::string &participant_identity, TrackSource source,
     VideoFrameCallback callback, const VideoStream::Options &opts) {
   const CallbackKey key{participant_identity, source, ""};
-  const std::lock_guard<std::mutex> lock(lock_);
+  const std::scoped_lock<std::mutex> lock(lock_);
   const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
   video_callbacks_[key] = RegisteredVideoCallback{
       std::move(callback),
@@ -100,7 +103,7 @@ void SubscriptionThreadDispatcher::setOnVideoFrameEventCallback(
     VideoFrameEventCallback callback, const VideoStream::Options &opts) {
   const CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
                         track_name};
-  const std::lock_guard<std::mutex> lock(lock_);
+  const std::scoped_lock<std::mutex> lock(lock_);
   const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
   video_callbacks_[key] = RegisteredVideoCallback{
       VideoFrameCallback{},
@@ -118,7 +121,7 @@ void SubscriptionThreadDispatcher::setOnVideoFrameCallback(
     VideoFrameCallback callback, const VideoStream::Options &opts) {
   const CallbackKey key{participant_identity, TrackSource::SOURCE_UNKNOWN,
                         track_name};
-  const std::lock_guard<std::mutex> lock(lock_);
+  const std::scoped_lock<std::mutex> lock(lock_);
   const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
   video_callbacks_[key] = RegisteredVideoCallback{
       std::move(callback),
@@ -137,7 +140,7 @@ void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(
   std::thread old_thread;
   bool removed_callback = false;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     removed_callback = audio_callbacks_.erase(key) > 0;
     old_thread = extractReaderThreadLocked(key);
     LK_LOG_DEBUG(
@@ -158,7 +161,7 @@ void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(
   std::thread old_thread;
   bool removed_callback = false;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     removed_callback = audio_callbacks_.erase(key) > 0;
     old_thread = extractReaderThreadLocked(key);
     LK_LOG_DEBUG(
@@ -178,7 +181,7 @@ void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(
   std::thread old_thread;
   bool removed_callback = false;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     removed_callback = video_callbacks_.erase(key) > 0;
     old_thread = extractReaderThreadLocked(key);
     LK_LOG_DEBUG(
@@ -199,7 +202,7 @@ void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(
   std::thread old_thread;
   bool removed_callback = false;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     removed_callback = video_callbacks_.erase(key) > 0;
     old_thread = extractReaderThreadLocked(key);
     LK_LOG_DEBUG(
@@ -233,7 +236,7 @@ void SubscriptionThreadDispatcher::handleTrackSubscribed(
   const CallbackKey fallback_key{participant_identity, source, ""};
   std::thread old_thread;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     if ((track->kind() == TrackKind::KIND_AUDIO &&
          audio_callbacks_.find(key) == audio_callbacks_.end()) ||
         (track->kind() == TrackKind::KIND_VIDEO &&
@@ -256,7 +259,7 @@ void SubscriptionThreadDispatcher::handleTrackUnsubscribed(
   std::thread old_thread;
   std::thread fallback_old_thread;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     old_thread = extractReaderThreadLocked(key);
     fallback_old_thread = extractReaderThreadLocked(fallback_key);
     LK_LOG_DEBUG("Handling unsubscribed track for participant={} source={} "
@@ -282,7 +285,7 @@ DataFrameCallbackId SubscriptionThreadDispatcher::addOnDataFrameCallback(
   std::thread old_thread;
   DataFrameCallbackId id;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     id = next_data_callback_id_++;
     const DataCallbackKey key{participant_identity, track_name};
     data_callbacks_[id] = RegisteredDataCallback{key, std::move(callback)};
@@ -303,7 +306,7 @@ void SubscriptionThreadDispatcher::removeOnDataFrameCallback(
     DataFrameCallbackId id) {
   std::thread old_thread;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     data_callbacks_.erase(id);
     old_thread = extractDataReaderThreadLocked(id);
   }
@@ -325,7 +328,7 @@ void SubscriptionThreadDispatcher::handleDataTrackPublished(
 
   std::vector<std::thread> old_threads;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     const DataCallbackKey key{track->publisherIdentity(), track->info().name};
     remote_data_tracks_[key] = track;
 
@@ -349,13 +352,13 @@ void SubscriptionThreadDispatcher::handleDataTrackUnpublished(
 
   std::vector<std::thread> old_threads;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     for (auto it = active_data_readers_.begin();
          it != active_data_readers_.end();) {
       auto &reader = it->second;
       if (reader->remote_track && reader->remote_track->info().sid == sid) {
         {
-          const std::lock_guard<std::mutex> sub_guard(reader->sub_mutex);
+          const std::scoped_lock<std::mutex> sub_guard(reader->sub_mutex);
           if (reader->stream) {
             reader->stream->close();
           }
@@ -384,7 +387,7 @@ void SubscriptionThreadDispatcher::handleDataTrackUnpublished(
 void SubscriptionThreadDispatcher::stopAll() {
   std::vector<std::thread> threads;
   {
-    const std::lock_guard<std::mutex> lock(lock_);
+    const std::scoped_lock<std::mutex> lock(lock_);
     LK_LOG_DEBUG("Stopping all subscription readers active_readers={} "
                  "active_data_readers={} audio_callbacks={} "
                  "video_callbacks={} data_callbacks={}",
@@ -409,7 +412,7 @@ void SubscriptionThreadDispatcher::stopAll() {
 
     for (auto &[id, reader] : active_data_readers_) {
       {
-        const std::lock_guard<std::mutex> sub_guard(reader->sub_mutex);
+        const std::scoped_lock<std::mutex> sub_guard(reader->sub_mutex);
         if (reader->stream) {
           reader->stream->close();
         }
@@ -520,22 +523,34 @@ std::thread SubscriptionThreadDispatcher::startAudioReaderLocked(
   reader.audio_stream = stream;
   const std::string participant_identity = key.participant_identity;
   const TrackSource source = key.source;
-  // NOLINTBEGIN(bugprone-lambda-function-name)
+  // NOLINTBEGIN(bugprone-lambda-function-name,bugprone-exception-escape)
+  // Outer try/catch contains anything escaping the per-frame try/catch
+  // (stream->read, LK_LOG formatting, etc.) so an exception in this reader
+  // thread cannot std::terminate the process. clang-tidy still flags a
+  // residual escape path through spdlog's own formatter; that's a logger
+  // fault, not application logic -- suppressed at the lambda level.
   reader.thread = std::thread([stream, cb, participant_identity, source]() {
-    LK_LOG_DEBUG("Audio reader thread started for participant={} source={}",
-                 participant_identity, static_cast<int>(source));
-    AudioFrameEvent ev;
-    while (stream->read(ev)) {
-      try {
-        cb(ev.frame);
-      } catch (const std::exception &e) {
-        LK_LOG_ERROR("Audio frame callback exception: {}", e.what());
+    try {
+      LK_LOG_DEBUG("Audio reader thread started for participant={} source={}",
+                   participant_identity, static_cast<int>(source));
+      AudioFrameEvent ev;
+      while (stream->read(ev)) {
+        try {
+          cb(ev.frame);
+        } catch (const std::exception &e) {
+          LK_LOG_ERROR("Audio frame callback exception: {}", e.what());
+        }
       }
+      LK_LOG_DEBUG("Audio reader thread exiting for participant={} source={}",
+                   participant_identity, static_cast<int>(source));
+    } catch (const std::exception &e) {
+      LK_LOG_ERROR("Audio reader thread terminating due to exception: {}",
+                   e.what());
+    } catch (...) {
+      LK_LOG_ERROR("Audio reader thread terminating due to unknown exception");
     }
-    LK_LOG_DEBUG("Audio reader thread exiting for participant={} source={}",
-                 participant_identity, static_cast<int>(source));
   });
-  // NOLINTEND(bugprone-lambda-function-name)
+  // NOLINTEND(bugprone-lambda-function-name,bugprone-exception-escape)
   active_readers_[key] = std::move(reader);
   LK_LOG_DEBUG("Started audio reader for participant={} source={} "
                "active_readers={}",
@@ -573,27 +588,37 @@ std::thread SubscriptionThreadDispatcher::startVideoReaderLocked(
   auto event_cb = callback.event_callback;
   const std::string participant_identity = key.participant_identity;
   const TrackSource source = key.source;
-  // NOLINTBEGIN(bugprone-lambda-function-name)
+  // NOLINTBEGIN(bugprone-lambda-function-name,bugprone-exception-escape)
+  // Mirrors the audio reader: outer try/catch contains escapes from
+  // stream->read, LK_LOG, etc. Residual diagnostic from spdlog's own
+  // formatter is an unrelated logger-fault path and is suppressed.
   reader.thread = std::thread([stream = std::move(stream), legacy_cb, event_cb,
                                participant_identity, source]() {
-    LK_LOG_DEBUG("Video reader thread started for participant={} source={}",
-                 participant_identity, static_cast<int>(source));
-    VideoFrameEvent ev;
-    while (stream->read(ev)) {
-      try {
-        if (event_cb) {
-          event_cb(ev);
-        } else if (legacy_cb) {
-          legacy_cb(ev.frame, ev.timestamp_us);
+    try {
+      LK_LOG_DEBUG("Video reader thread started for participant={} source={}",
+                   participant_identity, static_cast<int>(source));
+      VideoFrameEvent ev;
+      while (stream->read(ev)) {
+        try {
+          if (event_cb) {
+            event_cb(ev);
+          } else if (legacy_cb) {
+            legacy_cb(ev.frame, ev.timestamp_us);
+          }
+        } catch (const std::exception &e) {
+          LK_LOG_ERROR("Video frame callback exception: {}", e.what());
         }
-      } catch (const std::exception &e) {
-        LK_LOG_ERROR("Video frame callback exception: {}", e.what());
       }
+      LK_LOG_DEBUG("Video reader thread exiting for participant={} source={}",
+                   participant_identity, static_cast<int>(source));
+    } catch (const std::exception &e) {
+      LK_LOG_ERROR("Video reader thread terminating due to exception: {}",
+                   e.what());
+    } catch (...) {
+      LK_LOG_ERROR("Video reader thread terminating due to unknown exception");
     }
-    LK_LOG_DEBUG("Video reader thread exiting for participant={} source={}",
-                 participant_identity, static_cast<int>(source));
   });
-  // NOLINTEND(bugprone-lambda-function-name)
+  // NOLINTEND(bugprone-lambda-function-name,bugprone-exception-escape)
   active_readers_[key] = std::move(reader);
   LK_LOG_DEBUG("Started video reader for participant={} source={} "
                "active_readers={}",
@@ -615,7 +640,7 @@ std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(
   auto reader = std::move(it->second);
   active_data_readers_.erase(it);
   {
-    const std::lock_guard<std::mutex> guard(reader->sub_mutex);
+    const std::scoped_lock<std::mutex> guard(reader->sub_mutex);
     if (reader->stream) {
       reader->stream->close();
     }
@@ -634,7 +659,7 @@ std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(
       auto reader = std::move(it->second);
       active_data_readers_.erase(it);
       {
-        const std::lock_guard<std::mutex> guard(reader->sub_mutex);
+        const std::scoped_lock<std::mutex> guard(reader->sub_mutex);
         if (reader->stream) {
           reader->stream->close();
         }
@@ -651,8 +676,8 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(
     const DataFrameCallback &cb) {
   auto old_thread = extractDataReaderThreadLocked(id);
 
-  int total_active = static_cast<int>(active_readers_.size()) +
-                     static_cast<int>(active_data_readers_.size());
+  const int total_active = static_cast<int>(active_readers_.size()) +
+                           static_cast<int>(active_data_readers_.size());
   if (total_active >= kMaxActiveReaders) {
     LK_LOG_ERROR("Cannot start data reader for {} track={}: active reader "
                  "limit ({}) reached",
@@ -687,7 +712,7 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(
                 identity, track_name);
 
     {
-      const std::lock_guard<std::mutex> guard(reader->sub_mutex);
+      const std::scoped_lock<std::mutex> guard(reader->sub_mutex);
       reader->stream = stream;
     }
 

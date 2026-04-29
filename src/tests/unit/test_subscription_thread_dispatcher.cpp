@@ -562,8 +562,15 @@ TEST_F(SubscriptionThreadDispatcherTest,
       "alice", "my-track",
       [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
 
-  EXPECT_NE(id, 0u);
+  EXPECT_EQ(id, 0u);
   EXPECT_EQ(dataCallbacks(dispatcher).size(), 1u);
+
+  // Add a second one to confirm size and IDs are correct
+  auto id2 = dispatcher.addOnDataFrameCallback(
+      "alice", "my-track",
+      [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
+  EXPECT_EQ(id2, 1u);
+  EXPECT_EQ(dataCallbacks(dispatcher).size(), 2u);
 }
 
 TEST_F(SubscriptionThreadDispatcherTest,

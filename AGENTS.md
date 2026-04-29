@@ -79,6 +79,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `LiveKitConfig.cmake.in`) |
 | `docker/` | Dockerfile for CI and SDK distribution images |
+| `scripts/` | Developer / CI helper scripts (e.g. `clang-tidy.sh`) |
 | `.github/workflows/` | GitHub Actions CI workflows |
 
 ### Key Types
