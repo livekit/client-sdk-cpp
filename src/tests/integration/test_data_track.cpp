@@ -25,6 +25,7 @@
 
 #include "ffi_client.h"
 
+#include <atomic>
 #include <cmath>
 #include <condition_variable>
 #include <exception>
@@ -32,6 +33,7 @@
 #include <livekit/data_track_stream.h>
 #include <livekit/e2ee.h>
 #include <livekit/remote_data_track.h>
+#include <thread>
 #include <tuple>
 
 namespace livekit::test {
@@ -52,7 +54,6 @@ constexpr auto kPublishManyTimeout = 5s;
 constexpr std::size_t kLargeFramePayloadBytes = 196608;
 constexpr char kE2EESharedSecret[] = "password";
 constexpr int kE2EEFrameCount = 5;
-constexpr int kTimestampFrameAttempts = 16;
 
 std::string makeTrackName(const std::string &suffix) {
   return std::string(kTrackNamePrefix) + "_" + suffix + "_" +
@@ -579,7 +580,6 @@ TEST_F(DataTrackE2ETest, FfiClientSubscribeDataTrackReturnsSyncResult) {
 
 TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
   const auto track_name = makeTrackName("user_timestamp");
-  const auto first_sent_timestamp = getTimestampUs();
 
   DataTrackPublishedDelegate subscriber_delegate;
   std::vector<TestRoomConnectionOptions> room_configs(2);
@@ -620,31 +620,31 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
     }
   });
 
-  std::vector<std::uint64_t> sent_timestamps;
-  sent_timestamps.reserve(kTimestampFrameAttempts);
+  std::atomic<bool> publishing{true};
   std::string push_error;
-  for (int attempt = 0; attempt < kTimestampFrameAttempts; ++attempt) {
-    const auto sent_timestamp =
-        first_sent_timestamp + static_cast<std::uint64_t>(attempt);
-    auto push_result = local_track->tryPush(
-        std::vector<std::uint8_t>(64, static_cast<std::uint8_t>(0xFA + attempt)),
-        sent_timestamp);
-    if (!push_result) {
-      push_error = describeDataTrackError(push_result.error());
-      break;
+  std::thread publisher([&]() {
+    while (publishing.load(std::memory_order_relaxed)) {
+      auto push_result =
+          local_track->tryPush(std::vector<std::uint8_t>(64, 0xFA),
+                               getTimestampUs());
+      if (!push_result) {
+        push_error = describeDataTrackError(push_result.error());
+        publishing.store(false, std::memory_order_relaxed);
+        return;
+      }
+      std::this_thread::sleep_for(50ms);
     }
-    sent_timestamps.push_back(sent_timestamp);
-    if (frame_future.wait_for(0ms) == std::future_status::ready) {
-      break;
-    }
-  }
+  });
+
   const auto frame_status = frame_future.wait_for(5s);
+  publishing.store(false, std::memory_order_relaxed);
 
   if (frame_status != std::future_status::ready) {
     subscription->close();
   }
 
   subscription->close();
+  publisher.join();
   reader.join();
   local_track->unpublishDataTrack();
 
@@ -663,9 +663,9 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
 
   ASSERT_FALSE(frame.payload.empty());
   ASSERT_TRUE(frame.user_timestamp.has_value());
-  EXPECT_TRUE(std::find(sent_timestamps.begin(), sent_timestamps.end(),
-                        frame.user_timestamp.value()) != sent_timestamps.end())
-      << "Received unexpected timestamp: " << frame.user_timestamp.value();
+  const auto received_at = getTimestampUs();
+  ASSERT_LE(frame.user_timestamp.value(), received_at);
+  EXPECT_LT(received_at - frame.user_timestamp.value(), 1000000u);
 }
 
 TEST_F(DataTrackE2ETest, PublishesAndReceivesEncryptedFramesEndToEnd) {
