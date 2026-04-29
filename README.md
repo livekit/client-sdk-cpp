@@ -86,6 +86,9 @@ Using build scripts:
 .\build.cmd release-all       # Build Release with tests + examples
 ```
 
+The build scripts pass an explicit job count to `cmake --build --parallel`. Set
+`CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
+
 ### Windows build using cmake/vcpkg
 ```bash
 cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake"  # Generate Makefiles in build folder

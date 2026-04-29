@@ -7,6 +7,7 @@ set "BUILD_TYPE=Release"
 set "PRESET=windows-release"
 set "LIVEKIT_VERSION="
 set "CMAKE_EXTRA_ARGS="
+set "BUILD_PARALLEL_JOBS="
 
 REM ============================================================
 REM Auto-detect LIBCLANG_PATH if not already set
@@ -214,8 +215,17 @@ if errorlevel 1 (
 goto build_only
 
 :build_only
-echo ==^> Building (%BUILD_TYPE%)...
-cmake --build "%BUILD_DIR%" --config %BUILD_TYPE%
+if not defined BUILD_PARALLEL_JOBS (
+    if defined CMAKE_BUILD_PARALLEL_LEVEL (
+        set "BUILD_PARALLEL_JOBS=%CMAKE_BUILD_PARALLEL_LEVEL%"
+    ) else if defined NUMBER_OF_PROCESSORS (
+        set "BUILD_PARALLEL_JOBS=%NUMBER_OF_PROCESSORS%"
+    ) else (
+        set "BUILD_PARALLEL_JOBS=2"
+    )
+)
+echo ==^> Building (%BUILD_TYPE%) with %BUILD_PARALLEL_JOBS% parallel jobs...
+cmake --build "%BUILD_DIR%" --config %BUILD_TYPE% --parallel "%BUILD_PARALLEL_JOBS%"
 if errorlevel 1 (
     echo Build failed!
     exit /b 1

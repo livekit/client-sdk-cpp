@@ -161,14 +161,39 @@ configure() {
   fi
 }
 
+detect_parallel_jobs() {
+  if [[ -n "${CMAKE_BUILD_PARALLEL_LEVEL:-}" ]]; then
+    echo "${CMAKE_BUILD_PARALLEL_LEVEL}"
+    return
+  fi
+
+  local jobs=""
+  if command -v getconf >/dev/null 2>&1; then
+    jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
+  fi
+  if [[ -z "${jobs}" || ! "${jobs}" =~ ^[0-9]+$ || "${jobs}" -lt 1 ]]; then
+    if command -v sysctl >/dev/null 2>&1; then
+      jobs="$(sysctl -n hw.ncpu 2>/dev/null || true)"
+    fi
+  fi
+  if [[ -z "${jobs}" || ! "${jobs}" =~ ^[0-9]+$ || "${jobs}" -lt 1 ]]; then
+    jobs="2"
+  fi
+
+  echo "${jobs}"
+}
+
 build() {
-  echo "==> Building (${BUILD_TYPE})..."
+  local parallel_jobs
+  parallel_jobs="$(detect_parallel_jobs)"
+
+  echo "==> Building (${BUILD_TYPE}) with ${parallel_jobs} parallel jobs..."
   if [[ -n "${PRESET}" ]] && [[ -f "${PROJECT_ROOT}/CMakePresets.json" ]]; then
     # Use preset build if available
-    cmake --build --preset "${PRESET}"
+    cmake --build --preset "${PRESET}" --parallel "${parallel_jobs}"
   else
     # Fallback to traditional build
-    cmake --build "${BUILD_DIR}"
+    cmake --build "${BUILD_DIR}" --parallel "${parallel_jobs}"
   fi
 }
 
