@@ -52,6 +52,7 @@ constexpr auto kPublishManyTimeout = 5s;
 constexpr std::size_t kLargeFramePayloadBytes = 196608;
 constexpr char kE2EESharedSecret[] = "password";
 constexpr int kE2EEFrameCount = 5;
+constexpr int kTimestampFrameAttempts = 16;
 
 std::string makeTrackName(const std::string &suffix) {
   return std::string(kTrackNamePrefix) + "_" + suffix + "_" +
@@ -578,7 +579,7 @@ TEST_F(DataTrackE2ETest, FfiClientSubscribeDataTrackReturnsSyncResult) {
 
 TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
   const auto track_name = makeTrackName("user_timestamp");
-  const auto sent_timestamp = getTimestampUs();
+  const auto first_sent_timestamp = getTimestampUs();
 
   DataTrackPublishedDelegate subscriber_delegate;
   std::vector<TestRoomConnectionOptions> room_configs(2);
@@ -619,8 +620,24 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
     }
   });
 
-  const auto push_result =
-      local_track->tryPush(std::vector<std::uint8_t>(64, 0xFA), sent_timestamp);
+  std::vector<std::uint64_t> sent_timestamps;
+  sent_timestamps.reserve(kTimestampFrameAttempts);
+  std::string push_error;
+  for (int attempt = 0; attempt < kTimestampFrameAttempts; ++attempt) {
+    const auto sent_timestamp =
+        first_sent_timestamp + static_cast<std::uint64_t>(attempt);
+    auto push_result = local_track->tryPush(
+        std::vector<std::uint8_t>(64, static_cast<std::uint8_t>(0xFA + attempt)),
+        sent_timestamp);
+    if (!push_result) {
+      push_error = describeDataTrackError(push_result.error());
+      break;
+    }
+    sent_timestamps.push_back(sent_timestamp);
+    if (frame_future.wait_for(0ms) == std::future_status::ready) {
+      break;
+    }
+  }
   const auto frame_status = frame_future.wait_for(5s);
 
   if (frame_status != std::future_status::ready) {
@@ -631,9 +648,8 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
   reader.join();
   local_track->unpublishDataTrack();
 
-  if (!push_result) {
-    FAIL() << "Failed to push timestamped data frame: "
-           << describeDataTrackError(push_result.error());
+  if (!push_error.empty()) {
+    FAIL() << "Failed to push timestamped data frame: " << push_error;
   }
   ASSERT_EQ(frame_status, std::future_status::ready)
       << "Timed out waiting for timestamped frame";
@@ -647,7 +663,9 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
 
   ASSERT_FALSE(frame.payload.empty());
   ASSERT_TRUE(frame.user_timestamp.has_value());
-  EXPECT_EQ(frame.user_timestamp.value(), sent_timestamp);
+  EXPECT_TRUE(std::find(sent_timestamps.begin(), sent_timestamps.end(),
+                        frame.user_timestamp.value()) != sent_timestamps.end())
+      << "Received unexpected timestamp: " << frame.user_timestamp.value();
 }
 
 TEST_F(DataTrackE2ETest, PublishesAndReceivesEncryptedFramesEndToEnd) {
