@@ -35,8 +35,8 @@ TEST_F(VideoFrameMetadataServerTest,
   RoomOptions options;
 
   ASSERT_TRUE(
-      receiver_room.Connect(config_.url, config_.receiver_token, options));
-  ASSERT_TRUE(sender_room.Connect(config_.url, config_.caller_token, options));
+      receiver_room.Connect(config_.url, config_.token_b, options));
+  ASSERT_TRUE(sender_room.Connect(config_.url, config_.token_a, options));
   ASSERT_NE(sender_room.localParticipant(), nullptr);
   ASSERT_NE(receiver_room.localParticipant(), nullptr);
 

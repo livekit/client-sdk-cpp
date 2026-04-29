@@ -70,8 +70,8 @@ constexpr char kLocalTestLiveKitUrl[] = "ws://localhost:7880";
  *
  * Environment variables:
  *   LIVEKIT_URL           - WebSocket URL of the LiveKit server
- *   LIVEKIT_CALLER_TOKEN  - Token for the caller/sender participant
- *   LIVEKIT_RECEIVER_TOKEN - Token for the receiver participant
+ *   LK_TOKEN_TEST_A       - Token for the first test participant
+ *   LK_TOKEN_TEST_B       - Token for the second test participant
  *   TEST_ITERATIONS       - Number of iterations for iterative tests (default:
  * 10) STRESS_DURATION_SECONDS - Duration for stress tests in seconds (default:
  * 600) STRESS_CALLER_THREADS - Number of caller threads for stress tests
@@ -79,8 +79,8 @@ constexpr char kLocalTestLiveKitUrl[] = "ws://localhost:7880";
  */
 struct TestConfig {
   std::string url;
-  std::string caller_token;
-  std::string receiver_token;
+  std::string token_a;
+  std::string token_b;
   int test_iterations;
   int stress_duration_seconds;
   int num_caller_threads;
@@ -89,16 +89,16 @@ struct TestConfig {
   static TestConfig fromEnv() {
     TestConfig config;
     const char *url = std::getenv("LIVEKIT_URL");
-    const char *caller_token = std::getenv("LIVEKIT_CALLER_TOKEN");
-    const char *receiver_token = std::getenv("LIVEKIT_RECEIVER_TOKEN");
+    const char *token_a = std::getenv("LK_TOKEN_TEST_A");
+    const char *token_b = std::getenv("LK_TOKEN_TEST_B");
     const char *iterations_env = std::getenv("TEST_ITERATIONS");
     const char *duration_env = std::getenv("STRESS_DURATION_SECONDS");
     const char *threads_env = std::getenv("STRESS_CALLER_THREADS");
 
-    if (url && caller_token && receiver_token) {
+    if (url && token_a && token_b) {
       config.url = url;
-      config.caller_token = caller_token;
-      config.receiver_token = receiver_token;
+      config.token_a = token_a;
+      config.token_b = token_b;
       config.available = true;
     }
 
@@ -142,17 +142,17 @@ inline bool waitForParticipant(Room *room, const std::string &identity,
 }
 
 inline std::array<std::string, 2> getDataTrackTestTokens() {
-  const char *token_a = std::getenv("LIVEKIT_CALLER_TOKEN");
+  const char *token_a = std::getenv("LK_TOKEN_TEST_A");
   if (token_a == nullptr || std::string(token_a).empty()) {
     throw std::runtime_error(
-        "LIVEKIT_CALLER_TOKEN must be present and non-empty for data track E2E "
+        "LK_TOKEN_TEST_A must be present and non-empty for data track E2E "
         "tests");
   }
 
-  const char *token_b = std::getenv("LIVEKIT_RECEIVER_TOKEN");
+  const char *token_b = std::getenv("LK_TOKEN_TEST_B");
   if (token_b == nullptr || std::string(token_b).empty()) {
     throw std::runtime_error(
-        "LIVEKIT_RECEIVER_TOKEN must be present and non-empty for data track E2E "
+        "LK_TOKEN_TEST_B must be present and non-empty for data track E2E "
         "tests");
   }
 
@@ -216,7 +216,7 @@ testRooms(const std::vector<TestRoomConnectionOptions> &room_configs) {
 
   if (room_configs.size() > 2) {
     throw std::invalid_argument(
-        "testRooms supports at most two rooms with LIVEKIT_CALLER_TOKEN/B");
+        "testRooms supports at most two rooms with LK_TOKEN_TEST_A/B");
   }
 
   auto tokens = getDataTrackTestTokens();
@@ -508,8 +508,8 @@ protected:
   /// Skip the test if the required environment variables are not set
   void skipIfNotConfigured() {
     if (!config_.available) {
-      GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_CALLER_TOKEN, and "
-                      "LIVEKIT_RECEIVER_TOKEN not set";
+      GTEST_SKIP()
+          << "LIVEKIT_URL, LK_TOKEN_TEST_A, and LK_TOKEN_TEST_B not set";
     }
   }
 

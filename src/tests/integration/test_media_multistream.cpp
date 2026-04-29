@@ -86,8 +86,8 @@ protected:
 void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
     bool single_peer_connection) {
   if (!config_.available) {
-    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_CALLER_TOKEN, and "
-                    "LIVEKIT_RECEIVER_TOKEN not set";
+    GTEST_SKIP()
+        << "LIVEKIT_URL, LK_TOKEN_TEST_A, and LK_TOKEN_TEST_B not set";
   }
 
   RoomOptions options;
@@ -100,11 +100,11 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
   auto receiver_room = std::make_unique<Room>();
   receiver_room->setDelegate(&receiver_delegate);
   ASSERT_TRUE(
-      receiver_room->Connect(config_.url, config_.receiver_token, options))
+      receiver_room->Connect(config_.url, config_.token_b, options))
       << "Receiver failed to connect";
 
   auto sender_room = std::make_unique<Room>();
-  ASSERT_TRUE(sender_room->Connect(config_.url, config_.caller_token, options))
+  ASSERT_TRUE(sender_room->Connect(config_.url, config_.token_a, options))
       << "Sender failed to connect";
 
   const std::string receiver_identity =
