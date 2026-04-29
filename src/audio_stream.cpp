@@ -55,7 +55,7 @@ AudioStream::fromParticipant(Participant &participant, TrackSource track_source,
 AudioStream::~AudioStream() { close(); }
 
 AudioStream::AudioStream(AudioStream &&other) noexcept {
-  std::lock_guard<std::mutex> lock(other.mutex_);
+  const std::scoped_lock<std::mutex> lock(other.mutex_);
   queue_ = std::move(other.queue_);
   capacity_ = other.capacity_;
   eof_ = other.eof_;
@@ -76,8 +76,8 @@ AudioStream &AudioStream::operator=(AudioStream &&other) noexcept {
   close();
 
   {
-    std::lock_guard<std::mutex> lock_this(mutex_);
-    std::lock_guard<std::mutex> lock_other(other.mutex_);
+    const std::scoped_lock<std::mutex> lock_this(mutex_);
+    const std::scoped_lock<std::mutex> lock_other(other.mutex_);
 
     queue_ = std::move(other.queue_);
     capacity_ = other.capacity_;
@@ -110,7 +110,7 @@ bool AudioStream::read(AudioFrameEvent &out_event) {
 
 void AudioStream::close() {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_) {
       return;
     }
@@ -221,7 +221,7 @@ void AudioStream::onFfiEvent(const FfiEvent &event) {
 
 void AudioStream::pushFrame(AudioFrameEvent &&ev) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
 
     if (closed_ || eof_) {
       return;
@@ -239,7 +239,7 @@ void AudioStream::pushFrame(AudioFrameEvent &&ev) {
 
 void AudioStream::pushEos() {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (eof_) {
       return;
     }

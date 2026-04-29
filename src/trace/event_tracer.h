@@ -18,6 +18,9 @@
  * Use of this source code is governed by a BSD-style license.
  */
 
+// NOLINTBEGIN
+// External code: this header is derived from WebRTC's event_tracer.h
+
 // This file defines the interface for event tracing in LiveKit SDK.
 //
 // Event log handlers are set through SetupEventTracer(). User of this API will
@@ -88,5 +91,7 @@ public:
 namespace webrtc {
 using namespace livekit::trace;
 } // namespace webrtc
+
+// NOLINTEND
 
 #endif // LIVEKIT_TRACE_EVENT_TRACER_H_

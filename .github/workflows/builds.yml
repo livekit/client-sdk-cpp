@@ -522,7 +522,6 @@ jobs:
     continue-on-error: false
     permissions:
       contents: read
-      pull-requests: write
 
     steps:
       - name: Checkout (with submodules)
@@ -537,8 +536,28 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
-            llvm-dev libclang-dev clang clang-tidy \
-            libssl-dev
+            llvm-dev libclang-dev clang \
+            libssl-dev wget ca-certificates gnupg
+
+      - name: Install clang-tidy 19 (for ExcludeHeaderFilterRegex support)
+        run: |
+          set -eux
+          # Ubuntu 24.04 apt ships clang-tidy 18, which doesn't understand
+          # ExcludeHeaderFilterRegex (added in 19). Pull clang-tidy 19 from
+          # the upstream LLVM apt repository and pin the unversioned names.
+          sudo install -m 0755 -d /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
+          sudo chmod a+r /etc/apt/keyrings/llvm.asc
+          codename=$(lsb_release -cs)
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-19 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-19.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy-19 clang-tools-19
+          sudo ln -sf /usr/bin/clang-tidy-19 /usr/local/bin/clang-tidy
+          sudo ln -sf /usr/bin/run-clang-tidy-19 /usr/local/bin/run-clang-tidy
+          clang-tidy --version
+          run-clang-tidy --help | head -1 || true
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
@@ -559,33 +578,9 @@ jobs:
         run: cmake --build build-release --target livekit_proto
 
       - name: Run clang-tidy
-        uses: cpp-linter/cpp-linter-action@77c390c5ba9c947ebc185a3e49cc754f1558abb5 # v2.18.0
-        id: linter
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          style: ''
-          tidy-checks: ''
-          database: build-release
-          files-changed-only: false
-          lines-changed-only: true
-          extensions: 'c,cpp,cc,cxx'
-          ignore: 'build-*|cpp-example-collection|client-sdk-rust|vcpkg_installed|src/tests|bridge|src/room_event_converter.cpp'
-          file-annotations: true
-          thread-comments: false
-          step-summary: true
-          tidy-review: false
-          no-lgtm: true
-          jobs: 0   # 0 == use all available CPU cores
-
-      - name: Check warning thresholds
-        env:
-          TIDY_FINDINGS: ${{ steps.linter.outputs.clang-tidy-checks-failed }}
-          MAX_TIDY_FINDINGS: '0'
-        run: |
-          echo "clang-tidy findings: ${TIDY_FINDINGS}"
-          if [ "${TIDY_FINDINGS}" -gt "${MAX_TIDY_FINDINGS}" ]; then
-            echo "::warning::clang-tidy found ${TIDY_FINDINGS} issue(s), threshold is ${MAX_TIDY_FINDINGS}"
-            exit 1
-          fi
-          echo "clang-tidy findings within threshold"
+          TIDY_BLOB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        # This script is intended to be run locally and in CI. It will auto-detect
+        # the GHA environment and add PR annotations and a run summary.
+        # As of writing all warnings are treateded as errors to avoid tech debt build up
+        run: ./scripts/clang-tidy.sh --fail-on-warning

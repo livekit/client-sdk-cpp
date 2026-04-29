@@ -92,7 +92,7 @@ struct TraceEventData {
 // Escape a string for JSON
 std::string JsonEscape(const std::string &s) {
   std::ostringstream oss;
-  for (char c : s) {
+  for (const char c : s) {
     switch (c) {
     case '"':
       oss << "\\\"";
@@ -211,6 +211,8 @@ std::unordered_set<std::string> g_enabled_categories;
 std::atomic<bool> g_tracing_enabled{false};
 std::atomic<bool> g_shutdown_requested{false};
 std::thread g_writer_thread;
+// This is internal test code, not worth changing to avoid throw risk
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization)
 std::ofstream g_trace_file;
 uint64_t g_start_time = 0;
 bool g_first_event = true;
@@ -257,7 +259,7 @@ void WriterThreadFunc() {
 
     // Exit if shutdown requested and queue is empty
     if (g_shutdown_requested.load()) {
-      std::lock_guard<std::mutex> lock(g_mutex);
+      const std::scoped_lock<std::mutex> lock(g_mutex);
       if (g_event_queue.empty()) {
         break;
       }
@@ -269,7 +271,7 @@ void WriterThreadFunc() {
 
 void SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr,
                       AddTraceEventPtr add_trace_event_ptr) {
-  std::lock_guard<std::mutex> lock(g_mutex);
+  const std::scoped_lock<std::mutex> lock(g_mutex);
   g_custom_get_category_enabled = get_category_enabled_ptr;
   g_custom_add_trace_event = add_trace_event_ptr;
 }
@@ -286,7 +288,7 @@ const unsigned char *EventTracer::GetCategoryEnabled(const char *name) {
   }
 
   // Check if category is enabled
-  std::lock_guard<std::mutex> lock(g_mutex);
+  const std::scoped_lock<std::mutex> lock(g_mutex);
 
   // Empty enabled set means all categories are enabled
   if (g_enabled_categories.empty()) {
@@ -294,7 +296,7 @@ const unsigned char *EventTracer::GetCategoryEnabled(const char *name) {
   }
 
   // Check if this specific category is enabled
-  std::string category_name(name);
+  const std::string category_name(name);
   if (g_enabled_categories.count(category_name) > 0) {
     return &g_enabled_byte;
   }
@@ -302,7 +304,7 @@ const unsigned char *EventTracer::GetCategoryEnabled(const char *name) {
   // Check for wildcard matches (e.g., "livekit.*" matches "livekit.connect")
   for (const auto &pattern : g_enabled_categories) {
     if (pattern.back() == '*') {
-      std::string prefix = pattern.substr(0, pattern.size() - 1);
+      const std::string prefix = pattern.substr(0, pattern.size() - 1);
       if (category_name.compare(0, prefix.size(), prefix) == 0) {
         return &g_enabled_byte;
       }
@@ -366,7 +368,7 @@ void EventTracer::AddTraceEvent(char phase,
 
   // Queue the event for the writer thread
   {
-    std::lock_guard<std::mutex> lock(g_mutex);
+    const std::scoped_lock<std::mutex> lock(g_mutex);
     g_event_queue.push(std::move(event));
   }
   g_cv.notify_one();
@@ -376,7 +378,7 @@ namespace internal {
 
 bool StartTracing(const std::string &file_path,
                   const std::vector<std::string> &categories) {
-  std::lock_guard<std::mutex> lock(g_mutex);
+  const std::scoped_lock<std::mutex> lock(g_mutex);
 
   // Don't start if already running
   if (g_tracing_enabled.load()) {
@@ -426,7 +428,7 @@ void StopTracing() {
   }
 
   // Close the file with JSON footer
-  std::lock_guard<std::mutex> lock(g_mutex);
+  const std::scoped_lock<std::mutex> lock(g_mutex);
   if (g_trace_file.is_open()) {
     g_trace_file << R"(],"displayTimeUnit":"ms"})";
     g_trace_file.close();

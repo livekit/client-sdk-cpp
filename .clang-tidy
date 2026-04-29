@@ -9,6 +9,7 @@ Checks: >
   -bugprone-easily-swappable-parameters,
   -modernize-use-trailing-return-type,
   -modernize-avoid-c-arrays,
+  -modernize-type-traits,
   -modernize-use-auto,
   -modernize-use-nodiscard,
   -modernize-return-braced-init-list,
@@ -29,7 +30,8 @@ WarningsAsErrors: >
   bugprone-string-literal-with-embedded-nul,
   bugprone-suspicious-memset-usage,
 
-HeaderFilterRegex: '(include/livekit|src|examples)'
+HeaderFilterRegex: '.*/(include/livekit|src)/.*\.(h|hpp)$'
+ExcludeHeaderFilterRegex: '(.*/src/tests/.*)|(.*/_deps/.*)|(.*/build-[^/]*/.*)'
 
 FormatStyle: file
 

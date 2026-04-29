@@ -38,7 +38,7 @@ std::string generateRandomId(std::size_t bytes = 16) {
   out.reserve(bytes * 2);
   const char *hex = "0123456789abcdef";
   for (std::size_t i = 0; i < bytes; ++i) {
-    int v = dist(rng);
+    const int v = dist(rng);
     out.push_back(hex[(v >> 4) & 0xF]);
     out.push_back(hex[v & 0xF]);
   }
@@ -109,7 +109,7 @@ TextStreamReader::TextStreamReader(TextStreamInfo info)
 
 void TextStreamReader::onChunkUpdate(const std::string &text) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_)
       return;
     queue_.push_back(text);
@@ -120,7 +120,7 @@ void TextStreamReader::onChunkUpdate(const std::string &text) {
 void TextStreamReader::onStreamClose(
     const std::map<std::string, std::string> &trailer_attrs) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     for (const auto &kv : trailer_attrs) {
       info_.attributes[kv.first] = kv.second;
     }
@@ -154,7 +154,7 @@ ByteStreamReader::ByteStreamReader(ByteStreamInfo info)
 
 void ByteStreamReader::onChunkUpdate(const std::vector<std::uint8_t> &bytes) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_)
       return;
     queue_.push_back(bytes);
@@ -165,7 +165,7 @@ void ByteStreamReader::onChunkUpdate(const std::vector<std::uint8_t> &bytes) {
 void ByteStreamReader::onStreamClose(
     const std::map<std::string, std::string> &trailer_attrs) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     for (const auto &kv : trailer_attrs) {
       info_.attributes[kv.first] = kv.second;
     }
@@ -308,13 +308,13 @@ TextStreamWriter::TextStreamWriter(
 }
 
 void TextStreamWriter::write(const std::string &text) {
-  std::lock_guard<std::mutex> lock(write_mutex_);
+  const std::scoped_lock<std::mutex> lock(write_mutex_);
   if (closed_)
     throw std::runtime_error("Cannot write to closed TextStreamWriter");
 
   for (const auto &chunk_str : splitUtf8(text, kStreamChunkSize)) {
     const auto *p = reinterpret_cast<const std::uint8_t *>(chunk_str.data());
-    std::vector<std::uint8_t> bytes(p, p + chunk_str.size());
+    const std::vector<std::uint8_t> bytes(p, p + chunk_str.size());
     LK_LOG_DEBUG("sending chunk");
     sendChunk(bytes);
   }
@@ -339,7 +339,7 @@ ByteStreamWriter::ByteStreamWriter(
 }
 
 void ByteStreamWriter::write(const std::vector<std::uint8_t> &data) {
-  std::lock_guard<std::mutex> lock(write_mutex_);
+  const std::scoped_lock<std::mutex> lock(write_mutex_);
   if (closed_)
     throw std::runtime_error("Cannot write to closed ByteStreamWriter");
 
@@ -348,7 +348,7 @@ void ByteStreamWriter::write(const std::vector<std::uint8_t> &data) {
     const std::size_t n =
         std::min<std::size_t>(kStreamChunkSize, data.size() - offset);
     auto it = data.begin() + static_cast<std::ptrdiff_t>(offset);
-    std::vector<std::uint8_t> chunk(it, it + static_cast<std::ptrdiff_t>(n));
+    const std::vector<std::uint8_t> chunk(it, it + static_cast<std::ptrdiff_t>(n));
     sendChunk(chunk);
     offset += n;
   }

@@ -172,14 +172,14 @@ bool FfiClient::isInitialized() const noexcept {
 
 FfiClient::ListenerId
 FfiClient::AddListener(const FfiClient::Listener &listener) {
-  std::lock_guard<std::mutex> guard(lock_);
-  FfiClient::ListenerId id = next_listener_id++;
+  const std::scoped_lock<std::mutex> guard(lock_);
+  const FfiClient::ListenerId id = next_listener_id++;
   listeners_[id] = listener;
   return id;
 }
 
 void FfiClient::RemoveListener(ListenerId id) {
-  std::lock_guard<std::mutex> guard(lock_);
+  const std::scoped_lock<std::mutex> guard(lock_);
   listeners_.erase(id);
 }
 
@@ -191,7 +191,7 @@ FfiClient::sendRequest(const proto::FfiRequest &request) const {
   }
   const uint8_t *resp_ptr = nullptr;
   size_t resp_len = 0;
-  FfiHandleId handle =
+  const FfiHandleId handle =
       livekit_ffi_request(reinterpret_cast<const uint8_t *>(bytes.data()),
                           bytes.size(), &resp_ptr, &resp_len);
   if (handle == INVALID_HANDLE) {
@@ -216,7 +216,7 @@ void FfiClient::PushEvent(const proto::FfiEvent &event) const {
   std::unique_ptr<PendingBase> to_complete;
   std::vector<Listener> listeners_copy;
   {
-    std::lock_guard<std::mutex> guard(lock_);
+    const std::scoped_lock<std::mutex> guard(lock_);
 
     // Complete pending future if this event is a callback with async_id
     if (auto async_id = ExtractAsyncId(event)) {
@@ -259,7 +259,7 @@ FfiClient::AsyncId FfiClient::generateAsyncId() {
 bool FfiClient::cancelPendingByAsyncId(AsyncId async_id) {
   std::unique_ptr<PendingBase> to_cancel;
   {
-    std::lock_guard<std::mutex> guard(lock_);
+    const std::scoped_lock<std::mutex> guard(lock_);
     auto it = pending_by_id_.find(async_id);
     if (it != pending_by_id_.end()) {
       to_cancel = std::move(it->second);
@@ -283,7 +283,7 @@ std::future<T> FfiClient::registerAsync(
   pending->match = std::move(match);
   pending->handler = std::move(handler);
   {
-    std::lock_guard<std::mutex> guard(lock_);
+    const std::scoped_lock<std::mutex> guard(lock_);
     pending_by_id_.emplace(async_id, std::move(pending));
   }
   return fut;
@@ -455,7 +455,7 @@ FfiClient::getTrackStatsAsync(uintptr_t track_handle) {
   get_stats_req->set_request_async_id(async_id);
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_get_stats()) {
       logAndThrow("FfiResponse missing get_stats");
     }
@@ -502,7 +502,7 @@ FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
         }
 
         const proto::OwnedTrackPublication &pub = cb.publication();
-        pr.set_value(std::move(pub));
+        pr.set_value(pub);
       });
 
   // Build and send the request
@@ -701,7 +701,7 @@ FfiClient::subscribeDataTrack(std::uint64_t track_handle,
   }
 
   try {
-    proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_subscribe_data_track()) {
       return Result<proto::OwnedDataTrackStream,
                     SubscribeDataTrackError>::failure(SubscribeDataTrackError{

@@ -80,7 +80,7 @@ Room::~Room() {
   int listener_to_remove = 0;
   std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
   {
-    std::lock_guard<std::mutex> g(lock_);
+    const std::scoped_lock<std::mutex> g(lock_);
     listener_to_remove = listener_id_;
     listener_id_ = 0;
     // Move local participant out for cleanup outside the lock
@@ -102,7 +102,7 @@ Room::~Room() {
 }
 
 void Room::setDelegate(RoomDelegate *delegate) {
-  std::lock_guard<std::mutex> g(lock_);
+  const std::scoped_lock<std::mutex> g(lock_);
   delegate_ = delegate;
 }
 
@@ -111,7 +111,7 @@ bool Room::Connect(const std::string &url, const std::string &token,
   TRACE_EVENT0("livekit", "Room::Connect");
 
   {
-    std::lock_guard<std::mutex> g(lock_);
+    const std::scoped_lock<std::mutex> g(lock_);
     if (connection_state_ != ConnectionState::Disconnected) {
       throw std::runtime_error("already connected");
     }
@@ -154,7 +154,7 @@ bool Room::Connect(const std::string &url, const std::string &token,
         new_remote_participants;
     {
       const auto &participants = connectCb.result().participants();
-      std::lock_guard<std::mutex> g(lock_);
+      const std::scoped_lock<std::mutex> g(lock_);
       for (const auto &pt : participants) {
         const auto &owned = pt.participant();
         auto rp = createRemoteParticipant(owned);
@@ -180,7 +180,7 @@ bool Room::Connect(const std::string &url, const std::string &token,
 
     // Publish all state atomically under lock
     {
-      std::lock_guard<std::mutex> g(lock_);
+      const std::scoped_lock<std::mutex> g(lock_);
       room_handle_ = std::move(new_room_handle);
       room_info_ = std::move(new_room_info);
       local_participant_ = std::move(new_local_participant);
@@ -193,7 +193,7 @@ bool Room::Connect(const std::string &url, const std::string &token,
     auto listenerId = FfiClient::instance().AddListener(
         [this](const proto::FfiEvent &e) { OnEvent(e); });
     {
-      std::lock_guard<std::mutex> g(lock_);
+      const std::scoped_lock<std::mutex> g(lock_);
       listener_id_ = listenerId;
     }
 
@@ -207,24 +207,24 @@ bool Room::Connect(const std::string &url, const std::string &token,
 }
 
 RoomInfoData Room::room_info() const {
-  std::lock_guard<std::mutex> g(lock_);
+  const std::scoped_lock<std::mutex> g(lock_);
   return room_info_;
 }
 
 LocalParticipant *Room::localParticipant() const {
-  std::lock_guard<std::mutex> g(lock_);
+  const std::scoped_lock<std::mutex> g(lock_);
   return local_participant_.get();
 }
 
 RemoteParticipant *Room::remoteParticipant(const std::string &identity) const {
-  std::lock_guard<std::mutex> g(lock_);
+  const std::scoped_lock<std::mutex> g(lock_);
   auto it = remote_participants_.find(identity);
   return it == remote_participants_.end() ? nullptr : it->second.get();
 }
 
 std::vector<std::shared_ptr<RemoteParticipant>>
 Room::remoteParticipants() const {
-  std::lock_guard<std::mutex> guard(lock_);
+  const std::scoped_lock<std::mutex> guard(lock_);
   std::vector<std::shared_ptr<RemoteParticipant>> out;
   out.reserve(remote_participants_.size());
   for (const auto &kv : remote_participants_) {
@@ -234,13 +234,13 @@ Room::remoteParticipants() const {
 }
 
 E2EEManager *Room::e2eeManager() const {
-  std::lock_guard<std::mutex> g(lock_);
+  const std::scoped_lock<std::mutex> g(lock_);
   return e2ee_manager_.get();
 }
 
 void Room::registerTextStreamHandler(const std::string &topic,
                                      TextStreamHandler handler) {
-  std::lock_guard<std::mutex> g(lock_);
+  const std::scoped_lock<std::mutex> g(lock_);
   auto [it, inserted] =
       text_stream_handlers_.emplace(topic, std::move(handler));
   if (!inserted) {
@@ -250,13 +250,13 @@ void Room::registerTextStreamHandler(const std::string &topic,
 }
 
 void Room::unregisterTextStreamHandler(const std::string &topic) {
-  std::lock_guard<std::mutex> g(lock_);
+  const std::scoped_lock<std::mutex> g(lock_);
   text_stream_handlers_.erase(topic);
 }
 
 void Room::registerByteStreamHandler(const std::string &topic,
                                      ByteStreamHandler handler) {
-  std::lock_guard<std::mutex> g(lock_);
+  const std::scoped_lock<std::mutex> g(lock_);
   auto [it, inserted] =
       byte_stream_handlers_.emplace(topic, std::move(handler));
   if (!inserted) {
@@ -266,7 +266,7 @@ void Room::registerByteStreamHandler(const std::string &topic,
 }
 
 void Room::unregisterByteStreamHandler(const std::string &topic) {
-  std::lock_guard<std::mutex> g(lock_);
+  const std::scoped_lock<std::mutex> g(lock_);
   byte_stream_handlers_.erase(topic);
 }
 
@@ -378,7 +378,7 @@ void Room::OnEvent(const FfiEvent &event) {
   // lock.
   RoomDelegate *delegate_snapshot = nullptr;
   {
-    std::lock_guard<std::mutex> guard(lock_);
+    const std::scoped_lock<std::mutex> guard(lock_);
     delegate_snapshot = delegate_;
   }
 
@@ -388,7 +388,7 @@ void Room::OnEvent(const FfiEvent &event) {
 
     LocalParticipant *lp = nullptr;
     {
-      std::lock_guard<std::mutex> guard(lock_);
+      const std::scoped_lock<std::mutex> guard(lock_);
       if (!local_participant_) {
         return;
       }
@@ -417,7 +417,7 @@ void Room::OnEvent(const FfiEvent &event) {
 
     // Check if this event is for our room handle
     {
-      std::lock_guard<std::mutex> guard(lock_);
+      const std::scoped_lock<std::mutex> guard(lock_);
       if (!room_handle_ ||
           re.room_handle() != static_cast<std::uint64_t>(room_handle_->get())) {
         return;
@@ -428,7 +428,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantConnected: {
       std::shared_ptr<RemoteParticipant> new_participant;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &owned = re.participant_connected().info();
         // createRemoteParticipant takes proto::OwnedParticipant
         new_participant = createRemoteParticipant(owned);
@@ -446,7 +446,7 @@ void Room::OnEvent(const FfiEvent &event) {
       std::shared_ptr<RemoteParticipant> removed;
       DisconnectReason reason = DisconnectReason::Unknown;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &pd = re.participant_disconnected();
         const std::string &identity = pd.participant_identity();
         reason = toDisconnectReason(pd.disconnect_reason());
@@ -476,7 +476,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kLocalTrackPublished: {
       LocalTrackPublishedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         if (!local_participant_) {
           LK_LOG_ERROR("kLocalTrackPublished: local_participant_ is nullptr");
           break;
@@ -500,7 +500,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kLocalTrackUnpublished: {
       LocalTrackUnpublishedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         if (!local_participant_) {
           LK_LOG_ERROR("kLocalTrackUnpublished: local_participant_ is nullptr");
           break;
@@ -524,7 +524,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kLocalTrackSubscribed: {
       LocalTrackSubscribedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         if (!local_participant_) {
           break;
         }
@@ -548,7 +548,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kTrackPublished: {
       TrackPublishedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &tp = re.track_published();
         const std::string &identity = tp.participant_identity();
         auto it = remote_participants_.find(identity);
@@ -577,7 +577,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kTrackUnpublished: {
       TrackUnpublishedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &tu = re.track_unpublished();
         const std::string &identity = tu.participant_identity();
         const std::string &pub_sid = tu.publication_sid();
@@ -615,7 +615,7 @@ void Room::OnEvent(const FfiEvent &event) {
       RemoteParticipant *rparticipant = nullptr;
       std::shared_ptr<Track> remote_track;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         // Find participant
         auto pit = remote_participants_.find(identity);
         if (pit == remote_participants_.end()) {
@@ -670,7 +670,7 @@ void Room::OnEvent(const FfiEvent &event) {
       TrackSource unsub_source = TrackSource::SOURCE_UNKNOWN;
       std::string unsub_identity;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &tu = re.track_unsubscribed();
         unsub_identity = tu.participant_identity();
         const std::string &track_sid = tu.track_sid();
@@ -714,7 +714,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kTrackSubscriptionFailed: {
       TrackSubscriptionFailedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &tsf = re.track_subscription_failed();
         const std::string &identity = tsf.participant_identity();
         auto pit = remote_participants_.find(identity);
@@ -766,7 +766,7 @@ void Room::OnEvent(const FfiEvent &event) {
       TrackMutedEvent ev;
       bool success = false;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &tm = re.track_muted();
         const std::string &identity = tm.participant_identity();
         const std::string &sid = tm.track_sid();
@@ -805,7 +805,7 @@ void Room::OnEvent(const FfiEvent &event) {
       TrackUnmutedEvent ev;
       bool success = false;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &tu = re.track_unmuted();
         const std::string &identity = tu.participant_identity();
         const std::string &sid = tu.track_sid();
@@ -848,9 +848,11 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kActiveSpeakersChanged: {
       ActiveSpeakersChangedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &asc = re.active_speakers_changed();
         for (const auto &identity : asc.participant_identities()) {
+          // Appears to be clang-tidy false positive
+          // NOLINTNEXTLINE(misc-const-correctness)
           Participant *participant = nullptr;
           if (local_participant_ &&
               local_participant_->identity() == identity) {
@@ -874,7 +876,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kRoomMetadataChanged: {
       RoomMetadataChangedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto old_metadata = room_info_.metadata;
         room_info_.metadata = re.room_metadata_changed().metadata();
         ev.old_metadata = old_metadata;
@@ -888,7 +890,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kRoomSidChanged: {
       RoomSidChangedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         room_info_.sid = re.room_sid_changed().sid();
         ev.sid = room_info_.sid.value_or(std::string{});
       }
@@ -900,7 +902,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantMetadataChanged: {
       ParticipantMetadataChangedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &pm = re.participant_metadata_changed();
         const std::string &identity = pm.participant_identity();
         Participant *participant = nullptr;
@@ -918,7 +920,7 @@ void Room::OnEvent(const FfiEvent &event) {
               identity);
           break;
         }
-        std::string old_metadata = participant->metadata();
+        const std::string old_metadata = participant->metadata();
         participant->set_metadata(pm.metadata());
         ev.participant = participant;
         ev.old_metadata = old_metadata;
@@ -933,7 +935,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantNameChanged: {
       ParticipantNameChangedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &pn = re.participant_name_changed();
         const std::string &identity = pn.participant_identity();
         Participant *participant = nullptr;
@@ -950,7 +952,7 @@ void Room::OnEvent(const FfiEvent &event) {
                       identity);
           break;
         }
-        std::string old_name = participant->name();
+        const std::string old_name = participant->name();
         participant->set_name(pn.name());
         ev.participant = participant;
         ev.old_name = old_name;
@@ -964,7 +966,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantAttributesChanged: {
       ParticipantAttributesChangedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &pa = re.participant_attributes_changed();
         const std::string &identity = pa.participant_identity();
         Participant *participant = nullptr;
@@ -1003,7 +1005,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantEncryptionStatusChanged: {
       ParticipantEncryptionStatusChangedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &pe = re.participant_encryption_status_changed();
         const std::string &identity = pe.participant_identity();
         Participant *participant = nullptr;
@@ -1033,7 +1035,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kConnectionQualityChanged: {
       ConnectionQualityChangedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &cq = re.connection_quality_changed();
         const std::string &identity = cq.participant_identity();
         Participant *participant = nullptr;
@@ -1067,7 +1069,7 @@ void Room::OnEvent(const FfiEvent &event) {
       const auto &dp = re.data_packet_received();
       RemoteParticipant *rp = nullptr;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         auto it = remote_participants_.find(dp.participant_identity());
         if (it != remote_participants_.end()) {
           rp = it->second.get();
@@ -1092,7 +1094,7 @@ void Room::OnEvent(const FfiEvent &event) {
       E2eeStateChangedEvent ev;
       {
         LK_LOG_DEBUG("e2ee_state_changed for participant");
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &es = re.e2ee_state_changed();
         const std::string &identity = es.participant_identity();
         Participant *participant = nullptr;
@@ -1126,7 +1128,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kConnectionStateChanged: {
       ConnectionStateChangedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &cs = re.connection_state_changed();
         // TODO, maybe we should update our |connection_state_|
         // correspoindingly, but the this kConnectionStateChanged event is never
@@ -1183,7 +1185,7 @@ void Room::OnEvent(const FfiEvent &event) {
           old_byte_readers;
 
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         listener_to_remove = listener_id_;
         listener_id_ = 0;
 
@@ -1228,7 +1230,7 @@ void Room::OnEvent(const FfiEvent &event) {
       std::shared_ptr<TextStreamReader> text_reader;
       std::shared_ptr<ByteStreamReader> byte_reader;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
 
         // Determine stream type from oneof in protobuf
         // Adjust these names if your generated C++ uses different ones
@@ -1275,7 +1277,7 @@ void Room::OnEvent(const FfiEvent &event) {
       std::shared_ptr<TextStreamReader> text_reader;
       std::shared_ptr<ByteStreamReader> byte_reader;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         auto itT = text_stream_readers_.find(chunk.stream_id());
         if (itT != text_stream_readers_.end()) {
           text_reader = itT->second;
@@ -1292,7 +1294,7 @@ void Room::OnEvent(const FfiEvent &event) {
       } else if (byte_reader) {
         // Convert string bytes -> vector<uint8_t>
         const std::string &s = chunk.content();
-        std::vector<std::uint8_t> bytes(s.begin(), s.end());
+        const std::vector<std::uint8_t> bytes(s.begin(), s.end());
         byte_reader->onChunkUpdate(bytes);
       }
       break;
@@ -1307,7 +1309,7 @@ void Room::OnEvent(const FfiEvent &event) {
         trailer_attrs.emplace(kv.first, kv.second);
       }
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         auto itT = text_stream_readers_.find(trailer.stream_id());
         if (itT != text_stream_readers_.end()) {
           text_reader = itT->second;
@@ -1366,7 +1368,7 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantsUpdated: {
       ParticipantsUpdatedEvent ev;
       {
-        std::lock_guard<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(lock_);
         const auto &pu = re.participants_updated();
         for (const auto &info : pu.participants()) {
           const std::string &identity = info.identity();

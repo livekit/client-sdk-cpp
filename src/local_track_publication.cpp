@@ -16,7 +16,6 @@
 
 #include "livekit/local_track_publication.h"
 
-#include "livekit/track.h"
 #include "track_proto_converter.h"
 
 namespace livekit {
@@ -31,10 +30,5 @@ LocalTrackPublication::LocalTrackPublication(
           owned.info().muted(),
           static_cast<EncryptionType>(owned.info().encryption_type()),
           convertAudioFeatures(owned.info().audio_features())) {}
-
-std::shared_ptr<Track> LocalTrackPublication::track() const noexcept {
-  auto base = TrackPublication::track();
-  return std::static_pointer_cast<Track>(base);
-}
 
 } // namespace livekit

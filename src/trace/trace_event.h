@@ -18,6 +18,9 @@
  * Use of this source code is governed by a BSD-style license.
  */
 
+// NOLINTBEGIN
+// External code: this header is derived from Chromium's trace_event.h
+
 #ifndef LIVEKIT_TRACE_TRACE_EVENT_H_
 #define LIVEKIT_TRACE_TRACE_EVENT_H_
 
@@ -859,4 +862,7 @@ private:
 };
 } // namespace trace_event_internal
 } // namespace webrtc
+
+// NOLINTEND
+
 #endif // LIVEKIT_TRACE_TRACE_EVENT_H_

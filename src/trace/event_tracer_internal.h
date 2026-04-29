@@ -21,9 +21,7 @@
 #include <string>
 #include <vector>
 
-namespace livekit {
-namespace trace {
-namespace internal {
+namespace livekit::trace::internal {
 
 /**
  * Start tracing and write events to the specified file.
@@ -54,8 +52,6 @@ void StopTracing();
  */
 bool IsTracingEnabled();
 
-} // namespace internal
-} // namespace trace
-} // namespace livekit
+} // namespace livekit::trace::internal
 
 #endif // LIVEKIT_TRACE_EVENT_TRACER_INTERNAL_H_
