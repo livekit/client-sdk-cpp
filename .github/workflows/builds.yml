@@ -65,23 +65,23 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
-            build_cmd: ./build.sh release-all
+            build_cmd: ./build.sh release-examples
             build_dir: build-release
           - os: ubuntu-24.04-arm
             name: linux-arm64
-            build_cmd: ./build.sh release-all
+            build_cmd: ./build.sh release-examples
             build_dir: build-release
           - os: macos-latest
             name: macos-arm64
-            build_cmd: ./build.sh release-all
+            build_cmd: ./build.sh release-examples
             build_dir: build-release
           - os: macos-latest
             name: macos-x64
-            build_cmd: ./build.sh release-all --macos-arch x86_64
+            build_cmd: ./build.sh release-examples --macos-arch x86_64
             build_dir: build-release
           - os: windows-latest
             name: windows-x64
-            build_cmd: .\build.cmd release-all
+            build_cmd: .\build.cmd release-examples
             build_dir: build-release
 
     name: Build (${{ matrix.name }})
@@ -287,100 +287,6 @@ jobs:
             }
           }
           if ($failed) { exit 1 } else { exit 0 }
-
-      # ---------- Run unit tests ----------
-      - name: Run unit tests (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          ${{ matrix.build_dir }}/bin/livekit_unit_tests \
-            --gtest_output=xml:${{ matrix.build_dir }}/unit-test-results.xml
-
-      - name: Run unit tests (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          & "${{ matrix.build_dir }}/bin/livekit_unit_tests.exe" `
-            --gtest_output=xml:${{ matrix.build_dir }}/unit-test-results.xml
-
-      # ---------- Run integration tests (Linux only) ----------
-      # Integration tests require a live LiveKit server. The official
-      # install scripts (https://get.livekit.io and https://get.livekit.io/cli)
-      # are Linux-only today; macOS/Windows runners are skipped here and
-      # tracked as deferred work.
-      - name: Install livekit-server and lk CLI (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euxo pipefail
-          # The lk installer parses GitHub's API JSON with jq. jq is on the
-          # GitHub-hosted Linux runner image today; install defensively in
-          # case that ever changes.
-          sudo apt-get update
-          sudo apt-get install -y jq curl
-          curl -sSL https://get.livekit.io | bash
-          curl -sSL https://get.livekit.io/cli | bash
-          livekit-server --version
-          lk --version
-
-      - name: Start livekit-server (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        env:
-          LIVEKIT_CONFIG: "enable_data_tracks: true"
-        run: |
-          set -euxo pipefail
-          # Background the server; nohup detaches it from this step's shell so
-          # it survives into the next step.
-          nohup livekit-server --dev > livekit-server.log 2>&1 &
-          echo $! > livekit-server.pid
-          # Port 7880 is a WebSocket endpoint, so a TCP-connect check (nc -z)
-          # is the most reliable signal that the server has bound the port.
-          for i in $(seq 1 30); do
-            if nc -z 127.0.0.1 7880 >/dev/null 2>&1; then
-              echo "livekit-server is ready"
-              exit 0
-            fi
-            sleep 1
-          done
-          echo "::error::livekit-server failed to start within 30s"
-          tail -n 200 livekit-server.log || true
-          exit 1
-
-      - name: Run integration tests (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -euo pipefail
-          source .token_helpers/set_data_track_test_tokens.bash
-          ${{ matrix.build_dir }}/bin/livekit_integration_tests \
-            --gtest_output=xml:${{ matrix.build_dir }}/integration-test-results.xml
-
-      - name: Stop livekit-server (Linux)
-        if: always() && runner.os == 'Linux'
-        shell: bash
-        run: |
-          if [ -f livekit-server.pid ]; then
-            kill "$(cat livekit-server.pid)" 2>/dev/null || true
-            rm -f livekit-server.pid
-          fi
-
-      - name: Dump livekit-server log on failure (Linux)
-        if: failure() && runner.os == 'Linux'
-        shell: bash
-        run: tail -n 500 livekit-server.log || true
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: test-results-${{ matrix.name }}
-          path: |
-            ${{ matrix.build_dir }}/unit-test-results.xml
-            ${{ matrix.build_dir }}/integration-test-results.xml
-            livekit-server.log
-          if-no-files-found: ignore
-          retention-days: 7
 
       # ---------- Upload artifacts ----------
       - name: Upload build artifacts

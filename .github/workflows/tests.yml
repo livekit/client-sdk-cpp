@@ -1,0 +1,214 @@
+name: Tests
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - src/**
+      - include/**
+      - client-sdk-rust/**
+      - CMakeLists.txt
+      - CMakePresets.json
+      - build.sh
+      - build.cmd
+      - vcpkg.json
+      - .token_helpers/**
+      - .github/workflows/tests.yml
+  pull_request:
+    branches: ["main"]
+    paths:
+      - src/**
+      - include/**
+      - client-sdk-rust/**
+      - CMakeLists.txt
+      - CMakePresets.json
+      - build.sh
+      - build.cmd
+      - vcpkg.json
+      - .token_helpers/**
+      - .github/workflows/tests.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x64
+          - os: macos-latest
+            name: macos-arm64
+
+    name: Test (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Pull LFS files
+        run: git lfs pull
+
+      # ---------- OS-specific deps ----------
+      - name: Install deps (Ubuntu)
+        if: runner.os == 'Linux'
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            llvm-dev libclang-dev clang \
+            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+            libxrandr-dev libxi-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev \
+            libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libabsl-dev \
+            libwayland-dev libdecor-0-dev \
+            libspdlog-dev \
+            jq
+
+      - name: Install deps (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -eux
+          brew update
+          brew install cmake ninja protobuf abseil spdlog jq
+
+      # ---------- Rust toolchain ----------
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
+
+      # ---------- Cache Cargo ----------
+      # Share cache keys with builds.yml so the two workflows reuse each
+      # other's cargo registry / target output instead of doubling network
+      # and disk I/O.
+      - name: Cache Cargo registry
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-
+
+      - name: Cache Cargo target
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: client-sdk-rust/target
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.name }}-cargo-target-
+
+      # ---------- Build environment setup ----------
+      - name: Set Linux build environment
+        if: runner.os == 'Linux'
+        run: |
+          echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          echo "CFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+
+      # ---------- Build (release-tests: tests on, examples off) ----------
+      - name: Build tests
+        shell: bash
+        run: |
+          chmod +x build.sh
+          ./build.sh release-tests
+
+      # ---------- Run unit tests ----------
+      - name: Run unit tests
+        shell: bash
+        run: |
+          build-release/bin/livekit_unit_tests \
+            --gtest_output=xml:build-release/unit-test-results.xml
+
+      # ---------- Install + start livekit-server for integration tests ----------
+      - name: Install livekit-server and lk CLI
+        shell: bash
+        run: |
+          set -euxo pipefail
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            # Linux: official install scripts. lk's installer parses the GitHub
+            # API JSON with jq (already installed above).
+            curl -sSL https://get.livekit.io | bash
+            curl -sSL https://get.livekit.io/cli | bash
+          else
+            # macOS: Homebrew formulas. Server install script aborts on Darwin.
+            brew install livekit livekit-cli
+          fi
+          livekit-server --version
+          lk --version
+
+      - name: Start livekit-server
+        shell: bash
+        env:
+          LIVEKIT_CONFIG: "enable_data_tracks: true"
+        run: |
+          set -euxo pipefail
+          # Background the server with nohup so it survives this step's shell
+          # exit and remains running for the integration-test step.
+          nohup livekit-server --dev > livekit-server.log 2>&1 &
+          echo $! > livekit-server.pid
+          # Port 7880 is a WebSocket endpoint, so a TCP-connect probe is the
+          # most reliable readiness signal.
+          for i in $(seq 1 30); do
+            if nc -z 127.0.0.1 7880 >/dev/null 2>&1; then
+              echo "livekit-server is ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::livekit-server failed to start within 30s"
+          tail -n 200 livekit-server.log || true
+          exit 1
+
+      - name: Run integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          build-release/bin/livekit_integration_tests \
+            --gtest_output=xml:build-release/integration-test-results.xml
+
+      - name: Stop livekit-server
+        if: always()
+        shell: bash
+        run: |
+          if [ -f livekit-server.pid ]; then
+            kill "$(cat livekit-server.pid)" 2>/dev/null || true
+            rm -f livekit-server.pid
+          fi
+
+      - name: Dump livekit-server log on failure
+        if: failure()
+        shell: bash
+        run: tail -n 500 livekit-server.log || true
+
+      # ---------- Upload results ----------
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-results-${{ matrix.name }}
+          path: |
+            build-release/unit-test-results.xml
+            build-release/integration-test-results.xml
+            livekit-server.log
+          if-no-files-found: ignore
+          retention-days: 7
