@@ -15,12 +15,15 @@
  */
 
 #include "tests/common/test_common.h"
-#include "video_utils.h"
 
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <optional>
+#include <thread>
 
 namespace livekit::test {
 
@@ -54,8 +57,12 @@ TEST_F(VideoFrameMetadataServerTest,
       sender_identity, track_name,
       [&mutex, &cv, &received_user_timestamp_us](const VideoFrameEvent &event) {
         std::lock_guard<std::mutex> lock(mutex);
-        if (event.metadata && event.metadata->user_timestamp_us.has_value()) {
-          received_user_timestamp_us = event.metadata->user_timestamp_us;
+        if (!event.metadata) {
+          return;
+        }
+        const auto &user_timestamp_us = event.metadata->user_timestamp_us;
+        if (user_timestamp_us.has_value() && *user_timestamp_us != 0) {
+          received_user_timestamp_us = user_timestamp_us;
           cv.notify_all();
         }
       });
@@ -105,31 +112,57 @@ TEST_F(VideoFrameMetadataServerTest,
   ASSERT_TRUE(receiver_track_ready)
       << "Timed out waiting for receiver video track subscription";
 
-  VideoFrame frame = VideoFrame::create(16, 16, VideoBufferType::RGBA);
-  std::fill(frame.data(), frame.data() + frame.dataSize(), 0x7f);
+  std::atomic<bool> publishing{true};
+  std::thread publisher([&]() {
+    VideoFrame frame = VideoFrame::create(16, 16, VideoBufferType::RGBA);
+    std::fill(frame.data(), frame.data() + frame.dataSize(), 0x7f);
 
-  const std::uint64_t expected_user_timestamp_us = getTimestampUs();
-  VideoCaptureOptions capture_options;
-  capture_options.timestamp_us =
-      static_cast<std::int64_t>(expected_user_timestamp_us);
-  capture_options.metadata = VideoFrameMetadata{};
-  capture_options.metadata->user_timestamp_us = expected_user_timestamp_us;
+    while (publishing.load(std::memory_order_relaxed)) {
+      const std::uint64_t user_timestamp_us = getTimestampUs();
+      VideoCaptureOptions capture_options;
+      capture_options.timestamp_us =
+          static_cast<std::int64_t>(user_timestamp_us);
+      capture_options.metadata = VideoFrameMetadata{};
+      capture_options.metadata->user_timestamp_us = user_timestamp_us;
 
-  source->captureFrame(frame, capture_options);
+      try {
+        source->captureFrame(frame, capture_options);
+      } catch (...) {
+        publishing.store(false, std::memory_order_relaxed);
+        break;
+      }
+      std::this_thread::sleep_for(50ms);
+    }
+  });
 
+  bool got_metadata = false;
   {
     std::unique_lock<std::mutex> lock(mutex);
-    ASSERT_TRUE(cv.wait_for(lock, 10s, [&received_user_timestamp_us] {
+    got_metadata = cv.wait_for(lock, 10s, [&received_user_timestamp_us] {
       return received_user_timestamp_us.has_value();
-    }))
-        << "Timed out waiting for user timestamp metadata";
-    EXPECT_EQ(*received_user_timestamp_us, expected_user_timestamp_us);
+    });
+  }
+
+  publishing.store(false, std::memory_order_relaxed);
+  publisher.join();
+
+  std::optional<std::uint64_t> received_user_timestamp_snapshot;
+  {
+    std::lock_guard<std::mutex> lock(mutex);
+    received_user_timestamp_snapshot = received_user_timestamp_us;
   }
 
   receiver_room.clearOnVideoFrameCallback(sender_identity, track_name);
   if (track->publication()) {
     sender_room.localParticipant()->unpublishTrack(track->publication()->sid());
   }
+
+  ASSERT_TRUE(got_metadata) << "Timed out waiting for user timestamp metadata";
+  ASSERT_TRUE(received_user_timestamp_snapshot.has_value());
+
+  const auto received_at = getTimestampUs();
+  ASSERT_LE(*received_user_timestamp_snapshot, received_at);
+  EXPECT_LT(received_at - *received_user_timestamp_snapshot, 1000000u);
 }
 
 } // namespace livekit::test

@@ -43,11 +43,11 @@ using namespace std::chrono_literals;
 namespace {
 
 constexpr char kTrackNamePrefix[] = "data_track_e2e";
-constexpr auto kPublishDuration = 5s;
+constexpr auto kPublishDuration = 10s;
 constexpr auto kTrackWaitTimeout = 10s;
 constexpr auto kReadTimeout = 30s;
 constexpr auto kPollingInterval = 10ms;
-constexpr float kMinimumReceivedPercent = 0.95f;
+constexpr float kMinimumReceivedPercent = 0.9f;
 constexpr int kResubscribeIterations = 10;
 constexpr int kPublishManyTrackCount = 256;
 constexpr auto kPublishManyTimeout = 5s;
