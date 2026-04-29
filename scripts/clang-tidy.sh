@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
 #
+# Copyright 2026 LiveKit
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
 # clang-tidy.sh -- Run clang-tidy locally and in CI using the same file set
 # and config. Picks up checks from the repo-root .clang-tidy automatically.
 #
@@ -41,6 +56,59 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 cd "${script_dir}/.."
 
+# Usage banner. Printed by --help and referenced by the EXIT trap below so
+# users who hit a pre-flight error or a bad argument get pointed at this.
+usage() {
+  cat <<'EOF'
+Usage: ./scripts/clang-tidy.sh [OPTIONS] [run-clang-tidy args...]
+
+Run clang-tidy locally or in CI using the same file set and config that the
+repo's CI workflow uses. Picks up checks from the repo-root .clang-tidy.
+
+Options:
+  -h, --help, -?
+        Show this help and exit.
+  --github-actions, --gh
+        Force GitHub Actions annotation + step-summary mode.
+        Auto-detected when GITHUB_ACTIONS=true.
+  --fail-on-warning, --strict
+        Exit non-zero when any warning is emitted (errors already exit
+        non-zero on their own). Off by default for local edit/run cycles;
+        CI opts in via the workflow file.
+
+Any other arguments are forwarded verbatim to run-clang-tidy. Common ones:
+  -j N        worker count (defaults to nproc / sysctl hw.ncpu)
+  -fix        apply fixes in place
+  -checks=... override the .clang-tidy check list for this run
+
+Examples:
+  ./scripts/clang-tidy.sh                    # full src/ tree
+  ./scripts/clang-tidy.sh -j 4               # override parallelism
+  ./scripts/clang-tidy.sh --github-actions   # force CI annotation mode
+  ./scripts/clang-tidy.sh --fail-on-warning  # exit non-zero on any finding
+  ./scripts/clang-tidy.sh -fix               # forwarded to run-clang-tidy
+
+Pre-requisites:
+  CMake must have generated build-release/compile_commands.json AND the
+  protobuf headers under build-release/generated/. Run once:
+      ./build.sh release
+EOF
+}
+
+# Print a one-line "see --help" hint on any non-zero exit during pre-flight
+# (argument parsing, missing build artifacts, missing run-clang-tidy, etc.).
+# It is suppressed once we hand off to run-clang-tidy itself, so legitimate
+# clang-tidy findings don't trigger the hint.
+__tidy_hint_active=1
+__tidy_print_hint() {
+  local rc=$?
+  if (( rc != 0 )) && (( __tidy_hint_active )); then
+    echo >&2
+    echo "Run './scripts/clang-tidy.sh --help' for usage." >&2
+  fi
+}
+trap __tidy_print_hint EXIT
+
 BUILD_DIR="build-release"
 # Positive match for top-level src/*.{c,cpp,cc,cxx}; negative lookahead excludes
 # dep paths (_deps/, build-*/, -src/src/) and every other top-level dir. Python
@@ -61,6 +129,11 @@ FAIL_ON_WARNING=0
 forward_args=()
 while (($#)); do
   case "$1" in
+    -h|--help|-\?)
+      usage
+      __tidy_hint_active=0
+      exit 0
+      ;;
     --github-actions|--gh)
       CI_MODE=1
       shift
@@ -68,6 +141,21 @@ while (($#)); do
     --fail-on-warning|--strict)
       FAIL_ON_WARNING=1
       shift
+      ;;
+    --)
+      # Explicit forwarding separator: everything after `--` goes straight
+      # to run-clang-tidy without further interpretation.
+      shift
+      forward_args+=("$@")
+      break
+      ;;
+    --*)
+      # Long options we don't recognize are user typos far more often than
+      # genuine run-clang-tidy long options (run-clang-tidy uses single-dash
+      # long options like -fix, -j, -checks=...). Reject and surface usage.
+      echo "ERROR: unknown option: $1" >&2
+      usage >&2
+      exit 2
       ;;
     *)
       forward_args+=("$1")
@@ -382,6 +470,11 @@ print_stdout_summary() {
 # `*.log` is gitignored so this file never gets committed. Each run overwrites
 # the previous log via `tee` (no -a), keeping the path predictable.
 log="clang-tidy.log"
+
+# Past pre-flight: any non-zero exit from here on is a clang-tidy result
+# (findings, internal error, etc.), not a user-facing argument/usage error,
+# so suppress the "see --help" hint installed via the EXIT trap above.
+__tidy_hint_active=0
 
 set +e
 # run-clang-tidy is a Python script that doesn't flush stdout in its per-file
