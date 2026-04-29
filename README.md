@@ -574,6 +574,10 @@ lk token create \
   --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}'
 ```
 
+# Deprecation
+- livekit_bridge (bridge/ folder) is deprecated. Avoid using it. Migrate to the base SDK. This will be removed on 06/01/2026.
+- setOn*FrameCallback with TrackSource is deprecated. Use track name instead. This will be removed on 06/01/2026.
+
 <!--BEGIN_REPO_NAV-->
 <br/><table>
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
