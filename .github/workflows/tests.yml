@@ -45,6 +45,8 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
           # macos-latest currently maps to a lower-spec 3-core/7GB arm64 image;
           # macos-26 gives us 4 cores/14GB on the standard free runner tier.
           - os: macos-26
