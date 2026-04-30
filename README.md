@@ -296,6 +296,24 @@ livekit::setLogLevel(livekit::LogLevel::Debug);  // show more detail
 livekit::setLogLevel(livekit::LogLevel::Warn);   // suppress info chatter
 ```
 
+### Embedding the SDK in processes that already use spdlog (`LIVEKIT_USE_SYSTEM_SPDLOG`)
+
+By default on Linux/macOS the SDK vendors spdlog and statically links it into
+`liblivekit`. If you embed the SDK in a process that **already loads spdlog**
+itself. Two independent spdlog/fmt copies in the same process can crash at runtime.
+Build the SDK with the system spdlog instead so both components share one implementation:
+
+```bash
+cmake -B build-release -S . \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DLIVEKIT_USE_SYSTEM_SPDLOG=ON
+cmake --build build-release
+```
+
+Pass this only to the SDK build, not to the consumer's build. On Windows the
+vcpkg path already supplies a single shared spdlog, so the option is a no-op
+there.
+
 ### Custom log callback
 
 Replace the default stderr sink with your own handler. This is the integration
