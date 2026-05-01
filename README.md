@@ -60,8 +60,8 @@ git lfs pull
 
 **Linux/macOS:**
 ```bash
-./build.sh clean              # Clean CMake build artifacts
-./build.sh clean-all          # Deep clean (C++ + Rust + generated files)
+./build.sh clean              # Clean CMake build artifacts + local-install
+./build.sh clean-all          # Deep clean (C++ + Rust + local-install + generated files)
 ./build.sh debug              # Build Debug version
 ./build.sh release            # Build Release version
 ./build.sh debug-examples     # Build Debug with examples
@@ -74,8 +74,8 @@ git lfs pull
 **Windows**
 Using build scripts:
 ```powershell
-.\build.cmd clean             # Clean CMake build artifacts
-.\build.cmd clean-all         # Deep clean (C++ + Rust + generated files)
+.\build.cmd clean             # Clean CMake build artifacts + local-install
+.\build.cmd clean-all         # Deep clean (C++ + Rust + local-install + generated files)
 .\build.cmd debug             # Build Debug version
 .\build.cmd release           # Build Release version
 .\build.cmd debug-examples    # Build Debug with examples
@@ -135,14 +135,15 @@ cmake --build --preset macos-release
 📖 **For complete build instructions, troubleshooting, and platform-specific notes, see [README_BUILD.md](README_BUILD.md)**
 
 ### Building with Docker
-The Dockerfile COPYs folders/files required to build the CPP SDK into the image. 
+The Docker setup is split into a reusable base image and an SDK image layered on top of it.
  **NOTE:** this has only been tested on Linux
 ```bash
-docker build -t livekit-cpp-sdk . -f docker/Dockerfile
+docker build -t livekit-cpp-sdk-base . -f docker/Dockerfile.base
+docker build --build-arg BASE_IMAGE=livekit-cpp-sdk-base -t livekit-cpp-sdk . -f docker/Dockerfile.sdk
 docker run -it --network host livekit-cpp-sdk:latest bash
 ```
 
-__NOTE:__ if you are building your own Dockerfile, you will likely need to set the same `ENV` variables as in `docker/Dockerfile`, but to the relevant directories:
+__NOTE:__ if you are building your own Dockerfile, you will likely need to set the same `ENV` variables as in `docker/Dockerfile.base`, but to the relevant directories:
 ```bash
 export CC=$HOME/gcc-14/bin/gcc
 export CXX=$HOME/gcc-14/bin/g++
@@ -487,7 +488,7 @@ cargo build -p yuv-sys -vv
 ```
 
 ### Full clean (Rust + C++ build folders)
-In some cases, you may need to perform a full clean that deletes all build artifacts from both the Rust and C++ folders:
+In some cases, you may need to perform a full clean that deletes all build artifacts from both the Rust and C++ folders, plus the local install folder:
 ```bash
 ./build.sh clean-all
 ```
