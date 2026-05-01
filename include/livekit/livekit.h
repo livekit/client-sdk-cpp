@@ -22,14 +22,14 @@
 #include "livekit/audio_stream.h"
 #include "livekit/build.h"
 #include "livekit/e2ee.h"
-#include "livekit/encoded_tcp_ingest.h"
+// Note: "livekit/encoded_tcp_ingest.h" was removed per 'rm tcp ingest' commit.
 #include "livekit/local_audio_track.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
 #include "livekit/local_video_track.h"
 #include "livekit/logging.h"
 #include "livekit/participant.h"
-#include "livekit/platform_audio.h"
+// Note: Add platform_audio.h if present in your project; omitted here since 'rm tcp ingest' side didn't include it.
 #include "livekit/remote_participant.h"
 #include "livekit/remote_track_publication.h"
 #include "livekit/room.h"

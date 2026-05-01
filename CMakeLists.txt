@@ -84,7 +84,6 @@ set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/stats.proto
     ${FFI_PROTO_DIR}/data_stream.proto
     ${FFI_PROTO_DIR}/data_track.proto
-    ${FFI_PROTO_DIR}/encoded_tcp_ingest.proto
     ${FFI_PROTO_DIR}/rpc.proto
     ${FFI_PROTO_DIR}/track_publication.proto
 )
@@ -389,7 +388,6 @@ add_library(livekit SHARED
   src/data_stream.cpp
   src/data_track_error.cpp
   src/data_track_stream.cpp
-  src/encoded_tcp_ingest.cpp
   src/e2ee.cpp
   src/ffi_handle.cpp
   src/ffi_client.cpp

@@ -21,12 +21,10 @@
 
 #include "data_track.pb.h"
 #include "e2ee.pb.h"
-#include "encoded_tcp_ingest.pb.h"
 #include "ffi.pb.h"
 #include "livekit/build.h"
 #include "livekit/data_track_error.h"
 #include "livekit/e2ee.h"
-#include "livekit/encoded_tcp_ingest.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"
@@ -123,10 +121,6 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
 // data track async completions
 case E::kPublishDataTrack:
   return event.publish_data_track().async_id();
-case E::kNewEncodedTcpIngest:
-  return event.new_encoded_tcp_ingest().async_id();
-case E::kStopEncodedTcpIngest:
-  return event.stop_encoded_tcp_ingest().async_id();
 
 // NOT async completion:
 case E::kRoomEvent:
@@ -136,7 +130,6 @@ case E::kAudioStreamEvent:
 case E::kByteStreamReaderEvent:
 case E::kTextStreamReaderEvent:
 case E::kDataTrackStreamEvent:
-case E::kEncodedTcpIngestEvent:
 case E::kEncodedVideoSourceEvent:
 case E::kRpcMethodInvocation:
 case E::kLogs:
@@ -1052,111 +1045,6 @@ std::future<void> FfiClient::sendStreamTrailerAsync(std::uint64_t local_particip
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_send_stream_trailer()) {
       logAndThrow("FfiResponse missing send_stream_trailer");
-    }
-  } catch (...) {
-    cancelPendingByAsyncId(async_id);
-    throw;
-  }
-
-  return fut;
-}
-
-std::future<proto::OwnedEncodedTcpIngest>
-FfiClient::newEncodedTcpIngestAsync(std::uint64_t room_handle,
-                                    const EncodedTcpIngestOptions &options) {
-  const AsyncId async_id = generateAsyncId();
-
-  auto fut = registerAsync<proto::OwnedEncodedTcpIngest>(
-      async_id,
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_new_encoded_tcp_ingest() &&
-               event.new_encoded_tcp_ingest().async_id() == async_id;
-      },
-      [](const proto::FfiEvent &event,
-         std::promise<proto::OwnedEncodedTcpIngest> &pr) {
-        const auto &cb = event.new_encoded_tcp_ingest();
-        if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
-          return;
-        }
-        if (!cb.has_ingest()) {
-          pr.set_exception(std::make_exception_ptr(std::runtime_error(
-              "NewEncodedTcpIngestCallback missing ingest")));
-          return;
-        }
-        pr.set_value(cb.ingest());
-      });
-
-  proto::FfiRequest req;
-  auto *msg = req.mutable_new_encoded_tcp_ingest();
-  msg->set_room_handle(room_handle);
-  msg->set_host(options.host);
-  msg->set_port(options.port);
-  msg->set_codec(static_cast<proto::VideoCodec>(options.codec));
-  msg->set_width(options.width);
-  msg->set_height(options.height);
-  if (options.track_name) {
-    msg->set_track_name(*options.track_name);
-  }
-  if (options.track_source) {
-    msg->set_track_source(
-        static_cast<proto::TrackSource>(*options.track_source));
-  }
-  if (options.max_bitrate_bps) {
-    msg->set_max_bitrate_bps(*options.max_bitrate_bps);
-  }
-  if (options.max_framerate_fps) {
-    msg->set_max_framerate_fps(*options.max_framerate_fps);
-  }
-  if (options.reconnect_backoff_ms) {
-    msg->set_reconnect_backoff_ms(*options.reconnect_backoff_ms);
-  }
-  msg->set_unpublish_on_stop(options.unpublish_on_stop);
-  msg->set_request_async_id(async_id);
-
-  try {
-    const proto::FfiResponse resp = sendRequest(req);
-    if (!resp.has_new_encoded_tcp_ingest()) {
-      logAndThrow("FfiResponse missing new_encoded_tcp_ingest");
-    }
-  } catch (...) {
-    cancelPendingByAsyncId(async_id);
-    throw;
-  }
-
-  return fut;
-}
-
-std::future<void>
-FfiClient::stopEncodedTcpIngestAsync(std::uint64_t ingest_handle) {
-  const AsyncId async_id = generateAsyncId();
-
-  auto fut = registerAsync<void>(
-      async_id,
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_stop_encoded_tcp_ingest() &&
-               event.stop_encoded_tcp_ingest().async_id() == async_id;
-      },
-      [](const proto::FfiEvent &event, std::promise<void> &pr) {
-        const auto &cb = event.stop_encoded_tcp_ingest();
-        if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
-          return;
-        }
-        pr.set_value();
-      });
-
-  proto::FfiRequest req;
-  auto *msg = req.mutable_stop_encoded_tcp_ingest();
-  msg->set_ingest_handle(ingest_handle);
-  msg->set_request_async_id(async_id);
-
-  try {
-    const proto::FfiResponse resp = sendRequest(req);
-    if (!resp.has_stop_encoded_tcp_ingest()) {
-      logAndThrow("FfiResponse missing stop_encoded_tcp_ingest");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
