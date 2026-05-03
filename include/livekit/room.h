@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_ROOM_H
-#define LIVEKIT_ROOM_H
+#pragma once
 
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
@@ -172,6 +171,9 @@ public:
 
   /// Returns a snapshot of all current remote participants.
   std::vector<std::shared_ptr<RemoteParticipant>> remoteParticipants() const;
+
+  /// Returns the current connection state of the room.
+  ConnectionState connectionState() const;
 
   /* Register a handler for incoming text streams on a specific topic.
    *
@@ -343,5 +345,3 @@ private:
   void OnEvent(const proto::FfiEvent &event);
 };
 } // namespace livekit
-
-#endif /* LIVEKIT_ROOM_H */

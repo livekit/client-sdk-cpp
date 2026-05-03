@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_RESULT_H
-#define LIVEKIT_RESULT_H
+#pragma once
 
 #include <cassert>
 #include <optional>
@@ -190,5 +189,3 @@ private:
 };
 
 } // namespace livekit
-
-#endif // LIVEKIT_RESULT_H

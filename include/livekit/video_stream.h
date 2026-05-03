@@ -48,17 +48,17 @@ namespace proto {
 class FfiEvent;
 }
 
-// Represents a pull-based stream of decoded PCM audio frames coming from
-// a remote (or local) LiveKit track. Similar to VideoStream, but for audio.
+// Represents a pull-based stream of decoded video frames coming from
+// a remote (or local) LiveKit track. Similar to AudioStream, but for video.
 //
 // Typical usage:
 //
 //   VideoStream::Options opts;
 //   auto stream = VideoStream::fromTrack(remoteVideoTrack, opts);
 //
-//   AudioFrameEvent ev;
+//   VideoFrameEvent ev;
 //   while (stream->read(ev)) {
-//     // ev.frame contains interleaved int16 PCM samples
+//     // ev.frame contains the decoded video buffer
 //   }
 //
 //   stream->close();  // optional, called automatically in destructor
