@@ -267,10 +267,6 @@ TEST_F(RoomCallbackTest, ManyDistinctAudioCallbacksCanBeRegisteredAndCleared) {
   }
 }
 
-// ============================================================================
-// connectionState
-// ============================================================================
-
 TEST_F(RoomCallbackTest, DefaultConnectionStateIsDisconnected) {
   Room room;
   EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
