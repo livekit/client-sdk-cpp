@@ -225,13 +225,20 @@ testRooms(const std::vector<TestRoomConnectionOptions> &room_configs) {
   rooms.reserve(room_configs.size());
 
   for (size_t i = 0; i < room_configs.size(); ++i) {
+    // Force dual-PC for localhost. `livekit-server --dev` does not advertise
+    // /rtc/v1, so single-PC (the C++ SDK's default) attempts a handshake and
+    // falls back -- adding latency and flakiness on shared CI runners. The
+    // Rust E2E harness applies the same override
+    // (livekit/tests/common/e2e/mod.rs `force_v0`).
+    auto room_options = room_configs[i].room_options;
+    room_options.single_peer_connection = false;
+
     auto room = std::make_unique<Room>();
     if (room_configs[i].delegate != nullptr) {
       room->setDelegate(room_configs[i].delegate);
     }
 
-    if (!room->Connect(kLocalTestLiveKitUrl, tokens[i],
-                       room_configs[i].room_options)) {
+    if (!room->Connect(kLocalTestLiveKitUrl, tokens[i], room_options)) {
       throw std::runtime_error("Failed to connect test room " +
                                std::to_string(i));
     }

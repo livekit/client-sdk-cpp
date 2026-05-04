@@ -33,6 +33,7 @@
 #include <livekit/data_track_stream.h>
 #include <livekit/e2ee.h>
 #include <livekit/remote_data_track.h>
+#include <mutex>
 #include <thread>
 #include <tuple>
 
@@ -45,7 +46,16 @@ namespace {
 constexpr char kTrackNamePrefix[] = "data_track_e2e";
 constexpr auto kPublishDuration = 10s;
 constexpr auto kTrackWaitTimeout = 10s;
-constexpr auto kTransportTimeout = kPublishDuration + 25s;
+// Subscribe-readiness handshake: the C++ FFI subscribe call returns a stream
+// handle immediately while the Rust SubscriptionTask is still establishing the
+// broadcast pipe. We push small "warmup" frames at low rate until the
+// subscriber confirms the first frame arrived, then start the timed publish
+// loop. This compensates for the documented C++/Rust subscribe-semantics
+// asymmetry (intentional, matches JS SDK behavior).
+constexpr auto kWarmupTimeout = 5s;
+constexpr auto kWarmupFrameInterval = 50ms;
+constexpr std::size_t kWarmupPayloadLen = 1;
+constexpr auto kTransportTimeout = kPublishDuration + 35s;
 constexpr auto kPollingInterval = 10ms;
 constexpr float kMinimumReceivedPercent = 0.9f;
 constexpr int kResubscribeIterations = 10;
@@ -245,13 +255,41 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   }
   auto subscription = subscribe_result.value();
 
+  // Set by the subscriber thread once the first frame arrives; the publisher
+  // waits on this before starting the timed publish loop so that frames lost
+  // during subscription warmup do not count against the receive threshold.
+  std::promise<void> subscribe_ready_promise;
+  auto subscribe_ready_future = subscribe_ready_promise.get_future();
+  std::once_flag subscribe_ready_flag;
+
   std::exception_ptr publish_error;
   std::thread publisher([&]() {
     try {
+      // Phase 1: warmup. Push small frames at low rate until the subscriber
+      // confirms the broadcast pipe is live, or the warmup timeout elapses.
+      const auto warmup_deadline =
+          std::chrono::steady_clock::now() + kWarmupTimeout;
+      bool ready = false;
+      while (std::chrono::steady_clock::now() < warmup_deadline) {
+        requirePushSuccess(local_track->tryPush(std::vector<std::uint8_t>(
+                               kWarmupPayloadLen, 0)),
+                           "Failed to push warmup data frame");
+        if (subscribe_ready_future.wait_for(kWarmupFrameInterval) ==
+            std::future_status::ready) {
+          ready = true;
+          break;
+        }
+      }
+      if (!ready) {
+        throw std::runtime_error(
+            "Subscriber did not receive any warmup frame within timeout");
+      }
+
+      // Phase 2: timed publish loop. sleep_for (not sleep_until) keeps pacing
+      // smooth across scheduler hiccups instead of bursting to catch up.
       const auto frame_interval =
           std::chrono::duration_cast<std::chrono::steady_clock::duration>(
               std::chrono::duration<double>(1.0 / publish_fps));
-      auto next_send = std::chrono::steady_clock::now();
 
       std::cout << "Publishing " << frame_count
                 << " frames with payload length " << payload_len << '\n';
@@ -261,11 +299,8 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
         requirePushSuccess(local_track->tryPush(std::move(payload)),
                            "Failed to push data frame");
 
-        next_send += frame_interval;
-        std::this_thread::sleep_until(next_send);
+        std::this_thread::sleep_for(frame_interval);
       }
-
-      local_track->unpublishDataTrack();
     } catch (...) {
       publish_error = std::current_exception();
     }
@@ -283,6 +318,15 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
       while (subscription->read(frame) && received_count < receive_min) {
         if (frame.payload.empty()) {
           throw std::runtime_error("Received empty data frame");
+        }
+
+        // Signal subscribe-ready on the first frame regardless of size; the
+        // publisher uses this to gate the timed loop. Warmup frames have a
+        // distinct payload size and are not counted toward the threshold.
+        std::call_once(subscribe_ready_flag,
+                       [&]() { subscribe_ready_promise.set_value(); });
+        if (frame.payload.size() == kWarmupPayloadLen) {
+          continue;
         }
 
         const auto first_byte = frame.payload.front();
