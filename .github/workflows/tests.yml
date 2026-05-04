@@ -46,11 +46,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # `e2e-testing: true` enables the livekit-server-backed integration
+        # tests. Windows opts out, mirroring the Rust SDK's tests.yml — see
+        # client-sdk-rust/.github/workflows/tests.yml. Build + unit tests
+        # still run on every platform.
         include:
           - os: ubuntu-latest
             name: linux-x64
+            e2e-testing: true
           - os: macos-latest-xlarge
             name: macos-arm64
+            e2e-testing: true
           - os: windows-latest
             name: windows-x64
 
@@ -161,8 +167,11 @@ jobs:
             --gtest_output="xml:build-release\unit-test-results.xml"
 
       # ---------- Install + start livekit-server for integration tests ----------
-      - name: Install livekit-server and lk CLI (Unix)
-        if: runner.os != 'Windows'
+      # E2E (livekit-server-backed) tests run on Linux + macOS only, mirroring
+      # the Rust SDK's tests.yml which gates these steps with `matrix.e2e-testing`.
+      # Windows skips them entirely; build + unit tests still run on every platform.
+      - name: Install livekit-server and lk CLI
+        if: matrix.e2e-testing
         shell: bash
         run: |
           set -euxo pipefail
@@ -178,36 +187,8 @@ jobs:
           livekit-server --version
           lk --version
 
-      - name: Install livekit-server and lk CLI (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          # `gh release download` authenticates via GH_TOKEN.
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $bin = Join-Path $env:RUNNER_TEMP 'livekit-bin'
-          New-Item -ItemType Directory -Force -Path $bin | Out-Null
-
-          Push-Location $env:RUNNER_TEMP
-          gh release download --repo livekit/livekit `
-            --pattern '*windows_amd64.zip' --output livekit-server.zip --clobber
-          gh release download --repo livekit/livekit-cli `
-            --pattern 'lk_*_windows_amd64.zip' --output lk.zip --clobber
-
-          Expand-Archive -Force -Path livekit-server.zip -DestinationPath livekit-server
-          Expand-Archive -Force -Path lk.zip            -DestinationPath lk
-          Copy-Item livekit-server\livekit-server.exe $bin\
-          Copy-Item lk\lk.exe                          $bin\
-          Pop-Location
-
-          # Persist on PATH for subsequent steps.
-          Add-Content -Path $env:GITHUB_PATH -Value $bin
-          & "$bin\livekit-server.exe" --version
-          & "$bin\lk.exe" --version
-
-      - name: Start livekit-server (Unix)
-        if: runner.os != 'Windows'
+      - name: Start livekit-server
+        if: matrix.e2e-testing
         shell: bash
         env:
           LIVEKIT_CONFIG: "enable_data_tracks: true"
@@ -230,54 +211,18 @@ jobs:
           tail -n 200 livekit-server.log || true
           exit 1
 
-      - name: Start livekit-server (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          LIVEKIT_CONFIG: "enable_data_tracks: true"
-        run: |
-          $ErrorActionPreference = 'Stop'
-          # Start-Process backgrounds livekit-server so it survives this step
-          # and is reachable from the integration-test step.
-          $proc = Start-Process -FilePath 'livekit-server' `
-            -ArgumentList '--dev' `
-            -RedirectStandardOutput 'livekit-server.log' `
-            -RedirectStandardError 'livekit-server-stderr.log' `
-            -NoNewWindow -PassThru
-          $proc.Id | Out-File -Encoding ascii livekit-server.pid
-
-          # TCP-connect probe to 127.0.0.1:7880 — the WebSocket endpoint.
-          for ($i = 0; $i -lt 30; $i++) {
-            try {
-              $tcp = New-Object System.Net.Sockets.TcpClient
-              $tcp.Connect('127.0.0.1', 7880)
-              $tcp.Close()
-              Write-Host 'livekit-server is ready'
-              exit 0
-            } catch {
-              Start-Sleep -Seconds 1
-            }
-          }
-          Write-Host '::error::livekit-server failed to start within 30s'
-          if (Test-Path livekit-server.log) { Get-Content livekit-server.log -Tail 200 }
-          if (Test-Path livekit-server-stderr.log) { Get-Content livekit-server-stderr.log -Tail 200 }
-          exit 1
-
       - name: Run integration tests
+        if: matrix.e2e-testing
         timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
-          test_exe=build-release/bin/livekit_integration_tests
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            test_exe=${test_exe}.exe
-          fi
-          "${test_exe}" \
+          build-release/bin/livekit_integration_tests \
             --gtest_output=xml:build-release/integration-test-results.xml
 
-      - name: Stop livekit-server (Unix)
-        if: always() && runner.os != 'Windows'
+      - name: Stop livekit-server
+        if: always() && matrix.e2e-testing
         shell: bash
         run: |
           if [ -f livekit-server.pid ]; then
@@ -285,27 +230,10 @@ jobs:
             rm -f livekit-server.pid
           fi
 
-      - name: Stop livekit-server (Windows)
-        if: always() && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          if (Test-Path livekit-server.pid) {
-            $serverPid = [int](Get-Content livekit-server.pid)
-            Stop-Process -Id $serverPid -Force -ErrorAction SilentlyContinue
-            Remove-Item livekit-server.pid -ErrorAction SilentlyContinue
-          }
-
-      - name: Dump livekit-server log on failure (Unix)
-        if: failure() && runner.os != 'Windows'
+      - name: Dump livekit-server log on failure
+        if: failure() && matrix.e2e-testing
         shell: bash
         run: tail -n 500 livekit-server.log || true
-
-      - name: Dump livekit-server log on failure (Windows)
-        if: failure() && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          if (Test-Path livekit-server.log) { Get-Content livekit-server.log -Tail 500 }
-          if (Test-Path livekit-server-stderr.log) { Get-Content livekit-server-stderr.log -Tail 500 }
 
       # ---------- Upload results ----------
       - name: Upload test results
@@ -317,6 +245,5 @@ jobs:
             build-release/unit-test-results.xml
             build-release/integration-test-results.xml
             livekit-server.log
-            livekit-server-stderr.log
           if-no-files-found: ignore
           retention-days: 7
