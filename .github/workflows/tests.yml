@@ -46,19 +46,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # `e2e-testing: true` enables the livekit-server-backed integration
-        # tests. Windows opts out, mirroring the Rust SDK's tests.yml — see
-        # client-sdk-rust/.github/workflows/tests.yml. Build + unit tests
-        # still run on every platform.
         include:
           - os: ubuntu-latest
             name: linux-x64
+            build_cmd: ./build.sh release-tests
             e2e-testing: true
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
+            build_cmd: ./build.sh release-tests
           - os: macos-latest-xlarge
             name: macos-arm64
+            build_cmd: ./build.sh release-tests
             e2e-testing: true
+          - os: macos-26-large
+            name: macos-x64
+            build_cmd: ./build.sh release-tests --macos-arch x86_64
           - os: windows-latest
             name: windows-x64
+            build_cmd: .\build.cmd release-tests
 
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
@@ -121,6 +126,10 @@ jobs:
         with:
           toolchain: stable
 
+      - name: Install Rust cross-compilation target
+        if: matrix.name == 'macos-x64'
+        run: rustup target add x86_64-apple-darwin
+
       # ---------- Cache Cargo ----------
       - name: Cache Cargo
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
@@ -142,12 +151,12 @@ jobs:
         shell: bash
         run: |
           chmod +x build.sh
-          ./build.sh release-tests
+          ${{ matrix.build_cmd }}
 
       - name: Build tests (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: .\build.cmd release-tests
+        run: ${{ matrix.build_cmd }}
 
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
