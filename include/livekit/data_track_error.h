@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_DATA_TRACK_ERROR_H
-#define LIVEKIT_DATA_TRACK_ERROR_H
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -84,5 +83,3 @@ struct SubscribeDataTrackError {
 };
 
 } // namespace livekit
-
-#endif // LIVEKIT_DATA_TRACK_ERROR_H

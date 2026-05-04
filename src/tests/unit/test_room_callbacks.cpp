@@ -267,4 +267,51 @@ TEST_F(RoomCallbackTest, ManyDistinctAudioCallbacksCanBeRegisteredAndCleared) {
   }
 }
 
+TEST_F(RoomCallbackTest, DefaultConnectionStateIsDisconnected) {
+  Room room;
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+}
+
+TEST_F(RoomCallbackTest, ConnectionStateRemainsDisconnectedWithoutConnect) {
+  // Register callbacks, do other operations — state must stay Disconnected.
+  Room room;
+  room.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE,
+                               [](const AudioFrame &) {});
+  room.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA,
+                               [](const VideoFrame &, std::int64_t) {});
+  room.addOnDataFrameCallback(
+      "alice", "track",
+      [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
+  room.registerTextStreamHandler("topic",
+                                 [](std::shared_ptr<TextStreamReader>,
+                                    const std::string &) {});
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+}
+
+TEST_F(RoomCallbackTest, ConnectionStateIsQueryableFromMultipleThreads) {
+  Room room;
+  constexpr int kThreads = 8;
+  constexpr int kIterations = 200;
+
+  std::vector<std::thread> threads;
+  threads.reserve(kThreads);
+  std::atomic<int> disconnected_count{0};
+
+  for (int t = 0; t < kThreads; ++t) {
+    threads.emplace_back([&room, &disconnected_count, kIterations]() {
+      for (int i = 0; i < kIterations; ++i) {
+        if (room.connectionState() == ConnectionState::Disconnected) {
+          disconnected_count.fetch_add(1, std::memory_order_relaxed);
+        }
+      }
+    });
+  }
+
+  for (auto &thread : threads) {
+    thread.join();
+  }
+
+  EXPECT_EQ(disconnected_count.load(), kThreads * kIterations);
+}
+
 } // namespace livekit

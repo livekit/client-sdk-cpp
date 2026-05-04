@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_SUBSCRIPTION_THREAD_DISPATCHER_H
-#define LIVEKIT_SUBSCRIPTION_THREAD_DISPATCHER_H
+#pragma once
 
 #include "livekit/audio_stream.h"
 #include "livekit/video_stream.h"
@@ -491,5 +490,3 @@ private:
 };
 
 } // namespace livekit
-
-#endif /* LIVEKIT_SUBSCRIPTION_THREAD_DISPATCHER_H */
