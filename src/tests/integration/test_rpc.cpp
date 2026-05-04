@@ -43,8 +43,8 @@ struct RpcTestConfig {
   static RpcTestConfig fromEnv() {
     RpcTestConfig config;
     const char *url = std::getenv("LIVEKIT_URL");
-    const char *token_a = std::getenv("LK_TOKEN_TEST_A");
-    const char *token_b = std::getenv("LK_TOKEN_TEST_B");
+    const char *token_a = std::getenv("LIVEKIT_TOKEN_A");
+    const char *token_b = std::getenv("LIVEKIT_TOKEN_B");
 
     if (url && token_a && token_b) {
       config.url = url;
@@ -118,7 +118,7 @@ protected:
 TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
   if (!config_.available) {
     GTEST_SKIP()
-        << "LIVEKIT_URL, LK_TOKEN_TEST_A, and LK_TOKEN_TEST_B not set";
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   // Create receiver room
@@ -188,7 +188,7 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
 TEST_F(RpcIntegrationTest, MaxPayloadSize) {
   if (!config_.available) {
     GTEST_SKIP()
-        << "LIVEKIT_URL, LK_TOKEN_TEST_A, and LK_TOKEN_TEST_B not set";
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
@@ -233,7 +233,7 @@ TEST_F(RpcIntegrationTest, MaxPayloadSize) {
 TEST_F(RpcIntegrationTest, RpcTimeout) {
   if (!config_.available) {
     GTEST_SKIP()
-        << "LIVEKIT_URL, LK_TOKEN_TEST_A, and LK_TOKEN_TEST_B not set";
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
@@ -280,7 +280,7 @@ TEST_F(RpcIntegrationTest, RpcTimeout) {
 TEST_F(RpcIntegrationTest, UnsupportedMethod) {
   if (!config_.available) {
     GTEST_SKIP()
-        << "LIVEKIT_URL, LK_TOKEN_TEST_A, and LK_TOKEN_TEST_B not set";
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
@@ -320,7 +320,7 @@ TEST_F(RpcIntegrationTest, UnsupportedMethod) {
 TEST_F(RpcIntegrationTest, ApplicationError) {
   if (!config_.available) {
     GTEST_SKIP()
-        << "LIVEKIT_URL, LK_TOKEN_TEST_A, and LK_TOKEN_TEST_B not set";
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
@@ -367,7 +367,7 @@ TEST_F(RpcIntegrationTest, ApplicationError) {
 TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
   if (!config_.available) {
     GTEST_SKIP()
-        << "LIVEKIT_URL, LK_TOKEN_TEST_A, and LK_TOKEN_TEST_B not set";
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
@@ -435,7 +435,7 @@ TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
 TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   if (!config_.available) {
     GTEST_SKIP()
-        << "LIVEKIT_URL, LK_TOKEN_TEST_A, and LK_TOKEN_TEST_B not set";
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();

@@ -87,7 +87,7 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
     bool single_peer_connection) {
   if (!config_.available) {
     GTEST_SKIP()
-        << "LIVEKIT_URL, LK_TOKEN_TEST_A, and LK_TOKEN_TEST_B not set";
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   RoomOptions options;

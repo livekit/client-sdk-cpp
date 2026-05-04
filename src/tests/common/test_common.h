@@ -70,8 +70,8 @@ constexpr char kLocalTestLiveKitUrl[] = "ws://localhost:7880";
  *
  * Environment variables:
  *   LIVEKIT_URL           - WebSocket URL of the LiveKit server
- *   LK_TOKEN_TEST_A       - Token for the first test participant
- *   LK_TOKEN_TEST_B       - Token for the second test participant
+ *   LIVEKIT_TOKEN_A       - Token for the first test participant
+ *   LIVEKIT_TOKEN_B       - Token for the second test participant
  *   TEST_ITERATIONS       - Number of iterations for iterative tests (default:
  * 10) STRESS_DURATION_SECONDS - Duration for stress tests in seconds (default:
  * 600) STRESS_CALLER_THREADS - Number of caller threads for stress tests
@@ -89,8 +89,8 @@ struct TestConfig {
   static TestConfig fromEnv() {
     TestConfig config;
     const char *url = std::getenv("LIVEKIT_URL");
-    const char *token_a = std::getenv("LK_TOKEN_TEST_A");
-    const char *token_b = std::getenv("LK_TOKEN_TEST_B");
+    const char *token_a = std::getenv("LIVEKIT_TOKEN_A");
+    const char *token_b = std::getenv("LIVEKIT_TOKEN_B");
     const char *iterations_env = std::getenv("TEST_ITERATIONS");
     const char *duration_env = std::getenv("STRESS_DURATION_SECONDS");
     const char *threads_env = std::getenv("STRESS_CALLER_THREADS");
@@ -142,17 +142,17 @@ inline bool waitForParticipant(Room *room, const std::string &identity,
 }
 
 inline std::array<std::string, 2> getDataTrackTestTokens() {
-  const char *token_a = std::getenv("LK_TOKEN_TEST_A");
+  const char *token_a = std::getenv("LIVEKIT_TOKEN_A");
   if (token_a == nullptr || std::string(token_a).empty()) {
     throw std::runtime_error(
-        "LK_TOKEN_TEST_A must be present and non-empty for data track E2E "
+        "LIVEKIT_TOKEN_A must be present and non-empty for data track E2E "
         "tests");
   }
 
-  const char *token_b = std::getenv("LK_TOKEN_TEST_B");
+  const char *token_b = std::getenv("LIVEKIT_TOKEN_B");
   if (token_b == nullptr || std::string(token_b).empty()) {
     throw std::runtime_error(
-        "LK_TOKEN_TEST_B must be present and non-empty for data track E2E "
+        "LIVEKIT_TOKEN_B must be present and non-empty for data track E2E "
         "tests");
   }
 
@@ -216,7 +216,7 @@ testRooms(const std::vector<TestRoomConnectionOptions> &room_configs) {
 
   if (room_configs.size() > 2) {
     throw std::invalid_argument(
-        "testRooms supports at most two rooms with LK_TOKEN_TEST_A/B");
+        "testRooms supports at most two rooms with LIVEKIT_TOKEN_A/LIVEKIT_TOKEN_B");
   }
 
   auto tokens = getDataTrackTestTokens();
@@ -516,7 +516,7 @@ protected:
   void skipIfNotConfigured() {
     if (!config_.available) {
       GTEST_SKIP()
-          << "LIVEKIT_URL, LK_TOKEN_TEST_A, and LK_TOKEN_TEST_B not set";
+          << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
     }
   }
 

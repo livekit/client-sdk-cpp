@@ -176,9 +176,6 @@ jobs:
             --gtest_output="xml:build-release\unit-test-results.xml"
 
       # ---------- Install + start livekit-server for integration tests ----------
-      # E2E (livekit-server-backed) tests run on Linux + macOS only, mirroring
-      # the Rust SDK's tests.yml which gates these steps with `matrix.e2e-testing`.
-      # Windows skips them entirely; build + unit tests still run on every platform.
       - name: Install livekit-server and lk CLI
         if: matrix.e2e-testing
         shell: bash

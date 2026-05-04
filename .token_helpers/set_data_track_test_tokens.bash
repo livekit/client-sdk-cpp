@@ -21,8 +21,8 @@
 #   eval "$(bash .token_helpers/set_data_track_test_tokens.bash)"
 #
 # Exports:
-#   LK_TOKEN_TEST_A
-#   LK_TOKEN_TEST_B
+#   LIVEKIT_TOKEN_A
+#   LIVEKIT_TOKEN_B
 #   LIVEKIT_URL=ws://localhost:7880
 #
 
@@ -103,24 +103,24 @@ _create_token() {
   printf '%s' "$token"
 }
 
-LK_TOKEN_TEST_A="$(_create_token "$LIVEKIT_IDENTITY_A")"
-LK_TOKEN_TEST_B="$(_create_token "$LIVEKIT_IDENTITY_B")"
+LIVEKIT_TOKEN_A="$(_create_token "$LIVEKIT_IDENTITY_A")"
+LIVEKIT_TOKEN_B="$(_create_token "$LIVEKIT_IDENTITY_B")"
 
 _apply() {
-  export LK_TOKEN_TEST_A
-  export LK_TOKEN_TEST_B
+  export LIVEKIT_TOKEN_A
+  export LIVEKIT_TOKEN_B
   export LIVEKIT_URL
 }
 
 _emit_eval() {
-  printf 'export LK_TOKEN_TEST_A=%q\n' "$LK_TOKEN_TEST_A"
-  printf 'export LK_TOKEN_TEST_B=%q\n' "$LK_TOKEN_TEST_B"
+  printf 'export LIVEKIT_TOKEN_A=%q\n' "$LIVEKIT_TOKEN_A"
+  printf 'export LIVEKIT_TOKEN_B=%q\n' "$LIVEKIT_TOKEN_B"
   printf 'export LIVEKIT_URL=%q\n' "$LIVEKIT_URL"
 }
 
 if [[ "$_sourced" -eq 1 ]]; then
   _apply
-  echo "LK_TOKEN_TEST_A, LK_TOKEN_TEST_B, and LIVEKIT_URL set for this shell." >&2
+  echo "LIVEKIT_TOKEN_A, LIVEKIT_TOKEN_B, and LIVEKIT_URL set for this shell." >&2
 else
   _emit_eval
   echo "set_data_track_test_tokens.bash: for this shell run: source $0   or: eval \"\$(bash $0 ...)\"" >&2

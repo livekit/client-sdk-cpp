@@ -429,8 +429,8 @@ etc.) require a LiveKit server and two participant tokens:
 ```bash
 # Required
 export LIVEKIT_URL="ws://localhost:7880"            # or wss://your-server.livekit.cloud
-export LK_TOKEN_TEST_A="<first participant token>"
-export LK_TOKEN_TEST_B="<second participant token>"
+export LIVEKIT_TOKEN_A="<first participant token>"
+export LIVEKIT_TOKEN_B="<second participant token>"
 
 # Optional (for stress tests)
 export RPC_STRESS_DURATION_SECONDS=3600   # Test duration (default: 1 hour)
@@ -441,7 +441,7 @@ export RPC_STRESS_CALLER_THREADS=4        # Concurrent caller threads (default: 
 
 The easiest path is to source the helper script, which will mint both
 participant tokens against a local `livekit-server --dev` and export
-`LK_TOKEN_TEST_A`, `LK_TOKEN_TEST_B`, and `LIVEKIT_URL` for the current shell:
+`LIVEKIT_TOKEN_A`, `LIVEKIT_TOKEN_B`, and `LIVEKIT_URL` for the current shell:
 
 ```bash
 source .token_helpers/set_data_track_test_tokens.bash

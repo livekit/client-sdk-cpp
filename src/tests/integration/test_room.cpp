@@ -98,14 +98,14 @@ TEST_F(RoomTest, RemoteParticipantLookupBeforeConnect) {
       << "Looking up participant before connect should return nullptr";
 }
 
-// Server-dependent tests - require LIVEKIT_URL and LK_TOKEN_TEST_A env vars
+// Server-dependent tests - require LIVEKIT_URL and LIVEKIT_TOKEN_A env vars
 class RoomServerTest : public ::testing::Test {
 protected:
   void SetUp() override {
     livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
 
     const char *url_env = std::getenv("LIVEKIT_URL");
-    const char *token_env = std::getenv("LK_TOKEN_TEST_A");
+    const char *token_env = std::getenv("LIVEKIT_TOKEN_A");
 
     if (url_env && token_env) {
       server_url_ = url_env;
@@ -123,7 +123,7 @@ protected:
 
 TEST_F(RoomServerTest, ConnectToServer) {
   if (!server_available_) {
-    GTEST_SKIP() << "LIVEKIT_URL and LK_TOKEN_TEST_A not set, skipping server "
+    GTEST_SKIP() << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set, skipping server "
                     "connection test";
   }
 
