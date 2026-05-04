@@ -45,7 +45,6 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
-          # macos-latest currently maps to a lower-spec 3-core/7GB arm64 image;
           - os: macos-latest-xlarge
             name: macos-arm64
 
