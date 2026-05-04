@@ -450,12 +450,14 @@ source .token_helpers/set_data_track_test_tokens.bash
 To generate tokens manually instead (e.g. against a non-default server):
 
 ```bash
-lk token create --api-key devkey --api-secret secret -i cpp-test-a \
+export LIVEKIT_TOKEN_A="$(lk token create --api-key devkey --api-secret secret -i cpp-test-a \
   --join --valid-for 99999h --room cpp_data_track_test \
-  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}'
-lk token create --api-key devkey --api-secret secret -i cpp-test-b \
+  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}' \
+  --token-only)"
+export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -i cpp-test-b \
   --join --valid-for 99999h --room cpp_data_track_test \
-  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}'
+  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}' \
+  --token-only)"
 ```
 
 ### Test Coverage
