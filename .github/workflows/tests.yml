@@ -36,6 +36,10 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # vcpkg binary caching for Windows (mirrors builds.yml)
+  VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
+  VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
+  VCPKG_TARGET_TRIPLET: x64-windows-static-md
 
 jobs:
   test:
@@ -47,6 +51,8 @@ jobs:
             name: linux-x64
           - os: macos-latest-xlarge
             name: macos-arm64
+          - os: windows-latest
+            name: windows-x64
 
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
@@ -60,6 +66,21 @@ jobs:
 
       - name: Pull LFS files
         run: git lfs pull
+
+      # ---------- vcpkg caching for Windows (mirrors builds.yml) ----------
+      - name: Export GitHub Actions cache environment variables
+        if: runner.os == 'Windows'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Setup vcpkg (Windows only)
+        if: runner.os == 'Windows'
+        uses: lukka/run-vcpkg@6fe69898af670ac05f4a8427cc5cff4fb361cee5 # v11.5
+        with:
+          vcpkgGitCommitId: 'fb87e2bb3fe69e16c224989acb5a61349166c782'
 
       # ---------- OS-specific deps ----------
       - name: Install deps (Ubuntu)
@@ -110,22 +131,38 @@ jobs:
           echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
 
       # ---------- Build (release-tests: tests on, examples off) ----------
-      - name: Build tests
+      - name: Build tests (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           chmod +x build.sh
           ./build.sh release-tests
 
+      - name: Build tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\build.cmd release-tests
+
       # ---------- Run unit tests ----------
-      - name: Run unit tests
+      - name: Run unit tests (Unix)
+        if: runner.os != 'Windows'
         timeout-minutes: 1
         shell: bash
         run: |
           build-release/bin/livekit_unit_tests \
             --gtest_output=xml:build-release/unit-test-results.xml
 
+      - name: Run unit tests (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 1
+        shell: pwsh
+        run: |
+          build-release\bin\livekit_unit_tests.exe `
+            --gtest_output="xml:build-release\unit-test-results.xml"
+
       # ---------- Install + start livekit-server for integration tests ----------
-      - name: Install livekit-server and lk CLI
+      - name: Install livekit-server and lk CLI (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euxo pipefail
@@ -141,7 +178,36 @@ jobs:
           livekit-server --version
           lk --version
 
-      - name: Start livekit-server
+      - name: Install livekit-server and lk CLI (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          # `gh release download` authenticates via GH_TOKEN.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bin = Join-Path $env:RUNNER_TEMP 'livekit-bin'
+          New-Item -ItemType Directory -Force -Path $bin | Out-Null
+
+          Push-Location $env:RUNNER_TEMP
+          gh release download --repo livekit/livekit `
+            --pattern '*windows_amd64.zip' --output livekit-server.zip --clobber
+          gh release download --repo livekit/livekit-cli `
+            --pattern 'lk_*_windows_amd64.zip' --output lk.zip --clobber
+
+          Expand-Archive -Force -Path livekit-server.zip -DestinationPath livekit-server
+          Expand-Archive -Force -Path lk.zip            -DestinationPath lk
+          Copy-Item livekit-server\livekit-server.exe $bin\
+          Copy-Item lk\lk.exe                          $bin\
+          Pop-Location
+
+          # Persist on PATH for subsequent steps.
+          Add-Content -Path $env:GITHUB_PATH -Value $bin
+          & "$bin\livekit-server.exe" --version
+          & "$bin\lk.exe" --version
+
+      - name: Start livekit-server (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         env:
           LIVEKIT_CONFIG: "enable_data_tracks: true"
@@ -164,17 +230,54 @@ jobs:
           tail -n 200 livekit-server.log || true
           exit 1
 
+      - name: Start livekit-server (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          LIVEKIT_CONFIG: "enable_data_tracks: true"
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Start-Process backgrounds livekit-server so it survives this step
+          # and is reachable from the integration-test step.
+          $proc = Start-Process -FilePath 'livekit-server' `
+            -ArgumentList '--dev' `
+            -RedirectStandardOutput 'livekit-server.log' `
+            -RedirectStandardError 'livekit-server-stderr.log' `
+            -NoNewWindow -PassThru
+          $proc.Id | Out-File -Encoding ascii livekit-server.pid
+
+          # TCP-connect probe to 127.0.0.1:7880 — the WebSocket endpoint.
+          for ($i = 0; $i -lt 30; $i++) {
+            try {
+              $tcp = New-Object System.Net.Sockets.TcpClient
+              $tcp.Connect('127.0.0.1', 7880)
+              $tcp.Close()
+              Write-Host 'livekit-server is ready'
+              exit 0
+            } catch {
+              Start-Sleep -Seconds 1
+            }
+          }
+          Write-Host '::error::livekit-server failed to start within 30s'
+          if (Test-Path livekit-server.log) { Get-Content livekit-server.log -Tail 200 }
+          if (Test-Path livekit-server-stderr.log) { Get-Content livekit-server-stderr.log -Tail 200 }
+          exit 1
+
       - name: Run integration tests
         timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
-          build-release/bin/livekit_integration_tests \
+          test_exe=build-release/bin/livekit_integration_tests
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            test_exe=${test_exe}.exe
+          fi
+          "${test_exe}" \
             --gtest_output=xml:build-release/integration-test-results.xml
 
-      - name: Stop livekit-server
-        if: always()
+      - name: Stop livekit-server (Unix)
+        if: always() && runner.os != 'Windows'
         shell: bash
         run: |
           if [ -f livekit-server.pid ]; then
@@ -182,10 +285,27 @@ jobs:
             rm -f livekit-server.pid
           fi
 
-      - name: Dump livekit-server log on failure
-        if: failure()
+      - name: Stop livekit-server (Windows)
+        if: always() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Test-Path livekit-server.pid) {
+            $serverPid = [int](Get-Content livekit-server.pid)
+            Stop-Process -Id $serverPid -Force -ErrorAction SilentlyContinue
+            Remove-Item livekit-server.pid -ErrorAction SilentlyContinue
+          }
+
+      - name: Dump livekit-server log on failure (Unix)
+        if: failure() && runner.os != 'Windows'
         shell: bash
         run: tail -n 500 livekit-server.log || true
+
+      - name: Dump livekit-server log on failure (Windows)
+        if: failure() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          if (Test-Path livekit-server.log) { Get-Content livekit-server.log -Tail 500 }
+          if (Test-Path livekit-server-stderr.log) { Get-Content livekit-server-stderr.log -Tail 500 }
 
       # ---------- Upload results ----------
       - name: Upload test results
@@ -197,5 +317,6 @@ jobs:
             build-release/unit-test-results.xml
             build-release/integration-test-results.xml
             livekit-server.log
+            livekit-server-stderr.log
           if-no-files-found: ignore
           retention-days: 7
