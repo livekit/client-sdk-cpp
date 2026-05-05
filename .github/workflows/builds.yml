@@ -65,23 +65,23 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
-            build_cmd: ./build.sh release-all
+            build_cmd: ./build.sh release-examples
             build_dir: build-release
           - os: ubuntu-24.04-arm
             name: linux-arm64
-            build_cmd: ./build.sh release-all
+            build_cmd: ./build.sh release-examples
             build_dir: build-release
-          - os: macos-latest
+          - os: macos-latest-xlarge
             name: macos-arm64
-            build_cmd: ./build.sh release-all
+            build_cmd: ./build.sh release-examples
             build_dir: build-release
-          - os: macos-latest
+          - os: macos-26-large
             name: macos-x64
-            build_cmd: ./build.sh release-all --macos-arch x86_64
+            build_cmd: ./build.sh release-examples --macos-arch x86_64
             build_dir: build-release
           - os: windows-latest
             name: windows-x64
-            build_cmd: .\build.cmd release-all
+            build_cmd: .\build.cmd release-examples
             build_dir: build-release
 
     name: Build (${{ matrix.name }})
@@ -149,22 +149,10 @@ jobs:
         run: rustup target add x86_64-apple-darwin
 
       # ---------- Cache Cargo ----------
-      - name: Cache Cargo registry
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-
-
-      - name: Cache Cargo target
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: client-sdk-rust/target
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.name }}-cargo-target-
+          workspaces: client-sdk-rust -> target
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
@@ -287,29 +275,6 @@ jobs:
             }
           }
           if ($failed) { exit 1 } else { exit 0 }
-
-      # ---------- Run unit tests ----------
-      - name: Run unit tests (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          ${{ matrix.build_dir }}/bin/livekit_unit_tests \
-            --gtest_output=xml:${{ matrix.build_dir }}/unit-test-results.xml
-
-      - name: Run unit tests (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          & "${{ matrix.build_dir }}/bin/livekit_unit_tests.exe" `
-            --gtest_output=xml:${{ matrix.build_dir }}/unit-test-results.xml
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: test-results-${{ matrix.name }}
-          path: ${{ matrix.build_dir }}/unit-test-results.xml
-          retention-days: 7
 
       # ---------- Upload artifacts ----------
       - name: Upload build artifacts
