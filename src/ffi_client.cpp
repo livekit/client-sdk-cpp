@@ -24,11 +24,11 @@
 #include "livekit/data_track_error.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
-#include "lk_log.h"
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"
 #include "livekit/track.h"
 #include "livekit_ffi.h"
+#include "lk_log.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
 
@@ -247,7 +247,9 @@ void FfiClient::PushEvent(const proto::FfiEvent &event) const {
 
 void LivekitFfiCallback(const uint8_t *buf, size_t len) {
   proto::FfiEvent event;
-  event.ParseFromArray(buf, static_cast<int>(len)); // TODO: this fixes for now, what if len exceeds int?
+  event.ParseFromArray(
+      buf, static_cast<int>(
+               len)); // TODO: this fixes for now, what if len exceeds int?
 
   FfiClient::instance().PushEvent(event);
 }
@@ -641,9 +643,8 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
         const auto &cb = event.publish_data_track();
         if (cb.has_error()) {
           pr.set_value(
-              Result<proto::OwnedLocalDataTrack,
-                     PublishDataTrackError>::failure(
-                  PublishDataTrackError::fromProto(cb.error())));
+              Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::
+                  failure(PublishDataTrackError::fromProto(cb.error())));
           return;
         }
         if (!cb.has_track()) {
@@ -655,7 +656,8 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
           return;
         }
         pr.set_value(
-            Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::success(cb.track()));
+            Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::success(
+                cb.track()));
       });
 
   proto::FfiRequest req;

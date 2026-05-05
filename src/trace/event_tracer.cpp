@@ -357,8 +357,8 @@ void EventTracer::AddTraceEvent(char phase,
 
       // Handle string arguments
       if (arg_types && (arg_types[i] == 6 || arg_types[i] == 7)) {
-        const char *str_val =
-            reinterpret_cast<const char *>(arg_values[i]);  // NOLINT(performance-no-int-to-ptr)
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
+        const char *str_val = reinterpret_cast<const char *>(arg_values[i]);
         if (str_val) {
           event.arg_string_values[i] = str_val;
         }

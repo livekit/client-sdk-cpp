@@ -70,7 +70,8 @@ AudioFrame::fromOwnedInfo(const proto::OwnedAudioFrameBuffer &owned) {
                             static_cast<std::size_t>(samples_per_channel);
 
   const std::int16_t *ptr =
-      reinterpret_cast<const std::int16_t *>(info.data_ptr()); // NOLINT(performance-no-int-to-ptr)
+      // NOLINTNEXTLINE(performance-no-int-to-ptr)
+      reinterpret_cast<const std::int16_t *>(info.data_ptr());
 
   if (ptr == nullptr && count > 0) {
     throw std::runtime_error(

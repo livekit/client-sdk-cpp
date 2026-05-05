@@ -192,14 +192,12 @@ bool ByteStreamReader::readNext(std::vector<std::uint8_t> &out) {
 
 BaseStreamWriter::BaseStreamWriter(
     LocalParticipant &local_participant, std::string topic,
-    std::map<std::string, std::string> attributes,
-    std::string stream_id, std::optional<std::size_t> total_size,
-    std::string mime_type,
+    std::map<std::string, std::string> attributes, std::string stream_id,
+    std::optional<std::size_t> total_size, std::string mime_type,
     std::vector<std::string> destination_identities,
     std::string sender_identity)
     : local_participant_(local_participant),
-      stream_id_(stream_id.empty() ? generateRandomId()
-                                   : std::move(stream_id)),
+      stream_id_(stream_id.empty() ? generateRandomId() : std::move(stream_id)),
       mime_type_(std::move(mime_type)), topic_(std::move(topic)),
       timestamp_ms_(std::chrono::duration_cast<std::chrono::milliseconds>(
                         std::chrono::system_clock::now().time_since_epoch())
@@ -348,7 +346,8 @@ void ByteStreamWriter::write(const std::vector<std::uint8_t> &data) {
     const std::size_t n =
         std::min<std::size_t>(kStreamChunkSize, data.size() - offset);
     auto it = data.begin() + static_cast<std::ptrdiff_t>(offset);
-    const std::vector<std::uint8_t> chunk(it, it + static_cast<std::ptrdiff_t>(n));
+    const std::vector<std::uint8_t> chunk(it,
+                                          it + static_cast<std::ptrdiff_t>(n));
     sendChunk(chunk);
     offset += n;
   }
