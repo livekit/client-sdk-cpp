@@ -445,10 +445,10 @@ if [[ "${CI_MODE}" == "1" ]] && (( FIX_MODE == 0 )); then
   write_step_summary "${log}"
 fi
 
-echo "Results written to: $(pwd)/${log}"
-
 # Always emit the concise headline summary to stdout. Sets
 # __FMT_VIOLATION_FILES which the exit-code logic below consumes.
+# print_stdout_summary reads the log, so this must happen before the
+# conditional log cleanup below.
 __FMT_VIOLATION_FILES=0
 if (( FIX_MODE == 1 )); then
   echo "------------------------------------------------------------"
@@ -466,6 +466,16 @@ if (( FIX_MODE == 1 )); then
   echo "------------------------------------------------------------"
 else
   print_stdout_summary "${log}" "${file_count}"
+fi
+
+# Only advertise the log when it actually has content -- a clean check run
+# and a no-op fix run both leave it empty, and the summary banner above
+# already conveys "nothing to see". Drop the empty file so a stale log
+# from a previous dirty run doesn't linger and confuse the next reader.
+if [[ -s "${log}" ]]; then
+  echo "Results written to: $(pwd)/${log}"
+else
+  rm -f "${log}"
 fi
 
 # Exit-code policy:

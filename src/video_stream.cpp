@@ -31,17 +31,14 @@ using proto::FfiEvent;
 using proto::FfiRequest;
 using proto::VideoStreamEvent;
 
-std::shared_ptr<VideoStream>
-VideoStream::fromTrack(const std::shared_ptr<Track> &track,
-                       const Options &options) {
+std::shared_ptr<VideoStream> VideoStream::fromTrack(const std::shared_ptr<Track>& track, const Options& options) {
   auto stream = std::shared_ptr<VideoStream>(new VideoStream());
   stream->initFromTrack(track, options);
   return stream;
 }
 
-std::shared_ptr<VideoStream>
-VideoStream::fromParticipant(Participant &participant, TrackSource track_source,
-                             const Options &options) {
+std::shared_ptr<VideoStream> VideoStream::fromParticipant(Participant& participant, TrackSource track_source,
+                                                          const Options& options) {
   auto stream = std::shared_ptr<VideoStream>(new VideoStream());
   stream->initFromParticipant(participant, track_source, options);
   return stream;
@@ -49,7 +46,7 @@ VideoStream::fromParticipant(Participant &participant, TrackSource track_source,
 
 VideoStream::~VideoStream() { close(); }
 
-VideoStream::VideoStream(VideoStream &&other) noexcept {
+VideoStream::VideoStream(VideoStream&& other) noexcept {
   const std::scoped_lock<std::mutex> lock(other.mutex_);
   queue_ = std::move(other.queue_);
   capacity_ = other.capacity_;
@@ -62,9 +59,10 @@ VideoStream::VideoStream(VideoStream &&other) noexcept {
   other.closed_ = true;
 }
 
-VideoStream &VideoStream::operator=(VideoStream &&other) noexcept {
-  if (this == &other)
+VideoStream& VideoStream::operator=(VideoStream&& other) noexcept {
+  if (this == &other) {
     return *this;
+  }
 
   close();
 
@@ -88,7 +86,7 @@ VideoStream &VideoStream::operator=(VideoStream &&other) noexcept {
 
 // --------------------- Public API ---------------------
 
-bool VideoStream::read(VideoFrameEvent &out) {
+bool VideoStream::read(VideoFrameEvent& out) {
   std::unique_lock<std::mutex> lock(mutex_);
 
   cv_.wait(lock, [this] { return !queue_.empty() || eof_ || closed_; });
@@ -128,48 +126,41 @@ void VideoStream::close() {
 
 // --------------------- Internal helpers ---------------------
 
-void VideoStream::initFromTrack(const std::shared_ptr<Track> &track,
-                                const Options &options) {
+void VideoStream::initFromTrack(const std::shared_ptr<Track>& track, const Options& options) {
   capacity_ = options.capacity;
 
   // Subscribe to FFI events, this is essential to get video frames from FFI.
-  listener_id_ = FfiClient::instance().AddListener(
-      [this](const proto::FfiEvent &e) { this->onFfiEvent(e); });
+  listener_id_ = FfiClient::instance().AddListener([this](const proto::FfiEvent& e) { this->onFfiEvent(e); });
 
   // Send FFI request to create a new video stream bound to this track
   FfiRequest req;
-  auto *new_video_stream = req.mutable_new_video_stream();
-  new_video_stream->set_track_handle(
-      static_cast<uint64_t>(track->ffi_handle_id()));
+  auto* new_video_stream = req.mutable_new_video_stream();
+  new_video_stream->set_track_handle(static_cast<uint64_t>(track->ffi_handle_id()));
   new_video_stream->set_type(proto::VideoStreamType::VIDEO_STREAM_NATIVE);
   new_video_stream->set_normalize_stride(true);
   new_video_stream->set_format(toProto(options.format));
 
   auto resp = FfiClient::instance().sendRequest(req);
   if (!resp.has_new_video_stream()) {
-    LK_LOG_ERROR(
-        "VideoStream::initFromTrack: FFI response missing new_video_stream()");
+    LK_LOG_ERROR("VideoStream::initFromTrack: FFI response missing new_video_stream()");
     throw std::runtime_error("new_video_stream FFI request failed");
   }
   // Adjust field names to match your proto exactly:
-  const auto &stream = resp.new_video_stream().stream();
+  const auto& stream = resp.new_video_stream().stream();
   stream_handle_ = FfiHandle(static_cast<uintptr_t>(stream.handle().id()));
   // TODO, do we need to cache the metadata from stream.info ?
 }
 
-void VideoStream::initFromParticipant(Participant &participant,
-                                      TrackSource track_source,
-                                      const Options &options) {
+void VideoStream::initFromParticipant(Participant& participant, TrackSource track_source, const Options& options) {
   capacity_ = options.capacity;
 
   // 1) Subscribe to FFI events
-  listener_id_ = FfiClient::instance().AddListener(
-      [this](const FfiEvent &e) { this->onFfiEvent(e); });
+  listener_id_ = FfiClient::instance().AddListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
 
   // 2) Send FFI request to create a video stream from participant + track
   // source
   FfiRequest req;
-  auto *vs = req.mutable_video_stream_from_participant();
+  auto* vs = req.mutable_video_stream_from_participant();
   vs->set_participant_handle(participant.ffiHandleId());
   vs->set_type(proto::VideoStreamType::VIDEO_STREAM_NATIVE);
   vs->set_track_source(static_cast<proto::TrackSource>(track_source));
@@ -178,23 +169,23 @@ void VideoStream::initFromParticipant(Participant &participant,
 
   auto resp = FfiClient::instance().sendRequest(req);
   // Adjust field names to match your proto exactly:
-  const auto &stream = resp.video_stream_from_participant().stream();
+  const auto& stream = resp.video_stream_from_participant().stream();
   stream_handle_ = FfiHandle(static_cast<uintptr_t>(stream.handle().id()));
 }
 
-void VideoStream::onFfiEvent(const proto::FfiEvent &event) {
+void VideoStream::onFfiEvent(const proto::FfiEvent& event) {
   // Filter for video_stream_event first.
   if (event.message_case() != FfiEvent::kVideoStreamEvent) {
     return;
   }
-  const auto &vse = event.video_stream_event();
+  const auto& vse = event.video_stream_event();
   // Check if this event is for our stream handle.
   if (vse.stream_handle() != static_cast<std::uint64_t>(stream_handle_.get())) {
     return;
   }
   // Handle frame_received or eos.
   if (vse.has_frame_received()) {
-    const auto &fr = vse.frame_received();
+    const auto& fr = vse.frame_received();
 
     // Convert owned buffer->VideoFrame via a helper.
     // You should implement this static function in your VideoFrame class.
@@ -211,7 +202,7 @@ void VideoStream::onFfiEvent(const proto::FfiEvent &event) {
   }
 }
 
-void VideoStream::pushFrame(VideoFrameEvent &&ev) {
+void VideoStream::pushFrame(VideoFrameEvent&& ev) {
   {
     const std::scoped_lock<std::mutex> lock(mutex_);
 

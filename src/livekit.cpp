@@ -15,19 +15,20 @@
  */
 
 #include "livekit/livekit.h"
+
 #include "ffi_client.h"
 #include "lk_log.h"
 
 namespace livekit {
 
-bool initialize(const LogLevel &level, const LogSink &log_sink) {
+bool initialize(const LogLevel& level, const LogSink& log_sink) {
   setLogLevel(level);
-  auto &ffi_client = FfiClient::instance();
+  auto& ffi_client = FfiClient::instance();
   return ffi_client.initialize(log_sink == LogSink::kCallback);
 }
 
 void shutdown() {
-  auto &ffi_client = FfiClient::instance();
+  auto& ffi_client = FfiClient::instance();
   ffi_client.shutdown();
   detail::shutdownLogger();
 }

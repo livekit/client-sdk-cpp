@@ -53,35 +53,28 @@
 namespace livekit {
 namespace trace {
 
-typedef const unsigned char *(*GetCategoryEnabledPtr)(const char *name);
-typedef void (*AddTraceEventPtr)(char phase,
-                                 const unsigned char *category_enabled,
-                                 const char *name, unsigned long long id,
-                                 int num_args, const char **arg_names,
-                                 const unsigned char *arg_types,
-                                 const unsigned long long *arg_values,
+typedef const unsigned char* (*GetCategoryEnabledPtr)(const char* name);
+typedef void (*AddTraceEventPtr)(char phase, const unsigned char* category_enabled, const char* name,
+                                 unsigned long long id, int num_args, const char** arg_names,
+                                 const unsigned char* arg_types, const unsigned long long* arg_values,
                                  unsigned char flags);
 
 // User of LiveKit SDK can call this method to setup custom event tracing.
 //
 // This method must be called before any tracing begins. Functions
 // provided should be thread-safe.
-LIVEKIT_EXPORT void
-SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr,
-                 AddTraceEventPtr add_trace_event_ptr);
+LIVEKIT_EXPORT void SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr,
+                                     AddTraceEventPtr add_trace_event_ptr);
 
 // This class defines interface for the event tracing system to call
 // internally. Do not call these methods directly.
 class EventTracer {
 public:
-  static const unsigned char *GetCategoryEnabled(const char *name);
+  static const unsigned char* GetCategoryEnabled(const char* name);
 
-  static void AddTraceEvent(char phase, const unsigned char *category_enabled,
-                            const char *name, unsigned long long id,
-                            int num_args, const char **arg_names,
-                            const unsigned char *arg_types,
-                            const unsigned long long *arg_values,
-                            unsigned char flags);
+  static void AddTraceEvent(char phase, const unsigned char* category_enabled, const char* name, unsigned long long id,
+                            int num_args, const char** arg_names, const unsigned char* arg_types,
+                            const unsigned long long* arg_values, unsigned char flags);
 };
 
 } // namespace trace

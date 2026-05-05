@@ -16,10 +16,10 @@
 
 #pragma once
 
+#include <string>
+
 #include "livekit/room_event_types.h"
 #include "room.pb.h"
-
-#include <string>
 
 namespace livekit {
 
@@ -35,64 +35,57 @@ ConnectionState toConnectionState(proto::ConnectionState in);
 DataPacketKind toDataPacketKind(proto::DataPacketKind in);
 DisconnectReason toDisconnectReason(proto::DisconnectReason in);
 
-UserPacketData fromProto(const proto::UserPacket &in);
-SipDtmfData fromProto(const proto::SipDTMF &in);
-RoomInfoData fromProto(const proto::RoomInfo &in);
+UserPacketData fromProto(const proto::UserPacket& in);
+SipDtmfData fromProto(const proto::SipDTMF& in);
+RoomInfoData fromProto(const proto::RoomInfo& in);
 
-DataStreamHeaderData fromProto(const proto::DataStream_Header &in);
-DataStreamChunkData fromProto(const proto::DataStream_Chunk &in);
-DataStreamTrailerData fromProto(const proto::DataStream_Trailer &in);
+DataStreamHeaderData fromProto(const proto::DataStream_Header& in);
+DataStreamChunkData fromProto(const proto::DataStream_Chunk& in);
+DataStreamTrailerData fromProto(const proto::DataStream_Trailer& in);
 
 // --------- event conversions (RoomEvent.oneof message) ---------
 
-RoomSidChangedEvent fromProto(const proto::RoomSidChanged &in);
+RoomSidChangedEvent fromProto(const proto::RoomSidChanged& in);
 
-ConnectionStateChangedEvent fromProto(const proto::ConnectionStateChanged &in);
-DisconnectedEvent fromProto(const proto::Disconnected &in);
-ReconnectingEvent fromProto(const proto::Reconnecting &in);
-ReconnectedEvent fromProto(const proto::Reconnected &in);
-RoomEosEvent fromProto(const proto::RoomEOS &in);
+ConnectionStateChangedEvent fromProto(const proto::ConnectionStateChanged& in);
+DisconnectedEvent fromProto(const proto::Disconnected& in);
+ReconnectingEvent fromProto(const proto::Reconnecting& in);
+ReconnectedEvent fromProto(const proto::Reconnected& in);
+RoomEosEvent fromProto(const proto::RoomEOS& in);
 
-DataStreamHeaderReceivedEvent
-fromProto(const proto::DataStreamHeaderReceived &in);
-DataStreamChunkReceivedEvent
-fromProto(const proto::DataStreamChunkReceived &in);
-DataStreamTrailerReceivedEvent
-fromProto(const proto::DataStreamTrailerReceived &in);
+DataStreamHeaderReceivedEvent fromProto(const proto::DataStreamHeaderReceived& in);
+DataStreamChunkReceivedEvent fromProto(const proto::DataStreamChunkReceived& in);
+DataStreamTrailerReceivedEvent fromProto(const proto::DataStreamTrailerReceived& in);
 
-DataChannelBufferedAmountLowThresholdChangedEvent
-fromProto(const proto::DataChannelBufferedAmountLowThresholdChanged &in);
+DataChannelBufferedAmountLowThresholdChangedEvent fromProto(
+    const proto::DataChannelBufferedAmountLowThresholdChanged& in);
 
-ByteStreamOpenedEvent fromProto(const proto::ByteStreamOpened &in);
-TextStreamOpenedEvent fromProto(const proto::TextStreamOpened &in);
+ByteStreamOpenedEvent fromProto(const proto::ByteStreamOpened& in);
+TextStreamOpenedEvent fromProto(const proto::TextStreamOpened& in);
 
-RoomUpdatedEvent
-roomUpdatedFromProto(const proto::RoomInfo &in);              // room_updated
-RoomMovedEvent roomMovedFromProto(const proto::RoomInfo &in); // moved
+RoomUpdatedEvent roomUpdatedFromProto(const proto::RoomInfo& in); // room_updated
+RoomMovedEvent roomMovedFromProto(const proto::RoomInfo& in);     // moved
 
 // --------- room options conversions ---------
 
-proto::AudioEncoding toProto(const AudioEncodingOptions &in);
-AudioEncodingOptions fromProto(const proto::AudioEncoding &in);
+proto::AudioEncoding toProto(const AudioEncodingOptions& in);
+AudioEncodingOptions fromProto(const proto::AudioEncoding& in);
 
-proto::VideoEncoding toProto(const VideoEncodingOptions &in);
-VideoEncodingOptions fromProto(const proto::VideoEncoding &in);
+proto::VideoEncoding toProto(const VideoEncodingOptions& in);
+VideoEncodingOptions fromProto(const proto::VideoEncoding& in);
 
-proto::TrackPublishOptions toProto(const TrackPublishOptions &in);
-TrackPublishOptions fromProto(const proto::TrackPublishOptions &in);
+proto::TrackPublishOptions toProto(const TrackPublishOptions& in);
+TrackPublishOptions fromProto(const proto::TrackPublishOptions& in);
 
 // --------- room Data Packet conversions ---------
 
-UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived &in,
-                                            RemoteParticipant *participant);
+UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived& in, RemoteParticipant* participant);
 
-SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived &in,
-                                      RemoteParticipant *participant);
+SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived& in, RemoteParticipant* participant);
 
 // --------- room Data Stream conversions ---------
-std::map<std::string, std::string>
-toAttrMap(const proto::DataStream::Trailer &trailer);
-ByteStreamInfo makeByteInfo(const proto::DataStream::Header &header);
-TextStreamInfo makeTextInfo(const proto::DataStream::Header &header);
+std::map<std::string, std::string> toAttrMap(const proto::DataStream::Trailer& trailer);
+ByteStreamInfo makeByteInfo(const proto::DataStream::Header& header);
+TextStreamInfo makeTextInfo(const proto::DataStream::Header& header);
 
 } // namespace livekit

@@ -30,25 +30,24 @@ enum class ParticipantKind { Standard = 0, Ingress, Egress, Sip, Agent };
 
 class Participant {
 public:
-  Participant(FfiHandle handle, std::string sid, std::string name,
-              std::string identity, std::string metadata,
-              std::unordered_map<std::string, std::string> attributes,
-              ParticipantKind kind, DisconnectReason reason)
-      : handle_(std::move(handle)), sid_(std::move(sid)),
-        name_(std::move(name)), identity_(std::move(identity)),
-        metadata_(std::move(metadata)), attributes_(std::move(attributes)),
-        kind_(kind), reason_(reason) {}
+  Participant(FfiHandle handle, std::string sid, std::string name, std::string identity, std::string metadata,
+              std::unordered_map<std::string, std::string> attributes, ParticipantKind kind, DisconnectReason reason)
+      : handle_(std::move(handle)),
+        sid_(std::move(sid)),
+        name_(std::move(name)),
+        identity_(std::move(identity)),
+        metadata_(std::move(metadata)),
+        attributes_(std::move(attributes)),
+        kind_(kind),
+        reason_(reason) {}
   virtual ~Participant() = default;
 
   // Plain getters (caller ensures threading)
-  const std::string &sid() const noexcept { return sid_; }
-  const std::string &name() const noexcept { return name_; }
-  const std::string &identity() const noexcept { return identity_; }
-  const std::string &metadata() const noexcept { return metadata_; }
-  const std::unordered_map<std::string, std::string> &
-  attributes() const noexcept {
-    return attributes_;
-  }
+  const std::string& sid() const noexcept { return sid_; }
+  const std::string& name() const noexcept { return name_; }
+  const std::string& identity() const noexcept { return identity_; }
+  const std::string& metadata() const noexcept { return metadata_; }
+  const std::unordered_map<std::string, std::string>& attributes() const noexcept { return attributes_; }
   ParticipantKind kind() const noexcept { return kind_; }
   DisconnectReason disconnectReason() const noexcept { return reason_; }
 
@@ -56,25 +55,15 @@ public:
 
   // Setters (caller ensures threading)
   void set_name(std::string name) noexcept { name_ = std::move(name); }
-  void set_metadata(std::string metadata) noexcept {
-    metadata_ = std::move(metadata);
-  }
-  void
-  set_attributes(std::unordered_map<std::string, std::string> attrs) noexcept {
-    attributes_ = std::move(attrs);
-  }
-  void set_attribute(const std::string &key, const std::string &value) {
-    attributes_[key] = value;
-  }
-  void remove_attribute(const std::string &key) { attributes_.erase(key); }
+  void set_metadata(std::string metadata) noexcept { metadata_ = std::move(metadata); }
+  void set_attributes(std::unordered_map<std::string, std::string> attrs) noexcept { attributes_ = std::move(attrs); }
+  void set_attribute(const std::string& key, const std::string& value) { attributes_[key] = value; }
+  void remove_attribute(const std::string& key) { attributes_.erase(key); }
   void set_kind(ParticipantKind kind) noexcept { kind_ = kind; }
-  void set_disconnect_reason(DisconnectReason reason) noexcept {
-    reason_ = reason;
-  }
+  void set_disconnect_reason(DisconnectReason reason) noexcept { reason_ = reason; }
 
 protected:
-  virtual std::shared_ptr<TrackPublication>
-  findTrackPublication(const std::string &sid) const = 0;
+  virtual std::shared_ptr<TrackPublication> findTrackPublication(const std::string& sid) const = 0;
   friend class Room;
 
 private:

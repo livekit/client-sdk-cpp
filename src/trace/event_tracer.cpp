@@ -15,7 +15,6 @@
  */
 
 #include "event_tracer.h"
-#include "event_tracer_internal.h"
 
 #include <atomic>
 #include <chrono>
@@ -30,6 +29,8 @@
 #include <thread>
 #include <unordered_set>
 #include <vector>
+
+#include "event_tracer_internal.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -68,8 +69,7 @@ uint32_t GetCurrentThreadId() {
 uint64_t GetTimestampMicros() {
   auto now = std::chrono::steady_clock::now();
   auto duration = now.time_since_epoch();
-  return std::chrono::duration_cast<std::chrono::microseconds>(duration)
-      .count();
+  return std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
 }
 
 // Internal trace event structure
@@ -90,46 +90,44 @@ struct TraceEventData {
 };
 
 // Escape a string for JSON
-std::string JsonEscape(const std::string &s) {
+std::string JsonEscape(const std::string& s) {
   std::ostringstream oss;
   for (const char c : s) {
     switch (c) {
-    case '"':
-      oss << "\\\"";
-      break;
-    case '\\':
-      oss << "\\\\";
-      break;
-    case '\b':
-      oss << "\\b";
-      break;
-    case '\f':
-      oss << "\\f";
-      break;
-    case '\n':
-      oss << "\\n";
-      break;
-    case '\r':
-      oss << "\\r";
-      break;
-    case '\t':
-      oss << "\\t";
-      break;
-    default:
-      if ('\x00' <= c && c <= '\x1f') {
-        oss << "\\u" << std::hex << std::setw(4) << std::setfill('0')
-            << static_cast<int>(c);
-      } else {
-        oss << c;
-      }
+      case '"':
+        oss << "\\\"";
+        break;
+      case '\\':
+        oss << "\\\\";
+        break;
+      case '\b':
+        oss << "\\b";
+        break;
+      case '\f':
+        oss << "\\f";
+        break;
+      case '\n':
+        oss << "\\n";
+        break;
+      case '\r':
+        oss << "\\r";
+        break;
+      case '\t':
+        oss << "\\t";
+        break;
+      default:
+        if ('\x00' <= c && c <= '\x1f') {
+          oss << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<int>(c);
+        } else {
+          oss << c;
+        }
     }
   }
   return oss.str();
 }
 
 // Convert argument value to JSON based on type
-std::string ArgValueToJson(unsigned char type, uint64_t value,
-                           const std::string &string_value) {
+std::string ArgValueToJson(unsigned char type, uint64_t value, const std::string& string_value) {
   constexpr unsigned char TRACE_VALUE_TYPE_BOOL = 1;
   constexpr unsigned char TRACE_VALUE_TYPE_UINT = 2;
   constexpr unsigned char TRACE_VALUE_TYPE_INT = 3;
@@ -140,40 +138,40 @@ std::string ArgValueToJson(unsigned char type, uint64_t value,
 
   std::ostringstream oss;
   switch (type) {
-  case TRACE_VALUE_TYPE_BOOL:
-    oss << (value ? "true" : "false");
-    break;
-  case TRACE_VALUE_TYPE_UINT:
-    oss << value;
-    break;
-  case TRACE_VALUE_TYPE_INT:
-    oss << static_cast<int64_t>(value);
-    break;
-  case TRACE_VALUE_TYPE_DOUBLE: {
-    union {
-      uint64_t u;
-      double d;
-    } converter;
-    converter.u = value;
-    oss << std::setprecision(17) << converter.d;
-    break;
-  }
-  case TRACE_VALUE_TYPE_POINTER:
-    oss << "\"0x" << std::hex << value << "\"";
-    break;
-  case TRACE_VALUE_TYPE_STRING:
-  case TRACE_VALUE_TYPE_COPY_STRING:
-    oss << "\"" << JsonEscape(string_value) << "\"";
-    break;
-  default:
-    oss << value;
-    break;
+    case TRACE_VALUE_TYPE_BOOL:
+      oss << (value ? "true" : "false");
+      break;
+    case TRACE_VALUE_TYPE_UINT:
+      oss << value;
+      break;
+    case TRACE_VALUE_TYPE_INT:
+      oss << static_cast<int64_t>(value);
+      break;
+    case TRACE_VALUE_TYPE_DOUBLE: {
+      union {
+        uint64_t u;
+        double d;
+      } converter;
+      converter.u = value;
+      oss << std::setprecision(17) << converter.d;
+      break;
+    }
+    case TRACE_VALUE_TYPE_POINTER:
+      oss << "\"0x" << std::hex << value << "\"";
+      break;
+    case TRACE_VALUE_TYPE_STRING:
+    case TRACE_VALUE_TYPE_COPY_STRING:
+      oss << "\"" << JsonEscape(string_value) << "\"";
+      break;
+    default:
+      oss << value;
+      break;
   }
   return oss.str();
 }
 
 // Format a single event as JSON
-std::string FormatEventJson(const TraceEventData &event, uint64_t start_time) {
+std::string FormatEventJson(const TraceEventData& event, uint64_t start_time) {
   std::ostringstream oss;
   oss << "{";
   oss << R"("ph":")" << event.phase << "\",";
@@ -190,11 +188,11 @@ std::string FormatEventJson(const TraceEventData &event, uint64_t start_time) {
   if (event.num_args > 0) {
     oss << ",\"args\":{";
     for (int i = 0; i < event.num_args && i < 2; ++i) {
-      if (i > 0)
+      if (i > 0) {
         oss << ",";
+      }
       oss << "\"" << JsonEscape(event.arg_names[i]) << "\":";
-      oss << ArgValueToJson(event.arg_types[i], event.arg_values[i],
-                            event.arg_string_values[i]);
+      oss << ArgValueToJson(event.arg_types[i], event.arg_values[i], event.arg_string_values[i]);
     }
     oss << "}";
   }
@@ -234,9 +232,7 @@ void WriterThreadFunc() {
     // Wait for events or shutdown
     {
       std::unique_lock<std::mutex> lock(g_mutex);
-      g_cv.wait(lock, [] {
-        return !g_event_queue.empty() || g_shutdown_requested.load();
-      });
+      g_cv.wait(lock, [] { return !g_event_queue.empty() || g_shutdown_requested.load(); });
 
       // Drain the queue into a local batch
       while (!g_event_queue.empty()) {
@@ -246,7 +242,7 @@ void WriterThreadFunc() {
     }
 
     // Write batch to file (outside the lock)
-    for (const auto &event : batch) {
+    for (const auto& event : batch) {
       if (g_trace_file.is_open()) {
         if (!g_first_event) {
           g_trace_file << ",";
@@ -269,14 +265,13 @@ void WriterThreadFunc() {
 
 } // namespace
 
-void SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr,
-                      AddTraceEventPtr add_trace_event_ptr) {
+void SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr, AddTraceEventPtr add_trace_event_ptr) {
   const std::scoped_lock<std::mutex> lock(g_mutex);
   g_custom_get_category_enabled = get_category_enabled_ptr;
   g_custom_add_trace_event = add_trace_event_ptr;
 }
 
-const unsigned char *EventTracer::GetCategoryEnabled(const char *name) {
+const unsigned char* EventTracer::GetCategoryEnabled(const char* name) {
   // If custom tracer is set, use it
   if (g_custom_get_category_enabled) {
     return g_custom_get_category_enabled(name);
@@ -302,7 +297,7 @@ const unsigned char *EventTracer::GetCategoryEnabled(const char *name) {
   }
 
   // Check for wildcard matches (e.g., "livekit.*" matches "livekit.connect")
-  for (const auto &pattern : g_enabled_categories) {
+  for (const auto& pattern : g_enabled_categories) {
     if (pattern.back() == '*') {
       const std::string prefix = pattern.substr(0, pattern.size() - 1);
       if (category_name.compare(0, prefix.size(), prefix) == 0) {
@@ -314,17 +309,13 @@ const unsigned char *EventTracer::GetCategoryEnabled(const char *name) {
   return &g_disabled_byte;
 }
 
-void EventTracer::AddTraceEvent(char phase,
-                                const unsigned char *category_enabled,
-                                const char *name, unsigned long long id,
-                                int num_args, const char **arg_names,
-                                const unsigned char *arg_types,
-                                const unsigned long long *arg_values,
+void EventTracer::AddTraceEvent(char phase, const unsigned char* category_enabled, const char* name,
+                                unsigned long long id, int num_args, const char** arg_names,
+                                const unsigned char* arg_types, const unsigned long long* arg_values,
                                 unsigned char flags) {
   // If custom tracer is set, use it
   if (g_custom_add_trace_event) {
-    g_custom_add_trace_event(phase, category_enabled, name, id, num_args,
-                             arg_names, arg_types, arg_values, flags);
+    g_custom_add_trace_event(phase, category_enabled, name, id, num_args, arg_names, arg_types, arg_values, flags);
     return;
   }
 
@@ -358,7 +349,7 @@ void EventTracer::AddTraceEvent(char phase,
       // Handle string arguments
       if (arg_types && (arg_types[i] == 6 || arg_types[i] == 7)) {
         // NOLINTNEXTLINE(performance-no-int-to-ptr)
-        const char *str_val = reinterpret_cast<const char *>(arg_values[i]);
+        const char* str_val = reinterpret_cast<const char*>(arg_values[i]);
         if (str_val) {
           event.arg_string_values[i] = str_val;
         }
@@ -376,8 +367,7 @@ void EventTracer::AddTraceEvent(char phase,
 
 namespace internal {
 
-bool StartTracing(const std::string &file_path,
-                  const std::vector<std::string> &categories) {
+bool StartTracing(const std::string& file_path, const std::vector<std::string>& categories) {
   const std::scoped_lock<std::mutex> lock(g_mutex);
 
   // Don't start if already running
@@ -400,7 +390,7 @@ bool StartTracing(const std::string &file_path,
 
   // Set enabled categories
   g_enabled_categories.clear();
-  for (const auto &cat : categories) {
+  for (const auto& cat : categories) {
     g_enabled_categories.insert(cat);
   }
 
@@ -438,9 +428,7 @@ void StopTracing() {
   g_enabled_categories.clear();
 }
 
-bool IsTracingEnabled() {
-  return g_tracing_enabled.load(std::memory_order_acquire);
-}
+bool IsTracingEnabled() { return g_tracing_enabled.load(std::memory_order_acquire); }
 
 } // namespace internal
 

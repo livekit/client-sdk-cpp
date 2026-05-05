@@ -79,20 +79,18 @@ public:
   };
 
   // Factory: create a VideoStream bound to a specific Track
-  static std::shared_ptr<VideoStream>
-  fromTrack(const std::shared_ptr<Track> &track, const Options &options);
+  static std::shared_ptr<VideoStream> fromTrack(const std::shared_ptr<Track>& track, const Options& options);
 
   // Factory: create a VideoStream from a Participant + TrackSource
-  static std::shared_ptr<VideoStream> fromParticipant(Participant &participant,
-                                                      TrackSource track_source,
-                                                      const Options &options);
+  static std::shared_ptr<VideoStream> fromParticipant(Participant& participant, TrackSource track_source,
+                                                      const Options& options);
 
   virtual ~VideoStream();
 
-  VideoStream(const VideoStream &) = delete;
-  VideoStream &operator=(const VideoStream &) = delete;
-  VideoStream(VideoStream &&) noexcept;
-  VideoStream &operator=(VideoStream &&) noexcept;
+  VideoStream(const VideoStream&) = delete;
+  VideoStream& operator=(const VideoStream&) = delete;
+  VideoStream(VideoStream&&) noexcept;
+  VideoStream& operator=(VideoStream&&) noexcept;
 
   /// Blocking read: waits until a VideoFrameEvent is available in the internal
   /// queue, or the stream reaches EOS / is closed.
@@ -100,7 +98,7 @@ public:
   /// \param out  On success, filled with the next video frame event.
   /// \return true if a frame was delivered; false if the stream ended
   ///         (end-of-stream or close()) and no more data is available.
-  bool read(VideoFrameEvent &out);
+  bool read(VideoFrameEvent& out);
 
   /// Signal that we are no longer interested in video frames.
   ///
@@ -113,16 +111,14 @@ private:
   VideoStream() = default;
 
   // Internal init helpers, used by the factories
-  void initFromTrack(const std::shared_ptr<Track> &track,
-                     const Options &options);
-  void initFromParticipant(Participant &participant, TrackSource source,
-                           const Options &options);
+  void initFromTrack(const std::shared_ptr<Track>& track, const Options& options);
+  void initFromParticipant(Participant& participant, TrackSource source, const Options& options);
 
   // FFI event handler (registered with FfiClient)
-  void onFfiEvent(const proto::FfiEvent &event);
+  void onFfiEvent(const proto::FfiEvent& event);
 
   // Queue helpers
-  void pushFrame(VideoFrameEvent &&ev);
+  void pushFrame(VideoFrameEvent&& ev);
   void pushEos();
 
   mutable std::mutex mutex_;

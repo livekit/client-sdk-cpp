@@ -59,8 +59,7 @@ enum class LogSink {
 /// @param log_sink  The log sink to use for SDK messages (default: Console).
 /// @returns true if initialization happened on this call, false if it was
 ///          already initialized.
-bool initialize(const LogLevel &level = LogLevel::Info,
-                const LogSink &log_sink = LogSink::kConsole);
+bool initialize(const LogLevel& level = LogLevel::Info, const LogSink& log_sink = LogSink::kConsole);
 
 /// Shut down the LiveKit SDK.
 ///

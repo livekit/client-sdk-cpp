@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+#include "ffi_client.h"
+
 #include <cassert>
 
 #include "data_track.pb.h"
 #include "e2ee.pb.h"
 #include "ffi.pb.h"
-#include "ffi_client.h"
 #include "livekit/build.h"
 #include "livekit/data_track_error.h"
 #include "livekit/e2ee.h"
@@ -36,104 +37,104 @@ namespace livekit {
 
 namespace {
 
-std::string bytesToString(const std::vector<std::uint8_t> &b) {
-  return std::string(reinterpret_cast<const char *>(b.data()), b.size());
+std::string bytesToString(const std::vector<std::uint8_t>& b) {
+  return std::string(reinterpret_cast<const char*>(b.data()), b.size());
 }
 
-inline void logAndThrow(const std::string &error_msg) {
+inline void logAndThrow(const std::string& error_msg) {
   LK_LOG_ERROR("LiveKit SDK Error: {}", error_msg);
   throw std::runtime_error(error_msg);
 }
 
-std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent &event) {
+std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
   using E = proto::FfiEvent;
   switch (event.message_case()) {
-  case E::kConnect:
-    return event.connect().async_id();
-  case E::kDisconnect:
-    return event.disconnect().async_id();
-  case E::kDispose:
-    return event.dispose().async_id();
-  case E::kPublishTrack:
-    return event.publish_track().async_id();
-  case E::kUnpublishTrack:
-    return event.unpublish_track().async_id();
-  case E::kPublishData:
-    return event.publish_data().async_id();
-  case E::kPublishTranscription:
-    return event.publish_transcription().async_id();
-  case E::kCaptureAudioFrame:
-    return event.capture_audio_frame().async_id();
-  case E::kSetLocalMetadata:
-    return event.set_local_metadata().async_id();
-  case E::kSetLocalName:
-    return event.set_local_name().async_id();
-  case E::kSetLocalAttributes:
-    return event.set_local_attributes().async_id();
-  case E::kGetStats:
-    return event.get_stats().async_id();
-  case E::kGetSessionStats:
-    return event.get_session_stats().async_id();
-  case E::kPublishSipDtmf:
-    return event.publish_sip_dtmf().async_id();
-  case E::kChatMessage:
-    return event.chat_message().async_id();
-  case E::kPerformRpc:
-    return event.perform_rpc().async_id();
+    case E::kConnect:
+      return event.connect().async_id();
+    case E::kDisconnect:
+      return event.disconnect().async_id();
+    case E::kDispose:
+      return event.dispose().async_id();
+    case E::kPublishTrack:
+      return event.publish_track().async_id();
+    case E::kUnpublishTrack:
+      return event.unpublish_track().async_id();
+    case E::kPublishData:
+      return event.publish_data().async_id();
+    case E::kPublishTranscription:
+      return event.publish_transcription().async_id();
+    case E::kCaptureAudioFrame:
+      return event.capture_audio_frame().async_id();
+    case E::kSetLocalMetadata:
+      return event.set_local_metadata().async_id();
+    case E::kSetLocalName:
+      return event.set_local_name().async_id();
+    case E::kSetLocalAttributes:
+      return event.set_local_attributes().async_id();
+    case E::kGetStats:
+      return event.get_stats().async_id();
+    case E::kGetSessionStats:
+      return event.get_session_stats().async_id();
+    case E::kPublishSipDtmf:
+      return event.publish_sip_dtmf().async_id();
+    case E::kChatMessage:
+      return event.chat_message().async_id();
+    case E::kPerformRpc:
+      return event.perform_rpc().async_id();
 
-  // low-level data stream callbacks
-  case E::kSendStreamHeader:
-    return event.send_stream_header().async_id();
-  case E::kSendStreamChunk:
-    return event.send_stream_chunk().async_id();
-  case E::kSendStreamTrailer:
-    return event.send_stream_trailer().async_id();
+    // low-level data stream callbacks
+    case E::kSendStreamHeader:
+      return event.send_stream_header().async_id();
+    case E::kSendStreamChunk:
+      return event.send_stream_chunk().async_id();
+    case E::kSendStreamTrailer:
+      return event.send_stream_trailer().async_id();
 
-  // high-level
-  case E::kByteStreamReaderReadAll:
-    return event.byte_stream_reader_read_all().async_id();
-  case E::kByteStreamReaderWriteToFile:
-    return event.byte_stream_reader_write_to_file().async_id();
-  case E::kByteStreamOpen:
-    return event.byte_stream_open().async_id();
-  case E::kByteStreamWriterWrite:
-    return event.byte_stream_writer_write().async_id();
-  case E::kByteStreamWriterClose:
-    return event.byte_stream_writer_close().async_id();
-  case E::kSendFile:
-    return event.send_file().async_id();
+    // high-level
+    case E::kByteStreamReaderReadAll:
+      return event.byte_stream_reader_read_all().async_id();
+    case E::kByteStreamReaderWriteToFile:
+      return event.byte_stream_reader_write_to_file().async_id();
+    case E::kByteStreamOpen:
+      return event.byte_stream_open().async_id();
+    case E::kByteStreamWriterWrite:
+      return event.byte_stream_writer_write().async_id();
+    case E::kByteStreamWriterClose:
+      return event.byte_stream_writer_close().async_id();
+    case E::kSendFile:
+      return event.send_file().async_id();
 
-  case E::kTextStreamReaderReadAll:
-    return event.text_stream_reader_read_all().async_id();
-  case E::kTextStreamOpen:
-    return event.text_stream_open().async_id();
-  case E::kTextStreamWriterWrite:
-    return event.text_stream_writer_write().async_id();
-  case E::kTextStreamWriterClose:
-    return event.text_stream_writer_close().async_id();
-  case E::kSendText:
-    return event.send_text().async_id();
-  case E::kSendBytes:
-    return event.send_bytes().async_id();
+    case E::kTextStreamReaderReadAll:
+      return event.text_stream_reader_read_all().async_id();
+    case E::kTextStreamOpen:
+      return event.text_stream_open().async_id();
+    case E::kTextStreamWriterWrite:
+      return event.text_stream_writer_write().async_id();
+    case E::kTextStreamWriterClose:
+      return event.text_stream_writer_close().async_id();
+    case E::kSendText:
+      return event.send_text().async_id();
+    case E::kSendBytes:
+      return event.send_bytes().async_id();
 
-  // data track async completions
-  case E::kPublishDataTrack:
-    return event.publish_data_track().async_id();
+    // data track async completions
+    case E::kPublishDataTrack:
+      return event.publish_data_track().async_id();
 
-  // NOT async completion:
-  case E::kRoomEvent:
-  case E::kTrackEvent:
-  case E::kVideoStreamEvent:
-  case E::kAudioStreamEvent:
-  case E::kByteStreamReaderEvent:
-  case E::kTextStreamReaderEvent:
-  case E::kDataTrackStreamEvent:
-  case E::kRpcMethodInvocation:
-  case E::kLogs:
-  case E::kPanic:
-  case E::MESSAGE_NOT_SET:
-  default:
-    return std::nullopt;
+    // NOT async completion:
+    case E::kRoomEvent:
+    case E::kTrackEvent:
+    case E::kVideoStreamEvent:
+    case E::kAudioStreamEvent:
+    case E::kByteStreamReaderEvent:
+    case E::kTextStreamReaderEvent:
+    case E::kDataTrackStreamEvent:
+    case E::kRpcMethodInvocation:
+    case E::kLogs:
+    case E::kPanic:
+    case E::MESSAGE_NOT_SET:
+    default:
+      return std::nullopt;
   }
 }
 
@@ -161,17 +162,13 @@ bool FfiClient::initialize(bool capture_logs) {
     return false;
   }
   initialized_.store(true, std::memory_order_release);
-  livekit_ffi_initialize(&LivekitFfiCallback, capture_logs,
-                         LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION_FULL);
+  livekit_ffi_initialize(&LivekitFfiCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION_FULL);
   return true;
 }
 
-bool FfiClient::isInitialized() const noexcept {
-  return initialized_.load(std::memory_order_acquire);
-}
+bool FfiClient::isInitialized() const noexcept { return initialized_.load(std::memory_order_acquire); }
 
-FfiClient::ListenerId
-FfiClient::AddListener(const FfiClient::Listener &listener) {
+FfiClient::ListenerId FfiClient::AddListener(const FfiClient::Listener& listener) {
   const std::scoped_lock<std::mutex> guard(lock_);
   const FfiClient::ListenerId id = next_listener_id++;
   listeners_[id] = listener;
@@ -183,20 +180,17 @@ void FfiClient::RemoveListener(ListenerId id) {
   listeners_.erase(id);
 }
 
-proto::FfiResponse
-FfiClient::sendRequest(const proto::FfiRequest &request) const {
+proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) const {
   std::string bytes;
   if (!request.SerializeToString(&bytes) || bytes.empty()) {
     throw std::runtime_error("failed to serialize FfiRequest");
   }
-  const uint8_t *resp_ptr = nullptr;
+  const uint8_t* resp_ptr = nullptr;
   size_t resp_len = 0;
   const FfiHandleId handle =
-      livekit_ffi_request(reinterpret_cast<const uint8_t *>(bytes.data()),
-                          bytes.size(), &resp_ptr, &resp_len);
+      livekit_ffi_request(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size(), &resp_ptr, &resp_len);
   if (handle == INVALID_HANDLE) {
-    throw std::runtime_error(
-        "failed to send request, received an invalid handle");
+    throw std::runtime_error("failed to send request, received an invalid handle");
   }
 
   // Ensure we drop the handle exactly once on all paths
@@ -212,7 +206,7 @@ FfiClient::sendRequest(const proto::FfiRequest &request) const {
   return response;
 }
 
-void FfiClient::PushEvent(const proto::FfiEvent &event) const {
+void FfiClient::PushEvent(const proto::FfiEvent& event) const {
   std::unique_ptr<PendingBase> to_complete;
   std::vector<Listener> listeners_copy;
   {
@@ -221,8 +215,7 @@ void FfiClient::PushEvent(const proto::FfiEvent &event) const {
     // Complete pending future if this event is a callback with async_id
     if (auto async_id = ExtractAsyncId(event)) {
       auto it = pending_by_id_.find(*async_id);
-      if (it != pending_by_id_.end() && it->second &&
-          it->second->matches(event)) {
+      if (it != pending_by_id_.end() && it->second && it->second->matches(event)) {
         to_complete = std::move(it->second);
         pending_by_id_.erase(it);
       }
@@ -230,7 +223,7 @@ void FfiClient::PushEvent(const proto::FfiEvent &event) const {
 
     // Snapshot listeners
     listeners_copy.reserve(listeners_.size());
-    for (const auto &kv : listeners_) {
+    for (const auto& kv : listeners_) {
       listeners_copy.push_back(kv.second);
     }
   }
@@ -240,23 +233,20 @@ void FfiClient::PushEvent(const proto::FfiEvent &event) const {
   }
 
   // Notify listeners outside lock
-  for (auto &listener : listeners_copy) {
+  for (auto& listener : listeners_copy) {
     listener(event);
   }
 }
 
-void LivekitFfiCallback(const uint8_t *buf, size_t len) {
+void LivekitFfiCallback(const uint8_t* buf, size_t len) {
   proto::FfiEvent event;
-  event.ParseFromArray(
-      buf, static_cast<int>(
-               len)); // TODO: this fixes for now, what if len exceeds int?
+  event.ParseFromArray(buf,
+                       static_cast<int>(len)); // TODO: this fixes for now, what if len exceeds int?
 
   FfiClient::instance().PushEvent(event);
 }
 
-FfiClient::AsyncId FfiClient::generateAsyncId() {
-  return next_async_id_.fetch_add(1, std::memory_order_relaxed);
-}
+FfiClient::AsyncId FfiClient::generateAsyncId() { return next_async_id_.fetch_add(1, std::memory_order_relaxed); }
 
 bool FfiClient::cancelPendingByAsyncId(AsyncId async_id) {
   std::unique_ptr<PendingBase> to_cancel;
@@ -276,9 +266,8 @@ bool FfiClient::cancelPendingByAsyncId(AsyncId async_id) {
 }
 
 template <typename T>
-std::future<T> FfiClient::registerAsync(
-    AsyncId async_id, std::function<bool(const proto::FfiEvent &)> match,
-    std::function<void(const proto::FfiEvent &, std::promise<T> &)> handler) {
+std::future<T> FfiClient::registerAsync(AsyncId async_id, std::function<bool(const proto::FfiEvent&)> match,
+                                        std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler) {
   auto pending = std::make_unique<Pending<T>>();
   pending->async_id = async_id;
   auto fut = pending->promise.get_future();
@@ -292,10 +281,8 @@ std::future<T> FfiClient::registerAsync(
 }
 
 // Room APIs Implementation
-std::future<proto::ConnectCallback>
-FfiClient::connectAsync(const std::string &url, const std::string &token,
-                        const RoomOptions &options) {
-
+std::future<proto::ConnectCallback> FfiClient::connectAsync(const std::string& url, const std::string& token,
+                                                            const RoomOptions& options) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
@@ -303,16 +290,14 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
   auto fut = registerAsync<proto::ConnectCallback>(
       async_id,
       // match lambda: is this the connect event with our async_id?
-      [async_id](const proto::FfiEvent &event) {
+      [async_id](const proto::FfiEvent& event) {
         return event.has_connect() && event.connect().async_id() == async_id;
       },
       // handler lambda: fill the promise with RoomInfo or an exception
-      [](const proto::FfiEvent &event,
-         std::promise<proto::ConnectCallback> &pr) {
-        const auto &connectCb = event.connect();
+      [](const proto::FfiEvent& event, std::promise<proto::ConnectCallback>& pr) {
+        const auto& connectCb = event.connect();
         if (!connectCb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(connectCb.error())));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(connectCb.error())));
           return;
         }
 
@@ -321,29 +306,28 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *connect = req.mutable_connect();
+  auto* connect = req.mutable_connect();
   connect->set_url(url);
   connect->set_token(token);
   connect->set_request_async_id(async_id);
-  auto *opts = connect->mutable_options();
+  auto* opts = connect->mutable_options();
   opts->set_auto_subscribe(options.auto_subscribe);
   opts->set_dynacast(options.dynacast);
   opts->set_single_peer_connection(options.single_peer_connection);
 
-  LK_LOG_DEBUG("[FfiClient] connectAsync: auto_subscribe={}, dynacast={}, "
-               "single_peer_connection={}",
-               options.auto_subscribe, options.dynacast,
-               options.single_peer_connection);
+  LK_LOG_DEBUG(
+      "[FfiClient] connectAsync: auto_subscribe={}, dynacast={}, "
+      "single_peer_connection={}",
+      options.auto_subscribe, options.dynacast, options.single_peer_connection);
 
   // --- E2EE / encryption (optional) ---
   if (options.encryption.has_value()) {
-    const E2EEOptions &e2ee = *options.encryption;
-    const auto &kpo = e2ee.key_provider_options;
+    const E2EEOptions& e2ee = *options.encryption;
+    const auto& kpo = e2ee.key_provider_options;
 
-    auto *enc = opts->mutable_encryption();
-    enc->set_encryption_type(
-        static_cast<proto::EncryptionType>(e2ee.encryption_type));
-    auto *kp = enc->mutable_key_provider_options();
+    auto* enc = opts->mutable_encryption();
+    enc->set_encryption_type(static_cast<proto::EncryptionType>(e2ee.encryption_type));
+    auto* kp = enc->mutable_key_provider_options();
     // shared_key is optional. If not set, leave the field unset/cleared.
     if (kpo.shared_key && !kpo.shared_key->empty()) {
       kp->set_shared_key(bytesToString(*kpo.shared_key));
@@ -354,10 +338,8 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
     // uses default.
     if (!kpo.ratchet_salt.empty() &&
         kpo.ratchet_salt !=
-            std::vector<std::uint8_t>(
-                kDefaultRatchetSalt,
-                kDefaultRatchetSalt +
-                    std::char_traits<char>::length(kDefaultRatchetSalt))) {
+            std::vector<std::uint8_t>(kDefaultRatchetSalt,
+                                      kDefaultRatchetSalt + std::char_traits<char>::length(kDefaultRatchetSalt))) {
       kp->set_ratchet_salt(bytesToString(kpo.ratchet_salt));
     } else {
       kp->clear_ratchet_salt();
@@ -378,17 +360,14 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
 
   // --- RTC configuration (optional) ---
   if (options.rtc_config.has_value()) {
-    const RtcConfig &rc = *options.rtc_config;
-    auto *rtc = opts->mutable_rtc_config();
+    const RtcConfig& rc = *options.rtc_config;
+    auto* rtc = opts->mutable_rtc_config();
 
-    rtc->set_ice_transport_type(
-        static_cast<proto::IceTransportType>(rc.ice_transport_type));
-    rtc->set_continual_gathering_policy(
-        static_cast<proto::ContinualGatheringPolicy>(
-            rc.continual_gathering_policy));
+    rtc->set_ice_transport_type(static_cast<proto::IceTransportType>(rc.ice_transport_type));
+    rtc->set_continual_gathering_policy(static_cast<proto::ContinualGatheringPolicy>(rc.continual_gathering_policy));
 
-    for (const IceServer &ice : rc.ice_servers) {
-      auto *s = rtc->add_ice_servers();
+    for (const IceServer& ice : rc.ice_servers) {
+      auto* s = rtc->add_ice_servers();
 
       // proto: repeated string urls = 1
       if (!ice.url.empty()) {
@@ -418,8 +397,7 @@ FfiClient::connectAsync(const std::string &url, const std::string &token,
 }
 
 // Track APIs Implementation
-std::future<std::vector<RtcStats>>
-FfiClient::getTrackStatsAsync(uintptr_t track_handle) {
+std::future<std::vector<RtcStats>> FfiClient::getTrackStatsAsync(uintptr_t track_handle) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
@@ -427,24 +405,21 @@ FfiClient::getTrackStatsAsync(uintptr_t track_handle) {
   auto fut = registerAsync<std::vector<RtcStats>>(
       async_id,
       // match
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_get_stats() &&
-               event.get_stats().async_id() == async_id;
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_get_stats() && event.get_stats().async_id() == async_id;
       },
       // handler
-      [](const proto::FfiEvent &event,
-         std::promise<std::vector<RtcStats>> &pr) {
-        const auto &gs = event.get_stats();
+      [](const proto::FfiEvent& event, std::promise<std::vector<RtcStats>>& pr) {
+        const auto& gs = event.get_stats();
 
         if (!gs.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(gs.error())));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(gs.error())));
           return;
         }
 
         std::vector<RtcStats> stats_vec;
         stats_vec.reserve(gs.stats_size());
-        for (const auto &ps : gs.stats()) {
+        for (const auto& ps : gs.stats()) {
           stats_vec.push_back(fromProto(ps));
         }
         pr.set_value(std::move(stats_vec));
@@ -452,7 +427,7 @@ FfiClient::getTrackStatsAsync(uintptr_t track_handle) {
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *get_stats_req = req.mutable_get_stats();
+  auto* get_stats_req = req.mutable_get_stats();
   get_stats_req->set_track_handle(track_handle);
   get_stats_req->set_request_async_id(async_id);
 
@@ -470,10 +445,9 @@ FfiClient::getTrackStatsAsync(uintptr_t track_handle) {
 }
 
 // Participant APIs Implementation
-std::future<proto::OwnedTrackPublication>
-FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
-                             std::uint64_t track_handle,
-                             const TrackPublishOptions &options) {
+std::future<proto::OwnedTrackPublication> FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
+                                                                       std::uint64_t track_handle,
+                                                                       const TrackPublishOptions& options) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
@@ -481,35 +455,31 @@ FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
   auto fut = registerAsync<proto::OwnedTrackPublication>(
       async_id,
       // Match: is this our PublishTrackCallback?
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_publish_track() &&
-               event.publish_track().async_id() == async_id;
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_publish_track() && event.publish_track().async_id() == async_id;
       },
       // Handler: resolve with publication or throw error
-      [](const proto::FfiEvent &event,
-         std::promise<proto::OwnedTrackPublication> &pr) {
-        const auto &cb = event.publish_track();
+      [](const proto::FfiEvent& event, std::promise<proto::OwnedTrackPublication>& pr) {
+        const auto& cb = event.publish_track();
 
         // Oneof message { string error = 2; OwnedTrackPublication publication =
         // 3; }
         if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
           return;
         }
         if (!cb.has_publication()) {
-          pr.set_exception(std::make_exception_ptr(
-              std::runtime_error("PublishTrackCallback missing publication")));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error("PublishTrackCallback missing publication")));
           return;
         }
 
-        const proto::OwnedTrackPublication &pub = cb.publication();
+        const proto::OwnedTrackPublication& pub = cb.publication();
         pr.set_value(pub);
       });
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *msg = req.mutable_publish_track();
+  auto* msg = req.mutable_publish_track();
   msg->set_local_participant_handle(local_participant_handle);
   msg->set_track_handle(track_handle);
   msg->set_request_async_id(async_id);
@@ -529,25 +499,21 @@ FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
   return fut;
 }
 
-std::future<void>
-FfiClient::unpublishTrackAsync(std::uint64_t local_participant_handle,
-                               const std::string &track_sid,
-                               bool stop_on_unpublish) {
+std::future<void> FfiClient::unpublishTrackAsync(std::uint64_t local_participant_handle, const std::string& track_sid,
+                                                 bool stop_on_unpublish) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
   // Register the async handler BEFORE sending the request
   auto fut = registerAsync<void>(
       async_id,
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_unpublish_track() &&
-               event.unpublish_track().async_id() == async_id;
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_unpublish_track() && event.unpublish_track().async_id() == async_id;
       },
-      [](const proto::FfiEvent &event, std::promise<void> &pr) {
-        const auto &cb = event.unpublish_track();
+      [](const proto::FfiEvent& event, std::promise<void>& pr) {
+        const auto& cb = event.unpublish_track();
         if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
           return;
         }
         pr.set_value();
@@ -555,7 +521,7 @@ FfiClient::unpublishTrackAsync(std::uint64_t local_participant_handle,
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *msg = req.mutable_unpublish_track();
+  auto* msg = req.mutable_unpublish_track();
   msg->set_local_participant_handle(local_participant_handle);
   msg->set_track_sid(track_sid);
   msg->set_stop_on_unpublish(stop_on_unpublish);
@@ -574,26 +540,23 @@ FfiClient::unpublishTrackAsync(std::uint64_t local_participant_handle,
   return fut;
 }
 
-std::future<void> FfiClient::publishDataAsync(
-    std::uint64_t local_participant_handle, const std::uint8_t *data_ptr,
-    std::uint64_t data_len, bool reliable,
-    const std::vector<std::string> &destination_identities,
-    const std::string &topic) {
+std::future<void> FfiClient::publishDataAsync(std::uint64_t local_participant_handle, const std::uint8_t* data_ptr,
+                                              std::uint64_t data_len, bool reliable,
+                                              const std::vector<std::string>& destination_identities,
+                                              const std::string& topic) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
   // Register the async handler BEFORE sending the request
   auto fut = registerAsync<void>(
       async_id,
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_publish_data() &&
-               event.publish_data().async_id() == async_id;
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_publish_data() && event.publish_data().async_id() == async_id;
       },
-      [](const proto::FfiEvent &event, std::promise<void> &pr) {
-        const auto &cb = event.publish_data();
+      [](const proto::FfiEvent& event, std::promise<void>& pr) {
+        const auto& cb = event.publish_data();
         if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
           return;
         }
         pr.set_value();
@@ -601,14 +564,14 @@ std::future<void> FfiClient::publishDataAsync(
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *msg = req.mutable_publish_data();
+  auto* msg = req.mutable_publish_data();
   msg->set_local_participant_handle(local_participant_handle);
   msg->set_data_ptr(reinterpret_cast<std::uint64_t>(data_ptr));
   msg->set_data_len(data_len);
   msg->set_reliable(reliable);
   msg->set_topic(topic);
   msg->set_request_async_id(async_id);
-  for (const auto &id : destination_identities) {
+  for (const auto& id : destination_identities) {
     msg->add_destination_identities(id);
   }
 
@@ -625,43 +588,32 @@ std::future<void> FfiClient::publishDataAsync(
   return fut;
 }
 
-std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>
-FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
-                                 const std::string &track_name) {
+std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> FfiClient::publishDataTrackAsync(
+    std::uint64_t local_participant_handle, const std::string& track_name) {
   const AsyncId async_id = generateAsyncId();
 
-  auto fut = registerAsync<
-      Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>(
+  auto fut = registerAsync<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>(
       async_id,
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_publish_data_track() &&
-               event.publish_data_track().async_id() == async_id;
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_publish_data_track() && event.publish_data_track().async_id() == async_id;
       },
-      [](const proto::FfiEvent &event,
-         std::promise<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>
-             &pr) {
-        const auto &cb = event.publish_data_track();
+      [](const proto::FfiEvent& event, std::promise<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>& pr) {
+        const auto& cb = event.publish_data_track();
         if (cb.has_error()) {
-          pr.set_value(
-              Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::
-                  failure(PublishDataTrackError::fromProto(cb.error())));
+          pr.set_value(Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
+              PublishDataTrackError::fromProto(cb.error())));
           return;
         }
         if (!cb.has_track()) {
-          pr.set_value(
-              Result<proto::OwnedLocalDataTrack,
-                     PublishDataTrackError>::failure(PublishDataTrackError{
-                  PublishDataTrackErrorCode::PROTOCOL_ERROR,
-                  "PublishDataTrackCallback missing track"}));
+          pr.set_value(Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(PublishDataTrackError{
+              PublishDataTrackErrorCode::PROTOCOL_ERROR, "PublishDataTrackCallback missing track"}));
           return;
         }
-        pr.set_value(
-            Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::success(
-                cb.track()));
+        pr.set_value(Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::success(cb.track()));
       });
 
   proto::FfiRequest req;
-  auto *msg = req.mutable_publish_data_track();
+  auto* msg = req.mutable_publish_data_track();
   msg->set_local_participant_handle(local_participant_handle);
   msg->mutable_options()->set_name(track_name);
   msg->set_request_async_id(async_id);
@@ -670,34 +622,28 @@ FfiClient::publishDataTrackAsync(std::uint64_t local_participant_handle,
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_publish_data_track()) {
       cancelPendingByAsyncId(async_id);
-      std::promise<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>
-          pr;
-      pr.set_value(
-          Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
-              PublishDataTrackError{PublishDataTrackErrorCode::PROTOCOL_ERROR,
-                                    "FfiResponse missing publish_data_track"}));
+      std::promise<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> pr;
+      pr.set_value(Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
+          PublishDataTrackError{PublishDataTrackErrorCode::PROTOCOL_ERROR, "FfiResponse missing publish_data_track"}));
       return pr.get_future();
     }
-  } catch (const std::exception &e) {
+  } catch (const std::exception& e) {
     cancelPendingByAsyncId(async_id);
     std::promise<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> pr;
-    pr.set_value(
-        Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
-            PublishDataTrackError{PublishDataTrackErrorCode::INTERNAL,
-                                  e.what()}));
+    pr.set_value(Result<proto::OwnedLocalDataTrack, PublishDataTrackError>::failure(
+        PublishDataTrackError{PublishDataTrackErrorCode::INTERNAL, e.what()}));
     return pr.get_future();
   }
 
   return fut;
 }
 
-Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>
-FfiClient::subscribeDataTrack(std::uint64_t track_handle,
-                              std::optional<std::uint32_t> buffer_size) {
+Result<proto::OwnedDataTrackStream, SubscribeDataTrackError> FfiClient::subscribeDataTrack(
+    std::uint64_t track_handle, std::optional<std::uint32_t> buffer_size) {
   proto::FfiRequest req;
-  auto *msg = req.mutable_subscribe_data_track();
+  auto* msg = req.mutable_subscribe_data_track();
   msg->set_track_handle(track_handle);
-  auto *opts = msg->mutable_options();
+  auto* opts = msg->mutable_options();
   if (buffer_size.has_value()) {
     opts->set_buffer_size(buffer_size.value());
   }
@@ -705,46 +651,37 @@ FfiClient::subscribeDataTrack(std::uint64_t track_handle,
   try {
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_subscribe_data_track()) {
-      return Result<proto::OwnedDataTrackStream,
-                    SubscribeDataTrackError>::failure(SubscribeDataTrackError{
-          SubscribeDataTrackErrorCode::PROTOCOL_ERROR,
-          "FfiResponse missing subscribe_data_track"});
+      return Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>::failure(SubscribeDataTrackError{
+          SubscribeDataTrackErrorCode::PROTOCOL_ERROR, "FfiResponse missing subscribe_data_track"});
     }
     if (!resp.subscribe_data_track().has_stream()) {
-      return Result<proto::OwnedDataTrackStream,
-                    SubscribeDataTrackError>::failure(SubscribeDataTrackError{
-          SubscribeDataTrackErrorCode::PROTOCOL_ERROR,
-          "FfiResponse subscribe_data_track missing stream"});
+      return Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>::failure(SubscribeDataTrackError{
+          SubscribeDataTrackErrorCode::PROTOCOL_ERROR, "FfiResponse subscribe_data_track missing stream"});
     }
     proto::OwnedDataTrackStream sub = resp.subscribe_data_track().stream();
-    return Result<proto::OwnedDataTrackStream,
-                  SubscribeDataTrackError>::success(std::move(sub));
-  } catch (const std::exception &e) { // NOLINT(bugprone-empty-catch)
-    return Result<proto::OwnedDataTrackStream,
-                  SubscribeDataTrackError>::failure(SubscribeDataTrackError{
-        SubscribeDataTrackErrorCode::INTERNAL, e.what()});
+    return Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>::success(std::move(sub));
+  } catch (const std::exception& e) { // NOLINT(bugprone-empty-catch)
+    return Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>::failure(
+        SubscribeDataTrackError{SubscribeDataTrackErrorCode::INTERNAL, e.what()});
   }
 }
 
-std::future<void> FfiClient::publishSipDtmfAsync(
-    std::uint64_t local_participant_handle, std::uint32_t code,
-    const std::string &digit,
-    const std::vector<std::string> &destination_identities) {
+std::future<void> FfiClient::publishSipDtmfAsync(std::uint64_t local_participant_handle, std::uint32_t code,
+                                                 const std::string& digit,
+                                                 const std::vector<std::string>& destination_identities) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
   // Register the async handler BEFORE sending the request
   auto fut = registerAsync<void>(
       async_id,
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_publish_sip_dtmf() &&
-               event.publish_sip_dtmf().async_id() == async_id;
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_publish_sip_dtmf() && event.publish_sip_dtmf().async_id() == async_id;
       },
-      [](const proto::FfiEvent &event, std::promise<void> &pr) {
-        const auto &cb = event.publish_sip_dtmf();
+      [](const proto::FfiEvent& event, std::promise<void>& pr) {
+        const auto& cb = event.publish_sip_dtmf();
         if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
           return;
         }
         pr.set_value();
@@ -752,12 +689,12 @@ std::future<void> FfiClient::publishSipDtmfAsync(
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *msg = req.mutable_publish_sip_dtmf();
+  auto* msg = req.mutable_publish_sip_dtmf();
   msg->set_local_participant_handle(local_participant_handle);
   msg->set_code(code);
   msg->set_digit(digit);
   msg->set_request_async_id(async_id);
-  for (const auto &id : destination_identities) {
+  for (const auto& id : destination_identities) {
     msg->add_destination_identities(id);
   }
 
@@ -774,24 +711,21 @@ std::future<void> FfiClient::publishSipDtmfAsync(
   return fut;
 }
 
-std::future<void>
-FfiClient::setLocalMetadataAsync(std::uint64_t local_participant_handle,
-                                 const std::string &metadata) {
+std::future<void> FfiClient::setLocalMetadataAsync(std::uint64_t local_participant_handle,
+                                                   const std::string& metadata) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
   // Register the async handler BEFORE sending the request
   auto fut = registerAsync<void>(
       async_id,
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_set_local_metadata() &&
-               event.set_local_metadata().async_id() == async_id;
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_set_local_metadata() && event.set_local_metadata().async_id() == async_id;
       },
-      [](const proto::FfiEvent &event, std::promise<void> &pr) {
-        const auto &cb = event.set_local_metadata();
+      [](const proto::FfiEvent& event, std::promise<void>& pr) {
+        const auto& cb = event.set_local_metadata();
         if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
           return;
         }
         pr.set_value();
@@ -799,7 +733,7 @@ FfiClient::setLocalMetadataAsync(std::uint64_t local_participant_handle,
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *msg = req.mutable_set_local_metadata();
+  auto* msg = req.mutable_set_local_metadata();
   msg->set_local_participant_handle(local_participant_handle);
   msg->set_metadata(metadata);
   msg->set_request_async_id(async_id);
@@ -817,9 +751,8 @@ FfiClient::setLocalMetadataAsync(std::uint64_t local_participant_handle,
   return fut;
 }
 
-std::future<void>
-FfiClient::captureAudioFrameAsync(std::uint64_t source_handle,
-                                  const proto::AudioFrameBufferInfo &buffer) {
+std::future<void> FfiClient::captureAudioFrameAsync(std::uint64_t source_handle,
+                                                    const proto::AudioFrameBufferInfo& buffer) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
@@ -827,16 +760,14 @@ FfiClient::captureAudioFrameAsync(std::uint64_t source_handle,
   auto fut = registerAsync<void>(
       async_id,
       // match predicate
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_capture_audio_frame() &&
-               event.capture_audio_frame().async_id() == async_id;
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_capture_audio_frame() && event.capture_audio_frame().async_id() == async_id;
       },
       // completion handler
-      [](const proto::FfiEvent &event, std::promise<void> &pr) {
-        const auto &cb = event.capture_audio_frame();
+      [](const proto::FfiEvent& event, std::promise<void>& pr) {
+        const auto& cb = event.capture_audio_frame();
         if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
           return;
         }
         pr.set_value();
@@ -844,7 +775,7 @@ FfiClient::captureAudioFrameAsync(std::uint64_t source_handle,
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *msg = req.mutable_capture_audio_frame();
+  auto* msg = req.mutable_capture_audio_frame();
   msg->set_source_handle(source_handle);
   msg->set_request_async_id(async_id);
   msg->mutable_buffer()->CopyFrom(buffer);
@@ -862,12 +793,10 @@ FfiClient::captureAudioFrameAsync(std::uint64_t source_handle,
   return fut;
 }
 
-std::future<std::string>
-FfiClient::performRpcAsync(std::uint64_t local_participant_handle,
-                           const std::string &destination_identity,
-                           const std::string &method,
-                           const std::string &payload,
-                           std::optional<std::uint32_t> response_timeout_ms) {
+std::future<std::string> FfiClient::performRpcAsync(std::uint64_t local_participant_handle,
+                                                    const std::string& destination_identity, const std::string& method,
+                                                    const std::string& payload,
+                                                    std::optional<std::uint32_t> response_timeout_ms) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
@@ -875,17 +804,15 @@ FfiClient::performRpcAsync(std::uint64_t local_participant_handle,
   auto fut = registerAsync<std::string>(
       async_id,
       // match predicate
-      [async_id](const proto::FfiEvent &event) {
-        return event.has_perform_rpc() &&
-               event.perform_rpc().async_id() == async_id;
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_perform_rpc() && event.perform_rpc().async_id() == async_id;
       },
-      [](const proto::FfiEvent &event, std::promise<std::string> &pr) {
-        const auto &cb = event.perform_rpc();
+      [](const proto::FfiEvent& event, std::promise<std::string>& pr) {
+        const auto& cb = event.perform_rpc();
 
         if (cb.has_error()) {
           // RpcError is a proto message; convert to C++ RpcError and throw
-          pr.set_exception(
-              std::make_exception_ptr(RpcError::fromProto(cb.error())));
+          pr.set_exception(std::make_exception_ptr(RpcError::fromProto(cb.error())));
           return;
         }
         pr.set_value(cb.payload());
@@ -893,7 +820,7 @@ FfiClient::performRpcAsync(std::uint64_t local_participant_handle,
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *msg = req.mutable_perform_rpc();
+  auto* msg = req.mutable_perform_rpc();
   msg->set_local_participant_handle(local_participant_handle);
   msg->set_destination_identity(destination_identity);
   msg->set_method(method);
@@ -916,26 +843,23 @@ FfiClient::performRpcAsync(std::uint64_t local_participant_handle,
   return fut;
 }
 
-std::future<void> FfiClient::sendStreamHeaderAsync(
-    std::uint64_t local_participant_handle,
-    const proto::DataStream::Header &header,
-    const std::vector<std::string> &destination_identities,
-    const std::string &sender_identity) {
+std::future<void> FfiClient::sendStreamHeaderAsync(std::uint64_t local_participant_handle,
+                                                   const proto::DataStream::Header& header,
+                                                   const std::vector<std::string>& destination_identities,
+                                                   const std::string& sender_identity) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
   // Register the async handler BEFORE sending the request
   auto fut = registerAsync<void>(
       async_id,
-      [async_id](const proto::FfiEvent &e) {
-        return e.has_send_stream_header() &&
-               e.send_stream_header().async_id() == async_id;
+      [async_id](const proto::FfiEvent& e) {
+        return e.has_send_stream_header() && e.send_stream_header().async_id() == async_id;
       },
-      [](const proto::FfiEvent &e, std::promise<void> &pr) {
-        const auto &cb = e.send_stream_header();
+      [](const proto::FfiEvent& e, std::promise<void>& pr) {
+        const auto& cb = e.send_stream_header();
         if (!cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
           return;
         }
         pr.set_value();
@@ -943,12 +867,12 @@ std::future<void> FfiClient::sendStreamHeaderAsync(
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *msg = req.mutable_send_stream_header();
+  auto* msg = req.mutable_send_stream_header();
   msg->set_local_participant_handle(local_participant_handle);
   *msg->mutable_header() = header;
   msg->set_sender_identity(sender_identity);
   msg->set_request_async_id(async_id);
-  for (const auto &id : destination_identities) {
+  for (const auto& id : destination_identities) {
     msg->add_destination_identities(id);
   }
 
@@ -965,26 +889,23 @@ std::future<void> FfiClient::sendStreamHeaderAsync(
   return fut;
 }
 
-std::future<void> FfiClient::sendStreamChunkAsync(
-    std::uint64_t local_participant_handle,
-    const proto::DataStream::Chunk &chunk,
-    const std::vector<std::string> &destination_identities,
-    const std::string &sender_identity) {
+std::future<void> FfiClient::sendStreamChunkAsync(std::uint64_t local_participant_handle,
+                                                  const proto::DataStream::Chunk& chunk,
+                                                  const std::vector<std::string>& destination_identities,
+                                                  const std::string& sender_identity) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
   // Register the async handler BEFORE sending the request
   auto fut = registerAsync<void>(
       async_id,
-      [async_id](const proto::FfiEvent &e) {
-        return e.has_send_stream_chunk() &&
-               e.send_stream_chunk().async_id() == async_id;
+      [async_id](const proto::FfiEvent& e) {
+        return e.has_send_stream_chunk() && e.send_stream_chunk().async_id() == async_id;
       },
-      [](const proto::FfiEvent &e, std::promise<void> &pr) {
-        const auto &cb = e.send_stream_chunk();
+      [](const proto::FfiEvent& e, std::promise<void>& pr) {
+        const auto& cb = e.send_stream_chunk();
         if (!cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
           return;
         }
         pr.set_value();
@@ -992,12 +913,12 @@ std::future<void> FfiClient::sendStreamChunkAsync(
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *msg = req.mutable_send_stream_chunk();
+  auto* msg = req.mutable_send_stream_chunk();
   msg->set_local_participant_handle(local_participant_handle);
   *msg->mutable_chunk() = chunk;
   msg->set_sender_identity(sender_identity);
   msg->set_request_async_id(async_id);
-  for (const auto &id : destination_identities) {
+  for (const auto& id : destination_identities) {
     msg->add_destination_identities(id);
   }
 
@@ -1014,25 +935,22 @@ std::future<void> FfiClient::sendStreamChunkAsync(
   return fut;
 }
 
-std::future<void>
-FfiClient::sendStreamTrailerAsync(std::uint64_t local_participant_handle,
-                                  const proto::DataStream::Trailer &trailer,
-                                  const std::string &sender_identity) {
+std::future<void> FfiClient::sendStreamTrailerAsync(std::uint64_t local_participant_handle,
+                                                    const proto::DataStream::Trailer& trailer,
+                                                    const std::string& sender_identity) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
   // Register the async handler BEFORE sending the request
   auto fut = registerAsync<void>(
       async_id,
-      [async_id](const proto::FfiEvent &e) {
-        return e.has_send_stream_trailer() &&
-               e.send_stream_trailer().async_id() == async_id;
+      [async_id](const proto::FfiEvent& e) {
+        return e.has_send_stream_trailer() && e.send_stream_trailer().async_id() == async_id;
       },
-      [](const proto::FfiEvent &e, std::promise<void> &pr) {
-        const auto &cb = e.send_stream_trailer();
+      [](const proto::FfiEvent& e, std::promise<void>& pr) {
+        const auto& cb = e.send_stream_trailer();
         if (!cb.error().empty()) {
-          pr.set_exception(
-              std::make_exception_ptr(std::runtime_error(cb.error())));
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
           return;
         }
         pr.set_value();
@@ -1040,7 +958,7 @@ FfiClient::sendStreamTrailerAsync(std::uint64_t local_participant_handle,
 
   // Build and send the request
   proto::FfiRequest req;
-  auto *msg = req.mutable_send_stream_trailer();
+  auto* msg = req.mutable_send_stream_trailer();
   msg->set_local_participant_handle(local_participant_handle);
   *msg->mutable_trailer() = trailer;
   msg->set_sender_identity(sender_identity);

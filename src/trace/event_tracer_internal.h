@@ -34,8 +34,7 @@ namespace livekit::trace::internal {
  * @return true if tracing started successfully, false if already running or
  * file error
  */
-bool StartTracing(const std::string &file_path,
-                  const std::vector<std::string> &categories);
+bool StartTracing(const std::string& file_path, const std::vector<std::string>& categories);
 
 /**
  * Stop tracing and flush all pending events.

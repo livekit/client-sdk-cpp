@@ -16,14 +16,6 @@
 
 #pragma once
 
-#include "livekit/ffi_handle.h"
-#include "livekit/local_audio_track.h"
-#include "livekit/local_data_track.h"
-#include "livekit/local_video_track.h"
-#include "livekit/participant.h"
-#include "livekit/room_event_types.h"
-#include "livekit/rpc_error.h"
-
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -33,6 +25,14 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "livekit/ffi_handle.h"
+#include "livekit/local_audio_track.h"
+#include "livekit/local_data_track.h"
+#include "livekit/local_video_track.h"
+#include "livekit/participant.h"
+#include "livekit/room_event_types.h"
+#include "livekit/rpc_error.h"
 
 namespace livekit {
 
@@ -56,8 +56,7 @@ struct RpcInvocationData {
  */
 class LocalParticipant : public Participant {
 public:
-  using PublicationMap =
-      std::unordered_map<std::string, std::shared_ptr<LocalTrackPublication>>;
+  using PublicationMap = std::unordered_map<std::string, std::shared_ptr<LocalTrackPublication>>;
   using TrackMap = std::unordered_map<std::string, std::weak_ptr<Track>>;
 
   /**
@@ -70,13 +69,11 @@ public:
    * Returning std::nullopt means "no payload" and results in an empty
    * response body being sent back to the caller.
    */
-  using RpcHandler =
-      std::function<std::optional<std::string>(const RpcInvocationData &)>;
+  using RpcHandler = std::function<std::optional<std::string>(const RpcInvocationData&)>;
 
-  LocalParticipant(FfiHandle handle, std::string sid, std::string name,
-                   std::string identity, std::string metadata,
-                   std::unordered_map<std::string, std::string> attributes,
-                   ParticipantKind kind, DisconnectReason reason);
+  LocalParticipant(FfiHandle handle, std::string sid, std::string name, std::string identity, std::string metadata,
+                   std::unordered_map<std::string, std::string> attributes, ParticipantKind kind,
+                   DisconnectReason reason);
 
   /**
    * Track publications for this participant, keyed by publication SID.
@@ -96,10 +93,8 @@ public:
    *
    * Throws std::runtime_error if FFI reports an error (if you wire that up).
    */
-  void publishData(const std::vector<std::uint8_t> &payload,
-                   bool reliable = true,
-                   const std::vector<std::string> &destination_identities = {},
-                   const std::string &topic = {});
+  void publishData(const std::vector<std::uint8_t>& payload, bool reliable = true,
+                   const std::vector<std::string>& destination_identities = {}, const std::string& topic = {});
 
   /**
    * Publish a SIP DTMF (phone keypad) tone into the room.
@@ -110,16 +105,15 @@ public:
    * @param code  DTMF code (0-15).
    * @param digit Human-readable digit string (e.g. "5", "#").
    */
-  void publishDtmf(int code, const std::string &digit);
+  void publishDtmf(int code, const std::string& digit);
 
   // -------------------------------------------------------------------------
   // Metadata APIs (set metadata / name / attributes)
   // -------------------------------------------------------------------------
 
-  void setMetadata(const std::string &metadata);
-  void setName(const std::string &name);
-  void
-  setAttributes(const std::unordered_map<std::string, std::string> &attributes);
+  void setMetadata(const std::string& metadata);
+  void setName(const std::string& name);
+  void setAttributes(const std::unordered_map<std::string, std::string>& attributes);
 
   /**
    * Set track subscription permissions for this participant.
@@ -127,18 +121,15 @@ public:
    * @param allow_all_participants If true, all participants may subscribe.
    * @param participant_permissions Optional participant-specific permissions.
    */
-  void
-  setTrackSubscriptionPermissions(bool allow_all_participants,
-                                  const std::vector<ParticipantTrackPermission>
-                                      &participant_permissions = {});
+  void setTrackSubscriptionPermissions(bool allow_all_participants,
+                                       const std::vector<ParticipantTrackPermission>& participant_permissions = {});
 
   /**
    * Publish a local track to the room.
    *
    * Throws std::runtime_error on error (e.g. publish failure).
    */
-  void publishTrack(const std::shared_ptr<Track> &track,
-                    const TrackPublishOptions &options);
+  void publishTrack(const std::shared_ptr<Track>& track, const TrackPublishOptions& options);
 
   /**
    * Create a \ref LocalVideoTrack backed by the given \ref VideoSource,
@@ -147,10 +138,9 @@ public:
    * The caller retains ownership of \p source and should use it directly
    * for frame capture on the video thread.
    */
-  std::shared_ptr<LocalVideoTrack>
-  publishVideoTrack(const std::string &name,
-                    const std::shared_ptr<VideoSource> &source,
-                    TrackSource track_source);
+  std::shared_ptr<LocalVideoTrack> publishVideoTrack(const std::string& name,
+                                                     const std::shared_ptr<VideoSource>& source,
+                                                     TrackSource track_source);
 
   /**
    * Create a \ref LocalAudioTrack backed by the given \ref AudioSource,
@@ -159,17 +149,16 @@ public:
    * The caller retains ownership of \p source and should use it directly
    * for frame capture on the audio thread.
    */
-  std::shared_ptr<LocalAudioTrack>
-  publishAudioTrack(const std::string &name,
-                    const std::shared_ptr<AudioSource> &source,
-                    TrackSource track_source);
+  std::shared_ptr<LocalAudioTrack> publishAudioTrack(const std::string& name,
+                                                     const std::shared_ptr<AudioSource>& source,
+                                                     TrackSource track_source);
 
   /**
    * Unpublish a track from the room by SID.
    *
    * If the publication exists in the local map, it is removed.
    */
-  void unpublishTrack(const std::string &track_sid);
+  void unpublishTrack(const std::string& track_sid);
 
   /**
    * Publish a data track to the room.
@@ -184,8 +173,7 @@ public:
    * @return The published track on success, or a typed error describing why
    *         publication failed.
    */
-  Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError>
-  publishDataTrack(const std::string &name);
+  Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> publishDataTrack(const std::string& name);
 
   /**
    * Unpublish a data track from the room.
@@ -195,7 +183,7 @@ public:
    *
    * @param track  The data track to unpublish. Null is ignored.
    */
-  void unpublishDataTrack(const std::shared_ptr<LocalDataTrack> &track);
+  void unpublishDataTrack(const std::shared_ptr<LocalDataTrack>& track);
 
   /**
    * Initiate an RPC call to a remote participant.
@@ -214,10 +202,8 @@ public:
    * @throws std::runtime_error If the underlying FFI handle is invalid or
    *                             the FFI call fails unexpectedly.
    */
-  std::string
-  performRpc(const std::string &destination_identity, const std::string &method,
-             const std::string &payload,
-             const std::optional<double> &response_timeout = std::nullopt);
+  std::string performRpc(const std::string& destination_identity, const std::string& method, const std::string& payload,
+                         const std::optional<double>& response_timeout = std::nullopt);
 
   /**
    * Register a handler for an incoming RPC method.
@@ -235,7 +221,7 @@ public:
    * replaced by the new handler.
    */
 
-  void registerRpcMethod(const std::string &method_name, RpcHandler handler);
+  void registerRpcMethod(const std::string& method_name, RpcHandler handler);
 
   /**
    * Unregister a previously registered RPC method handler.
@@ -248,7 +234,7 @@ public:
    *                     If no handler is registered for this name, the call
    *                     is a no-op.
    */
-  void unregisterRpcMethod(const std::string &method_name);
+  void unregisterRpcMethod(const std::string& method_name);
 
 protected:
   /**
@@ -261,15 +247,11 @@ protected:
   // Called by Room when an rpc_method_invocation event is received from the
   // SFU. This is internal plumbing and not intended to be called directly by
   // SDK users.
-  void handleRpcMethodInvocation(std::uint64_t invocation_id,
-                                 const std::string &method,
-                                 const std::string &request_id,
-                                 const std::string &caller_identity,
-                                 const std::string &payload,
+  void handleRpcMethodInvocation(std::uint64_t invocation_id, const std::string& method, const std::string& request_id,
+                                 const std::string& caller_identity, const std::string& payload,
                                  double response_timeout);
   // Called by Room events like kTrackMuted.
-  std::shared_ptr<TrackPublication>
-  findTrackPublication(const std::string &sid) const override;
+  std::shared_ptr<TrackPublication> findTrackPublication(const std::string& sid) const override;
   friend class Room;
 
 private:
@@ -289,8 +271,7 @@ private:
     int active_invocations = 0;
     bool shutting_down = false;
   };
-  std::shared_ptr<RpcInvocationState> rpc_state_ =
-      std::make_shared<RpcInvocationState>();
+  std::shared_ptr<RpcInvocationState> rpc_state_ = std::make_shared<RpcInvocationState>();
 };
 
 } // namespace livekit

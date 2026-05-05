@@ -17,15 +17,15 @@
 #ifndef LIVEKIT_ROOM_H
 #define LIVEKIT_ROOM_H
 
+#include <cstdint>
+#include <memory>
+#include <mutex>
+
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
 #include "livekit/subscription_thread_dispatcher.h"
-
-#include <cstdint>
-#include <memory>
-#include <mutex>
 
 namespace livekit {
 
@@ -109,7 +109,7 @@ public:
    *     Room room;
    *     room.setDelegate(&del);
    */
-  void setDelegate(RoomDelegate *delegate);
+  void setDelegate(RoomDelegate* delegate);
 
   /* Connect to a LiveKit room using the given URL and token,  applying the
    * supplied connection options.
@@ -131,8 +131,7 @@ public:
    *   Without auto_subscribe enabled, remote tracks will NOT be subscribed
    *   automatically, and no remote audio/video will ever arrive.
    */
-  bool Connect(const std::string &url, const std::string &token,
-               const RoomOptions &options);
+  bool Connect(const std::string& url, const std::string& token, const RoomOptions& options);
 
   // Accessors
 
@@ -155,7 +154,7 @@ public:
    * Return value:
    *   Non-null pointer after successful Connect().
    */
-  LocalParticipant *localParticipant() const;
+  LocalParticipant* localParticipant() const;
 
   /* Look up a remote participant by identity.
    *
@@ -168,7 +167,7 @@ public:
    *   - track publications
    *  - callbacks for track subscribed/unsubscribed, muted/unmuted
    */
-  RemoteParticipant *remoteParticipant(const std::string &identity) const;
+  RemoteParticipant* remoteParticipant(const std::string& identity) const;
 
   /// Returns a snapshot of all current remote participants.
   std::vector<std::shared_ptr<RemoteParticipant>> remoteParticipants() const;
@@ -191,14 +190,13 @@ public:
    * Throws:
    *   std::runtime_error if a handler is already registered for the topic.
    */
-  void registerTextStreamHandler(const std::string &topic,
-                                 TextStreamHandler handler);
+  void registerTextStreamHandler(const std::string& topic, TextStreamHandler handler);
 
   /* Unregister the text stream handler for the given topic.
    *
    * If no handler exists for the topic, this function is a no-op.
    */
-  void unregisterTextStreamHandler(const std::string &topic);
+  void unregisterTextStreamHandler(const std::string& topic);
 
   /* Register a handler for incoming byte streams on a specific topic.
    *
@@ -217,14 +215,13 @@ public:
    * Throws:
    *   std::runtime_error if a handler is already registered for the topic.
    */
-  void registerByteStreamHandler(const std::string &topic,
-                                 ByteStreamHandler handler);
+  void registerByteStreamHandler(const std::string& topic, ByteStreamHandler handler);
 
   /* Unregister the byte stream handler for the given topic.
    *
    * If no handler exists for the topic, this function is a no-op.
    */
-  void unregisterByteStreamHandler(const std::string &topic);
+  void unregisterByteStreamHandler(const std::string& topic);
 
   /**
    * Returns the room's E2EE manager, or nullptr if E2EE was not enabled at
@@ -234,7 +231,7 @@ public:
    * - The manager is created after a successful Connect().
    * - If E2EE was not configured in RoomOptions, this will return nullptr.
    */
-  E2EEManager *e2eeManager() const;
+  E2EEManager* e2eeManager() const;
 
   // ---------------------------------------------------------------
   // Frame callbacks
@@ -243,72 +240,58 @@ public:
   /**
    * @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
    */
-  void setOnAudioFrameCallback(const std::string &participant_identity,
-                               TrackSource source, AudioFrameCallback callback,
-                               const AudioStream::Options &opts = {});
+  void setOnAudioFrameCallback(const std::string& participant_identity, TrackSource source, AudioFrameCallback callback,
+                               const AudioStream::Options& opts = {});
 
   /**
    * @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
    */
-  void setOnAudioFrameCallback(const std::string &participant_identity,
-                               const std::string &track_name,
-                               AudioFrameCallback callback,
-                               const AudioStream::Options &opts = {});
+  void setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
+                               AudioFrameCallback callback, const AudioStream::Options& opts = {});
 
   /**
    * @brief Sets the video frame callback via SubscriptionThreadDispatcher.
    */
-  void setOnVideoFrameCallback(const std::string &participant_identity,
-                               TrackSource source, VideoFrameCallback callback,
-                               const VideoStream::Options &opts = {});
+  void setOnVideoFrameCallback(const std::string& participant_identity, TrackSource source, VideoFrameCallback callback,
+                               const VideoStream::Options& opts = {});
 
   /**
    * @brief Sets the video frame callback via SubscriptionThreadDispatcher.
    */
-  void setOnVideoFrameCallback(const std::string &participant_identity,
-                               const std::string &track_name,
-                               VideoFrameCallback callback,
-                               const VideoStream::Options &opts = {});
+  void setOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
+                               VideoFrameCallback callback, const VideoStream::Options& opts = {});
 
   /**
    * @brief Sets the video frame event callback via
    * SubscriptionThreadDispatcher.
    */
-  void setOnVideoFrameEventCallback(const std::string &participant_identity,
-                                    const std::string &track_name,
-                                    VideoFrameEventCallback callback,
-                                    const VideoStream::Options &opts = {});
+  void setOnVideoFrameEventCallback(const std::string& participant_identity, const std::string& track_name,
+                                    VideoFrameEventCallback callback, const VideoStream::Options& opts = {});
 
   /**
    * @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
    */
-  void clearOnAudioFrameCallback(const std::string &participant_identity,
-                                 TrackSource source);
+  void clearOnAudioFrameCallback(const std::string& participant_identity, TrackSource source);
   /**
    * @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
    */
-  void clearOnAudioFrameCallback(const std::string &participant_identity,
-                                 const std::string &track_name);
+  void clearOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name);
 
   /**
    * @brief Clears the video frame callback via SubscriptionThreadDispatcher.
    */
-  void clearOnVideoFrameCallback(const std::string &participant_identity,
-                                 TrackSource source);
+  void clearOnVideoFrameCallback(const std::string& participant_identity, TrackSource source);
 
   /**
    * @brief Clears the video frame callback via SubscriptionThreadDispatcher.
    */
-  void clearOnVideoFrameCallback(const std::string &participant_identity,
-                                 const std::string &track_name);
+  void clearOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name);
 
   /**
    * @brief Adds a data frame callback via SubscriptionThreadDispatcher.
    */
-  DataFrameCallbackId
-  addOnDataFrameCallback(const std::string &participant_identity,
-                         const std::string &track_name,
-                         DataFrameCallback callback);
+  DataFrameCallbackId addOnDataFrameCallback(const std::string& participant_identity, const std::string& track_name,
+                                             DataFrameCallback callback);
 
   /**
    * @brief Removes the data frame callback via SubscriptionThreadDispatcher.
@@ -320,19 +303,16 @@ private:
 
   mutable std::mutex lock_;
   ConnectionState connection_state_ = ConnectionState::Disconnected;
-  RoomDelegate *delegate_ = nullptr; // Not owned
+  RoomDelegate* delegate_ = nullptr; // Not owned
   RoomInfoData room_info_;
   std::shared_ptr<FfiHandle> room_handle_;
   std::unique_ptr<LocalParticipant> local_participant_;
-  std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>>
-      remote_participants_;
+  std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> remote_participants_;
   // Data stream
   std::unordered_map<std::string, TextStreamHandler> text_stream_handlers_;
   std::unordered_map<std::string, ByteStreamHandler> byte_stream_handlers_;
-  std::unordered_map<std::string, std::shared_ptr<TextStreamReader>>
-      text_stream_readers_;
-  std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>>
-      byte_stream_readers_;
+  std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> text_stream_readers_;
+  std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> byte_stream_readers_;
   // E2EE
   std::unique_ptr<E2EEManager> e2ee_manager_;
   std::shared_ptr<SubscriptionThreadDispatcher> subscription_thread_dispatcher_;
@@ -340,7 +320,7 @@ private:
   // FfiClient listener ID (0 means no listener registered)
   int listener_id_{0};
 
-  void OnEvent(const proto::FfiEvent &event);
+  void OnEvent(const proto::FfiEvent& event);
 };
 } // namespace livekit
 

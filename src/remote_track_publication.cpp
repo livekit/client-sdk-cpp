@@ -22,25 +22,20 @@
 
 namespace livekit {
 
-RemoteTrackPublication::RemoteTrackPublication(
-    const proto::OwnedTrackPublication &owned)
-    : TrackPublication(
-          FfiHandle(owned.handle().id()), owned.info().sid(),
-          owned.info().name(), fromProto(owned.info().kind()),
-          fromProto(owned.info().source()), owned.info().simulcasted(),
-          owned.info().width(), owned.info().height(), owned.info().mime_type(),
-          owned.info().muted(),
-          static_cast<EncryptionType>(owned.info().encryption_type()),
-          convertAudioFeatures(owned.info().audio_features())) {}
+RemoteTrackPublication::RemoteTrackPublication(const proto::OwnedTrackPublication& owned)
+    : TrackPublication(FfiHandle(owned.handle().id()), owned.info().sid(), owned.info().name(),
+                       fromProto(owned.info().kind()), fromProto(owned.info().source()), owned.info().simulcasted(),
+                       owned.info().width(), owned.info().height(), owned.info().mime_type(), owned.info().muted(),
+                       static_cast<EncryptionType>(owned.info().encryption_type()),
+                       convertAudioFeatures(owned.info().audio_features())) {}
 
 void RemoteTrackPublication::setSubscribed(bool subscribed) {
   if (ffiHandleId() == 0) {
-    throw std::runtime_error(
-        "RemoteTrackPublication::setSubscribed: invalid FFI handle");
+    throw std::runtime_error("RemoteTrackPublication::setSubscribed: invalid FFI handle");
   }
 
   proto::FfiRequest req;
-  auto *msg = req.mutable_set_subscribed();
+  auto* msg = req.mutable_set_subscribed();
   msg->set_subscribe(subscribed);
   msg->set_publication_handle(static_cast<std::uint64_t>(ffiHandleId()));
 

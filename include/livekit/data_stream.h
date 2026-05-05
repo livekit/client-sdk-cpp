@@ -80,29 +80,29 @@ public:
   /// Construct a reader from initial stream metadata.
   explicit TextStreamReader(TextStreamInfo info);
 
-  TextStreamReader(const TextStreamReader &) = delete;
-  TextStreamReader &operator=(const TextStreamReader &) = delete;
+  TextStreamReader(const TextStreamReader&) = delete;
+  TextStreamReader& operator=(const TextStreamReader&) = delete;
 
   /// Blocking read of next text chunk.
   /// Returns false when the stream has ended.
-  bool readNext(std::string &out);
+  bool readNext(std::string& out);
 
   /// Convenience: read entire stream into a single string.
   /// Blocks until the stream is closed.
   std::string readAll();
 
   /// Metadata associated with this stream.
-  const TextStreamInfo &info() const noexcept { return info_; }
+  const TextStreamInfo& info() const noexcept { return info_; }
 
 private:
   friend class Room;
 
   /// Called by the Room when a new chunk arrives.
-  void onChunkUpdate(const std::string &text);
+  void onChunkUpdate(const std::string& text);
 
   /// Called by the Room when the stream is closed.
   /// Additional trailer attributes are merged into info().attributes.
-  void onStreamClose(const std::map<std::string, std::string> &trailer_attrs);
+  void onStreamClose(const std::map<std::string, std::string>& trailer_attrs);
 
   TextStreamInfo info_;
 
@@ -120,25 +120,25 @@ public:
   /// Construct a reader from initial stream metadata.
   explicit ByteStreamReader(ByteStreamInfo info);
 
-  ByteStreamReader(const ByteStreamReader &) = delete;
-  ByteStreamReader &operator=(const ByteStreamReader &) = delete;
+  ByteStreamReader(const ByteStreamReader&) = delete;
+  ByteStreamReader& operator=(const ByteStreamReader&) = delete;
 
   /// Blocking read of next byte chunk.
   /// Returns false when the stream has ended.
-  bool readNext(std::vector<std::uint8_t> &out);
+  bool readNext(std::vector<std::uint8_t>& out);
 
   /// Metadata associated with this stream.
-  const ByteStreamInfo &info() const noexcept { return info_; }
+  const ByteStreamInfo& info() const noexcept { return info_; }
 
 private:
   friend class Room;
 
   /// Called by the Room when a new chunk arrives.
-  void onChunkUpdate(const std::vector<std::uint8_t> &bytes);
+  void onChunkUpdate(const std::vector<std::uint8_t>& bytes);
 
   /// Called by the Room when the stream is closed.
   /// Additional trailer attributes are merged into info().attributes.
-  void onStreamClose(const std::map<std::string, std::string> &trailer_attrs);
+  void onStreamClose(const std::map<std::string, std::string>& trailer_attrs);
 
   ByteStreamInfo info_;
 
@@ -156,13 +156,13 @@ public:
   virtual ~BaseStreamWriter() = default;
 
   /// Stream id assigned to this writer.
-  const std::string &streamId() const noexcept { return stream_id_; }
+  const std::string& streamId() const noexcept { return stream_id_; }
 
   /// Topic of this stream.
-  const std::string &topic() const noexcept { return topic_; }
+  const std::string& topic() const noexcept { return topic_; }
 
   /// MIME type for this stream.
-  const std::string &mimeType() const noexcept { return mime_type_; }
+  const std::string& mimeType() const noexcept { return mime_type_; }
 
   /// Timestamp (ms) when the stream was created.
   std::int64_t timestampMs() const noexcept { return timestamp_ms_; }
@@ -172,21 +172,17 @@ public:
 
   /// Close the stream with optional reason and attributes.
   /// Throws on FFI error or if already closed.
-  void close(const std::string &reason = "",
-             const std::map<std::string, std::string> &attributes = {});
+  void close(const std::string& reason = "", const std::map<std::string, std::string>& attributes = {});
 
 protected:
-  BaseStreamWriter(LocalParticipant &local_participant, std::string topic = "",
-                   std::map<std::string, std::string> attributes = {},
-                   std::string stream_id = "",
-                   std::optional<std::size_t> total_size = std::nullopt,
-                   std::string mime_type = "",
-                   std::vector<std::string> destination_identities = {},
-                   std::string sender_identity = "");
+  BaseStreamWriter(LocalParticipant& local_participant, std::string topic = "",
+                   std::map<std::string, std::string> attributes = {}, std::string stream_id = "",
+                   std::optional<std::size_t> total_size = std::nullopt, std::string mime_type = "",
+                   std::vector<std::string> destination_identities = {}, std::string sender_identity = "");
 
   enum class StreamKind { kUnknown, kText, kByte };
 
-  LocalParticipant &local_participant_;
+  LocalParticipant& local_participant_;
 
   // Public-ish metadata (mirrors BaseStreamInfo, but kept simple here)
   std::string stream_id_;
@@ -211,33 +207,29 @@ protected:
 
   /// Send a raw chunk of bytes.
   /// Throws on error or if stream is closed.
-  void sendChunk(const std::vector<std::uint8_t> &content);
+  void sendChunk(const std::vector<std::uint8_t>& content);
 
   /// Send the trailer with given reason and attributes.
   /// Throws on error.
-  void sendTrailer(const std::string &reason,
-                   const std::map<std::string, std::string> &attributes);
+  void sendTrailer(const std::string& reason, const std::map<std::string, std::string>& attributes);
 };
 
 /// Writer for outgoing text streams.
 class TextStreamWriter : public BaseStreamWriter {
 public:
-  TextStreamWriter(LocalParticipant &local_participant,
-                   const std::string &topic = "",
-                   const std::map<std::string, std::string> &attributes = {},
-                   const std::string &stream_id = "",
-                   std::optional<std::size_t> total_size = std::nullopt,
-                   const std::string &reply_to_id = "",
-                   const std::vector<std::string> &destination_identities = {},
-                   const std::string &sender_identity = "");
+  TextStreamWriter(LocalParticipant& local_participant, const std::string& topic = "",
+                   const std::map<std::string, std::string>& attributes = {}, const std::string& stream_id = "",
+                   std::optional<std::size_t> total_size = std::nullopt, const std::string& reply_to_id = "",
+                   const std::vector<std::string>& destination_identities = {},
+                   const std::string& sender_identity = "");
 
   /// Write a UTF-8 string to the stream.
   /// Data will be split into chunks of at most kStreamChunkSize bytes.
   /// Throws on error or if the stream is closed.
-  void write(const std::string &text);
+  void write(const std::string& text);
 
   /// Metadata associated with this stream.
-  const TextStreamInfo &info() const noexcept { return info_; }
+  const TextStreamInfo& info() const noexcept { return info_; }
 
 private:
   TextStreamInfo info_;
@@ -247,22 +239,20 @@ private:
 /// Writer for outgoing byte streams.
 class ByteStreamWriter : public BaseStreamWriter {
 public:
-  ByteStreamWriter(LocalParticipant &local_participant, const std::string &name,
-                   const std::string &topic = "",
-                   const std::map<std::string, std::string> &attributes = {},
-                   const std::string &stream_id = "",
+  ByteStreamWriter(LocalParticipant& local_participant, const std::string& name, const std::string& topic = "",
+                   const std::map<std::string, std::string>& attributes = {}, const std::string& stream_id = "",
                    std::optional<std::size_t> total_size = std::nullopt,
-                   const std::string &mime_type = "application/octet-stream",
-                   const std::vector<std::string> &destination_identities = {},
-                   const std::string &sender_identity = "");
+                   const std::string& mime_type = "application/octet-stream",
+                   const std::vector<std::string>& destination_identities = {},
+                   const std::string& sender_identity = "");
 
   /// Write binary data to the stream.
   /// Data will be chunked into kStreamChunkSize-sized chunks.
   /// Throws on error or if the stream is closed.
-  void write(const std::vector<std::uint8_t> &data);
+  void write(const std::vector<std::uint8_t>& data);
 
   /// Metadata associated with this stream.
-  const ByteStreamInfo &info() const noexcept { return info_; }
+  const ByteStreamInfo& info() const noexcept { return info_; }
 
 private:
   ByteStreamInfo info_;
@@ -276,8 +266,7 @@ private:
  * user spawns a background thread to consume the stream).
  */
 using TextStreamHandler =
-    std::function<void(std::shared_ptr<TextStreamReader>,
-                       const std::string &participant_identity)>;
+    std::function<void(std::shared_ptr<TextStreamReader>, const std::string& participant_identity)>;
 
 /* Callback invoked when a new incoming byte stream is opened.
  *
@@ -286,7 +275,6 @@ using TextStreamHandler =
  * or background processing).
  */
 using ByteStreamHandler =
-    std::function<void(std::shared_ptr<ByteStreamReader>,
-                       const std::string &participant_identity)>;
+    std::function<void(std::shared_ptr<ByteStreamReader>, const std::string& participant_identity)>;
 
 } // namespace livekit

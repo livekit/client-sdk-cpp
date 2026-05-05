@@ -16,64 +16,64 @@
 
 #include "livekit/logging.h"
 
-#include <mutex>
-
 #include <spdlog/sinks/callback_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
+#include <mutex>
+
 namespace livekit {
 namespace {
 
-const char *kLoggerName = "livekit";
+const char* kLoggerName = "livekit";
 
 spdlog::level::level_enum toSpdlogLevel(LogLevel level) {
   switch (level) {
-  case LogLevel::Trace:
-    return spdlog::level::trace;
-  case LogLevel::Debug:
-    return spdlog::level::debug;
-  case LogLevel::Info:
-    return spdlog::level::info;
-  case LogLevel::Warn:
-    return spdlog::level::warn;
-  case LogLevel::Error:
-    return spdlog::level::err;
-  case LogLevel::Critical:
-    return spdlog::level::critical;
-  case LogLevel::Off:
-    return spdlog::level::off;
+    case LogLevel::Trace:
+      return spdlog::level::trace;
+    case LogLevel::Debug:
+      return spdlog::level::debug;
+    case LogLevel::Info:
+      return spdlog::level::info;
+    case LogLevel::Warn:
+      return spdlog::level::warn;
+    case LogLevel::Error:
+      return spdlog::level::err;
+    case LogLevel::Critical:
+      return spdlog::level::critical;
+    case LogLevel::Off:
+      return spdlog::level::off;
   }
   return spdlog::level::info;
 }
 
 LogLevel fromSpdlogLevel(spdlog::level::level_enum level) {
   switch (level) {
-  case spdlog::level::trace:
-    return LogLevel::Trace;
-  case spdlog::level::debug:
-    return LogLevel::Debug;
-  case spdlog::level::info:
-    return LogLevel::Info;
-  case spdlog::level::warn:
-    return LogLevel::Warn;
-  case spdlog::level::err:
-    return LogLevel::Error;
-  case spdlog::level::critical:
-    return LogLevel::Critical;
-  case spdlog::level::off: // NOLINT(bugprone-branch-clone)
-    return LogLevel::Off;
-  default:
-    return LogLevel::Info;
+    case spdlog::level::trace:
+      return LogLevel::Trace;
+    case spdlog::level::debug:
+      return LogLevel::Debug;
+    case spdlog::level::info:
+      return LogLevel::Info;
+    case spdlog::level::warn:
+      return LogLevel::Warn;
+    case spdlog::level::err:
+      return LogLevel::Error;
+    case spdlog::level::critical:
+      return LogLevel::Critical;
+    case spdlog::level::off: // NOLINT(bugprone-branch-clone)
+      return LogLevel::Off;
+    default:
+      return LogLevel::Info;
   }
 }
 
-std::mutex &loggerMutex() {
+std::mutex& loggerMutex() {
   static std::mutex mtx;
   return mtx;
 }
 
-std::shared_ptr<spdlog::logger> &loggerStorage() {
+std::shared_ptr<spdlog::logger>& loggerStorage() {
   static std::shared_ptr<spdlog::logger> logger;
   return logger;
 }
@@ -92,7 +92,7 @@ namespace detail {
 
 std::shared_ptr<spdlog::logger> getLogger() {
   const std::scoped_lock<std::mutex> lock(loggerMutex());
-  auto &logger = loggerStorage();
+  auto& logger = loggerStorage();
   if (!logger) {
     logger = createDefaultLogger();
     spdlog::register_logger(logger);
@@ -102,7 +102,7 @@ std::shared_ptr<spdlog::logger> getLogger() {
 
 void shutdownLogger() {
   const std::scoped_lock<std::mutex> lock(loggerMutex());
-  auto &logger = loggerStorage();
+  auto& logger = loggerStorage();
   if (logger) {
     spdlog::drop(kLoggerName);
     logger.reset();
@@ -111,15 +111,13 @@ void shutdownLogger() {
 
 } // namespace detail
 
-void setLogLevel(LogLevel level) {
-  detail::getLogger()->set_level(toSpdlogLevel(level));
-}
+void setLogLevel(LogLevel level) { detail::getLogger()->set_level(toSpdlogLevel(level)); }
 
 LogLevel getLogLevel() { return fromSpdlogLevel(detail::getLogger()->level()); }
 
 void setLogCallback(LogCallback callback) {
   const std::scoped_lock<std::mutex> lock(loggerMutex());
-  auto &logger = loggerStorage();
+  auto& logger = loggerStorage();
   auto current_level = logger ? logger->level() : spdlog::level::info;
 
   if (logger) {
@@ -128,9 +126,8 @@ void setLogCallback(LogCallback callback) {
 
   if (callback) {
     auto sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
-        [cb = std::move(callback)](const spdlog::details::log_msg &msg) {
-          cb(fromSpdlogLevel(msg.level),
-             std::string(msg.logger_name.data(), msg.logger_name.size()),
+        [cb = std::move(callback)](const spdlog::details::log_msg& msg) {
+          cb(fromSpdlogLevel(msg.level), std::string(msg.logger_name.data(), msg.logger_name.size()),
              std::string(msg.payload.data(), msg.payload.size()));
         });
     logger = std::make_shared<spdlog::logger>(kLoggerName, sink);
