@@ -78,19 +78,21 @@ Options:
 Positional arguments:
   FILE...
         Explicit list of files to format / check. When omitted, the script
-        walks the tracked src/ tree (excluding src/tests/) and operates on
-        every C/C++ source and header it finds. Pass paths to make the
-        script work as a precommit hook on a curated set of files, e.g.:
+        walks the tracked first-party C/C++ trees (src/ excluding
+        src/tests/, include/, and benchmarks/) and operates on every
+        source / header it finds. Pass paths to make the script work as
+        a precommit hook on a curated set of files, e.g.:
             git diff --cached --name-only --diff-filter=ACMR \
               | grep -E '\.(c|cc|cpp|cxx|h|hpp|hxx)$' \
               | xargs ./scripts/clang-format.sh --fix
 
 Examples:
-  ./scripts/clang-format.sh                          # check full src/ tree
-  ./scripts/clang-format.sh --fix                    # fix the same tree
-  ./scripts/clang-format.sh src/room.cpp src/foo.h   # check just these files
-  ./scripts/clang-format.sh --fix src/room.cpp       # fix just this file
-  ./scripts/clang-format.sh --github-actions         # force CI annotations
+  ./scripts/clang-format.sh                            # check src/, include/, benchmarks/
+  ./scripts/clang-format.sh --fix                      # fix the same trees
+  ./scripts/clang-format.sh src/room.cpp include/livekit/room.h
+                                                       # check just these files
+  ./scripts/clang-format.sh --fix src/room.cpp         # fix just this file
+  ./scripts/clang-format.sh --github-actions           # force CI annotations
 
 Pre-requisites:
   clang-format must be installed and on PATH:
@@ -172,9 +174,16 @@ clang-format --version
 # Build the list of files to operate on. When the user passes explicit paths
 # we honor them verbatim (no globbing, no src/tests/ filtering) so a precommit
 # hook can supply its own staged-file list. Otherwise we walk the tracked
-# src/ tree, excluding src/tests/. Using `git ls-files` automatically skips
-# the client-sdk-rust/ submodule, build-*/, _deps/, local-install/, etc.,
-# without having to maintain a lookahead exclusion regex.
+# first-party C/C++ trees:
+#   - src/   (implementation + internal headers, excluding src/tests/)
+#   - include/   (public API headers shipped in the installed SDK)
+#   - benchmarks/   (in-tree micro-benchmarks)
+# Using `git ls-files` automatically skips the client-sdk-rust/ submodule,
+# build-*/, _deps/, local-install/, vcpkg_installed/, etc., without having
+# to maintain a lookahead exclusion regex. The deprecated bridge/ tree and
+# the empty examples/ tree are intentionally left out -- bridge/ has its
+# own conventions (it's frozen pending removal), and examples/ has no
+# tracked C/C++ files today.
 files=()
 if (( ${#explicit_files[@]} > 0 )); then
   files=("${explicit_files[@]}")
@@ -184,7 +193,10 @@ else
     files+=("${path}")
   done < <(git ls-files -z \
     'src/*.c' 'src/*.cc' 'src/*.cpp' 'src/*.cxx' \
-    'src/*.h' 'src/*.hpp' 'src/*.hxx')
+    'src/*.h' 'src/*.hpp' 'src/*.hxx' \
+    'include/*.h' 'include/*.hpp' 'include/*.hxx' \
+    'benchmarks/*.c' 'benchmarks/*.cc' 'benchmarks/*.cpp' 'benchmarks/*.cxx' \
+    'benchmarks/*.h' 'benchmarks/*.hpp' 'benchmarks/*.hxx')
 fi
 
 file_count=${#files[@]}
@@ -192,15 +204,6 @@ if (( file_count == 0 )); then
   echo "clang-format: no files to process."
   __fmt_hint_active=0
   exit 0
-fi
-
-# xargs parallelism: one worker per logical CPU. `nproc` is the Linux
-# coreutils tool; macOS doesn't ship it, so fall back to `sysctl hw.ncpu`,
-# and finally to a conservative 4 if neither is available.
-if command -v nproc >/dev/null 2>&1; then
-  jobs=$(nproc)
-else
-  jobs=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
 fi
 
 # Capture clang-format's combined stdout+stderr to a stable, repo-local path
@@ -366,31 +369,78 @@ print_stdout_summary() {
 
 # --------- End GitHub Actions annotations ---------
 
-# Run clang-format. In fix mode, batch files across worker invocations for
-# throughput; in check mode, hand each worker exactly one file so per-file
-# diagnostics don't interleave across processes (clang-format writes one
-# small diagnostic per violation, which on POSIX is atomic for writes
-# <= PIPE_BUF, but only when each writer holds the fd alone for the whole
-# message -- using -n 1 keeps each process's output contiguous in the log).
+# Run clang-format. We run serially (no -P parallelism) so per-file
+# diagnostics never interleave -- clang-format itself is fast enough
+# (~1-2 ms per file) that a few hundred files still complete in well
+# under a second, and CI workflow startup dwarfs the runtime regardless.
+# `xargs` (without -P) still chunks the file list so we don't blow past
+# ARG_MAX when the tree grows: each invocation gets as many files as fit
+# in one command line, and successive invocations append to the log in
+# discovery order.
+#
+# In fix mode we snapshot file content hashes before and after invoking
+# clang-format so the summary can report only the files that *actually
+# changed* (vs. the entire scanned set). `git hash-object --stdin-paths`
+# hashes every input path in a single git invocation, sidestepping the
+# portability headache of sha1sum (Linux) vs shasum (macOS) vs cksum
+# (POSIX, but only 32-bit) and getting us per-file SHA-1s in one shot.
+__hash_files() {
+  if (( ${#files[@]} == 0 )); then
+    return
+  fi
+  printf '%s\n' "${files[@]}" | git hash-object --stdin-paths
+}
+
+pre_hashes=()
+if (( FIX_MODE == 1 )); then
+  while IFS= read -r __h; do
+    pre_hashes+=("${__h}")
+  done < <(__hash_files)
+fi
+
 set +e
 if (( FIX_MODE == 1 )); then
   printf '%s\0' "${files[@]}" \
-    | xargs -0 -n 32 -P "${jobs}" clang-format -i \
+    | xargs -0 clang-format -i \
       >"${log}" 2>&1
   rc=$?
 else
   printf '%s\0' "${files[@]}" \
-    | xargs -0 -n 1 -P "${jobs}" clang-format --dry-run --Werror \
+    | xargs -0 clang-format --dry-run --Werror \
       >"${log}" 2>&1
   rc=$?
 fi
 set -e
 
-# Mirror the captured log to stdout so users see violations inline (the file
-# is also kept on disk for re-parsing / re-reading after the run).
-cat "${log}"
+# Identify which files actually changed on disk during the fix pass by
+# rehashing and comparing against the pre-run snapshot. Files where the
+# hash matches were no-ops (already conformant) and are excluded from
+# the summary count. Order is preserved (git hash-object emits hashes in
+# input order) so the i-th post-hash corresponds to the i-th file.
+changed_files=()
+if (( FIX_MODE == 1 )); then
+  post_hashes=()
+  while IFS= read -r __h; do
+    post_hashes+=("${__h}")
+  done < <(__hash_files)
+  for i in "${!files[@]}"; do
+    if [[ "${pre_hashes[$i]:-}" != "${post_hashes[$i]:-}" ]]; then
+      changed_files+=("${files[$i]}")
+    fi
+  done
+fi
 
-if [[ "${CI_MODE}" == "1" ]]; then
+# Mirror the captured log to stdout so users see violations inline. In fix
+# mode there's nothing useful in the log (clang-format -i writes silently),
+# so skip the cat to keep the output focused on the summary below.
+if (( FIX_MODE == 0 )); then
+  cat "${log}"
+fi
+
+# CI annotations / step summary only make sense for the check-mode log,
+# which contains the violation diagnostics. Fix mode has already resolved
+# them, so emitting annotations would be misleading.
+if [[ "${CI_MODE}" == "1" ]] && (( FIX_MODE == 0 )); then
   emit_annotations "${log}"
   write_step_summary "${log}"
 fi
@@ -402,7 +452,17 @@ echo "Results written to: $(pwd)/${log}"
 __FMT_VIOLATION_FILES=0
 if (( FIX_MODE == 1 )); then
   echo "------------------------------------------------------------"
-  printf 'clang-format summary: applied formatting to %d file(s)\n' "${file_count}"
+  if (( ${#changed_files[@]} == 0 )); then
+    printf 'clang-format summary: clean (0 of %d file(s) needed formatting)\n' \
+      "${file_count}"
+  else
+    printf 'clang-format summary: formatted %d of %d file(s)\n' \
+      "${#changed_files[@]}" "${file_count}"
+    echo "  files:"
+    for __cf in "${changed_files[@]}"; do
+      printf '    %s\n' "${__cf}"
+    done
+  fi
   echo "------------------------------------------------------------"
 else
   print_stdout_summary "${log}" "${file_count}"

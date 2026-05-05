@@ -29,7 +29,7 @@ public:
   /// Note, this RemoteTrackPublication is constructed internally only;
   /// safe to accept proto::OwnedTrackPublication.
   explicit RemoteTrackPublication(const proto::OwnedTrackPublication &owned);
-  
+
   bool subscribed() const noexcept { return subscribed_; }
 
   void setSubscribed(bool subscribed);

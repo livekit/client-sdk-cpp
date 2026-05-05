@@ -176,8 +176,7 @@ public:
              const std::map<std::string, std::string> &attributes = {});
 
 protected:
-  BaseStreamWriter(LocalParticipant &local_participant,
-                   std::string topic = "",
+  BaseStreamWriter(LocalParticipant &local_participant, std::string topic = "",
                    std::map<std::string, std::string> attributes = {},
                    std::string stream_id = "",
                    std::optional<std::size_t> total_size = std::nullopt,

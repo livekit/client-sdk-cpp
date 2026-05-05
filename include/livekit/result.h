@@ -64,10 +64,10 @@ public:
   /// Allows `if (result)` style success checks.
   explicit operator bool() const noexcept { return ok(); }
 
-  // TODO (AEG): clang-tidy flagged these accessors because the signatures are marked
-  // noexcept, but std::get can throw a std::bad_variant_access exception on 
-  // std::variant specifically. Investigate if this is actually a concern or if the types
-  // are safe within this class (unit test ideal).
+  // TODO (AEG): clang-tidy flagged these accessors because the signatures are
+  // marked noexcept, but std::get can throw a std::bad_variant_access exception
+  // on std::variant specifically. Investigate if this is actually a concern or
+  // if the types are safe within this class (unit test ideal).
 
   /// Access the success value. Requires `ok() == true`.
   // NOLINTNEXTLINE(bugprone-exception-escape)
