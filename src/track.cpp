@@ -16,21 +16,25 @@
 
 #include "livekit/track.h"
 
-#include "ffi_client.h"
 #include <future>
 #include <optional>
 
+#include "ffi_client.h"
+
 namespace livekit {
 
-Track::Track(FfiHandle handle, std::string sid, std::string name,
-             TrackKind kind, StreamState state, bool muted, bool remote)
-    : handle_(std::move(handle)), sid_(std::move(sid)), name_(std::move(name)),
-      kind_(kind), state_(state), muted_(muted), remote_(remote) {}
+Track::Track(FfiHandle handle, std::string sid, std::string name, TrackKind kind, StreamState state, bool muted,
+             bool remote)
+    : handle_(std::move(handle)),
+      sid_(std::move(sid)),
+      name_(std::move(name)),
+      kind_(kind),
+      state_(state),
+      muted_(muted),
+      remote_(remote) {}
 
-void Track::setPublicationFields(std::optional<TrackSource> source,
-                                 std::optional<bool> simulcasted,
-                                 std::optional<uint32_t> width,
-                                 std::optional<uint32_t> height,
+void Track::setPublicationFields(std::optional<TrackSource> source, std::optional<bool> simulcasted,
+                                 std::optional<uint32_t> width, std::optional<uint32_t> height,
                                  std::optional<std::string> mime_type) {
   source_ = source;
   simulcasted_ = simulcasted;

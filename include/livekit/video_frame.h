@@ -24,19 +24,7 @@
 namespace livekit {
 
 // Mirror of WebRTC video buffer type
-enum class VideoBufferType {
-  RGBA = 0,
-  ABGR,
-  ARGB,
-  BGRA,
-  RGB24,
-  I420,
-  I420A,
-  I422,
-  I444,
-  I010,
-  NV12
-};
+enum class VideoBufferType { RGBA = 0, ABGR, ARGB, BGRA, RGB24, I420, I420A, I422, I444, I010, NV12 };
 
 struct VideoPlaneInfo {
   std::uintptr_t data_ptr; // pointer to plane data (for FFI)
@@ -59,14 +47,13 @@ class OwnedVideoBuffer;
 class VideoFrame {
 public:
   VideoFrame();
-  VideoFrame(int width, int height, VideoBufferType type,
-             std::vector<std::uint8_t> data);
+  VideoFrame(int width, int height, VideoBufferType type, std::vector<std::uint8_t> data);
   virtual ~VideoFrame() = default;
 
-  VideoFrame(const VideoFrame &) = delete;
-  VideoFrame &operator=(const VideoFrame &) = delete;
-  VideoFrame(VideoFrame &&) noexcept = default;
-  VideoFrame &operator=(VideoFrame &&) noexcept = default;
+  VideoFrame(const VideoFrame&) = delete;
+  VideoFrame& operator=(const VideoFrame&) = delete;
+  VideoFrame(VideoFrame&&) noexcept = default;
+  VideoFrame& operator=(VideoFrame&&) noexcept = default;
 
   /**
    * Allocate a new frame with the correct buffer size for the given format.
@@ -79,8 +66,8 @@ public:
   int height() const noexcept { return height_; }
   VideoBufferType type() const noexcept { return type_; }
 
-  std::uint8_t *data() noexcept { return data_.data(); }
-  const std::uint8_t *data() const noexcept { return data_.data(); }
+  std::uint8_t* data() noexcept { return data_.data(); }
+  const std::uint8_t* data() const noexcept { return data_.data(); }
   std::size_t dataSize() const noexcept { return data_.size(); }
 
   /**
@@ -122,7 +109,7 @@ protected:
   friend class VideoStream;
   // Only internal classes (e.g., VideoStream)
   // should construct frames directly from FFI buffers.
-  static VideoFrame fromOwnedInfo(const proto::OwnedVideoBuffer &owned);
+  static VideoFrame fromOwnedInfo(const proto::OwnedVideoBuffer& owned);
 
 private:
   int width_;

@@ -17,8 +17,9 @@
 #ifndef LIVEKIT_LK_LOG_H
 #define LIVEKIT_LK_LOG_H
 
-#include <memory>
 #include <spdlog/spdlog.h>
+
+#include <memory>
 
 namespace livekit::detail {
 
@@ -42,17 +43,11 @@ void shutdownLogger();
 //
 // Default LIVEKIT_LOG_LEVEL is TRACE (nothing stripped).  For release builds
 // consider -DLIVEKIT_LOG_LEVEL=INFO or WARN to eliminate verbose calls.
-#define LK_LOG_TRACE(...)                                                      \
-  SPDLOG_LOGGER_TRACE(livekit::detail::getLogger(), __VA_ARGS__)
-#define LK_LOG_DEBUG(...)                                                      \
-  SPDLOG_LOGGER_DEBUG(livekit::detail::getLogger(), __VA_ARGS__)
-#define LK_LOG_INFO(...)                                                       \
-  SPDLOG_LOGGER_INFO(livekit::detail::getLogger(), __VA_ARGS__)
-#define LK_LOG_WARN(...)                                                       \
-  SPDLOG_LOGGER_WARN(livekit::detail::getLogger(), __VA_ARGS__)
-#define LK_LOG_ERROR(...)                                                      \
-  SPDLOG_LOGGER_ERROR(livekit::detail::getLogger(), __VA_ARGS__)
-#define LK_LOG_CRITICAL(...)                                                   \
-  SPDLOG_LOGGER_CRITICAL(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_TRACE(...) SPDLOG_LOGGER_TRACE(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_DEBUG(...) SPDLOG_LOGGER_DEBUG(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_INFO(...) SPDLOG_LOGGER_INFO(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_WARN(...) SPDLOG_LOGGER_WARN(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_ERROR(...) SPDLOG_LOGGER_ERROR(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_CRITICAL(...) SPDLOG_LOGGER_CRITICAL(livekit::detail::getLogger(), __VA_ARGS__)
 
 #endif /* LIVEKIT_LK_LOG_H */

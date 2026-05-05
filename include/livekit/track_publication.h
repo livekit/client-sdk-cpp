@@ -41,44 +41,37 @@ class TrackPublication {
 public:
   virtual ~TrackPublication() = default;
 
-  TrackPublication(const TrackPublication &) = delete;
-  TrackPublication &operator=(const TrackPublication &) = delete;
-  TrackPublication(TrackPublication &&) noexcept = default;
-  TrackPublication &operator=(TrackPublication &&) noexcept = default;
+  TrackPublication(const TrackPublication&) = delete;
+  TrackPublication& operator=(const TrackPublication&) = delete;
+  TrackPublication(TrackPublication&&) noexcept = default;
+  TrackPublication& operator=(TrackPublication&&) noexcept = default;
 
   // Basic metadata
-  const std::string &sid() const noexcept { return sid_; }
-  const std::string &name() const noexcept { return name_; }
+  const std::string& sid() const noexcept { return sid_; }
+  const std::string& name() const noexcept { return name_; }
   TrackKind kind() const noexcept { return kind_; }
   TrackSource source() const noexcept { return source_; }
   bool simulcasted() const noexcept { return simulcasted_; }
   std::uint32_t width() const noexcept { return width_; }
   std::uint32_t height() const noexcept { return height_; }
-  const std::string &mimeType() const noexcept { return mime_type_; }
+  const std::string& mimeType() const noexcept { return mime_type_; }
   bool muted() const noexcept { return muted_; }
   void setMuted(bool muted) noexcept { muted_ = muted; }
 
   EncryptionType encryptionType() const noexcept { return encryption_type_; }
-  const std::vector<AudioTrackFeature> &audioFeatures() const noexcept {
-    return audio_features_;
-  }
+  const std::vector<AudioTrackFeature>& audioFeatures() const noexcept { return audio_features_; }
 
   /// Underlying FFI handle value.
   uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
 
   /// Associated Track (if attached).
   std::shared_ptr<Track> track() const noexcept { return track_; }
-  void setTrack(const std::shared_ptr<Track> &track) noexcept {
-    track_ = track;
-  }
+  void setTrack(const std::shared_ptr<Track>& track) noexcept { track_ = track; }
 
 protected:
-  TrackPublication(FfiHandle handle, std::string sid, std::string name,
-                   TrackKind kind, TrackSource source, bool simulcasted,
-                   std::uint32_t width, std::uint32_t height,
-                   std::string mime_type, bool muted,
-                   EncryptionType encryption_type,
-                   std::vector<AudioTrackFeature> audio_features);
+  TrackPublication(FfiHandle handle, std::string sid, std::string name, TrackKind kind, TrackSource source,
+                   bool simulcasted, std::uint32_t width, std::uint32_t height, std::string mime_type, bool muted,
+                   EncryptionType encryption_type, std::vector<AudioTrackFeature> audio_features);
 
   FfiHandle handle_;
   std::shared_ptr<Track> track_;

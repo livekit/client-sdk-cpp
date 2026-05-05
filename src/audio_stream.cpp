@@ -32,17 +32,14 @@ using proto::FfiRequest;
 // Factory helpers
 // ------------------------
 
-std::shared_ptr<AudioStream>
-AudioStream::fromTrack(const std::shared_ptr<Track> &track,
-                       const Options &options) {
+std::shared_ptr<AudioStream> AudioStream::fromTrack(const std::shared_ptr<Track>& track, const Options& options) {
   auto stream = std::shared_ptr<AudioStream>(new AudioStream());
   stream->initFromTrack(track, options);
   return stream;
 }
 
-std::shared_ptr<AudioStream>
-AudioStream::fromParticipant(Participant &participant, TrackSource track_source,
-                             const Options &options) {
+std::shared_ptr<AudioStream> AudioStream::fromParticipant(Participant& participant, TrackSource track_source,
+                                                          const Options& options) {
   auto stream = std::shared_ptr<AudioStream>(new AudioStream());
   stream->initFromParticipant(participant, track_source, options);
   return stream;
@@ -54,7 +51,7 @@ AudioStream::fromParticipant(Participant &participant, TrackSource track_source,
 
 AudioStream::~AudioStream() { close(); }
 
-AudioStream::AudioStream(AudioStream &&other) noexcept {
+AudioStream::AudioStream(AudioStream&& other) noexcept {
   const std::scoped_lock<std::mutex> lock(other.mutex_);
   queue_ = std::move(other.queue_);
   capacity_ = other.capacity_;
@@ -68,7 +65,7 @@ AudioStream::AudioStream(AudioStream &&other) noexcept {
   other.closed_ = true;
 }
 
-AudioStream &AudioStream::operator=(AudioStream &&other) noexcept {
+AudioStream& AudioStream::operator=(AudioStream&& other) noexcept {
   if (this == &other) {
     return *this;
   }
@@ -94,7 +91,7 @@ AudioStream &AudioStream::operator=(AudioStream &&other) noexcept {
   return *this;
 }
 
-bool AudioStream::read(AudioFrameEvent &out_event) {
+bool AudioStream::read(AudioFrameEvent& out_event) {
   std::unique_lock<std::mutex> lock(mutex_);
 
   cv_.wait(lock, [this] { return !queue_.empty() || eof_ || closed_; });
@@ -134,20 +131,17 @@ void AudioStream::close() {
 
 // Internal functions
 
-void AudioStream::initFromTrack(const std::shared_ptr<Track> &track,
-                                const Options &options) {
+void AudioStream::initFromTrack(const std::shared_ptr<Track>& track, const Options& options) {
   capacity_ = options.capacity;
   options_ = options;
 
   // 1) Subscribe to FFI events
-  listener_id_ = FfiClient::instance().AddListener(
-      [this](const FfiEvent &e) { this->onFfiEvent(e); });
+  listener_id_ = FfiClient::instance().AddListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
 
   // 2) Send FfiRequest to create a new audio stream bound to this track
   FfiRequest req;
-  auto *new_audio_stream = req.mutable_new_audio_stream();
-  new_audio_stream->set_track_handle(
-      static_cast<uint64_t>(track->ffi_handle_id()));
+  auto* new_audio_stream = req.mutable_new_audio_stream();
+  new_audio_stream->set_track_handle(static_cast<uint64_t>(track->ffi_handle_id()));
   // TODO, sample_rate and num_channels are not useful in AudioStream, remove it
   // from FFI.
   //  new_audio_stream->set_sample_rate(options_.sample_rate);
@@ -155,32 +149,27 @@ void AudioStream::initFromTrack(const std::shared_ptr<Track> &track,
   new_audio_stream->set_type(proto::AudioStreamType::AUDIO_STREAM_NATIVE);
 
   if (!options_.noise_cancellation_module.empty()) {
-    new_audio_stream->set_audio_filter_module_id(
-        options_.noise_cancellation_module);
+    new_audio_stream->set_audio_filter_module_id(options_.noise_cancellation_module);
     // Always set options JSON even if empty - backend will treat empty string
     // as "no options"
-    new_audio_stream->set_audio_filter_options(
-        options_.noise_cancellation_options_json);
+    new_audio_stream->set_audio_filter_options(options_.noise_cancellation_options_json);
   }
 
   auto resp = FfiClient::instance().sendRequest(req);
-  const auto &stream = resp.new_audio_stream().stream();
+  const auto& stream = resp.new_audio_stream().stream();
   stream_handle_ = FfiHandle(static_cast<uintptr_t>(stream.handle().id()));
 }
 
-void AudioStream::initFromParticipant(Participant &participant,
-                                      TrackSource track_source,
-                                      const Options &options) {
+void AudioStream::initFromParticipant(Participant& participant, TrackSource track_source, const Options& options) {
   capacity_ = options.capacity;
   options_ = options;
 
   // 1) Subscribe to FFI events
-  listener_id_ = FfiClient::instance().AddListener(
-      [this](const FfiEvent &e) { this->onFfiEvent(e); });
+  listener_id_ = FfiClient::instance().AddListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
 
   // 2) Send FfiRequest to create audio stream from participant + track source
   FfiRequest req;
-  auto *as = req.mutable_audio_stream_from_participant();
+  auto* as = req.mutable_audio_stream_from_participant();
   as->set_participant_handle(participant.ffiHandleId());
   // TODO, sample_rate and num_channels are not useful in AudioStream, remove it
   // from FFI.
@@ -197,21 +186,21 @@ void AudioStream::initFromParticipant(Participant &participant,
   }
 
   auto resp = FfiClient::instance().sendRequest(req);
-  const auto &stream = resp.audio_stream_from_participant().stream();
+  const auto& stream = resp.audio_stream_from_participant().stream();
   stream_handle_ = FfiHandle(static_cast<uintptr_t>(stream.handle().id()));
 }
 
-void AudioStream::onFfiEvent(const FfiEvent &event) {
+void AudioStream::onFfiEvent(const FfiEvent& event) {
   if (event.message_case() != FfiEvent::kAudioStreamEvent) {
     return;
   }
-  const auto &ase = event.audio_stream_event();
+  const auto& ase = event.audio_stream_event();
   // Check if this event is for our stream handle.
   if (ase.stream_handle() != static_cast<std::uint64_t>(stream_handle_.get())) {
     return;
   }
   if (ase.has_frame_received()) {
-    const auto &fr = ase.frame_received();
+    const auto& fr = ase.frame_received();
     AudioFrameEvent ev{AudioFrame::fromOwnedInfo(fr.frame())};
     pushFrame(std::move(ev));
   } else if (ase.has_eos()) {
@@ -219,7 +208,7 @@ void AudioStream::onFfiEvent(const FfiEvent &event) {
   }
 }
 
-void AudioStream::pushFrame(AudioFrameEvent &&ev) {
+void AudioStream::pushFrame(AudioFrameEvent&& ev) {
   {
     const std::scoped_lock<std::mutex> lock(mutex_);
 

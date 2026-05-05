@@ -33,7 +33,7 @@ enum class EncryptionType {
 };
 
 /* Defaults (match other SDKs / Python defaults). */
-inline constexpr const char *kDefaultRatchetSalt = "LKFrameEncryptionKey";
+inline constexpr const char* kDefaultRatchetSalt = "LKFrameEncryptionKey";
 inline constexpr int kDefaultRatchetWindowSize = 16;
 inline constexpr int kDefaultFailureTolerance = -1;
 
@@ -61,8 +61,7 @@ struct KeyProviderOptions {
   ///
   /// If empty, the underlying implementation default is used.
   std::vector<std::uint8_t> ratchet_salt = std::vector<std::uint8_t>(
-      kDefaultRatchetSalt, kDefaultRatchetSalt + std::char_traits<char>::length(
-                                                     kDefaultRatchetSalt));
+      kDefaultRatchetSalt, kDefaultRatchetSalt + std::char_traits<char>::length(kDefaultRatchetSalt));
 
   /// Controls how many previous keys are retained during ratcheting.
   int ratchet_window_size = kDefaultRatchetWindowSize;
@@ -118,16 +117,16 @@ public:
   public:
     ~KeyProvider() = default;
 
-    KeyProvider(const KeyProvider &) = delete;
-    KeyProvider &operator=(const KeyProvider &) = delete;
-    KeyProvider(KeyProvider &&) noexcept = default;
-    KeyProvider &operator=(KeyProvider &&) noexcept = default;
+    KeyProvider(const KeyProvider&) = delete;
+    KeyProvider& operator=(const KeyProvider&) = delete;
+    KeyProvider(KeyProvider&&) noexcept = default;
+    KeyProvider& operator=(KeyProvider&&) noexcept = default;
 
     /// Returns the options used to initialize this KeyProvider.
-    const KeyProviderOptions &options() const;
+    const KeyProviderOptions& options() const;
 
     /// Sets the shared key for the given key slot.
-    void setSharedKey(const std::vector<std::uint8_t> &key, int key_index = 0);
+    void setSharedKey(const std::vector<std::uint8_t>& key, int key_index = 0);
 
     /// Exports the shared key for a given key slot.
     std::vector<std::uint8_t> exportSharedKey(int key_index = 0) const;
@@ -136,16 +135,13 @@ public:
     std::vector<std::uint8_t> ratchetSharedKey(int key_index = 0);
 
     /// Sets a key for a specific participant identity.
-    void setKey(const std::string &participant_identity,
-                const std::vector<std::uint8_t> &key, int key_index = 0);
+    void setKey(const std::string& participant_identity, const std::vector<std::uint8_t>& key, int key_index = 0);
 
     /// Exports a participant-specific key.
-    std::vector<std::uint8_t> exportKey(const std::string &participant_identity,
-                                        int key_index = 0) const;
+    std::vector<std::uint8_t> exportKey(const std::string& participant_identity, int key_index = 0) const;
 
     /// Ratchets a participant-specific key and returns the new key.
-    std::vector<std::uint8_t>
-    ratchetKey(const std::string &participant_identity, int key_index = 0);
+    std::vector<std::uint8_t> ratchetKey(const std::string& participant_identity, int key_index = 0);
 
   private:
     friend class E2EEManager;
@@ -156,15 +152,14 @@ public:
 
   class FrameCryptor {
   public:
-    FrameCryptor(std::uint64_t room_handle, std::string participant_identity,
-                 int key_index, bool enabled);
+    FrameCryptor(std::uint64_t room_handle, std::string participant_identity, int key_index, bool enabled);
     ~FrameCryptor() = default;
-    FrameCryptor(const FrameCryptor &) = delete;
-    FrameCryptor &operator=(const FrameCryptor &) = delete;
-    FrameCryptor(FrameCryptor &&) noexcept = default;
-    FrameCryptor &operator=(FrameCryptor &&) noexcept = default;
+    FrameCryptor(const FrameCryptor&) = delete;
+    FrameCryptor& operator=(const FrameCryptor&) = delete;
+    FrameCryptor(FrameCryptor&&) noexcept = default;
+    FrameCryptor& operator=(FrameCryptor&&) noexcept = default;
 
-    const std::string &participantIdentity() const;
+    const std::string& participantIdentity() const;
     int keyIndex() const;
     bool enabled() const;
 
@@ -182,10 +177,10 @@ public:
   };
 
   ~E2EEManager() = default;
-  E2EEManager(const E2EEManager &) = delete;
-  E2EEManager &operator=(const E2EEManager &) = delete;
-  E2EEManager(E2EEManager &&) noexcept = delete;
-  E2EEManager &operator=(E2EEManager &&) noexcept = delete;
+  E2EEManager(const E2EEManager&) = delete;
+  E2EEManager& operator=(const E2EEManager&) = delete;
+  E2EEManager(E2EEManager&&) noexcept = delete;
+  E2EEManager& operator=(E2EEManager&&) noexcept = delete;
 
   /// Returns whether E2EE is currently enabled for this room at runtime.
   bool enabled() const;
@@ -199,15 +194,15 @@ public:
 
   /// Returns the key provider if E2EE was configured for the room; otherwise
   /// nullptr.
-  KeyProvider *keyProvider();
-  const KeyProvider *keyProvider() const;
+  KeyProvider* keyProvider();
+  const KeyProvider* keyProvider() const;
 
   /// Retrieves the current list of frame cryptors from the underlying runtime.
   std::vector<E2EEManager::FrameCryptor> frameCryptors() const;
 
 protected:
   /// Internal constructor used by Room when E2EEOptions are provided.
-  explicit E2EEManager(std::uint64_t room_handle, const E2EEOptions &options);
+  explicit E2EEManager(std::uint64_t room_handle, const E2EEOptions& options);
   friend class Room;
 
 private:

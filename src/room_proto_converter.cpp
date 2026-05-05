@@ -24,8 +24,7 @@ namespace livekit {
 
 namespace {
 
-std::vector<proto::PacketTrailerFeature>
-toProto(const PacketTrailerFeatures &features) {
+std::vector<proto::PacketTrailerFeature> toProto(const PacketTrailerFeatures& features) {
   std::vector<proto::PacketTrailerFeature> out;
   out.reserve(2);
   if (features.user_timestamp) {
@@ -37,19 +36,18 @@ toProto(const PacketTrailerFeatures &features) {
   return out;
 }
 
-PacketTrailerFeatures
-fromProto(const google::protobuf::RepeatedField<int> &features) {
+PacketTrailerFeatures fromProto(const google::protobuf::RepeatedField<int>& features) {
   PacketTrailerFeatures out{};
   for (const int feature : features) {
     switch (feature) {
-    case proto::PacketTrailerFeature::PTF_USER_TIMESTAMP:
-      out.user_timestamp = true;
-      break;
-    case proto::PacketTrailerFeature::PTF_FRAME_ID:
-      out.frame_id = true;
-      break;
-    default:
-      break;
+      case proto::PacketTrailerFeature::PTF_USER_TIMESTAMP:
+        out.user_timestamp = true;
+        break;
+      case proto::PacketTrailerFeature::PTF_FRAME_ID:
+        out.frame_id = true;
+        break;
+      default:
+        break;
     }
   }
   return out;
@@ -61,40 +59,40 @@ fromProto(const google::protobuf::RepeatedField<int> &features) {
 
 ConnectionQuality toConnectionQuality(proto::ConnectionQuality in) {
   switch (in) {
-  case proto::QUALITY_POOR:
-    return ConnectionQuality::Poor;
-  case proto::QUALITY_GOOD:
-    return ConnectionQuality::Good;
-  case proto::QUALITY_EXCELLENT:
-    return ConnectionQuality::Excellent;
-  case proto::QUALITY_LOST:
-    return ConnectionQuality::Lost;
-  default:
-    return ConnectionQuality::Good;
+    case proto::QUALITY_POOR:
+      return ConnectionQuality::Poor;
+    case proto::QUALITY_GOOD:
+      return ConnectionQuality::Good;
+    case proto::QUALITY_EXCELLENT:
+      return ConnectionQuality::Excellent;
+    case proto::QUALITY_LOST:
+      return ConnectionQuality::Lost;
+    default:
+      return ConnectionQuality::Good;
   }
 }
 
 ConnectionState toConnectionState(proto::ConnectionState in) {
   switch (in) {
-  case proto::CONN_DISCONNECTED:
-    return ConnectionState::Disconnected;
-  case proto::CONN_CONNECTED:
-    return ConnectionState::Connected;
-  case proto::CONN_RECONNECTING:
-    return ConnectionState::Reconnecting;
-  default:
-    return ConnectionState::Disconnected;
+    case proto::CONN_DISCONNECTED:
+      return ConnectionState::Disconnected;
+    case proto::CONN_CONNECTED:
+      return ConnectionState::Connected;
+    case proto::CONN_RECONNECTING:
+      return ConnectionState::Reconnecting;
+    default:
+      return ConnectionState::Disconnected;
   }
 }
 
 DataPacketKind toDataPacketKind(proto::DataPacketKind in) {
   switch (in) {
-  case proto::KIND_LOSSY:
-    return DataPacketKind::Lossy;
-  case proto::KIND_RELIABLE: // NOLINT(bugprone-branch-clone)
-    return DataPacketKind::Reliable;
-  default:
-    return DataPacketKind::Reliable;
+    case proto::KIND_LOSSY:
+      return DataPacketKind::Lossy;
+    case proto::KIND_RELIABLE: // NOLINT(bugprone-branch-clone)
+      return DataPacketKind::Reliable;
+    default:
+      return DataPacketKind::Reliable;
   }
 }
 
@@ -105,11 +103,12 @@ DisconnectReason toDisconnectReason(proto::DisconnectReason /*in*/) {
 
 // --------- basic helper conversions ---------
 
-UserPacketData fromProto(const proto::UserPacket &in) {
+UserPacketData fromProto(const proto::UserPacket& in) {
   UserPacketData out;
   // TODO, double check following code is safe
-  const auto &buf = in.data().data();
-  const auto *ptr = reinterpret_cast<const std::uint8_t *>(buf.data_ptr()); // NOLINT(performance-no-int-to-ptr)
+  const auto& buf = in.data().data();
+  // NOLINTNEXTLINE(performance-no-int-to-ptr)
+  const auto* ptr = reinterpret_cast<const std::uint8_t*>(buf.data_ptr());
   auto len = static_cast<std::size_t>(buf.data_len());
   out.data.assign(ptr, ptr + len);
   if (in.has_topic()) {
@@ -118,7 +117,7 @@ UserPacketData fromProto(const proto::UserPacket &in) {
   return out;
 }
 
-SipDtmfData fromProto(const proto::SipDTMF &in) {
+SipDtmfData fromProto(const proto::SipDTMF& in) {
   SipDtmfData out;
   out.code = in.code();
   if (in.has_digit()) {
@@ -127,17 +126,15 @@ SipDtmfData fromProto(const proto::SipDTMF &in) {
   return out;
 }
 
-RoomInfoData fromProto(const proto::RoomInfo &in) {
+RoomInfoData fromProto(const proto::RoomInfo& in) {
   RoomInfoData out;
   if (in.has_sid()) {
     out.sid = in.sid();
   }
   out.name = in.name();
   out.metadata = in.metadata();
-  out.lossy_dc_buffered_amount_low_threshold =
-      in.lossy_dc_buffered_amount_low_threshold();
-  out.reliable_dc_buffered_amount_low_threshold =
-      in.reliable_dc_buffered_amount_low_threshold();
+  out.lossy_dc_buffered_amount_low_threshold = in.lossy_dc_buffered_amount_low_threshold();
+  out.reliable_dc_buffered_amount_low_threshold = in.reliable_dc_buffered_amount_low_threshold();
   out.empty_timeout = in.empty_timeout();
   out.departure_timeout = in.departure_timeout();
   out.max_participants = in.max_participants();
@@ -148,14 +145,14 @@ RoomInfoData fromProto(const proto::RoomInfo &in) {
   return out;
 }
 
-AttributeEntry fromProto(const proto::AttributesEntry &in) {
+AttributeEntry fromProto(const proto::AttributesEntry& in) {
   AttributeEntry a;
   a.key = in.key();
   a.value = in.value();
   return a;
 }
 
-DataStreamHeaderData fromProto(const proto::DataStream_Header &in) {
+DataStreamHeaderData fromProto(const proto::DataStream_Header& in) {
   DataStreamHeaderData out;
   out.stream_id = in.stream_id();
   out.timestamp = in.timestamp();
@@ -164,47 +161,46 @@ DataStreamHeaderData fromProto(const proto::DataStream_Header &in) {
   if (in.has_total_length()) {
     out.total_length = in.total_length();
   }
-  for (const auto &kv : in.attributes()) {
+  for (const auto& kv : in.attributes()) {
     out.attributes.emplace(kv.first, kv.second);
   }
 
   // content_header oneof
   switch (in.content_header_case()) {
-  case proto::DataStream_Header::kTextHeader: {
-    out.content_type = DataStreamHeaderData::ContentType::Text;
-    const auto &t = in.text_header();
-    out.operation_type =
-        static_cast<DataStreamHeaderData::OperationType>(t.operation_type());
-    if (t.has_version()) {
-      out.version = t.version();
+    case proto::DataStream_Header::kTextHeader: {
+      out.content_type = DataStreamHeaderData::ContentType::Text;
+      const auto& t = in.text_header();
+      out.operation_type = static_cast<DataStreamHeaderData::OperationType>(t.operation_type());
+      if (t.has_version()) {
+        out.version = t.version();
+      }
+      if (t.has_reply_to_stream_id()) {
+        out.reply_to_stream_id = t.reply_to_stream_id();
+      }
+      for (const auto& id : t.attached_stream_ids()) {
+        out.attached_stream_ids.push_back(id);
+      }
+      if (t.has_generated()) {
+        out.generated = t.generated();
+      }
+      break;
     }
-    if (t.has_reply_to_stream_id()) {
-      out.reply_to_stream_id = t.reply_to_stream_id();
+    case proto::DataStream_Header::kByteHeader: {
+      out.content_type = DataStreamHeaderData::ContentType::Byte;
+      const auto& b = in.byte_header();
+      out.name = b.name();
+      break;
     }
-    for (const auto &id : t.attached_stream_ids()) {
-      out.attached_stream_ids.push_back(id);
-    }
-    if (t.has_generated()) {
-      out.generated = t.generated();
-    }
-    break;
-  }
-  case proto::DataStream_Header::kByteHeader: {
-    out.content_type = DataStreamHeaderData::ContentType::Byte;
-    const auto &b = in.byte_header();
-    out.name = b.name();
-    break;
-  }
-  case proto::DataStream_Header::CONTENT_HEADER_NOT_SET:
-  default:
-    out.content_type = DataStreamHeaderData::ContentType::None;
-    break;
+    case proto::DataStream_Header::CONTENT_HEADER_NOT_SET:
+    default:
+      out.content_type = DataStreamHeaderData::ContentType::None;
+      break;
   }
 
   return out;
 }
 
-DataStreamChunkData fromProto(const proto::DataStream_Chunk &in) {
+DataStreamChunkData fromProto(const proto::DataStream_Chunk& in) {
   DataStreamChunkData out;
   out.stream_id = in.stream_id();
   out.chunk_index = in.chunk_index();
@@ -218,11 +214,11 @@ DataStreamChunkData fromProto(const proto::DataStream_Chunk &in) {
   return out;
 }
 
-DataStreamTrailerData fromProto(const proto::DataStream_Trailer &in) {
+DataStreamTrailerData fromProto(const proto::DataStream_Trailer& in) {
   DataStreamTrailerData out;
   out.stream_id = in.stream_id();
   out.reason = in.reason();
-  for (const auto &kv : in.attributes()) {
+  for (const auto& kv : in.attributes()) {
     out.attributes.emplace(kv.first, kv.second);
   }
   return out;
@@ -230,67 +226,60 @@ DataStreamTrailerData fromProto(const proto::DataStream_Trailer &in) {
 
 // --------- event conversions ---------
 
-RoomSidChangedEvent fromProto(const proto::RoomSidChanged &in) {
+RoomSidChangedEvent fromProto(const proto::RoomSidChanged& in) {
   RoomSidChangedEvent ev;
   ev.sid = in.sid();
   return ev;
 }
 
-ConnectionStateChangedEvent fromProto(const proto::ConnectionStateChanged &in) {
+ConnectionStateChangedEvent fromProto(const proto::ConnectionStateChanged& in) {
   ConnectionStateChangedEvent ev;
   ev.state = toConnectionState(in.state());
   return ev;
 }
 
-DisconnectedEvent fromProto(const proto::Disconnected &in) {
+DisconnectedEvent fromProto(const proto::Disconnected& in) {
   DisconnectedEvent ev;
   ev.reason = toDisconnectReason(in.reason());
   return ev;
 }
 
-ReconnectingEvent fromProto(const proto::Reconnecting & /*in*/) {
-  return ReconnectingEvent{};
-}
+ReconnectingEvent fromProto(const proto::Reconnecting& /*in*/) { return ReconnectingEvent{}; }
 
-ReconnectedEvent fromProto(const proto::Reconnected & /*in*/) {
-  return ReconnectedEvent{};
-}
+ReconnectedEvent fromProto(const proto::Reconnected& /*in*/) { return ReconnectedEvent{}; }
 
-RoomEosEvent fromProto(const proto::RoomEOS & /*in*/) { return RoomEosEvent{}; }
+RoomEosEvent fromProto(const proto::RoomEOS& /*in*/) { return RoomEosEvent{}; }
 
-DataStreamHeaderReceivedEvent
-fromProto(const proto::DataStreamHeaderReceived &in) {
+DataStreamHeaderReceivedEvent fromProto(const proto::DataStreamHeaderReceived& in) {
   DataStreamHeaderReceivedEvent ev;
   ev.participant_identity = in.participant_identity();
   ev.header = fromProto(in.header());
   return ev;
 }
 
-DataStreamChunkReceivedEvent
-fromProto(const proto::DataStreamChunkReceived &in) {
+DataStreamChunkReceivedEvent fromProto(const proto::DataStreamChunkReceived& in) {
   DataStreamChunkReceivedEvent ev;
   ev.participant_identity = in.participant_identity();
   ev.chunk = fromProto(in.chunk());
   return ev;
 }
 
-DataStreamTrailerReceivedEvent
-fromProto(const proto::DataStreamTrailerReceived &in) {
+DataStreamTrailerReceivedEvent fromProto(const proto::DataStreamTrailerReceived& in) {
   DataStreamTrailerReceivedEvent ev;
   ev.participant_identity = in.participant_identity();
   ev.trailer = fromProto(in.trailer());
   return ev;
 }
 
-DataChannelBufferedAmountLowThresholdChangedEvent
-fromProto(const proto::DataChannelBufferedAmountLowThresholdChanged &in) {
+DataChannelBufferedAmountLowThresholdChangedEvent fromProto(
+    const proto::DataChannelBufferedAmountLowThresholdChanged& in) {
   DataChannelBufferedAmountLowThresholdChangedEvent ev;
   ev.kind = toDataPacketKind(in.kind());
   ev.threshold = in.threshold();
   return ev;
 }
 
-ByteStreamOpenedEvent fromProto(const proto::ByteStreamOpened &in) {
+ByteStreamOpenedEvent fromProto(const proto::ByteStreamOpened& in) {
   ByteStreamOpenedEvent ev;
   // TODO: map reader handle once OwnedByteStreamReader is known
   // ev.reader_handle = in.reader().handle().id();
@@ -298,7 +287,7 @@ ByteStreamOpenedEvent fromProto(const proto::ByteStreamOpened &in) {
   return ev;
 }
 
-TextStreamOpenedEvent fromProto(const proto::TextStreamOpened &in) {
+TextStreamOpenedEvent fromProto(const proto::TextStreamOpened& in) {
   TextStreamOpenedEvent ev;
   // TODO: map reader handle once OwnedTextStreamReader is known
   // ev.reader_handle = in.reader().handle().id();
@@ -306,13 +295,13 @@ TextStreamOpenedEvent fromProto(const proto::TextStreamOpened &in) {
   return ev;
 }
 
-RoomUpdatedEvent roomUpdatedFromProto(const proto::RoomInfo &in) {
+RoomUpdatedEvent roomUpdatedFromProto(const proto::RoomInfo& in) {
   RoomUpdatedEvent ev;
   ev.info = fromProto(in);
   return ev;
 }
 
-RoomMovedEvent roomMovedFromProto(const proto::RoomInfo &in) {
+RoomMovedEvent roomMovedFromProto(const proto::RoomInfo& in) {
   RoomMovedEvent ev;
   ev.info = fromProto(in);
   return ev;
@@ -320,33 +309,33 @@ RoomMovedEvent roomMovedFromProto(const proto::RoomInfo &in) {
 
 // ---------------- Room Options ----------------
 
-proto::AudioEncoding toProto(const AudioEncodingOptions &in) {
+proto::AudioEncoding toProto(const AudioEncodingOptions& in) {
   proto::AudioEncoding msg;
   msg.set_max_bitrate(in.max_bitrate);
   return msg;
 }
 
-AudioEncodingOptions fromProto(const proto::AudioEncoding &in) {
+AudioEncodingOptions fromProto(const proto::AudioEncoding& in) {
   AudioEncodingOptions out;
   out.max_bitrate = in.max_bitrate();
   return out;
 }
 
-proto::VideoEncoding toProto(const VideoEncodingOptions &in) {
+proto::VideoEncoding toProto(const VideoEncodingOptions& in) {
   proto::VideoEncoding msg;
   msg.set_max_bitrate(in.max_bitrate);
   msg.set_max_framerate(in.max_framerate);
   return msg;
 }
 
-VideoEncodingOptions fromProto(const proto::VideoEncoding &in) {
+VideoEncodingOptions fromProto(const proto::VideoEncoding& in) {
   VideoEncodingOptions out;
   out.max_bitrate = in.max_bitrate();
   out.max_framerate = in.max_framerate();
   return out;
 }
 
-proto::TrackPublishOptions toProto(const TrackPublishOptions &in) {
+proto::TrackPublishOptions toProto(const TrackPublishOptions& in) {
   proto::TrackPublishOptions msg;
   if (in.video_encoding) {
     msg.mutable_video_encoding()->CopyFrom(toProto(*in.video_encoding));
@@ -375,14 +364,13 @@ proto::TrackPublishOptions toProto(const TrackPublishOptions &in) {
   if (in.preconnect_buffer) {
     msg.set_preconnect_buffer(*in.preconnect_buffer);
   }
-  for (const proto::PacketTrailerFeature feature :
-       toProto(in.packet_trailer_features)) {
+  for (const proto::PacketTrailerFeature feature : toProto(in.packet_trailer_features)) {
     msg.add_packet_trailer_features(feature);
   }
   return msg;
 }
 
-TrackPublishOptions fromProto(const proto::TrackPublishOptions &in) {
+TrackPublishOptions fromProto(const proto::TrackPublishOptions& in) {
   TrackPublishOptions out;
   if (in.has_video_encoding()) {
     out.video_encoding = fromProto(in.video_encoding());
@@ -415,18 +403,18 @@ TrackPublishOptions fromProto(const proto::TrackPublishOptions &in) {
   return out;
 }
 
-UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived &in,
-                                            RemoteParticipant *participant) {
+UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived& in, RemoteParticipant* participant) {
   UserDataPacketEvent ev;
   ev.kind = static_cast<DataPacketKind>(in.kind());
   ev.participant = participant;
   ev.topic = in.user().topic();
 
   // Copy bytes
-  const auto &owned = in.user().data();
-  const auto &info = owned.data();
+  const auto& owned = in.user().data();
+  const auto& info = owned.data();
   if (info.data_ptr() != 0 && info.data_len() > 0) {
-    const auto *ptr = reinterpret_cast<const std::uint8_t *>(info.data_ptr()); // NOLINT(performance-no-int-to-ptr)
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    const auto* ptr = reinterpret_cast<const std::uint8_t*>(info.data_ptr());
     auto len = static_cast<std::size_t>(info.data_len());
     ev.data.assign(ptr, ptr + len);
   } else {
@@ -436,8 +424,7 @@ UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived &in,
   return ev;
 }
 
-SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived &in,
-                                      RemoteParticipant *participant) {
+SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived& in, RemoteParticipant* participant) {
   SipDtmfReceivedEvent ev;
   ev.participant = participant;
   ev.code = static_cast<int>(in.sip_dtmf().code());
@@ -445,16 +432,15 @@ SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived &in,
   return ev;
 }
 
-std::map<std::string, std::string>
-toAttrMap(const proto::DataStream::Trailer &trailer) {
+std::map<std::string, std::string> toAttrMap(const proto::DataStream::Trailer& trailer) {
   std::map<std::string, std::string> out;
-  for (const auto &kv : trailer.attributes()) {
+  for (const auto& kv : trailer.attributes()) {
     out.emplace(kv.first, kv.second);
   }
   return out;
 }
 
-TextStreamInfo makeTextInfo(const proto::DataStream::Header &header) {
+TextStreamInfo makeTextInfo(const proto::DataStream::Header& header) {
   TextStreamInfo info;
   info.stream_id = header.stream_id();
   info.mime_type = header.mime_type();
@@ -465,18 +451,18 @@ TextStreamInfo makeTextInfo(const proto::DataStream::Header &header) {
     info.size = static_cast<std::size_t>(header.total_length());
   }
 
-  for (const auto &kv : header.attributes()) {
+  for (const auto& kv : header.attributes()) {
     info.attributes.emplace(kv.first, kv.second);
   }
 
-  for (const auto &id : header.text_header().attached_stream_ids()) {
+  for (const auto& id : header.text_header().attached_stream_ids()) {
     info.attachments.push_back(id);
   }
 
   return info;
 }
 
-ByteStreamInfo makeByteInfo(const proto::DataStream::Header &header) {
+ByteStreamInfo makeByteInfo(const proto::DataStream::Header& header) {
   ByteStreamInfo info;
   info.stream_id = header.stream_id();
   info.mime_type = header.mime_type();
@@ -487,7 +473,7 @@ ByteStreamInfo makeByteInfo(const proto::DataStream::Header &header) {
     info.size = static_cast<std::size_t>(header.total_length());
   }
 
-  for (const auto &kv : header.attributes()) {
+  for (const auto& kv : header.attributes()) {
     info.attributes.emplace(kv.first, kv.second);
   }
 

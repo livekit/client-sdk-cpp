@@ -500,7 +500,7 @@ This SDK leverages various tools and checks to ensure the highest quality of the
 ### Clang Tools
 
 - `clang-tidy`: static analysis checks to catch common C++ pitfalls. See [.clang-tidy](./.clang-tidy) for the list of current checks (enforced in CI on PR)
-- `clang-format`: (coming soon) code formatting and style consistency
+- `clang-format`: code formatting and style consistency. See [.clang-format](./.clang-format) for the list of style configurations (enforced in CI on PR)
 
 > **Note**: clang-tidy is not currently supported on Windows for this project because the Visual Studio CMake generator does not produce the compile_commands.json database that clang-tidy requires.
 
@@ -521,7 +521,13 @@ This installs `clang-format`, `clang-tidy`, and `run-clang-tidy`. Homebrew may a
 sudo apt-get install clang-format clang-tidy clang-tools
 ```
 
-To run:
+**Pre-commit hook**
+
+```bash
+printf '#!/bin/sh\nFILES=$(git diff --cached --name-only --diff-filter=ACMR -- "*.c" "*.cc" "*.cpp" "*.cxx" "*.h" "*.hpp" "*.hxx")\n[ -z "$FILES" ] && exit 0\necho "$FILES" | xargs ./scripts/clang-format.sh --fix\necho "$FILES" | xargs git add\n' > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+```
+
+To run `clang-tidy`:
 
 1. Generate `compile_commands.json` and the protobuf headers via a release build:
 
@@ -544,6 +550,24 @@ The wrapper forwards extra arguments to `run-clang-tidy`, examples below:
 ```
 
 Output is captured to `clang-tidy.log` at the repo root. This is done as a convenience feature, as often times the terminal buffer is not large enough for all the output.
+
+To run `clang-format`:
+
+```bash
+./scripts/clang-format.sh
+```
+
+With no arguments, runs `clang-format` against every relevant file in the repository against defined `.clang-format` rules.
+
+Pass flags or paths as needed, examples below:
+
+```bash
+./scripts/clang-format.sh --fix                                # Rewrite files in place
+./scripts/clang-format.sh src/room.cpp include/livekit/room.h  # Check just these files
+./scripts/clang-format.sh --fix src/room.cpp                   # Fix just this file
+```
+
+Output is captured to `clang-format.log` at the repo root.
 
 ### Memory Checks
 

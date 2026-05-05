@@ -87,13 +87,13 @@ public:
   /**
    * Human-readable error message.
    */
-  const std::string &message() const noexcept;
+  const std::string& message() const noexcept;
 
   /**
    * Optional extra data associated with the error (JSON recommended).
    * May be an empty string if no data was provided.
    */
-  const std::string &data() const noexcept;
+  const std::string& data() const noexcept;
 
   /**
    * Create a built-in RpcError using a predefined ErrorCode and default
@@ -102,18 +102,18 @@ public:
    * @param code  Built-in error code.
    * @param data  Optional extra data payload (JSON recommended).
    */
-  static RpcError builtIn(ErrorCode code, const std::string &data = {});
+  static RpcError builtIn(ErrorCode code, const std::string& data = {});
 
 protected:
   // ----- Protected: only used by LocalParticipant (internal SDK code) -----
   proto::RpcError toProto() const;
-  static RpcError fromProto(const proto::RpcError &err);
+  static RpcError fromProto(const proto::RpcError& err);
 
   friend class LocalParticipant;
   friend class FfiClient;
 
 private:
-  static const char *defaultMessageFor(ErrorCode code);
+  static const char* defaultMessageFor(ErrorCode code);
 
   std::uint32_t code_;
   std::string message_;

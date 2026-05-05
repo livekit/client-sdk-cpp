@@ -32,12 +32,12 @@ public:
   ~FfiHandle();
 
   // Non-copyable
-  FfiHandle(const FfiHandle &) = delete;
-  FfiHandle &operator=(const FfiHandle &) = delete;
+  FfiHandle(const FfiHandle&) = delete;
+  FfiHandle& operator=(const FfiHandle&) = delete;
 
   // Movable
-  FfiHandle(FfiHandle &&other) noexcept;
-  FfiHandle &operator=(FfiHandle &&other) noexcept;
+  FfiHandle(FfiHandle&& other) noexcept;
+  FfiHandle& operator=(FfiHandle&& other) noexcept;
 
   // Replace the current handle with a new one, dropping the old if needed
   void reset(uintptr_t new_handle = 0) noexcept;
