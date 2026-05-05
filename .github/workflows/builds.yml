@@ -17,6 +17,8 @@ on:
       - docker/Dockerfile.base
       - docker/Dockerfile.sdk
       - .github/workflows/**
+      - .clang-format
+      - scripts/clang-format.sh
   pull_request:
     branches: ["main"]
     paths:
@@ -33,6 +35,8 @@ on:
       - docker/Dockerfile.base
       - docker/Dockerfile.sdk
       - .github/workflows/**
+      - .clang-format
+      - scripts/clang-format.sh
   workflow_dispatch:
 
 permissions:
@@ -546,6 +550,51 @@ jobs:
             cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
             cmake --build build --parallel
           '
+
+  clang-format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # No submodules: scripts/clang-format.sh only walks our own src/
+          # tree (the client-sdk-rust submodule has its own .clang-format).
+          fetch-depth: 1
+
+      - name: Install clang-format 19
+        run: |
+          set -eux
+          # Pin clang-format 19 to match the clang-tidy job and keep CI
+          # output deterministic across runs. Ubuntu 24.04's default
+          # clang-format ships with LLVM 18; pull 19 from the upstream
+          # LLVM apt repository so a developer running clang-format-19
+          # locally gets the same result CI does.
+          sudo install -m 0755 -d /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
+          sudo chmod a+r /etc/apt/keyrings/llvm.asc
+          codename=$(lsb_release -cs)
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-19 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-19.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y clang-format-19
+          sudo ln -sf /usr/bin/clang-format-19 /usr/local/bin/clang-format
+          clang-format --version
+
+      - name: Run clang-format
+        env:
+          FORMAT_BLOB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        # This script is intended to be run locally and in CI. It will
+        # auto-detect the GHA environment and emit PR file annotations
+        # plus a markdown step summary when GITHUB_ACTIONS=true. Default
+        # mode is check-only (--dry-run --Werror), which exits non-zero
+        # on any divergence from the repo-root .clang-format.
+        run: ./scripts/clang-format.sh
 
   clang-tidy:
     name: clang-tidy
