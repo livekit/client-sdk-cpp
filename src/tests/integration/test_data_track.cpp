@@ -24,6 +24,7 @@
 #include "../common/test_common.h"
 
 #include "ffi_client.h"
+#include "lk_log.h"
 
 #include <cmath>
 #include <condition_variable>
@@ -41,11 +42,9 @@ using namespace std::chrono_literals;
 namespace {
 
 constexpr char kTrackNamePrefix[] = "data_track_e2e";
-constexpr auto kPublishDuration = 5s;
 constexpr auto kTrackWaitTimeout = 10s;
 constexpr auto kReadTimeout = 30s;
 constexpr auto kPollingInterval = 10ms;
-constexpr float kMinimumReceivedPercent = 0.95f;
 constexpr int kResubscribeIterations = 10;
 constexpr int kPublishManyTrackCount = 256;
 constexpr auto kPublishManyTimeout = 5s;
@@ -212,8 +211,13 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   const auto publish_fps = std::get<0>(GetParam());
   const auto payload_len = std::get<1>(GetParam());
   const auto track_name = makeTrackName("transport");
-  const auto frame_count = static_cast<size_t>(std::llround(
-      std::chrono::duration<double>(kPublishDuration).count() * publish_fps));
+
+  // How long to publish frames for.
+  constexpr auto kPublishDuration = 10s;
+
+  // Percentage of total frames that must be received on the subscriber end in
+  // order for the test to pass.
+  constexpr float kMinimumReceivedPercent = 0.95f;
 
   DataTrackPublishedDelegate subscriber_delegate;
   std::vector<TestRoomConnectionOptions> room_configs(2);
@@ -223,12 +227,27 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   auto &publisher_room = rooms[0];
   const auto publisher_identity =
       publisher_room->localParticipant()->identity();
+    
+  auto track =
+      requirePublishedTrack(publisher_room->localParticipant(), track_name);
+  std::cerr << "Track published\n";
+
+  auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
+  std::cerr << "Got remote track: " << remote_track->info().sid << "\n";
+
+  ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
+  EXPECT_TRUE(remote_track->isPublished());
+  EXPECT_FALSE(remote_track->info().uses_e2ee);
+  EXPECT_EQ(remote_track->info().name, track_name);
+  EXPECT_EQ(remote_track->publisherIdentity(), publisher_identity);
+
+  const auto frame_count = static_cast<size_t>(std::llround(
+    std::chrono::duration<double>(kPublishDuration).count() * publish_fps));
+  LK_LOG_INFO("Publishing {} frames", frame_count);
 
   std::exception_ptr publish_error;
   std::thread publisher([&]() {
     try {
-      auto track =
-          requirePublishedTrack(publisher_room->localParticipant(), track_name);
       if (!track->isPublished()) {
         throw std::runtime_error("Publisher failed to publish data track");
       }
@@ -261,13 +280,6 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
       publish_error = std::current_exception();
     }
   });
-
-  auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
-  ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
-  EXPECT_TRUE(remote_track->isPublished());
-  EXPECT_FALSE(remote_track->info().uses_e2ee);
-  EXPECT_EQ(remote_track->info().name, track_name);
-  EXPECT_EQ(remote_track->publisherIdentity(), publisher_identity);
 
   auto subscribe_result = remote_track->subscribe();
   if (!subscribe_result) {
