@@ -220,6 +220,8 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   constexpr float kMinimumReceivedPercent = 0.95f;
 
   std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[0].room_options.single_peer_connection = false;
+  room_configs[1].room_options.single_peer_connection = false;
 
   DataTrackPublishedDelegate subscriber_delegate;
   room_configs[1].delegate = &subscriber_delegate;
