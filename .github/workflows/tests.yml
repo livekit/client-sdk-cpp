@@ -223,6 +223,8 @@ jobs:
         if: matrix.e2e-testing
         timeout-minutes: 5
         shell: bash
+        env:
+          RUST_LOG: "metrics=debug"
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
