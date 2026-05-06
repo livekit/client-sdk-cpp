@@ -41,18 +41,18 @@ bool DataTrackStream::read(DataTrackFrame &out) {
     if (closed_ || eof_) {
       return false;
     }
-
-    const auto subscription_handle =
-        static_cast<std::uint64_t>(subscription_handle_.get());
-
-    // Signal the Rust side that we're ready to receive the next frame.
-    // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
-    // from the underlying stream until notified via this request.
-    proto::FfiRequest req;
-    auto *msg = req.mutable_data_track_stream_read();
-    msg->set_stream_handle(subscription_handle);
-    FfiClient::instance().sendRequest(req);
   }
+
+  const auto subscription_handle =
+      static_cast<std::uint64_t>(subscription_handle_.get());
+
+  // Signal the Rust side that we're ready to receive the next frame.
+  // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
+  // from the underlying stream until notified via this request.
+  proto::FfiRequest req;
+  auto *msg = req.mutable_data_track_stream_read();
+  msg->set_stream_handle(subscription_handle);
+  FfiClient::instance().sendRequest(req);
 
   std::unique_lock<std::mutex> lock(mutex_);
   cv_.wait(lock, [this] { return frame_.has_value() || eof_ || closed_; });

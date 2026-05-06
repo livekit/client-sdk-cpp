@@ -248,40 +248,35 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
       std::chrono::duration<double>(kPublishDuration).count() * publish_fps));
   std::cout << "Publishing " << frame_count << " frames\n";
 
-  std::exception_ptr publish_error;
   auto publish = [&]() {
-    try {
-      if (!track->isPublished()) {
-        throw std::runtime_error("Publisher failed to publish data track");
-      }
-      if (track->info().uses_e2ee) {
-        throw std::runtime_error("Unexpected E2EE on test data track");
-      }
-      if (track->info().name != track_name) {
-        throw std::runtime_error("Published track name mismatch");
-      }
-
-      const auto frame_interval =
-          std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-              std::chrono::duration<double>(1.0 / publish_fps));
-      auto next_send = std::chrono::steady_clock::now();
-
-      std::cout << "Publishing " << frame_count
-                << " frames with payload length " << payload_len << std::endl;
-      for (size_t index = 0; index < frame_count; ++index) {
-        std::vector<std::uint8_t> payload(payload_len,
-                                          static_cast<std::uint8_t>(index));
-        requirePushSuccess(track->tryPush(std::move(payload)),
-                           "Failed to push data frame");
-
-        next_send += frame_interval;
-        std::this_thread::sleep_until(next_send);
-      }
-
-      track->unpublishDataTrack();
-    } catch (...) {
-      publish_error = std::current_exception();
+    if (!track->isPublished()) {
+      throw std::runtime_error("Publisher failed to publish data track");
     }
+    if (track->info().uses_e2ee) {
+      throw std::runtime_error("Unexpected E2EE on test data track");
+    }
+    if (track->info().name != track_name) {
+      throw std::runtime_error("Published track name mismatch");
+    }
+
+    const auto frame_interval =
+        std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            std::chrono::duration<double>(1.0 / publish_fps));
+    auto next_send = std::chrono::steady_clock::now();
+
+    std::cout << "Publishing " << frame_count
+              << " frames with payload length " << payload_len << '\n';
+    for (size_t index = 0; index < frame_count; ++index) {
+      std::vector<std::uint8_t> payload(payload_len,
+                                        static_cast<std::uint8_t>(index));
+      requirePushSuccess(track->tryPush(std::move(payload)),
+                          "Failed to push data frame");
+
+      next_send += frame_interval;
+      std::this_thread::sleep_until(next_send);
+    }
+
+    track->unpublishDataTrack();
   };
 
   auto subscribe_result = remote_track->subscribe();
@@ -293,36 +288,30 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   std::promise<size_t> receive_count_promise;
   auto receive_count_future = receive_count_promise.get_future();
 
-  std::exception_ptr subscribe_error;
   auto subscribe = [&]() {
-    try {
-      size_t received_count = 0;
-      DataTrackFrame frame;
-      while (subscription->read(frame) && received_count < frame_count) {
-        if (frame.payload.empty()) {
-          throw std::runtime_error("Received empty data frame");
-        }
-
-        const auto first_byte = frame.payload.front();
-        if (!std::all_of(frame.payload.begin(), frame.payload.end(),
-                         [first_byte](std::uint8_t byte) {
-                           return byte == first_byte;
-                         })) {
-          throw std::runtime_error("Received frame with inconsistent payload");
-        }
-        if (frame.user_timestamp.has_value()) {
-          throw std::runtime_error(
-              "Received unexpected user timestamp in transport test");
-        }
-
-        ++received_count;
+    size_t received_count = 0;
+    DataTrackFrame frame;
+    while (subscription->read(frame) && received_count < frame_count) {
+      if (frame.payload.empty()) {
+        throw std::runtime_error("Received empty data frame");
       }
 
-      receive_count_promise.set_value(received_count);
-    } catch (...) {
-      subscribe_error = std::current_exception();
-      receive_count_promise.set_exception(std::current_exception());
+      const auto first_byte = frame.payload.front();
+      if (!std::all_of(frame.payload.begin(), frame.payload.end(),
+                        [first_byte](std::uint8_t byte) {
+                          return byte == first_byte;
+                        })) {
+        throw std::runtime_error("Received frame with inconsistent payload");
+      }
+      if (frame.user_timestamp.has_value()) {
+        throw std::runtime_error(
+            "Received unexpected user timestamp in transport test");
+      }
+
+      ++received_count;
     }
+
+    receive_count_promise.set_value(received_count);
   };
 
   // Launch both — these START IMMEDIATELY on background threads.
@@ -342,19 +331,12 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   const bool sub_ok = sub_fut.wait_until(deadline) == std::future_status::ready;
 
   if (!pub_ok || !sub_ok) {
-    throw std::runtime_error("timeout");
+    ADD_FAILURE() << "Timed out waiting for data frames";
   }
 
   // Equivalent of `try_join!`'s ? — re-throws any exception from either task.
   pub_fut.get();
   sub_fut.get();
-
-  if (publish_error) {
-    std::rethrow_exception(publish_error);
-  }
-  if (subscribe_error) {
-    std::rethrow_exception(subscribe_error);
-  }
 
   const auto received_count = receive_count_future.get();
   const auto received_percent =
