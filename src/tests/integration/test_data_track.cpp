@@ -219,15 +219,16 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   // order for the test to pass.
   constexpr float kMinimumReceivedPercent = 0.95f;
 
-  DataTrackPublishedDelegate subscriber_delegate;
   std::vector<TestRoomConnectionOptions> room_configs(2);
+
+  DataTrackPublishedDelegate subscriber_delegate;
   room_configs[1].delegate = &subscriber_delegate;
 
   auto rooms = testRooms(room_configs);
   auto &publisher_room = rooms[0];
   const auto publisher_identity =
       publisher_room->localParticipant()->identity();
-    
+
   auto track =
       requirePublishedTrack(publisher_room->localParticipant(), track_name);
   std::cerr << "Track published\n";
@@ -242,11 +243,11 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   EXPECT_EQ(remote_track->publisherIdentity(), publisher_identity);
 
   const auto frame_count = static_cast<size_t>(std::llround(
-    std::chrono::duration<double>(kPublishDuration).count() * publish_fps));
-  LK_LOG_INFO("Publishing {} frames", frame_count);
+      std::chrono::duration<double>(kPublishDuration).count() * publish_fps));
+  std::cout << "Publishing " << frame_count << " frames\n";
 
   std::exception_ptr publish_error;
-  std::thread publisher([&]() {
+  auto publish = [&]() {
     try {
       if (!track->isPublished()) {
         throw std::runtime_error("Publisher failed to publish data track");
@@ -279,7 +280,7 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
     } catch (...) {
       publish_error = std::current_exception();
     }
-  });
+  };
 
   auto subscribe_result = remote_track->subscribe();
   if (!subscribe_result) {
@@ -289,8 +290,9 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
 
   std::promise<size_t> receive_count_promise;
   auto receive_count_future = receive_count_promise.get_future();
+
   std::exception_ptr subscribe_error;
-  std::thread subscriber([&]() {
+  auto subscribe = [&]() {
     try {
       size_t received_count = 0;
       DataTrackFrame frame;
@@ -319,7 +321,10 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
       subscribe_error = std::current_exception();
       receive_count_promise.set_exception(std::current_exception());
     }
-  });
+  };
+
+  std::thread publisher(publish);
+  std::thread subscriber(subscribe);
 
   if (receive_count_future.wait_for(kReadTimeout) !=
       std::future_status::ready) {
@@ -341,7 +346,7 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   const auto received_percent =
       static_cast<float>(received_count) / static_cast<float>(frame_count);
   std::cout << "Received " << received_count << "/" << frame_count
-            << " frames (" << received_percent * 100.0f << "%)" << std::endl;
+            << " frames (" << received_percent * 100.0f << "%)" << '\n';
 
   EXPECT_GE(received_percent, kMinimumReceivedPercent)
       << "Received " << received_count << "/" << frame_count << " frames";
