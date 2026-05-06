@@ -134,7 +134,7 @@ void DataTrackStream::pushFrame(DataTrackFrame &&frame) {
   frame_ = std::move(frame);
 
   // notify no matter what since we got a new frame
-  mutex_.unlock();
+  // mutex_.unlock();
   cv_.notify_one();
 }
 

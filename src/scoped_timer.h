@@ -48,7 +48,7 @@ public:
     const auto elapsed = std::chrono::steady_clock::now() - start_;
     const auto us =
         std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count();
-    LK_LOG_INFO("[scoped_timer] {} took {} us", label_, us);
+    LK_LOG_DEBUG("[scoped_timer] {} took {} us", label_, us);
   }
 
   ScopedTimer(const ScopedTimer &) = delete;
