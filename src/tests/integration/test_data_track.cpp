@@ -325,17 +325,29 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
     }
   };
 
-  std::thread publisher(publish);
-  std::thread subscriber(subscribe);
+  // Launch both — these START IMMEDIATELY on background threads.
+  auto pub_fut = std::async(std::launch::async, publish);
+  auto sub_fut = std::async(std::launch::async, subscribe);
 
-  if (receive_count_future.wait_for(kReadTimeout) !=
-      std::future_status::ready) {
-    subscription->close();
-    ADD_FAILURE() << "Timed out waiting for data frames";
+  // Wait for both, with a combined deadline (the timeout(...) wrapper).
+  const auto deadline = std::chrono::steady_clock::now() + kPublishDuration + kReadTimeout;
+
+  // if (receive_count_future.wait_for(kReadTimeout) !=
+  //     std::future_status::ready) {
+  //   subscription->close();
+  //   ADD_FAILURE() << "Timed out waiting for data frames";
+  // }
+
+  const bool pub_ok = pub_fut.wait_until(deadline) == std::future_status::ready;
+  const bool sub_ok = sub_fut.wait_until(deadline) == std::future_status::ready;
+
+  if (!pub_ok || !sub_ok) {
+    throw std::runtime_error("timeout");
   }
 
-  subscriber.join();
-  publisher.join();
+  // Equivalent of `try_join!`'s ? — re-throws any exception from either task.
+  pub_fut.get();
+  sub_fut.get();
 
   if (publish_error) {
     std::rethrow_exception(publish_error);
