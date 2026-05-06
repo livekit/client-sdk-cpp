@@ -19,6 +19,7 @@
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
+#include "scoped_timer.h"
 
 #include <utility>
 
@@ -36,6 +37,7 @@ void DataTrackStream::init(FfiHandle subscription_handle) {
 }
 
 bool DataTrackStream::read(DataTrackFrame &out) {
+  LK_SCOPED_TIMER("data_track_stream::read");
   {
     const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_ || eof_) {
@@ -54,15 +56,18 @@ bool DataTrackStream::read(DataTrackFrame &out) {
   msg->set_stream_handle(subscription_handle);
   FfiClient::instance().sendRequest(req);
 
-  std::unique_lock<std::mutex> lock(mutex_);
-  cv_.wait(lock, [this] { return frame_.has_value() || eof_ || closed_; });
+  {
+    LK_SCOPED_TIMER("data_track_stream::read.wait");
+    std::unique_lock<std::mutex> lock(mutex_);
+    cv_.wait(lock, [this] { return frame_.has_value() || eof_ || closed_; });
 
-  if (closed_ || (!frame_.has_value() && eof_)) {
-    return false;
+    if (closed_ || (!frame_.has_value() && eof_)) {
+      return false;
+    }
+
+    out = std::move(*frame_); // NOLINT(bugprone-unchecked-optional-access)
+    frame_.reset();
   }
-
-  out = std::move(*frame_); // NOLINT(bugprone-unchecked-optional-access)
-  frame_.reset();
   return true;
 }
 
@@ -87,9 +92,12 @@ void DataTrackStream::close() {
 }
 
 void DataTrackStream::onFfiEvent(const FfiEvent &event) {
+  // Fast-path filter without taking the timer cost: every listener sees
+  // every FFI event, but only DataTrackStreamEvents are interesting here.
   if (event.message_case() != FfiEvent::kDataTrackStreamEvent) {
     return;
   }
+  LK_SCOPED_TIMER("data_track_stream::onFfiEvent");
 
   const auto &dts = event.data_track_stream_event();
   {
@@ -110,6 +118,7 @@ void DataTrackStream::onFfiEvent(const FfiEvent &event) {
 }
 
 void DataTrackStream::pushFrame(DataTrackFrame &&frame) {
+  LK_SCOPED_TIMER("data_track_stream::pushFrame");
   const std::scoped_lock<std::mutex> lock(mutex_);
 
   if (closed_ || eof_) {
