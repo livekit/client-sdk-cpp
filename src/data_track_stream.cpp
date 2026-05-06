@@ -51,10 +51,13 @@ bool DataTrackStream::read(DataTrackFrame &out) {
   // Signal the Rust side that we're ready to receive the next frame.
   // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
   // from the underlying stream until notified via this request.
-  proto::FfiRequest req;
-  auto *msg = req.mutable_data_track_stream_read();
-  msg->set_stream_handle(subscription_handle);
-  FfiClient::instance().sendRequest(req);
+  {
+    LK_SCOPED_TIMER("data_track_stream::read.sendRequest(FFI)");
+    proto::FfiRequest req;
+    auto *msg = req.mutable_data_track_stream_read();
+    msg->set_stream_handle(subscription_handle);
+    FfiClient::instance().sendRequest(req);
+  }
 
   {
     LK_SCOPED_TIMER("data_track_stream::read.wait");
@@ -131,6 +134,7 @@ void DataTrackStream::pushFrame(DataTrackFrame &&frame) {
   frame_ = std::move(frame);
 
   // notify no matter what since we got a new frame
+  mutex_.unlock();
   cv_.notify_one();
 }
 
