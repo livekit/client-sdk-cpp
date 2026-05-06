@@ -36,7 +36,11 @@ jobs:
           - os: macos-latest
             name: macos-x64
             generator: Ninja
-          - os: windows-latest
+          # Pinned to windows-2022 to match the VS 17 generator below.
+          # windows-latest now provisions VS 18 (Visual Studio 2026), which
+          # CMake's "Visual Studio 17 2022" generator can't find. See
+          # builds.yml for the longer-form rationale.
+          - os: windows-2022
             name: windows-x64
             generator: "Visual Studio 17 2022"
 

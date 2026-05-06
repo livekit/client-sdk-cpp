@@ -61,7 +61,9 @@ jobs:
           - os: macos-26-large
             name: macos-x64
             build_cmd: ./build.sh release-tests --macos-arch x86_64
-          - os: windows-latest
+          # See builds.yml for why we pin windows-2022 instead of
+          # windows-latest (VS 17 vs. VS 18 / Visual Studio 2026).
+          - os: windows-2022
             name: windows-x64
             build_cmd: .\build.cmd release-tests
 
