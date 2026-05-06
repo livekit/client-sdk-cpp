@@ -54,6 +54,7 @@ jobs:
           - os: ubuntu-24.04-arm
             name: linux-arm64
             build_cmd: ./build.sh release-tests
+            e2e-testing: true
           - os: macos-latest
             name: macos-arm64
             build_cmd: ./build.sh release-tests
@@ -229,6 +230,7 @@ jobs:
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
           build-release/bin/livekit_integration_tests \
+            --gtest_filter='DataTrackScenarios/DataTrackTransportTest.PublishesAndReceivesFramesEndToEnd/*' \
             --gtest_output=xml:build-release/integration-test-results.xml
 
       - name: Stop livekit-server
