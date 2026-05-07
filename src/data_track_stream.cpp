@@ -19,6 +19,7 @@
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
+#include "lk_log.h"
 
 #include <utility>
 
