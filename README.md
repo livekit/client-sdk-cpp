@@ -523,7 +523,7 @@ This SDK leverages various tools and checks to ensure the highest quality of the
 - `clang-tidy`: static analysis checks to catch common C++ pitfalls. See [.clang-tidy](./.clang-tidy) for the list of current checks (enforced in CI on PR)
 - `clang-format`: code formatting and style consistency. See [.clang-format](./.clang-format) for the list of style configurations (enforced in CI on PR)
 
-> **Note**: clang-tidy is not currently supported on Windows for this project because the Visual Studio CMake generator does not produce the compile_commands.json database that clang-tidy requires.
+> **Note**: For Windows, `clang-tidy` is not currently supported for this project because the Visual Studio CMake generator does not produce the compile_commands.json database that `clang-tidy` requires. Similarly, `clang-format` must be installed and run manually on Windows, referencing the root `.clang-format` file.
 
 To run locally, first install the following:
 

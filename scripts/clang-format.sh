@@ -190,11 +190,9 @@ else
   while IFS= read -r -d '' path; do
     files+=("${path}")
   done < <(git ls-files -z \
-    'src/*.c' 'src/*.cc' 'src/*.cpp' 'src/*.cxx' \
-    'src/*.h' 'src/*.hpp' 'src/*.hxx' \
-    'include/*.h' 'include/*.hpp' 'include/*.hxx' \
-    'benchmarks/*.c' 'benchmarks/*.cc' 'benchmarks/*.cpp' 'benchmarks/*.cxx' \
-    'benchmarks/*.h' 'benchmarks/*.hpp' 'benchmarks/*.hxx')
+    'src/*.'{c,cc,cpp,cxx,h,hpp,hxx} \
+    'include/*.'{h,hpp,hxx} \
+    'benchmarks/*.'{c,cc,cpp,cxx,h,hpp,hxx})
 fi
 
 file_count=${#files[@]}
