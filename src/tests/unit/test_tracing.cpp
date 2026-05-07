@@ -15,9 +15,6 @@
  */
 
 #include <gtest/gtest.h>
-
-#include "benchmark_utils.h"
-#include "event_tracer.h"
 #include <livekit/tracing.h>
 
 #include <chrono>
@@ -28,6 +25,9 @@
 #include <string>
 #include <thread>
 
+#include "benchmark_utils.h"
+#include "event_tracer.h"
+
 namespace livekit {
 namespace test {
 namespace {
@@ -35,11 +35,9 @@ namespace {
 // Helper to get cross-platform temp directory
 std::string GetTempDir() {
 #ifdef _WIN32
-  const char *temp = std::getenv("TEMP");
-  if (!temp)
-    temp = std::getenv("TMP");
-  if (!temp)
-    temp = ".";
+  const char* temp = std::getenv("TEMP");
+  if (!temp) temp = std::getenv("TMP");
+  if (!temp) temp = ".";
   return std::string(temp);
 #else
   return "/tmp";
@@ -47,23 +45,19 @@ std::string GetTempDir() {
 }
 
 // Helper to generate unique temp file paths
-std::string GetTempTracePath(const std::string &test_name) {
+std::string GetTempTracePath(const std::string& test_name) {
   auto now = std::chrono::steady_clock::now();
-  auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                now.time_since_epoch())
-                .count();
+  auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
   std::string temp_dir = GetTempDir();
 #ifdef _WIN32
-  return temp_dir + "\\livekit_test_trace_" + test_name + "_" +
-         std::to_string(ns) + ".json";
+  return temp_dir + "\\livekit_test_trace_" + test_name + "_" + std::to_string(ns) + ".json";
 #else
-  return temp_dir + "/livekit_test_trace_" + test_name + "_" +
-         std::to_string(ns) + ".json";
+  return temp_dir + "/livekit_test_trace_" + test_name + "_" + std::to_string(ns) + ".json";
 #endif
 }
 
 // Helper to read file contents
-std::string ReadFileContents(const std::string &path) {
+std::string ReadFileContents(const std::string& path) {
   std::ifstream file(path);
   if (!file.is_open()) {
     return "";
@@ -74,7 +68,7 @@ std::string ReadFileContents(const std::string &path) {
 }
 
 // Helper to cleanup trace files
-void CleanupTraceFile(const std::string &path) { std::remove(path.c_str()); }
+void CleanupTraceFile(const std::string& path) { std::remove(path.c_str()); }
 
 // =============================================================================
 // Basic Lifecycle Tests
@@ -143,8 +137,7 @@ TEST(TracingTest, EventsAreWrittenToFile) {
   startTracing(trace_path);
 
   // Add some trace events using the internal API
-  const unsigned char *category =
-      trace::EventTracer::GetCategoryEnabled("test.category");
+  const unsigned char* category = trace::EventTracer::GetCategoryEnabled("test.category");
   EXPECT_TRUE(*category != 0); // Category should be enabled
 
   // Add a begin/end event pair
@@ -189,8 +182,7 @@ TEST(TracingTest, AsyncEventsAreWrittenCorrectly) {
 
   startTracing(trace_path);
 
-  const unsigned char *category =
-      trace::EventTracer::GetCategoryEnabled("test.async");
+  const unsigned char* category = trace::EventTracer::GetCategoryEnabled("test.async");
 
   // Add async start event
   trace::EventTracer::AddTraceEvent('S', // phase: async start
@@ -224,11 +216,10 @@ TEST(TracingTest, EventsWithArguments) {
 
   startTracing(trace_path);
 
-  const unsigned char *category =
-      trace::EventTracer::GetCategoryEnabled("test.args");
+  const unsigned char* category = trace::EventTracer::GetCategoryEnabled("test.args");
 
   // Add event with integer argument
-  const char *arg_names[] = {"count"};
+  const char* arg_names[] = {"count"};
   unsigned char arg_types[] = {2}; // TRACE_VALUE_TYPE_UINT = 2
   unsigned long long arg_values[] = {42};
 
@@ -256,10 +247,8 @@ TEST(TracingTest, CategoryFilteringEnablesSpecificCategory) {
   // Start with specific category enabled
   startTracing(trace_path, {"enabled.category"});
 
-  const unsigned char *enabled_cat =
-      trace::EventTracer::GetCategoryEnabled("enabled.category");
-  const unsigned char *disabled_cat =
-      trace::EventTracer::GetCategoryEnabled("disabled.category");
+  const unsigned char* enabled_cat = trace::EventTracer::GetCategoryEnabled("enabled.category");
+  const unsigned char* disabled_cat = trace::EventTracer::GetCategoryEnabled("disabled.category");
 
   EXPECT_TRUE(*enabled_cat != 0);
   EXPECT_TRUE(*disabled_cat == 0);
@@ -274,12 +263,9 @@ TEST(TracingTest, CategoryWildcardMatching) {
   // Start with wildcard category
   startTracing(trace_path, {"livekit.*"});
 
-  const unsigned char *match1 =
-      trace::EventTracer::GetCategoryEnabled("livekit.connect");
-  const unsigned char *match2 =
-      trace::EventTracer::GetCategoryEnabled("livekit.rpc");
-  const unsigned char *no_match =
-      trace::EventTracer::GetCategoryEnabled("other.category");
+  const unsigned char* match1 = trace::EventTracer::GetCategoryEnabled("livekit.connect");
+  const unsigned char* match2 = trace::EventTracer::GetCategoryEnabled("livekit.rpc");
+  const unsigned char* no_match = trace::EventTracer::GetCategoryEnabled("other.category");
 
   EXPECT_TRUE(*match1 != 0);
   EXPECT_TRUE(*match2 != 0);
@@ -295,10 +281,8 @@ TEST(TracingTest, EmptyCategoriesEnablesAll) {
   // Start with empty categories (all enabled)
   startTracing(trace_path, {});
 
-  const unsigned char *cat1 =
-      trace::EventTracer::GetCategoryEnabled("any.category");
-  const unsigned char *cat2 =
-      trace::EventTracer::GetCategoryEnabled("another.category");
+  const unsigned char* cat1 = trace::EventTracer::GetCategoryEnabled("any.category");
+  const unsigned char* cat2 = trace::EventTracer::GetCategoryEnabled("another.category");
 
   EXPECT_TRUE(*cat1 != 0);
   EXPECT_TRUE(*cat2 != 0);
@@ -316,16 +300,13 @@ TEST(TracingTest, TraceFileCanBeParsed) {
 
   startTracing(trace_path);
 
-  const unsigned char *category =
-      trace::EventTracer::GetCategoryEnabled("test");
+  const unsigned char* category = trace::EventTracer::GetCategoryEnabled("test");
 
   // Add multiple events
   for (int i = 0; i < 5; ++i) {
-    trace::EventTracer::AddTraceEvent('B', category, "parse_event", 0, 0,
-                                      nullptr, nullptr, nullptr, 0);
+    trace::EventTracer::AddTraceEvent('B', category, "parse_event", 0, 0, nullptr, nullptr, nullptr, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    trace::EventTracer::AddTraceEvent('E', category, "parse_event", 0, 0,
-                                      nullptr, nullptr, nullptr, 0);
+    trace::EventTracer::AddTraceEvent('E', category, "parse_event", 0, 0, nullptr, nullptr, nullptr, 0);
   }
 
   stopTracing();
@@ -337,12 +318,10 @@ TEST(TracingTest, TraceFileCanBeParsed) {
   // Count begin/end events for our test event
   int begin_count = 0;
   int end_count = 0;
-  for (const auto &event : events) {
+  for (const auto& event : events) {
     if (event.name == "parse_event") {
-      if (event.phase == 'B')
-        begin_count++;
-      if (event.phase == 'E')
-        end_count++;
+      if (event.phase == 'B') begin_count++;
+      if (event.phase == 'E') end_count++;
     }
   }
 
@@ -357,16 +336,13 @@ TEST(TracingTest, DurationCalculationWorks) {
 
   startTracing(trace_path);
 
-  const unsigned char *category =
-      trace::EventTracer::GetCategoryEnabled("test");
+  const unsigned char* category = trace::EventTracer::GetCategoryEnabled("test");
 
   // Add events with known delay
   for (int i = 0; i < 3; ++i) {
-    trace::EventTracer::AddTraceEvent('B', category, "timed_event", 0, 0,
-                                      nullptr, nullptr, nullptr, 0);
+    trace::EventTracer::AddTraceEvent('B', category, "timed_event", 0, 0, nullptr, nullptr, nullptr, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    trace::EventTracer::AddTraceEvent('E', category, "timed_event", 0, 0,
-                                      nullptr, nullptr, nullptr, 0);
+    trace::EventTracer::AddTraceEvent('E', category, "timed_event", 0, 0, nullptr, nullptr, nullptr, 0);
   }
 
   stopTracing();
@@ -390,24 +366,19 @@ TEST(TracingTest, AsyncDurationCalculationWorks) {
 
   startTracing(trace_path);
 
-  const unsigned char *category =
-      trace::EventTracer::GetCategoryEnabled("test");
+  const unsigned char* category = trace::EventTracer::GetCategoryEnabled("test");
 
   // Add async events with known IDs
-  trace::EventTracer::AddTraceEvent('S', category, "async_op", 100, 0, nullptr,
-                                    nullptr, nullptr, 0);
-  trace::EventTracer::AddTraceEvent('S', category, "async_op", 200, 0, nullptr,
-                                    nullptr, nullptr, 0);
+  trace::EventTracer::AddTraceEvent('S', category, "async_op", 100, 0, nullptr, nullptr, nullptr, 0);
+  trace::EventTracer::AddTraceEvent('S', category, "async_op", 200, 0, nullptr, nullptr, nullptr, 0);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(15));
 
-  trace::EventTracer::AddTraceEvent('F', category, "async_op", 100, 0, nullptr,
-                                    nullptr, nullptr, 0);
+  trace::EventTracer::AddTraceEvent('F', category, "async_op", 100, 0, nullptr, nullptr, nullptr, 0);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-  trace::EventTracer::AddTraceEvent('F', category, "async_op", 200, 0, nullptr,
-                                    nullptr, nullptr, 0);
+  trace::EventTracer::AddTraceEvent('F', category, "async_op", 200, 0, nullptr, nullptr, nullptr, 0);
 
   stopTracing();
 
@@ -424,16 +395,13 @@ TEST(TracingTest, StatisticsCalculation) {
 
   startTracing(trace_path);
 
-  const unsigned char *category =
-      trace::EventTracer::GetCategoryEnabled("test");
+  const unsigned char* category = trace::EventTracer::GetCategoryEnabled("test");
 
   // Add 10 events
   for (int i = 0; i < 10; ++i) {
-    trace::EventTracer::AddTraceEvent('B', category, "stats_event", 0, 0,
-                                      nullptr, nullptr, nullptr, 0);
+    trace::EventTracer::AddTraceEvent('B', category, "stats_event", 0, 0, nullptr, nullptr, nullptr, 0);
     std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    trace::EventTracer::AddTraceEvent('E', category, "stats_event", 0, 0,
-                                      nullptr, nullptr, nullptr, 0);
+    trace::EventTracer::AddTraceEvent('E', category, "stats_event", 0, 0, nullptr, nullptr, nullptr, 0);
   }
 
   stopTracing();
@@ -460,20 +428,16 @@ TEST(TracingTest, MultipleTracingSessions) {
 
   // First session
   startTracing(trace_path1);
-  const unsigned char *cat = trace::EventTracer::GetCategoryEnabled("test");
-  trace::EventTracer::AddTraceEvent('B', cat, "session1_event", 0, 0, nullptr,
-                                    nullptr, nullptr, 0);
-  trace::EventTracer::AddTraceEvent('E', cat, "session1_event", 0, 0, nullptr,
-                                    nullptr, nullptr, 0);
+  const unsigned char* cat = trace::EventTracer::GetCategoryEnabled("test");
+  trace::EventTracer::AddTraceEvent('B', cat, "session1_event", 0, 0, nullptr, nullptr, nullptr, 0);
+  trace::EventTracer::AddTraceEvent('E', cat, "session1_event", 0, 0, nullptr, nullptr, nullptr, 0);
   stopTracing();
 
   // Second session
   startTracing(trace_path2);
   cat = trace::EventTracer::GetCategoryEnabled("test");
-  trace::EventTracer::AddTraceEvent('B', cat, "session2_event", 0, 0, nullptr,
-                                    nullptr, nullptr, 0);
-  trace::EventTracer::AddTraceEvent('E', cat, "session2_event", 0, 0, nullptr,
-                                    nullptr, nullptr, 0);
+  trace::EventTracer::AddTraceEvent('B', cat, "session2_event", 0, 0, nullptr, nullptr, nullptr, 0);
+  trace::EventTracer::AddTraceEvent('E', cat, "session2_event", 0, 0, nullptr, nullptr, nullptr, 0);
   stopTracing();
 
   // Verify first file contains session1 event only
@@ -505,20 +469,17 @@ TEST(TracingTest, ConcurrentEventWriting) {
 
   for (int t = 0; t < num_threads; ++t) {
     threads.emplace_back([t, events_per_thread]() {
-      const unsigned char *cat =
-          trace::EventTracer::GetCategoryEnabled("test.concurrent");
+      const unsigned char* cat = trace::EventTracer::GetCategoryEnabled("test.concurrent");
       std::string event_name = "thread_" + std::to_string(t) + "_event";
 
       for (int i = 0; i < events_per_thread; ++i) {
-        trace::EventTracer::AddTraceEvent('B', cat, event_name.c_str(), 0, 0,
-                                          nullptr, nullptr, nullptr, 0);
-        trace::EventTracer::AddTraceEvent('E', cat, event_name.c_str(), 0, 0,
-                                          nullptr, nullptr, nullptr, 0);
+        trace::EventTracer::AddTraceEvent('B', cat, event_name.c_str(), 0, 0, nullptr, nullptr, nullptr, 0);
+        trace::EventTracer::AddTraceEvent('E', cat, event_name.c_str(), 0, 0, nullptr, nullptr, nullptr, 0);
       }
     });
   }
 
-  for (auto &t : threads) {
+  for (auto& t : threads) {
     t.join();
   }
 
@@ -530,11 +491,9 @@ TEST(TracingTest, ConcurrentEventWriting) {
   // Each thread should have written events_per_thread * 2 events (begin + end)
   int total_begin = 0;
   int total_end = 0;
-  for (const auto &event : events) {
-    if (event.phase == 'B')
-      total_begin++;
-    if (event.phase == 'E')
-      total_end++;
+  for (const auto& event : events) {
+    if (event.phase == 'B') total_begin++;
+    if (event.phase == 'E') total_end++;
   }
 
   // Should have all events written
@@ -554,14 +513,12 @@ TEST(TracingTest, EventsIgnoredWhenTracingDisabled) {
   EXPECT_FALSE(isTracingEnabled());
 
   // Get category - should return disabled
-  const unsigned char *cat = trace::EventTracer::GetCategoryEnabled("test");
+  const unsigned char* cat = trace::EventTracer::GetCategoryEnabled("test");
   EXPECT_EQ(*cat, 0);
 
   // Adding events should be safe (no crash)
-  trace::EventTracer::AddTraceEvent('B', cat, "ignored_event", 0, 0, nullptr,
-                                    nullptr, nullptr, 0);
-  trace::EventTracer::AddTraceEvent('E', cat, "ignored_event", 0, 0, nullptr,
-                                    nullptr, nullptr, 0);
+  trace::EventTracer::AddTraceEvent('B', cat, "ignored_event", 0, 0, nullptr, nullptr, nullptr, 0);
+  trace::EventTracer::AddTraceEvent('E', cat, "ignored_event", 0, 0, nullptr, nullptr, nullptr, 0);
 
   // Still disabled
   EXPECT_FALSE(isTracingEnabled());

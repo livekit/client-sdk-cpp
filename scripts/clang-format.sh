@@ -78,10 +78,10 @@ Options:
 Positional arguments:
   FILE...
         Explicit list of files to format / check. When omitted, the script
-        walks the tracked first-party C/C++ trees (src/ excluding
-        src/tests/, include/, and benchmarks/) and operates on every
-        source / header it finds. Pass paths to make the script work as
-        a precommit hook on a curated set of files, e.g.:
+        walks the tracked first-party C/C++ trees (src/, include/, and
+        benchmarks/) and operates on every source / header it finds. Pass
+        paths to make the script work as a precommit hook on a curated set
+        of files, e.g.:
             git diff --cached --name-only --diff-filter=ACMR \
               | grep -E '\.(c|cc|cpp|cxx|h|hpp|hxx)$' \
               | xargs ./scripts/clang-format.sh --fix
@@ -172,10 +172,9 @@ fi
 clang-format --version
 
 # Build the list of files to operate on. When the user passes explicit paths
-# we honor them verbatim (no globbing, no src/tests/ filtering) so a precommit
-# hook can supply its own staged-file list. Otherwise we walk the tracked
-# first-party C/C++ trees:
-#   - src/   (implementation + internal headers, excluding src/tests/)
+# we honor them verbatim so a precommit hook can supply its own staged-file
+# list. Otherwise we walk the tracked first-party C/C++ trees:
+#   - src/   (implementation + internal headers, including src/tests/)
 #   - include/   (public API headers shipped in the installed SDK)
 #   - benchmarks/   (in-tree micro-benchmarks)
 # Using `git ls-files` automatically skips the client-sdk-rust/ submodule,
@@ -189,7 +188,6 @@ if (( ${#explicit_files[@]} > 0 )); then
   files=("${explicit_files[@]}")
 else
   while IFS= read -r -d '' path; do
-    [[ "${path}" == src/tests/* ]] && continue
     files+=("${path}")
   done < <(git ls-files -z \
     'src/*.c' 'src/*.cc' 'src/*.cpp' 'src/*.cxx' \

@@ -22,9 +22,7 @@ namespace livekit::test {
 
 class AudioFrameTest : public ::testing::Test {
 protected:
-  void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
-  }
+  void SetUp() override { livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole); }
 
   void TearDown() override { livekit::shutdown(); }
 };
@@ -58,8 +56,8 @@ TEST_F(AudioFrameTest, CreateUsingStaticMethod) {
   EXPECT_EQ(frame.total_samples(), 1920);
 
   // Created frame should be zero-initialized
-  const auto &samples = frame.data();
-  for (const auto &sample : samples) {
+  const auto& samples = frame.data();
+  for (const auto& sample : samples) {
     EXPECT_EQ(sample, 0);
   }
 }
@@ -88,7 +86,7 @@ TEST_F(AudioFrameTest, DataAccessMutable) {
   AudioFrame frame = AudioFrame::create(48000, 1, 480);
 
   // Modify data
-  auto &data = frame.data();
+  auto& data = frame.data();
   data[0] = 1000;
   data[1] = -1000;
 
@@ -101,8 +99,8 @@ TEST_F(AudioFrameTest, DataAccessConst) {
   std::vector<std::int16_t> original_data = {100, 200, 300, 400};
   AudioFrame frame(original_data, 48000, 1, 4);
 
-  const AudioFrame &const_frame = frame;
-  const auto &data = const_frame.data();
+  const AudioFrame& const_frame = frame;
+  const auto& data = const_frame.data();
 
   EXPECT_EQ(data[0], 100);
   EXPECT_EQ(data[1], 200);

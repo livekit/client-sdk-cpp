@@ -16,11 +16,12 @@
 
 #pragma once
 
+#include <livekit/livekit.h>
+
 #include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
-#include <livekit/livekit.h>
 #include <memory>
 #include <thread>
 
@@ -30,8 +31,7 @@ namespace livekit::test {
 constexpr int kDefaultAudioSampleRate = 48000;
 constexpr int kDefaultAudioChannels = 1;
 constexpr int kDefaultAudioFrameMs = 10;
-constexpr int kDefaultSamplesPerChannel =
-    kDefaultAudioSampleRate * kDefaultAudioFrameMs / 1000;
+constexpr int kDefaultSamplesPerChannel = kDefaultAudioSampleRate * kDefaultAudioFrameMs / 1000;
 
 /// Create an AudioFrame with the given parameters for a 10ms duration.
 /// @param sample_rate Sample rate in Hz.
@@ -50,34 +50,26 @@ inline AudioFrame create10msFrame(int sample_rate, int num_channels) {
 /// @param sample_rate Audio sample rate (default: 48000).
 /// @param num_channels Number of audio channels (default: 1).
 /// @param frame_ms Duration of each frame in milliseconds (default: 10).
-inline void runToneLoop(const std::shared_ptr<AudioSource> &source,
-                        std::atomic<bool> &running, double base_freq_hz,
-                        bool siren_mode,
-                        int sample_rate = kDefaultAudioSampleRate,
-                        int num_channels = kDefaultAudioChannels,
-                        int frame_ms = kDefaultAudioFrameMs) {
+inline void runToneLoop(const std::shared_ptr<AudioSource>& source, std::atomic<bool>& running, double base_freq_hz,
+                        bool siren_mode, int sample_rate = kDefaultAudioSampleRate,
+                        int num_channels = kDefaultAudioChannels, int frame_ms = kDefaultAudioFrameMs) {
   double phase = 0.0;
   constexpr double kTwoPi = 6.283185307179586;
   const int samples_per_channel = sample_rate * frame_ms / 1000;
 
   while (running.load(std::memory_order_relaxed)) {
-    AudioFrame frame =
-        AudioFrame::create(sample_rate, num_channels, samples_per_channel);
-    auto &samples = frame.data();
+    AudioFrame frame = AudioFrame::create(sample_rate, num_channels, samples_per_channel);
+    auto& samples = frame.data();
 
-    const double time_sec =
-        static_cast<double>(
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now().time_since_epoch())
-                .count()) /
-        1000.0;
-    const double freq =
-        siren_mode ? (700.0 + 250.0 * std::sin(time_sec * 2.0)) : base_freq_hz;
+    const double time_sec = static_cast<double>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                    std::chrono::steady_clock::now().time_since_epoch())
+                                                    .count()) /
+                            1000.0;
+    const double freq = siren_mode ? (700.0 + 250.0 * std::sin(time_sec * 2.0)) : base_freq_hz;
 
     const double phase_inc = kTwoPi * freq / static_cast<double>(sample_rate);
     for (int i = 0; i < samples_per_channel; ++i) {
-      samples[static_cast<std::size_t>(i)] =
-          static_cast<std::int16_t>(std::sin(phase) * 12000.0);
+      samples[static_cast<std::size_t>(i)] = static_cast<std::int16_t>(std::sin(phase) * 12000.0);
       phase += phase_inc;
       if (phase > kTwoPi) {
         phase -= kTwoPi;
@@ -100,10 +92,10 @@ inline void runToneLoop(const std::shared_ptr<AudioSource> &source,
 /// @param sample_rate Sample rate in Hz.
 /// @param phase Reference to phase accumulator (updated after call).
 /// @param amplitude Amplitude of the tone (default: 12000).
-inline void fillToneFrame(AudioFrame &frame, double freq_hz, int sample_rate,
-                          double &phase, double amplitude = 12000.0) {
+inline void fillToneFrame(AudioFrame& frame, double freq_hz, int sample_rate, double& phase,
+                          double amplitude = 12000.0) {
   constexpr double kTwoPi = 6.283185307179586;
-  auto &samples = frame.data();
+  auto& samples = frame.data();
   const double phase_inc = kTwoPi * freq_hz / static_cast<double>(sample_rate);
 
   for (std::size_t i = 0; i < samples.size(); ++i) {
