@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "livekit/export.h"
 #include "livekit/room_event_types.h"
 
 namespace livekit {
@@ -31,7 +32,7 @@ class Room;
  * All methods provide default no-op implementations so you can override
  * only the callbacks you care about.
  */
-class RoomDelegate {
+class LIVEKIT_API RoomDelegate {
 public:
   virtual ~RoomDelegate() = default;
 

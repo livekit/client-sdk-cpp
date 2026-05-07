@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "livekit/e2ee.h"
+#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/track.h"
 
@@ -37,7 +38,7 @@ class RemoteTrack;
  * Wraps the immutable publication info plus an FFI handle, and
  * holds a weak reference to the associated Track (if any).
  */
-class TrackPublication {
+class LIVEKIT_API TrackPublication {
 public:
   virtual ~TrackPublication() = default;
 

@@ -24,6 +24,7 @@
 #include <mutex>
 #include <optional>
 
+#include "export.h"
 #include "ffi_handle.h"
 #include "participant.h"
 #include "track.h"
@@ -63,7 +64,7 @@ class FfiEvent;
 //
 //   stream->close();  // optional, called automatically in destructor
 //
-class VideoStream {
+class LIVEKIT_API VideoStream {
 public:
   struct Options {
     // Maximum number of VideoFrameEvent items buffered in the internal queue.

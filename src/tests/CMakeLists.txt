@@ -51,10 +51,11 @@ if(UNIT_TEST_SOURCES)
     ${BENCHMARK_UTILS_SOURCES}
   )
 
-  # On Windows, protobuf default-instance symbols (constinit globals) are not
-  # auto-exported from livekit.dll by WINDOWS_EXPORT_ALL_SYMBOLS.  Link the
-  # proto object library directly so the test binary has its own copy.
-  if(WIN32 AND TARGET livekit_proto)
+  # liblivekit no longer re-exports protobuf/absl symbols (hidden visibility +
+  # --exclude-libs,ALL).  Tests that touch livekit::proto::* types or absl
+  # helpers must link the proto object library and the libprotobuf static
+  # archive directly.
+  if(TARGET livekit_proto)
     target_sources(livekit_unit_tests PRIVATE $<TARGET_OBJECTS:livekit_proto>)
   endif()
 
@@ -62,7 +63,7 @@ if(UNIT_TEST_SOURCES)
     PRIVATE
       livekit
       spdlog::spdlog
-      $<$<PLATFORM_ID:Windows>:${LIVEKIT_PROTOBUF_TARGET}>
+      ${LIVEKIT_PROTOBUF_TARGET}
       GTest::gtest_main
   )
 
@@ -149,10 +150,11 @@ if(INTEGRATION_TEST_SOURCES)
     ${BENCHMARK_UTILS_SOURCES}
   )
 
-  # On Windows, protobuf default-instance symbols (constinit globals) are not
-  # auto-exported from livekit.dll by WINDOWS_EXPORT_ALL_SYMBOLS.  Link the
-  # proto object library directly so the test binary has its own copy.
-  if(WIN32 AND TARGET livekit_proto)
+  # liblivekit no longer re-exports protobuf/absl symbols (hidden visibility +
+  # --exclude-libs,ALL).  Tests that touch livekit::proto::* types or absl
+  # helpers must link the proto object library and the libprotobuf static
+  # archive directly.
+  if(TARGET livekit_proto)
     target_sources(livekit_integration_tests PRIVATE $<TARGET_OBJECTS:livekit_proto>)
   endif()
 
@@ -160,7 +162,7 @@ if(INTEGRATION_TEST_SOURCES)
     PRIVATE
       livekit
       spdlog::spdlog
-      $<$<PLATFORM_ID:Windows>:${LIVEKIT_PROTOBUF_TARGET}>
+      ${LIVEKIT_PROTOBUF_TARGET}
       GTest::gtest_main
   )
 
@@ -328,4 +330,28 @@ endif()
 
 if(TARGET livekit_stress_tests)
   add_dependencies(run_all_tests livekit_stress_tests)
+endif()
+
+# ============================================================================
+# ABI verification: liblivekit must not re-export private dependency symbols
+# ============================================================================
+#
+# scripts/check_no_private_symbols.py asserts that no spdlog/fmt/protobuf/absl
+# symbols are visible in the dynamic symbol table of the built shared library.
+# This catches regressions where a new TU is added without -fvisibility=hidden
+# or a public header forgets to gate exports through LIVEKIT_API.
+find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+  add_test(
+    NAME livekit_no_private_symbols
+    COMMAND ${Python3_EXECUTABLE}
+            "${LIVEKIT_ROOT_DIR}/scripts/check_no_private_symbols.py"
+            "$<TARGET_FILE:livekit>"
+  )
+  set_tests_properties(livekit_no_private_symbols PROPERTIES
+    LABELS "abi"
+  )
+else()
+  message(WARNING
+    "Python3 not found; skipping livekit_no_private_symbols ABI test")
 endif()

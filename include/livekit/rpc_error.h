@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "livekit/export.h"
+
 #include <cstdint>
 #include <stdexcept>
 #include <string>
@@ -37,7 +39,7 @@ class RpcError;
  * Built-in errors are included (codes 1400–1999) but developers may use
  * arbitrary codes as well.
  */
-class RpcError : public std::runtime_error {
+class LIVEKIT_API RpcError : public std::runtime_error {
 public:
   /**
    * Built-in error codes

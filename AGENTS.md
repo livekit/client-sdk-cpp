@@ -166,6 +166,37 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 - protobuf is vendored via FetchContent on non-Windows platforms; Windows uses vcpkg.
 - The CMake install produces a `find_package(LiveKit CONFIG)`-compatible package with `LiveKitConfig.cmake`, `LiveKitTargets.cmake`, and `LiveKitConfigVersion.cmake`.
 
+### Symbol Visibility / Exported ABI
+
+The `livekit` shared library is built with hidden symbol visibility on all
+platforms. Only symbols explicitly tagged with `LIVEKIT_API` (declared in
+`include/livekit/export.h`) are part of the public ABI. Vendored static
+dependencies (spdlog, fmt, protobuf, absl) are also compiled with hidden
+visibility so their symbols cannot leak into `liblivekit.{so,dylib,dll}`.
+
+Rules for new code:
+
+- Mark any new public class, free function, or out-of-line static method with
+  `LIVEKIT_API`.  POD/aggregate structs and pure-inline classes do not need
+  annotation because they emit no out-of-line symbols.
+- For internal symbols that must remain visible to in-tree tests (the tests
+  link the same shared library), use `LIVEKIT_INTERNAL_API`.  External
+  consumers must not rely on these.
+- Do not add `__declspec(dllexport)` or `__attribute__((visibility("default")))`
+  by hand; always go through `LIVEKIT_API` / `LIVEKIT_INTERNAL_API`.
+- On Windows, `WINDOWS_EXPORT_ALL_SYMBOLS` is **deliberately disabled** for the
+  `livekit` target.  Use `LIVEKIT_API` to export.
+
+CI enforces the policy via `scripts/check_no_private_symbols.py`, which is
+also wired in as a CTest test (label `abi`):
+
+```
+ctest -L abi --output-on-failure
+```
+
+The script fails if `nm`/`dumpbin` reports any exported symbol containing
+`spdlog`, `fmt::v`, `google::protobuf`, or `absl::`.
+
 ### Readability and Performance
 Code should be easy to read and understand. If a sacrifice is made for performance or readability, it should be documented.
 

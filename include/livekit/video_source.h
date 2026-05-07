@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <optional>
 
+#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 
 namespace livekit {
@@ -62,7 +63,7 @@ struct VideoCaptureOptions {
  * Represents a real-time video source that can accept frames from the
  * application and feed them into the LiveKit core.
  */
-class VideoSource {
+class LIVEKIT_API VideoSource {
 public:
   /**
    * Create a new native video source with a fixed resolution.

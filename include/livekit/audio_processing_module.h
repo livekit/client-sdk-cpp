@@ -19,6 +19,7 @@
 #include <cstdint>
 
 #include "livekit/audio_frame.h"
+#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 
 namespace livekit {
@@ -41,7 +42,7 @@ namespace livekit {
  *
  * Note: Audio frames must be exactly 10ms in duration.
  */
-class AudioProcessingModule {
+class LIVEKIT_API AudioProcessingModule {
 public:
   /**
    * @brief Configuration options for the Audio Processing Module.

@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "livekit/export.h"
+
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -62,7 +64,8 @@ struct DataTrackFrame {
    * @param owned The proto::DataTrackFrame to create a DataTrackFrame from.
    * @return The created DataTrackFrame.
    */
-  static DataTrackFrame fromOwnedInfo(const proto::DataTrackFrame &owned);
+  LIVEKIT_API static DataTrackFrame
+  fromOwnedInfo(const proto::DataTrackFrame &owned);
 };
 
 } // namespace livekit

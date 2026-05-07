@@ -15,6 +15,7 @@
  */
 
 #pragma once
+#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/stats.h"
 #include <cstdint>
@@ -68,7 +69,7 @@ struct ParticipantTrackPermission {
 // ============================================================
 // Base Track
 // ============================================================
-class Track {
+class LIVEKIT_API Track {
 public:
   virtual ~Track() = default;
 

@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "livekit/export.h"
+
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -75,7 +77,7 @@ struct ByteStreamInfo : BaseStreamInfo {
 
 /// Reader for incoming text streams.
 /// Created internally by the SDK when a text stream header is received.
-class TextStreamReader {
+class LIVEKIT_API TextStreamReader {
 public:
   /// Construct a reader from initial stream metadata.
   explicit TextStreamReader(TextStreamInfo info);
@@ -115,7 +117,7 @@ private:
 };
 
 /// Reader for incoming byte streams.
-class ByteStreamReader {
+class LIVEKIT_API ByteStreamReader {
 public:
   /// Construct a reader from initial stream metadata.
   explicit ByteStreamReader(ByteStreamInfo info);
@@ -151,7 +153,7 @@ private:
 
 /// Base class for sending data streams.
 /// Concrete subclasses are TextStreamWriter and ByteStreamWriter.
-class BaseStreamWriter {
+class LIVEKIT_API BaseStreamWriter {
 public:
   virtual ~BaseStreamWriter() = default;
 
@@ -221,7 +223,7 @@ protected:
 };
 
 /// Writer for outgoing text streams.
-class TextStreamWriter : public BaseStreamWriter {
+class LIVEKIT_API TextStreamWriter : public BaseStreamWriter {
 public:
   TextStreamWriter(LocalParticipant &local_participant,
                    const std::string &topic = "",
@@ -246,7 +248,7 @@ private:
 };
 
 /// Writer for outgoing byte streams.
-class ByteStreamWriter : public BaseStreamWriter {
+class LIVEKIT_API ByteStreamWriter : public BaseStreamWriter {
 public:
   ByteStreamWriter(LocalParticipant &local_participant, const std::string &name,
                    const std::string &topic = "",

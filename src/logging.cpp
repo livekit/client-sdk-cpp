@@ -15,6 +15,7 @@
  */
 
 #include "livekit/logging.h"
+#include "lk_log.h"
 
 #include <mutex>
 

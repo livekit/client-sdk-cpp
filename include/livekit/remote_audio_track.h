@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "export.h"
 #include "track.h"
 #include <memory>
 #include <string>
@@ -40,7 +41,7 @@ class AudioSource;
  * Applications generally interact with `RemoteAudioTrack` through events and
  * `RemoteTrackPublication`, not through direct construction.
  */
-class RemoteAudioTrack : public Track {
+class LIVEKIT_API RemoteAudioTrack : public Track {
 public:
   /// Constructs a `RemoteAudioTrack` from an internal protocol-level
   /// `OwnedTrack` description provided by the signaling/FFI layer.

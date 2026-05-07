@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "livekit/export.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -56,7 +58,7 @@ class OwnedVideoBuffer;
  * - The SDK can expose the backing memory to Rust via data_ptr + layout for
  *   the duration of a blocking FFI call (similar to AudioFrame).
  */
-class VideoFrame {
+class LIVEKIT_API VideoFrame {
 public:
   VideoFrame();
   VideoFrame(int width, int height, VideoBufferType type,

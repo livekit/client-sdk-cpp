@@ -19,6 +19,7 @@
 #include "livekit/data_track_error.h"
 #include "livekit/data_track_info.h"
 #include "livekit/data_track_stream.h"
+#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/result.h"
 
@@ -50,7 +51,7 @@ class OwnedRemoteDataTrack;
  *     }
  *   }
  */
-class RemoteDataTrack {
+class LIVEKIT_API RemoteDataTrack {
 public:
   ~RemoteDataTrack() = default;
 

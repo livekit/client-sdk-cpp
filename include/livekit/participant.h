@@ -21,6 +21,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_delegate.h"
 
@@ -28,7 +29,7 @@ namespace livekit {
 
 enum class ParticipantKind { Standard = 0, Ingress, Egress, Sip, Agent };
 
-class Participant {
+class LIVEKIT_API Participant {
 public:
   Participant(FfiHandle handle, std::string sid, std::string name,
               std::string identity, std::string metadata,

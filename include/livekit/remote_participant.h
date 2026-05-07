@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "export.h"
 #include "participant.h"
 
 #include <memory>
@@ -26,7 +27,7 @@ namespace livekit {
 
 class RemoteTrackPublication;
 
-class RemoteParticipant : public Participant {
+class LIVEKIT_API RemoteParticipant : public Participant {
 public:
   using PublicationMap =
       std::unordered_map<std::string, std::shared_ptr<RemoteTrackPublication>>;
@@ -60,7 +61,7 @@ private:
 };
 
 // Convenience for logging / streaming
-std::ostream &operator<<(std::ostream &os,
-                         const RemoteParticipant &participant);
+LIVEKIT_API std::ostream &operator<<(std::ostream &os,
+                                     const RemoteParticipant &participant);
 
 } // namespace livekit

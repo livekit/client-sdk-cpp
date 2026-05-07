@@ -39,16 +39,7 @@
 #ifndef LIVEKIT_TRACE_EVENT_TRACER_H_
 #define LIVEKIT_TRACE_EVENT_TRACER_H_
 
-// Platform-specific DLL export macro
-#if defined(_WIN32)
-#if defined(LIVEKIT_BUILDING_SDK)
-#define LIVEKIT_EXPORT __declspec(dllexport)
-#else
-#define LIVEKIT_EXPORT __declspec(dllimport)
-#endif
-#else
-#define LIVEKIT_EXPORT __attribute__((visibility("default")))
-#endif
+#include "livekit/export.h"
 
 namespace livekit {
 namespace trace {
@@ -66,13 +57,14 @@ typedef void (*AddTraceEventPtr)(char phase,
 //
 // This method must be called before any tracing begins. Functions
 // provided should be thread-safe.
-LIVEKIT_EXPORT void
+LIVEKIT_API void
 SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr,
                  AddTraceEventPtr add_trace_event_ptr);
 
 // This class defines interface for the event tracing system to call
-// internally. Do not call these methods directly.
-class EventTracer {
+// internally.  Tagged LIVEKIT_INTERNAL_API so the in-tree tracing tests
+// (src/tests/unit/test_tracing.cpp) can resolve the static methods.
+class LIVEKIT_INTERNAL_API EventTracer {
 public:
   static const unsigned char *GetCategoryEnabled(const char *name);
 

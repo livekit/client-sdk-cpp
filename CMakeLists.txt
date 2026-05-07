@@ -96,6 +96,13 @@ endif()
 message(STATUS "Using protoc: ${Protobuf_PROTOC_EXECUTABLE}")
 
 add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
+# livekit_proto is compiled into liblivekit; apply the same hidden visibility
+# policy so generated protobuf code does not leak into the SDK's exported ABI.
+set_target_properties(livekit_proto PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  C_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+)
 if(TARGET protobuf::libprotobuf)
   set(LIVEKIT_PROTOBUF_TARGET protobuf::libprotobuf)
 else()
@@ -366,8 +373,26 @@ add_library(livekit SHARED
   src/trace/trace_event.h
   src/trace/tracing.cpp
 )
-if(WIN32)
-  set_target_properties(livekit PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+# Symbol visibility: keep liblivekit's exported ABI restricted to the public
+# LiveKit API.  Every TU is compiled with -fvisibility=hidden, and only
+# declarations annotated with LIVEKIT_API (see include/livekit/export.h) are
+# re-exposed.  This prevents private dependencies (spdlog, protobuf, absl) from
+# leaking into the dynamic symbol table and clashing with consumer apps that
+# also link those libraries (e.g. ROS 2's rcl_logging_spdlog).
+set_target_properties(livekit PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  C_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+)
+target_compile_definitions(livekit PRIVATE LIVEKIT_BUILDING_SDK=1)
+
+# Linker-level belt-and-suspenders for Linux: even if a static-archive object
+# slipped through with default visibility, --exclude-libs,ALL strips it from
+# the dynamic symbol table.  ld64 (macOS) has no equivalent flag; hidden
+# visibility per TU is sufficient there.  On Windows, explicit dllexport via
+# LIVEKIT_API replaces WINDOWS_EXPORT_ALL_SYMBOLS.
+if(UNIX AND NOT APPLE)
+  target_link_options(livekit PRIVATE "LINKER:--exclude-libs,ALL")
 endif()
 
 

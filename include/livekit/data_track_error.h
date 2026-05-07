@@ -17,6 +17,8 @@
 #ifndef LIVEKIT_DATA_TRACK_ERROR_H
 #define LIVEKIT_DATA_TRACK_ERROR_H
 
+#include "livekit/export.h"
+
 #include <cstdint>
 #include <string>
 
@@ -45,7 +47,7 @@ struct PublishDataTrackError {
   PublishDataTrackErrorCode code{PublishDataTrackErrorCode::UNKNOWN};
   std::string message;
 
-  static PublishDataTrackError
+  LIVEKIT_API static PublishDataTrackError
   fromProto(const proto::PublishDataTrackError &error);
 };
 
@@ -61,7 +63,7 @@ struct LocalDataTrackTryPushError {
   LocalDataTrackTryPushErrorCode code{LocalDataTrackTryPushErrorCode::UNKNOWN};
   std::string message;
 
-  static LocalDataTrackTryPushError
+  LIVEKIT_API static LocalDataTrackTryPushError
   fromProto(const proto::LocalDataTrackTryPushError &error);
 };
 
@@ -79,7 +81,7 @@ struct SubscribeDataTrackError {
   SubscribeDataTrackErrorCode code{SubscribeDataTrackErrorCode::UNKNOWN};
   std::string message;
 
-  static SubscribeDataTrackError
+  LIVEKIT_API static SubscribeDataTrackError
   fromProto(const proto::SubscribeDataTrackError &error);
 };
 

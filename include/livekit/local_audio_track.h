@@ -17,6 +17,7 @@
 #pragma once
 
 #include "audio_frame.h"
+#include "export.h"
 #include "local_track_publication.h"
 #include "track.h"
 #include <memory>
@@ -50,7 +51,7 @@ class AudioSource;
  *  The track name provided during creation is visible to remote
  *  participants and can be used for debugging or UI display.
  */
-class LocalAudioTrack : public Track {
+class LIVEKIT_API LocalAudioTrack : public Track {
 public:
   /// Creates a new local audio track backed by the given `AudioSource`.
   ///

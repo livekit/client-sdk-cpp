@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include "livekit/export.h"
+
 #include <functional>
 #include <string>
 
@@ -36,10 +38,10 @@ enum class LogLevel {
 ///
 /// Messages below this level are discarded before reaching any sink
 /// or callback. Thread-safe; may be called at any time after initialize().
-void setLogLevel(LogLevel level);
+LIVEKIT_API void setLogLevel(LogLevel level);
 
 /// Return the current minimum log level.
-LogLevel getLogLevel();
+LIVEKIT_API LogLevel getLogLevel();
 
 /// Signature for a user-supplied log callback.
 ///
@@ -58,6 +60,6 @@ using LogCallback =
 ///
 /// Pass nullptr / empty function to restore the default stderr sink.
 /// Thread-safe; may be called at any time after initialize().
-void setLogCallback(LogCallback callback);
+LIVEKIT_API void setLogCallback(LogCallback callback);
 
 } // namespace livekit

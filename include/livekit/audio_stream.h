@@ -25,6 +25,7 @@
 #include <string>
 
 #include "audio_frame.h"
+#include "export.h"
 #include "ffi_handle.h"
 #include "participant.h"
 #include "track.h"
@@ -65,7 +66,7 @@ struct AudioFrameEvent {
  *
  *   stream->close();  // optional, called automatically in destructor
  */
-class AudioStream {
+class LIVEKIT_API AudioStream {
 public:
   /// Configuration options for AudioStream creation.
   struct Options {
