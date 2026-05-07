@@ -18,6 +18,9 @@ set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 # Don't install gtest when installing this project
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 
+# Skip GMock, not used currently
+set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+
 FetchContent_MakeAvailable(googletest)
 
 # Enable CTest
@@ -61,7 +64,6 @@ if(UNIT_TEST_SOURCES)
       spdlog::spdlog
       $<$<PLATFORM_ID:Windows>:${LIVEKIT_PROTOBUF_TARGET}>
       GTest::gtest_main
-      GTest::gmock
   )
 
   target_include_directories(livekit_unit_tests
@@ -160,7 +162,6 @@ if(INTEGRATION_TEST_SOURCES)
       spdlog::spdlog
       $<$<PLATFORM_ID:Windows>:${LIVEKIT_PROTOBUF_TARGET}>
       GTest::gtest_main
-      GTest::gmock
   )
 
   target_include_directories(livekit_integration_tests
@@ -249,7 +250,6 @@ if(STRESS_TEST_SOURCES)
     PRIVATE
       livekit
       GTest::gtest_main
-      GTest::gmock
   )
 
   target_include_directories(livekit_stress_tests

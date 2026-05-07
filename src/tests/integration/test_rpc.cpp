@@ -36,20 +36,20 @@ constexpr size_t kMaxRpcPayloadSize = 15 * 1024;
 // Test configuration from environment variables
 struct RpcTestConfig {
   std::string url;
-  std::string caller_token;
-  std::string receiver_token;
+  std::string token_a;
+  std::string token_b;
   bool available = false;
 
   static RpcTestConfig fromEnv() {
     RpcTestConfig config;
     const char *url = std::getenv("LIVEKIT_URL");
-    const char *caller_token = std::getenv("LIVEKIT_CALLER_TOKEN");
-    const char *receiver_token = std::getenv("LIVEKIT_RECEIVER_TOKEN");
+    const char *token_a = std::getenv("LIVEKIT_TOKEN_A");
+    const char *token_b = std::getenv("LIVEKIT_TOKEN_B");
 
-    if (url && caller_token && receiver_token) {
+    if (url && token_a && token_b) {
       config.url = url;
-      config.caller_token = caller_token;
-      config.receiver_token = receiver_token;
+      config.token_a = token_a;
+      config.token_b = token_b;
       config.available = true;
     }
     return config;
@@ -117,8 +117,8 @@ protected:
 // Test basic RPC round-trip
 TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
   if (!config_.available) {
-    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_CALLER_TOKEN, and "
-                    "LIVEKIT_RECEIVER_TOKEN not set";
+    GTEST_SKIP()
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   // Create receiver room
@@ -127,7 +127,7 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
   receiver_options.auto_subscribe = true;
 
   bool receiver_connected = receiver_room->Connect(
-      config_.url, config_.receiver_token, receiver_options);
+      config_.url, config_.token_b, receiver_options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -154,7 +154,7 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
   caller_options.auto_subscribe = true;
 
   bool caller_connected =
-      caller_room->Connect(config_.url, config_.caller_token, caller_options);
+      caller_room->Connect(config_.url, config_.token_a, caller_options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   // Wait for receiver to be visible to caller
@@ -187,8 +187,8 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
 // Test maximum payload size (15KB)
 TEST_F(RpcIntegrationTest, MaxPayloadSize) {
   if (!config_.available) {
-    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_CALLER_TOKEN, and "
-                    "LIVEKIT_RECEIVER_TOKEN not set";
+    GTEST_SKIP()
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
@@ -196,7 +196,7 @@ TEST_F(RpcIntegrationTest, MaxPayloadSize) {
   options.auto_subscribe = true;
 
   bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.receiver_token, options);
+      receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -210,7 +210,7 @@ TEST_F(RpcIntegrationTest, MaxPayloadSize) {
 
   auto caller_room = std::make_unique<Room>();
   bool caller_connected =
-      caller_room->Connect(config_.url, config_.caller_token, options);
+      caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible =
@@ -232,8 +232,8 @@ TEST_F(RpcIntegrationTest, MaxPayloadSize) {
 // Test RPC timeout
 TEST_F(RpcIntegrationTest, RpcTimeout) {
   if (!config_.available) {
-    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_CALLER_TOKEN, and "
-                    "LIVEKIT_RECEIVER_TOKEN not set";
+    GTEST_SKIP()
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
@@ -241,7 +241,7 @@ TEST_F(RpcIntegrationTest, RpcTimeout) {
   options.auto_subscribe = true;
 
   bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.receiver_token, options);
+      receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -256,7 +256,7 @@ TEST_F(RpcIntegrationTest, RpcTimeout) {
 
   auto caller_room = std::make_unique<Room>();
   bool caller_connected =
-      caller_room->Connect(config_.url, config_.caller_token, options);
+      caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible =
@@ -279,8 +279,8 @@ TEST_F(RpcIntegrationTest, RpcTimeout) {
 // Test RPC with unsupported method
 TEST_F(RpcIntegrationTest, UnsupportedMethod) {
   if (!config_.available) {
-    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_CALLER_TOKEN, and "
-                    "LIVEKIT_RECEIVER_TOKEN not set";
+    GTEST_SKIP()
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
@@ -288,14 +288,14 @@ TEST_F(RpcIntegrationTest, UnsupportedMethod) {
   options.auto_subscribe = true;
 
   bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.receiver_token, options);
+      receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
 
   auto caller_room = std::make_unique<Room>();
   bool caller_connected =
-      caller_room->Connect(config_.url, config_.caller_token, options);
+      caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible =
@@ -319,8 +319,8 @@ TEST_F(RpcIntegrationTest, UnsupportedMethod) {
 // Test RPC with application error
 TEST_F(RpcIntegrationTest, ApplicationError) {
   if (!config_.available) {
-    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_CALLER_TOKEN, and "
-                    "LIVEKIT_RECEIVER_TOKEN not set";
+    GTEST_SKIP()
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
@@ -328,7 +328,7 @@ TEST_F(RpcIntegrationTest, ApplicationError) {
   options.auto_subscribe = true;
 
   bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.receiver_token, options);
+      receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -342,7 +342,7 @@ TEST_F(RpcIntegrationTest, ApplicationError) {
 
   auto caller_room = std::make_unique<Room>();
   bool caller_connected =
-      caller_room->Connect(config_.url, config_.caller_token, options);
+      caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible =
@@ -366,8 +366,8 @@ TEST_F(RpcIntegrationTest, ApplicationError) {
 // Test multiple concurrent RPC calls
 TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
   if (!config_.available) {
-    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_CALLER_TOKEN, and "
-                    "LIVEKIT_RECEIVER_TOKEN not set";
+    GTEST_SKIP()
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
@@ -375,7 +375,7 @@ TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
   options.auto_subscribe = true;
 
   bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.receiver_token, options);
+      receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -393,7 +393,7 @@ TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
 
   auto caller_room = std::make_unique<Room>();
   bool caller_connected =
-      caller_room->Connect(config_.url, config_.caller_token, options);
+      caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible =
@@ -434,8 +434,8 @@ TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
 // Integration test: Run for approximately 1 minute
 TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   if (!config_.available) {
-    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_CALLER_TOKEN, and "
-                    "LIVEKIT_RECEIVER_TOKEN not set";
+    GTEST_SKIP()
+        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
@@ -443,7 +443,7 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   options.auto_subscribe = true;
 
   bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.receiver_token, options);
+      receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -461,7 +461,7 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
 
   auto caller_room = std::make_unique<Room>();
   bool caller_connected =
-      caller_room->Connect(config_.url, config_.caller_token, options);
+      caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible =

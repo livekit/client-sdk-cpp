@@ -30,13 +30,14 @@ jobs:
           - os: ubuntu-24.04-arm
             name: linux-arm64
             generator: Ninja
-          - os: macos-latest
+          - os: macos-26-xlarge
             name: macos-arm64
             generator: Ninja
-          - os: macos-latest
+          - os: macos-26-large
             name: macos-x64
             generator: Ninja
-          - os: windows-latest
+            # Pinned to Windows 2022 for current VS 17 implementation
+          - os: windows-2022
             name: windows-x64
             generator: "Visual Studio 17 2022"
 
