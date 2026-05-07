@@ -19,7 +19,7 @@
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
-#include "scoped_timer.h"
+#include "lk_log.h"
 
 #include <utility>
 
@@ -37,40 +37,33 @@ void DataTrackStream::init(FfiHandle subscription_handle) {
 }
 
 bool DataTrackStream::read(DataTrackFrame &out) {
-  LK_SCOPED_TIMER("data_track_stream::read");
   {
     const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_ || eof_) {
       return false;
     }
-  }
 
-  const auto subscription_handle =
-      static_cast<std::uint64_t>(subscription_handle_.get());
+    const auto subscription_handle =
+        static_cast<std::uint64_t>(subscription_handle_.get());
 
-  // Signal the Rust side that we're ready to receive the next frame.
-  // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
-  // from the underlying stream until notified via this request.
-  {
-    LK_SCOPED_TIMER("data_track_stream::read.sendRequest(FFI)");
+    // Signal the Rust side that we're ready to receive the next frame.
+    // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
+    // from the underlying stream until notified via this request.
     proto::FfiRequest req;
     auto *msg = req.mutable_data_track_stream_read();
     msg->set_stream_handle(subscription_handle);
     FfiClient::instance().sendRequest(req);
   }
 
-  {
-    LK_SCOPED_TIMER("data_track_stream::read.wait");
-    std::unique_lock<std::mutex> lock(mutex_);
-    cv_.wait(lock, [this] { return frame_.has_value() || eof_ || closed_; });
+  std::unique_lock<std::mutex> lock(mutex_);
+  cv_.wait(lock, [this] { return frame_.has_value() || eof_ || closed_; });
 
-    if (closed_ || (!frame_.has_value() && eof_)) {
-      return false;
-    }
-
-    out = std::move(*frame_); // NOLINT(bugprone-unchecked-optional-access)
-    frame_.reset();
+  if (closed_ || (!frame_.has_value() && eof_)) {
+    return false;
   }
+
+  out = std::move(*frame_); // NOLINT(bugprone-unchecked-optional-access)
+  frame_.reset();
   return true;
 }
 
@@ -95,12 +88,9 @@ void DataTrackStream::close() {
 }
 
 void DataTrackStream::onFfiEvent(const FfiEvent &event) {
-  // Fast-path filter without taking the timer cost: every listener sees
-  // every FFI event, but only DataTrackStreamEvents are interesting here.
   if (event.message_case() != FfiEvent::kDataTrackStreamEvent) {
     return;
   }
-  LK_SCOPED_TIMER("data_track_stream::onFfiEvent");
 
   const auto &dts = event.data_track_stream_event();
   {
@@ -121,7 +111,6 @@ void DataTrackStream::onFfiEvent(const FfiEvent &event) {
 }
 
 void DataTrackStream::pushFrame(DataTrackFrame &&frame) {
-  LK_SCOPED_TIMER("data_track_stream::pushFrame");
   const std::scoped_lock<std::mutex> lock(mutex_);
 
   if (closed_ || eof_) {
@@ -134,7 +123,6 @@ void DataTrackStream::pushFrame(DataTrackFrame &&frame) {
   frame_ = std::move(frame);
 
   // notify no matter what since we got a new frame
-  // mutex_.unlock();
   cv_.notify_one();
 }
 

@@ -22,7 +22,6 @@
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
-#include "scoped_timer.h"
 
 namespace livekit {
 
@@ -36,7 +35,6 @@ LocalDataTrack::LocalDataTrack(const proto::OwnedLocalDataTrack &owned)
 
 Result<void, LocalDataTrackTryPushError>
 LocalDataTrack::tryPush(const DataTrackFrame &frame) {
-  LK_SCOPED_TIMER("local_data_track::tryPush");
   if (!handle_.valid()) {
     return Result<void, LocalDataTrackTryPushError>::failure(
         LocalDataTrackTryPushError{

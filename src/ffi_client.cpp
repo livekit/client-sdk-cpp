@@ -31,7 +31,6 @@
 #include "livekit_ffi.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
-#include "scoped_timer.h"
 
 namespace livekit {
 
@@ -186,7 +185,6 @@ void FfiClient::RemoveListener(ListenerId id) {
 
 proto::FfiResponse
 FfiClient::sendRequest(const proto::FfiRequest &request) const {
-  LK_SCOPED_TIMER("ffi_client::sendRequest");
   std::string bytes;
   if (!request.SerializeToString(&bytes) || bytes.empty()) {
     throw std::runtime_error("failed to serialize FfiRequest");
@@ -215,7 +213,6 @@ FfiClient::sendRequest(const proto::FfiRequest &request) const {
 }
 
 void FfiClient::PushEvent(const proto::FfiEvent &event) const {
-  LK_SCOPED_TIMER("ffi_client::PushEvent");
   std::unique_ptr<PendingBase> to_complete;
   std::vector<Listener> listeners_copy;
   {
