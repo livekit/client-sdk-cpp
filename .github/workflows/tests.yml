@@ -65,6 +65,7 @@ jobs:
             build_cmd: ./build.sh release-tests --macos-arch x86_64
             # E2E not possible on GHA Mac runner currently
             e2e-testing: false
+            # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
             build_cmd: .\build.cmd release-tests
