@@ -192,7 +192,7 @@ protected:
     livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
 
     const char *url_env = std::getenv("LIVEKIT_URL");
-    const char *token_env = std::getenv("LIVEKIT_CALLER_TOKEN");
+    const char *token_env = std::getenv("LIVEKIT_TOKEN_A");
 
     if (url_env && token_env) {
       server_url_ = url_env;
@@ -210,8 +210,8 @@ protected:
 
 TEST_F(RoomServerStressTest, RepeatedConnectDisconnect) {
   if (!server_available_) {
-    GTEST_SKIP()
-        << "LIVEKIT_URL and LIVEKIT_TOKEN not set, skipping server stress test";
+    GTEST_SKIP() << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set, skipping server "
+                    "stress test";
   }
 
   const int num_iterations = 10;

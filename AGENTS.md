@@ -103,9 +103,12 @@ Updates to ./build.sh and ./build.cmd should be accompanied by updates to this f
 ./build.sh release-tests      # Release build with tests
 ./build.sh release-examples   # Release build with examples
 ./build.sh build-all          # All of the above
-./build.sh clean              # Clean build artifacts
-./build.sh clean-all          # Full clean (C++ + Rust targets)
+./build.sh clean              # Clean build artifacts + local-install
+./build.sh clean-all          # Full clean (C++ + local-install + Rust targets)
 ```
+
+The build scripts pass an explicit job count to `cmake --build --parallel`. Set
+`CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
 
 **Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. On macOS: `brew install cmake ninja protobuf abseil spdlog`. On Linux: see the CI workflow for apt packages.
 

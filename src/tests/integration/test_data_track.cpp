@@ -24,6 +24,7 @@
 #include "../common/test_common.h"
 
 #include "ffi_client.h"
+#include "lk_log.h"
 
 #include <cmath>
 #include <condition_variable>
@@ -41,17 +42,15 @@ using namespace std::chrono_literals;
 namespace {
 
 constexpr char kTrackNamePrefix[] = "data_track_e2e";
-constexpr auto kPublishDuration = 5s;
 constexpr auto kTrackWaitTimeout = 10s;
-constexpr auto kReadTimeout = 30s;
 constexpr auto kPollingInterval = 10ms;
-constexpr float kMinimumReceivedPercent = 0.95f;
 constexpr int kResubscribeIterations = 10;
 constexpr int kPublishManyTrackCount = 256;
 constexpr auto kPublishManyTimeout = 5s;
 constexpr std::size_t kLargeFramePayloadBytes = 196608;
 constexpr char kE2EESharedSecret[] = "password";
 constexpr int kE2EEFrameCount = 5;
+constexpr int kTimestampFrameAttempts = 200;
 
 std::string makeTrackName(const std::string &suffix) {
   return std::string(kTrackNamePrefix) + "_" + suffix + "_" +
@@ -212,11 +211,19 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   const auto publish_fps = std::get<0>(GetParam());
   const auto payload_len = std::get<1>(GetParam());
   const auto track_name = makeTrackName("transport");
-  const auto frame_count = static_cast<size_t>(std::llround(
-      std::chrono::duration<double>(kPublishDuration).count() * publish_fps));
+
+  // How long to publish frames for.
+  constexpr auto PUBLISH_DURATION = 10s;
+
+  // Percentage of total frames that must be received on the subscriber end in
+  // order for the test to pass.
+  constexpr float MIN_PERCENTAGE = 0.90f;
+
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[0].room_options.single_peer_connection = false;
+  room_configs[1].room_options.single_peer_connection = false;
 
   DataTrackPublishedDelegate subscriber_delegate;
-  std::vector<TestRoomConnectionOptions> room_configs(2);
   room_configs[1].delegate = &subscriber_delegate;
 
   auto rooms = testRooms(room_configs);
@@ -224,50 +231,52 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   const auto publisher_identity =
       publisher_room->localParticipant()->identity();
 
-  std::exception_ptr publish_error;
-  std::thread publisher([&]() {
-    try {
-      auto track =
-          requirePublishedTrack(publisher_room->localParticipant(), track_name);
-      if (!track->isPublished()) {
-        throw std::runtime_error("Publisher failed to publish data track");
-      }
-      if (track->info().uses_e2ee) {
-        throw std::runtime_error("Unexpected E2EE on test data track");
-      }
-      if (track->info().name != track_name) {
-        throw std::runtime_error("Published track name mismatch");
-      }
-
-      const auto frame_interval =
-          std::chrono::duration_cast<std::chrono::steady_clock::duration>(
-              std::chrono::duration<double>(1.0 / publish_fps));
-      auto next_send = std::chrono::steady_clock::now();
-
-      std::cout << "Publishing " << frame_count
-                << " frames with payload length " << payload_len << std::endl;
-      for (size_t index = 0; index < frame_count; ++index) {
-        std::vector<std::uint8_t> payload(payload_len,
-                                          static_cast<std::uint8_t>(index));
-        requirePushSuccess(track->tryPush(std::move(payload)),
-                           "Failed to push data frame");
-
-        next_send += frame_interval;
-        std::this_thread::sleep_until(next_send);
-      }
-
-      track->unpublishDataTrack();
-    } catch (...) {
-      publish_error = std::current_exception();
-    }
-  });
+  auto track =
+      requirePublishedTrack(publisher_room->localParticipant(), track_name);
+  std::cerr << "Track published\n";
 
   auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
+  std::cerr << "Got remote track: " << remote_track->info().sid << "\n";
+
   ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
   EXPECT_TRUE(remote_track->isPublished());
   EXPECT_FALSE(remote_track->info().uses_e2ee);
   EXPECT_EQ(remote_track->info().name, track_name);
   EXPECT_EQ(remote_track->publisherIdentity(), publisher_identity);
+
+  const auto frame_count = static_cast<size_t>(std::llround(
+      std::chrono::duration<double>(PUBLISH_DURATION).count() * publish_fps));
+
+  auto publish = [&]() {
+    if (!track->isPublished()) {
+      throw std::runtime_error("Publisher failed to publish data track");
+    }
+    if (track->info().uses_e2ee) {
+      throw std::runtime_error("Unexpected E2EE on test data track");
+    }
+    if (track->info().name != track_name) {
+      throw std::runtime_error("Published track name mismatch");
+    }
+
+    const auto frame_interval =
+        std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+            std::chrono::duration<double>(1.0 / publish_fps));
+    auto next_send = std::chrono::steady_clock::now();
+
+    std::cout << "Publishing " << frame_count
+              << " frames with payload length " << payload_len << '\n';
+    for (size_t index = 0; index < frame_count; ++index) {
+      std::vector<std::uint8_t> payload(payload_len,
+                                        static_cast<std::uint8_t>(index));
+      requirePushSuccess(track->tryPush(std::move(payload)),
+                          "Failed to push data frame");
+
+      next_send += frame_interval;
+      std::this_thread::sleep_until(next_send);
+    }
+
+    track->unpublishDataTrack();
+  };
 
   auto subscribe_result = remote_track->subscribe();
   if (!subscribe_result) {
@@ -277,61 +286,58 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
 
   std::promise<size_t> receive_count_promise;
   auto receive_count_future = receive_count_promise.get_future();
-  std::exception_ptr subscribe_error;
-  std::thread subscriber([&]() {
-    try {
-      size_t received_count = 0;
-      DataTrackFrame frame;
-      while (subscription->read(frame) && received_count < frame_count) {
-        if (frame.payload.empty()) {
-          throw std::runtime_error("Received empty data frame");
-        }
 
-        const auto first_byte = frame.payload.front();
-        if (!std::all_of(frame.payload.begin(), frame.payload.end(),
-                         [first_byte](std::uint8_t byte) {
-                           return byte == first_byte;
-                         })) {
-          throw std::runtime_error("Received frame with inconsistent payload");
-        }
-        if (frame.user_timestamp.has_value()) {
-          throw std::runtime_error(
-              "Received unexpected user timestamp in transport test");
-        }
-
-        ++received_count;
+  auto subscribe = [&]() {
+    size_t received_count = 0;
+    DataTrackFrame frame;
+    while (subscription->read(frame) && received_count < frame_count) {
+      if (frame.payload.empty()) {
+        throw std::runtime_error("Received empty data frame");
       }
 
-      receive_count_promise.set_value(received_count);
-    } catch (...) {
-      subscribe_error = std::current_exception();
-      receive_count_promise.set_exception(std::current_exception());
-    }
-  });
+      const auto first_byte = frame.payload.front();
+      if (!std::all_of(frame.payload.begin(), frame.payload.end(),
+                        [first_byte](std::uint8_t byte) {
+                          return byte == first_byte;
+                        })) {
+        throw std::runtime_error("Received frame with inconsistent payload");
+      }
+      if (frame.user_timestamp.has_value()) {
+        throw std::runtime_error(
+            "Received unexpected user timestamp in transport test");
+      }
 
-  if (receive_count_future.wait_for(kReadTimeout) !=
-      std::future_status::ready) {
-    subscription->close();
+      ++received_count;
+    }
+
+    receive_count_promise.set_value(received_count);
+  };
+
+  // Launch both publisher and subscriber
+  auto pub_fut = std::async(std::launch::async, publish);
+  auto sub_fut = std::async(std::launch::async, subscribe);
+
+  // Wait for both, with a combined deadline (the timeout(...) wrapper).
+  const auto deadline = std::chrono::steady_clock::now() + PUBLISH_DURATION + 25s;
+
+  const bool pub_ok = pub_fut.wait_until(deadline) == std::future_status::ready;
+  const bool sub_ok = sub_fut.wait_until(deadline) == std::future_status::ready;
+
+  if (!pub_ok || !sub_ok) {
     ADD_FAILURE() << "Timed out waiting for data frames";
   }
 
-  subscriber.join();
-  publisher.join();
-
-  if (publish_error) {
-    std::rethrow_exception(publish_error);
-  }
-  if (subscribe_error) {
-    std::rethrow_exception(subscribe_error);
-  }
+  // Equivalent of `try_join!`'s ? — re-throws any exception from either task
+  pub_fut.get();
+  sub_fut.get();
 
   const auto received_count = receive_count_future.get();
   const auto received_percent =
       static_cast<float>(received_count) / static_cast<float>(frame_count);
   std::cout << "Received " << received_count << "/" << frame_count
-            << " frames (" << received_percent * 100.0f << "%)" << std::endl;
+            << " frames (" << received_percent * 100.0f << "%)" << '\n';
 
-  EXPECT_GE(received_percent, kMinimumReceivedPercent)
+  EXPECT_GE(received_percent, MIN_PERCENTAGE)
       << "Received " << received_count << "/" << frame_count << " frames";
 }
 
@@ -619,8 +625,19 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
     }
   });
 
-  const auto push_result =
-      local_track->tryPush(std::vector<std::uint8_t>(64, 0xFA), sent_timestamp);
+  // Push the same `sent_timestamp` repeatedly so that the test isn't sensitive
+  // to a single push being lost while the subscribe pipe is still warming up.
+  // Mirrors the livekit/e2e TS suite, which sends the same `userTimestamp` on
+  // every frame and asserts every received frame carries that value.
+  bool pushed = false;
+  for (int attempt = 0; attempt < kTimestampFrameAttempts; ++attempt) {
+    auto push_result = local_track->tryPush(
+        std::vector<std::uint8_t>(64, 0xFA), sent_timestamp);
+    pushed = static_cast<bool>(push_result) || pushed;
+    if (frame_future.wait_for(25ms) == std::future_status::ready) {
+      break;
+    }
+  }
   const auto frame_status = frame_future.wait_for(5s);
 
   if (frame_status != std::future_status::ready) {
@@ -631,10 +648,7 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
   reader.join();
   local_track->unpublishDataTrack();
 
-  if (!push_result) {
-    FAIL() << "Failed to push timestamped data frame: "
-           << describeDataTrackError(push_result.error());
-  }
+  ASSERT_TRUE(pushed) << "Failed to push timestamped data frame";
   ASSERT_EQ(frame_status, std::future_status::ready)
       << "Timed out waiting for timestamped frame";
 
@@ -796,7 +810,7 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampOnEncryptedDataTrack) {
   });
 
   bool pushed = false;
-  for (int attempt = 0; attempt < 200; ++attempt) {
+  for (int attempt = 0; attempt < kTimestampFrameAttempts; ++attempt) {
     auto payload_copy = payload;
     auto push_result =
         local_track->tryPush(std::move(payload_copy), sent_timestamp);

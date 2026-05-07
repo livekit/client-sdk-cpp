@@ -60,8 +60,8 @@ git lfs pull
 
 **Linux/macOS:**
 ```bash
-./build.sh clean              # Clean CMake build artifacts
-./build.sh clean-all          # Deep clean (C++ + Rust + generated files)
+./build.sh clean              # Clean CMake build artifacts + local-install
+./build.sh clean-all          # Deep clean (C++ + Rust + local-install + generated files)
 ./build.sh debug              # Build Debug version
 ./build.sh release            # Build Release version
 ./build.sh debug-examples     # Build Debug with examples
@@ -74,8 +74,8 @@ git lfs pull
 **Windows**
 Using build scripts:
 ```powershell
-.\build.cmd clean             # Clean CMake build artifacts
-.\build.cmd clean-all         # Deep clean (C++ + Rust + generated files)
+.\build.cmd clean             # Clean CMake build artifacts + local-install
+.\build.cmd clean-all         # Deep clean (C++ + Rust + local-install + generated files)
 .\build.cmd debug             # Build Debug version
 .\build.cmd release           # Build Release version
 .\build.cmd debug-examples    # Build Debug with examples
@@ -85,6 +85,9 @@ Using build scripts:
 .\build.cmd release-tests     # Build Release with tests
 .\build.cmd release-all       # Build Release with tests + examples
 ```
+
+The build scripts pass an explicit job count to `cmake --build --parallel`. Set
+`CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
 
 ### Windows build using cmake/vcpkg
 ```bash
@@ -135,14 +138,15 @@ cmake --build --preset macos-release
 📖 **For complete build instructions, troubleshooting, and platform-specific notes, see [README_BUILD.md](README_BUILD.md)**
 
 ### Building with Docker
-The Dockerfile COPYs folders/files required to build the CPP SDK into the image. 
+The Docker setup is split into a reusable base image and an SDK image layered on top of it.
  **NOTE:** this has only been tested on Linux
 ```bash
-docker build -t livekit-cpp-sdk . -f docker/Dockerfile
+docker build -t livekit-cpp-sdk-base . -f docker/Dockerfile.base
+docker build --build-arg BASE_IMAGE=livekit-cpp-sdk-base -t livekit-cpp-sdk . -f docker/Dockerfile.sdk
 docker run -it --network host livekit-cpp-sdk:latest bash
 ```
 
-__NOTE:__ if you are building your own Dockerfile, you will likely need to set the same `ENV` variables as in `docker/Dockerfile`, but to the relevant directories:
+__NOTE:__ if you are building your own Dockerfile, you will likely need to set the same `ENV` variables as in `docker/Dockerfile.base`, but to the relevant directories:
 ```bash
 export CC=$HOME/gcc-14/bin/gcc
 export CXX=$HOME/gcc-14/bin/g++
@@ -436,25 +440,43 @@ ctest --output-on-failure
 | `livekit_integration_tests` | Quick tests (~1-2 minutes) for SDK functionality |
 | `livekit_stress_tests` | Long-running tests (configurable, default 1 hour) |
 
-### RPC Test Environment Variables
+### Integration & Stress Test Environment Variables
 
-RPC integration and stress tests require a LiveKit server and two participant tokens:
+The integration and stress test suites (data tracks, RPC, media multistream,
+etc.) require a LiveKit server and two participant tokens:
 
 ```bash
 # Required
-export LIVEKIT_URL="wss://your-server.livekit.cloud"
-export LIVEKIT_CALLER_TOKEN="<token with caller identity>"
-export LIVEKIT_RECEIVER_TOKEN="<token with receiver identity>"
+export LIVEKIT_URL="ws://localhost:7880"            # or wss://your-server.livekit.cloud
+export LIVEKIT_TOKEN_A="<first participant token>"
+export LIVEKIT_TOKEN_B="<second participant token>"
 
 # Optional (for stress tests)
 export RPC_STRESS_DURATION_SECONDS=3600   # Test duration (default: 1 hour)
 export RPC_STRESS_CALLER_THREADS=4        # Concurrent caller threads (default: 4)
 ```
 
-**Generate tokens for RPC tests:**
+**Generate tokens for the test suites:**
+
+The easiest path is to source the helper script, which will mint both
+participant tokens against a local `livekit-server --dev` and export
+`LIVEKIT_TOKEN_A`, `LIVEKIT_TOKEN_B`, and `LIVEKIT_URL` for the current shell:
+
 ```bash
-lk token create -r test -i rpc-caller --join --valid-for 99999h --dev --room=rpc-test-room
-lk token create -r test -i rpc-receiver --join --valid-for 99999h --dev --room=rpc-test-room
+source .token_helpers/set_data_track_test_tokens.bash
+```
+
+To generate tokens manually instead (e.g. against a non-default server):
+
+```bash
+export LIVEKIT_TOKEN_A="$(lk token create --api-key devkey --api-secret secret -i cpp-test-a \
+  --join --valid-for 99999h --room cpp_data_track_test \
+  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}' \
+  --token-only)"
+export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -i cpp-test-b \
+  --join --valid-for 99999h --room cpp_data_track_test \
+  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}' \
+  --token-only)"
 ```
 
 ### Test Coverage
@@ -505,7 +527,7 @@ cargo build -p yuv-sys -vv
 ```
 
 ### Full clean (Rust + C++ build folders)
-In some cases, you may need to perform a full clean that deletes all build artifacts from both the Rust and C++ folders:
+In some cases, you may need to perform a full clean that deletes all build artifacts from both the Rust and C++ folders, plus the local install folder:
 ```bash
 ./build.sh clean-all
 ```
