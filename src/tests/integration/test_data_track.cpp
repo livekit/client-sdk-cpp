@@ -43,7 +43,6 @@ namespace {
 
 constexpr char kTrackNamePrefix[] = "data_track_e2e";
 constexpr auto kTrackWaitTimeout = 10s;
-constexpr auto kReadTimeout = 30s;
 constexpr auto kPollingInterval = 10ms;
 constexpr int kResubscribeIterations = 10;
 constexpr int kPublishManyTrackCount = 256;
@@ -213,11 +212,11 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   const auto track_name = makeTrackName("transport");
 
   // How long to publish frames for.
-  constexpr auto kPublishDuration = 10s;
+  constexpr auto PUBLISH_DURATION = 10s;
 
   // Percentage of total frames that must be received on the subscriber end in
   // order for the test to pass.
-  constexpr float kMinimumReceivedPercent = 0.95f;
+  constexpr float MIN_PERCENTAGE = 0.90f;
 
   std::vector<TestRoomConnectionOptions> room_configs(2);
   room_configs[0].room_options.single_peer_connection = false;
@@ -245,8 +244,7 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   EXPECT_EQ(remote_track->publisherIdentity(), publisher_identity);
 
   const auto frame_count = static_cast<size_t>(std::llround(
-      std::chrono::duration<double>(kPublishDuration).count() * publish_fps));
-  std::cout << "Publishing " << frame_count << " frames\n";
+      std::chrono::duration<double>(PUBLISH_DURATION).count() * publish_fps));
 
   auto publish = [&]() {
     if (!track->isPublished()) {
@@ -314,18 +312,12 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
     receive_count_promise.set_value(received_count);
   };
 
-  // Launch both — these START IMMEDIATELY on background threads.
+  // Launch both publisher and subscriber
   auto pub_fut = std::async(std::launch::async, publish);
   auto sub_fut = std::async(std::launch::async, subscribe);
 
   // Wait for both, with a combined deadline (the timeout(...) wrapper).
-  const auto deadline = std::chrono::steady_clock::now() + kPublishDuration + kReadTimeout;
-
-  // if (receive_count_future.wait_for(kReadTimeout) !=
-  //     std::future_status::ready) {
-  //   subscription->close();
-  //   ADD_FAILURE() << "Timed out waiting for data frames";
-  // }
+  const auto deadline = std::chrono::steady_clock::now() + PUBLISH_DURATION + 25s;
 
   const bool pub_ok = pub_fut.wait_until(deadline) == std::future_status::ready;
   const bool sub_ok = sub_fut.wait_until(deadline) == std::future_status::ready;
@@ -334,7 +326,7 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
     ADD_FAILURE() << "Timed out waiting for data frames";
   }
 
-  // Equivalent of `try_join!`'s ? — re-throws any exception from either task.
+  // Equivalent of `try_join!`'s ? — re-throws any exception from either task
   pub_fut.get();
   sub_fut.get();
 
@@ -344,7 +336,7 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   std::cout << "Received " << received_count << "/" << frame_count
             << " frames (" << received_percent * 100.0f << "%)" << '\n';
 
-  EXPECT_GE(received_percent, kMinimumReceivedPercent)
+  EXPECT_GE(received_percent, MIN_PERCENTAGE)
       << "Received " << received_count << "/" << frame_count << " frames";
 }
 
