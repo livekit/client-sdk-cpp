@@ -232,7 +232,6 @@ jobs:
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
           build-release/bin/livekit_integration_tests \
-            --gtest_filter='DataTrackScenarios/DataTrackTransportTest.PublishesAndReceivesFramesEndToEnd/*' \
             --gtest_output=xml:build-release/integration-test-results.xml
 
       - name: Stop livekit-server
