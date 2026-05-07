@@ -26,6 +26,8 @@ RpcError::RpcError(std::uint32_t code, std::string message, std::string data)
 RpcError::RpcError(ErrorCode code, std::string message, std::string data)
     : RpcError(static_cast<std::uint32_t>(code), std::move(message), std::move(data)) {}
 
+RpcError::~RpcError() = default;
+
 std::uint32_t RpcError::code() const noexcept { return code_; }
 
 const std::string& RpcError::message() const noexcept { return message_; }
