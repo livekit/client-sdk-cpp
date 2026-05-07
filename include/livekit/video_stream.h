@@ -16,21 +16,18 @@
 
 #pragma once
 
-#include <condition_variable>
+#include <cstddef>
 #include <cstdint>
-#include <deque>
-#include <functional>
 #include <memory>
-#include <mutex>
 #include <optional>
 
-#include "ffi_handle.h"
-#include "participant.h"
 #include "track.h"
 #include "video_frame.h"
 #include "video_source.h"
 
 namespace livekit {
+
+class Participant;
 
 // A single video frame event delivered by VideoStream::read().
 struct VideoFrameEvent {
@@ -110,7 +107,7 @@ public:
   void close();
 
 private:
-  VideoStream() = default;
+  VideoStream();
 
   // Internal init helpers, used by the factories
   void initFromTrack(const std::shared_ptr<Track> &track,
@@ -118,25 +115,8 @@ private:
   void initFromParticipant(Participant &participant, TrackSource source,
                            const Options &options);
 
-  // FFI event handler (registered with FfiClient)
-  void onFfiEvent(const proto::FfiEvent &event);
-
-  // Queue helpers
-  void pushFrame(VideoFrameEvent &&ev);
-  void pushEos();
-
-  mutable std::mutex mutex_;
-  std::condition_variable cv_;
-  std::deque<VideoFrameEvent> queue_;
-  std::size_t capacity_{0};
-  bool eof_{false};
-  bool closed_{false};
-
-  // Underlying FFI handle for the video stream
-  FfiHandle stream_handle_;
-
-  // Listener id registered on FfiClient
-  std::int32_t listener_id_{0};
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 } // namespace livekit

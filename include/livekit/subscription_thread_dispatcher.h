@@ -20,14 +20,13 @@
 #include "livekit/audio_stream.h"
 #include "livekit/video_stream.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
 namespace livekit {
@@ -357,13 +356,6 @@ private:
     }
   };
 
-  /// Active read-side resources for one audio/video subscription dispatch slot.
-  struct ActiveReader {
-    std::shared_ptr<AudioStream> audio_stream;
-    std::shared_ptr<VideoStream> video_stream;
-    std::thread thread;
-  };
-
   /// Compound lookup key for a remote participant identity and data track name.
   struct DataCallbackKey {
     std::string participant_identity;
@@ -388,14 +380,6 @@ private:
   struct RegisteredDataCallback {
     DataCallbackKey key;
     DataFrameCallback callback;
-  };
-
-  /// Active read-side resources for one data track stream subscription.
-  struct ActiveDataReader {
-    std::shared_ptr<RemoteDataTrack> remote_track;
-    std::mutex sub_mutex;
-    std::shared_ptr<DataTrackStream> stream; // guarded by sub_mutex
-    std::thread thread;
   };
 
   /// Stored audio callback registration plus stream-construction options.
@@ -455,39 +439,20 @@ private:
                         const std::shared_ptr<RemoteDataTrack> &track,
                         const DataFrameCallback &cb);
 
-  /// Protects callback registration maps and active reader state.
-  mutable std::mutex lock_;
-
-  /// Registered audio frame callbacks keyed by \ref CallbackKey.
-  std::unordered_map<CallbackKey, RegisteredAudioCallback, CallbackKeyHash>
-      audio_callbacks_;
-
-  /// Registered video frame callbacks keyed by \ref CallbackKey.
-  std::unordered_map<CallbackKey, RegisteredVideoCallback, CallbackKeyHash>
-      video_callbacks_;
-
-  /// Active stream/thread state keyed by \ref CallbackKey.
-  std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash>
-      active_readers_;
-
-  /// Next auto-increment ID for data frame callbacks.
-  DataFrameCallbackId next_data_callback_id_{0};
-
-  /// Registered data frame callbacks keyed by opaque callback ID.
-  std::unordered_map<DataFrameCallbackId, RegisteredDataCallback>
-      data_callbacks_;
-
-  /// Active data reader threads keyed by callback ID.
-  std::unordered_map<DataFrameCallbackId, std::shared_ptr<ActiveDataReader>>
-      active_data_readers_;
-
-  /// Currently published remote data tracks, keyed by (participant, name).
-  std::unordered_map<DataCallbackKey, std::shared_ptr<RemoteDataTrack>,
-                     DataCallbackKeyHash>
-      remote_data_tracks_;
-
   /// Hard limit on concurrently active per-subscription reader threads.
   static constexpr int kMaxActiveReaders = 20;
+
+  std::size_t audioCallbackCountForTest() const;
+  std::size_t videoCallbackCountForTest() const;
+  std::size_t activeReaderCountForTest() const;
+  std::size_t dataCallbackCountForTest() const;
+  std::size_t activeDataReaderCountForTest() const;
+  std::size_t remoteDataTrackCountForTest() const;
+  bool hasAudioCallbackForTest(const CallbackKey &key) const;
+  bool hasVideoCallbackForTest(const CallbackKey &key) const;
+
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 } // namespace livekit

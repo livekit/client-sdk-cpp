@@ -19,13 +19,14 @@
 
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
-#include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
 #include "livekit/subscription_thread_dispatcher.h"
 
 #include <cstdint>
 #include <memory>
-#include <mutex>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace livekit {
 
@@ -318,27 +319,8 @@ public:
 private:
   friend class RoomCallbackTest;
 
-  mutable std::mutex lock_;
-  ConnectionState connection_state_ = ConnectionState::Disconnected;
-  RoomDelegate *delegate_ = nullptr; // Not owned
-  RoomInfoData room_info_;
-  std::shared_ptr<FfiHandle> room_handle_;
-  std::unique_ptr<LocalParticipant> local_participant_;
-  std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>>
-      remote_participants_;
-  // Data stream
-  std::unordered_map<std::string, TextStreamHandler> text_stream_handlers_;
-  std::unordered_map<std::string, ByteStreamHandler> byte_stream_handlers_;
-  std::unordered_map<std::string, std::shared_ptr<TextStreamReader>>
-      text_stream_readers_;
-  std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>>
-      byte_stream_readers_;
-  // E2EE
-  std::unique_ptr<E2EEManager> e2ee_manager_;
-  std::shared_ptr<SubscriptionThreadDispatcher> subscription_thread_dispatcher_;
-
-  // FfiClient listener ID (0 means no listener registered)
-  int listener_id_{0};
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 
   void OnEvent(const proto::FfiEvent &event);
 };

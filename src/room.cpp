@@ -18,9 +18,8 @@
 
 #include "livekit/audio_stream.h"
 #include "livekit/e2ee.h"
-#include "livekit/local_data_track.h"
+#include "livekit/ffi_handle.h"
 #include "livekit/local_participant.h"
-#include "livekit/local_track_publication.h"
 #include "livekit/remote_audio_track.h"
 #include "livekit/remote_data_track.h"
 #include "livekit/remote_participant.h"
@@ -29,7 +28,6 @@
 #include "livekit/room_delegate.h"
 #include "livekit/room_event_types.h"
 
-#include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit_ffi.h"
@@ -40,6 +38,8 @@
 #include "track.pb.h"
 #include "track_proto_converter.h"
 #include <functional>
+#include <mutex>
+#include <unordered_map>
 
 namespace livekit {
 
@@ -68,23 +68,44 @@ createRemoteParticipant(const proto::OwnedParticipant &owned) {
 }
 
 } // namespace
-Room::Room()
-    : subscription_thread_dispatcher_(
-          std::make_unique<SubscriptionThreadDispatcher>()) {}
+
+struct Room::Impl {
+  mutable std::mutex lock_;
+  ConnectionState connection_state_ = ConnectionState::Disconnected;
+  RoomDelegate *delegate_ = nullptr; // Not owned
+  RoomInfoData room_info_;
+  std::shared_ptr<FfiHandle> room_handle_;
+  std::unique_ptr<LocalParticipant> local_participant_;
+  std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>>
+      remote_participants_;
+  std::unordered_map<std::string, TextStreamHandler> text_stream_handlers_;
+  std::unordered_map<std::string, ByteStreamHandler> byte_stream_handlers_;
+  std::unordered_map<std::string, std::shared_ptr<TextStreamReader>>
+      text_stream_readers_;
+  std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>>
+      byte_stream_readers_;
+  std::unique_ptr<E2EEManager> e2ee_manager_;
+  std::shared_ptr<SubscriptionThreadDispatcher>
+      subscription_thread_dispatcher_ =
+          std::make_shared<SubscriptionThreadDispatcher>();
+  int listener_id_{0};
+};
+
+Room::Room() : impl_(std::make_unique<Impl>()) {}
 
 Room::~Room() {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->stopAll();
+  if (impl_->subscription_thread_dispatcher_) {
+    impl_->subscription_thread_dispatcher_->stopAll();
   }
 
   int listener_to_remove = 0;
   std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
   {
-    const std::scoped_lock<std::mutex> g(lock_);
-    listener_to_remove = listener_id_;
-    listener_id_ = 0;
+    const std::scoped_lock<std::mutex> g(impl_->lock_);
+    listener_to_remove = impl_->listener_id_;
+    impl_->listener_id_ = 0;
     // Move local participant out for cleanup outside the lock
-    local_participant_to_cleanup = std::move(local_participant_);
+    local_participant_to_cleanup = std::move(impl_->local_participant_);
   }
 
   // Shutdown local participant (unregisters RPC handlers, etc.) before
@@ -102,8 +123,8 @@ Room::~Room() {
 }
 
 void Room::setDelegate(RoomDelegate *delegate) {
-  const std::scoped_lock<std::mutex> g(lock_);
-  delegate_ = delegate;
+  const std::scoped_lock<std::mutex> g(impl_->lock_);
+  impl_->delegate_ = delegate;
 }
 
 bool Room::Connect(const std::string &url, const std::string &token,
@@ -111,11 +132,11 @@ bool Room::Connect(const std::string &url, const std::string &token,
   TRACE_EVENT0("livekit", "Room::Connect");
 
   {
-    const std::scoped_lock<std::mutex> g(lock_);
-    if (connection_state_ != ConnectionState::Disconnected) {
+    const std::scoped_lock<std::mutex> g(impl_->lock_);
+    if (impl_->connection_state_ != ConnectionState::Disconnected) {
       throw std::runtime_error("already connected");
     }
-    connection_state_ = ConnectionState::Reconnecting;
+    impl_->connection_state_ = ConnectionState::Reconnecting;
   }
   auto fut = FfiClient::instance().connectAsync(url, token, options);
   try {
@@ -154,7 +175,7 @@ bool Room::Connect(const std::string &url, const std::string &token,
         new_remote_participants;
     {
       const auto &participants = connectCb.result().participants();
-      const std::scoped_lock<std::mutex> g(lock_);
+      const std::scoped_lock<std::mutex> g(impl_->lock_);
       for (const auto &pt : participants) {
         const auto &owned = pt.participant();
         auto rp = createRemoteParticipant(owned);
@@ -180,69 +201,69 @@ bool Room::Connect(const std::string &url, const std::string &token,
 
     // Publish all state atomically under lock
     {
-      const std::scoped_lock<std::mutex> g(lock_);
-      room_handle_ = std::move(new_room_handle);
-      room_info_ = std::move(new_room_info);
-      local_participant_ = std::move(new_local_participant);
-      remote_participants_ = std::move(new_remote_participants);
-      e2ee_manager_ = std::move(new_e2ee_manager);
-      connection_state_ = ConnectionState::Connected;
+      const std::scoped_lock<std::mutex> g(impl_->lock_);
+      impl_->room_handle_ = std::move(new_room_handle);
+      impl_->room_info_ = std::move(new_room_info);
+      impl_->local_participant_ = std::move(new_local_participant);
+      impl_->remote_participants_ = std::move(new_remote_participants);
+      impl_->e2ee_manager_ = std::move(new_e2ee_manager);
+      impl_->connection_state_ = ConnectionState::Connected;
     }
 
     // Install listener (Room is fully initialized)
     auto listenerId = FfiClient::instance().AddListener(
         [this](const proto::FfiEvent &e) { OnEvent(e); });
     {
-      const std::scoped_lock<std::mutex> g(lock_);
-      listener_id_ = listenerId;
+      const std::scoped_lock<std::mutex> g(impl_->lock_);
+      impl_->listener_id_ = listenerId;
     }
 
     return true;
   } catch (const std::exception &e) {
-    // On error, set the connection_state_ to Disconnected
-    connection_state_ = ConnectionState::Disconnected;
+    // On error, set the connection state to Disconnected.
+    impl_->connection_state_ = ConnectionState::Disconnected;
     LK_LOG_ERROR("Room::Connect failed: {}", e.what());
     return false;
   }
 }
 
 RoomInfoData Room::room_info() const {
-  const std::scoped_lock<std::mutex> g(lock_);
-  return room_info_;
+  const std::scoped_lock<std::mutex> g(impl_->lock_);
+  return impl_->room_info_;
 }
 
 LocalParticipant *Room::localParticipant() const {
-  const std::scoped_lock<std::mutex> g(lock_);
-  return local_participant_.get();
+  const std::scoped_lock<std::mutex> g(impl_->lock_);
+  return impl_->local_participant_.get();
 }
 
 RemoteParticipant *Room::remoteParticipant(const std::string &identity) const {
-  const std::scoped_lock<std::mutex> g(lock_);
-  auto it = remote_participants_.find(identity);
-  return it == remote_participants_.end() ? nullptr : it->second.get();
+  const std::scoped_lock<std::mutex> g(impl_->lock_);
+  auto it = impl_->remote_participants_.find(identity);
+  return it == impl_->remote_participants_.end() ? nullptr : it->second.get();
 }
 
 std::vector<std::shared_ptr<RemoteParticipant>>
 Room::remoteParticipants() const {
-  const std::scoped_lock<std::mutex> guard(lock_);
+  const std::scoped_lock<std::mutex> guard(impl_->lock_);
   std::vector<std::shared_ptr<RemoteParticipant>> out;
-  out.reserve(remote_participants_.size());
-  for (const auto &kv : remote_participants_) {
+  out.reserve(impl_->remote_participants_.size());
+  for (const auto &kv : impl_->remote_participants_) {
     out.push_back(kv.second);
   }
   return out;
 }
 
 E2EEManager *Room::e2eeManager() const {
-  const std::scoped_lock<std::mutex> g(lock_);
-  return e2ee_manager_.get();
+  const std::scoped_lock<std::mutex> g(impl_->lock_);
+  return impl_->e2ee_manager_.get();
 }
 
 void Room::registerTextStreamHandler(const std::string &topic,
                                      TextStreamHandler handler) {
-  const std::scoped_lock<std::mutex> g(lock_);
+  const std::scoped_lock<std::mutex> g(impl_->lock_);
   auto [it, inserted] =
-      text_stream_handlers_.emplace(topic, std::move(handler));
+      impl_->text_stream_handlers_.emplace(topic, std::move(handler));
   if (!inserted) {
     throw std::runtime_error("text stream handler for topic '" + topic +
                              "' already set");
@@ -250,15 +271,15 @@ void Room::registerTextStreamHandler(const std::string &topic,
 }
 
 void Room::unregisterTextStreamHandler(const std::string &topic) {
-  const std::scoped_lock<std::mutex> g(lock_);
-  text_stream_handlers_.erase(topic);
+  const std::scoped_lock<std::mutex> g(impl_->lock_);
+  impl_->text_stream_handlers_.erase(topic);
 }
 
 void Room::registerByteStreamHandler(const std::string &topic,
                                      ByteStreamHandler handler) {
-  const std::scoped_lock<std::mutex> g(lock_);
+  const std::scoped_lock<std::mutex> g(impl_->lock_);
   auto [it, inserted] =
-      byte_stream_handlers_.emplace(topic, std::move(handler));
+      impl_->byte_stream_handlers_.emplace(topic, std::move(handler));
   if (!inserted) {
     throw std::runtime_error("byte stream handler for topic '" + topic +
                              "' already set");
@@ -266,8 +287,8 @@ void Room::registerByteStreamHandler(const std::string &topic,
 }
 
 void Room::unregisterByteStreamHandler(const std::string &topic) {
-  const std::scoped_lock<std::mutex> g(lock_);
-  byte_stream_handlers_.erase(topic);
+  const std::scoped_lock<std::mutex> g(impl_->lock_);
+  impl_->byte_stream_handlers_.erase(topic);
 }
 
 // -------------------------------------------------------------------
@@ -278,8 +299,8 @@ void Room::setOnAudioFrameCallback(const std::string &participant_identity,
                                    TrackSource source,
                                    AudioFrameCallback callback,
                                    const AudioStream::Options &opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnAudioFrameCallback(
+  if (impl_->subscription_thread_dispatcher_) {
+    impl_->subscription_thread_dispatcher_->setOnAudioFrameCallback(
         participant_identity, source, std::move(callback), opts);
   }
 }
@@ -288,8 +309,8 @@ void Room::setOnAudioFrameCallback(const std::string &participant_identity,
                                    const std::string &track_name,
                                    AudioFrameCallback callback,
                                    const AudioStream::Options &opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnAudioFrameCallback(
+  if (impl_->subscription_thread_dispatcher_) {
+    impl_->subscription_thread_dispatcher_->setOnAudioFrameCallback(
         participant_identity, track_name, std::move(callback), opts);
   }
 }
@@ -298,8 +319,8 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    TrackSource source,
                                    VideoFrameCallback callback,
                                    const VideoStream::Options &opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnVideoFrameCallback(
+  if (impl_->subscription_thread_dispatcher_) {
+    impl_->subscription_thread_dispatcher_->setOnVideoFrameCallback(
         participant_identity, source, std::move(callback), opts);
   }
 }
@@ -308,8 +329,8 @@ void Room::setOnVideoFrameCallback(const std::string &participant_identity,
                                    const std::string &track_name,
                                    VideoFrameCallback callback,
                                    const VideoStream::Options &opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnVideoFrameCallback(
+  if (impl_->subscription_thread_dispatcher_) {
+    impl_->subscription_thread_dispatcher_->setOnVideoFrameCallback(
         participant_identity, track_name, std::move(callback), opts);
   }
 }
@@ -318,40 +339,40 @@ void Room::setOnVideoFrameEventCallback(const std::string &participant_identity,
                                         const std::string &track_name,
                                         VideoFrameEventCallback callback,
                                         const VideoStream::Options &opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnVideoFrameEventCallback(
+  if (impl_->subscription_thread_dispatcher_) {
+    impl_->subscription_thread_dispatcher_->setOnVideoFrameEventCallback(
         participant_identity, track_name, std::move(callback), opts);
   }
 }
 
 void Room::clearOnAudioFrameCallback(const std::string &participant_identity,
                                      TrackSource source) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->clearOnAudioFrameCallback(
+  if (impl_->subscription_thread_dispatcher_) {
+    impl_->subscription_thread_dispatcher_->clearOnAudioFrameCallback(
         participant_identity, source);
   }
 }
 
 void Room::clearOnAudioFrameCallback(const std::string &participant_identity,
                                      const std::string &track_name) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->clearOnAudioFrameCallback(
+  if (impl_->subscription_thread_dispatcher_) {
+    impl_->subscription_thread_dispatcher_->clearOnAudioFrameCallback(
         participant_identity, track_name);
   }
 }
 
 void Room::clearOnVideoFrameCallback(const std::string &participant_identity,
                                      TrackSource source) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->clearOnVideoFrameCallback(
+  if (impl_->subscription_thread_dispatcher_) {
+    impl_->subscription_thread_dispatcher_->clearOnVideoFrameCallback(
         participant_identity, source);
   }
 }
 
 void Room::clearOnVideoFrameCallback(const std::string &participant_identity,
                                      const std::string &track_name) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->clearOnVideoFrameCallback(
+  if (impl_->subscription_thread_dispatcher_) {
+    impl_->subscription_thread_dispatcher_->clearOnVideoFrameCallback(
         participant_identity, track_name);
   }
 }
@@ -360,16 +381,16 @@ DataFrameCallbackId
 Room::addOnDataFrameCallback(const std::string &participant_identity,
                              const std::string &track_name,
                              DataFrameCallback callback) {
-  if (subscription_thread_dispatcher_) {
-    return subscription_thread_dispatcher_->addOnDataFrameCallback(
+  if (impl_->subscription_thread_dispatcher_) {
+    return impl_->subscription_thread_dispatcher_->addOnDataFrameCallback(
         participant_identity, track_name, std::move(callback));
   }
   return std::numeric_limits<DataFrameCallbackId>::max();
 }
 
 void Room::removeOnDataFrameCallback(DataFrameCallbackId id) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->removeOnDataFrameCallback(id);
+  if (impl_->subscription_thread_dispatcher_) {
+    impl_->subscription_thread_dispatcher_->removeOnDataFrameCallback(id);
   }
 }
 
@@ -378,8 +399,8 @@ void Room::OnEvent(const FfiEvent &event) {
   // lock.
   RoomDelegate *delegate_snapshot = nullptr;
   {
-    const std::scoped_lock<std::mutex> guard(lock_);
-    delegate_snapshot = delegate_;
+    const std::scoped_lock<std::mutex> guard(impl_->lock_);
+    delegate_snapshot = impl_->delegate_;
   }
 
   // First, handle RPC method invocations (not part of RoomEvent).
@@ -388,18 +409,18 @@ void Room::OnEvent(const FfiEvent &event) {
 
     LocalParticipant *lp = nullptr;
     {
-      const std::scoped_lock<std::mutex> guard(lock_);
-      if (!local_participant_) {
+      const std::scoped_lock<std::mutex> guard(impl_->lock_);
+      if (!impl_->local_participant_) {
         return;
       }
-      auto local_handle = local_participant_->ffiHandleId();
+      auto local_handle = impl_->local_participant_->ffiHandleId();
       if (local_handle == INVALID_HANDLE ||
           rpc.local_participant_handle() !=
               static_cast<std::uint64_t>(local_handle)) {
         // RPC is not targeted at this room's local participant; ignore.
         return;
       }
-      lp = local_participant_.get();
+      lp = impl_->local_participant_.get();
     }
 
     // Call outside the lock to avoid deadlocks / re-entrancy issues.
@@ -417,9 +438,10 @@ void Room::OnEvent(const FfiEvent &event) {
 
     // Check if this event is for our room handle
     {
-      const std::scoped_lock<std::mutex> guard(lock_);
-      if (!room_handle_ ||
-          re.room_handle() != static_cast<std::uint64_t>(room_handle_->get())) {
+      const std::scoped_lock<std::mutex> guard(impl_->lock_);
+      if (!impl_->room_handle_ ||
+          re.room_handle() !=
+              static_cast<std::uint64_t>(impl_->room_handle_->get())) {
         return;
       }
     }
@@ -428,12 +450,12 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantConnected: {
       std::shared_ptr<RemoteParticipant> new_participant;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &owned = re.participant_connected().info();
         // createRemoteParticipant takes proto::OwnedParticipant
         new_participant = createRemoteParticipant(owned);
-        remote_participants_.emplace(new_participant->identity(),
-                                     new_participant);
+        impl_->remote_participants_.emplace(new_participant->identity(),
+                                            new_participant);
       }
       ParticipantConnectedEvent ev;
       ev.participant = new_participant.get();
@@ -446,15 +468,15 @@ void Room::OnEvent(const FfiEvent &event) {
       std::shared_ptr<RemoteParticipant> removed;
       DisconnectReason reason = DisconnectReason::Unknown;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &pd = re.participant_disconnected();
         const std::string &identity = pd.participant_identity();
         reason = toDisconnectReason(pd.disconnect_reason());
 
-        auto it = remote_participants_.find(identity);
-        if (it != remote_participants_.end()) {
+        auto it = impl_->remote_participants_.find(identity);
+        if (it != impl_->remote_participants_.end()) {
           removed = it->second;
-          remote_participants_.erase(it);
+          impl_->remote_participants_.erase(it);
         } else {
           // We saw a disconnect event for a participant we don't track
           // internally. This can happen on races or if we never created a
@@ -476,14 +498,14 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kLocalTrackPublished: {
       LocalTrackPublishedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
-        if (!local_participant_) {
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
+        if (!impl_->local_participant_) {
           LK_LOG_ERROR("kLocalTrackPublished: local_participant_ is nullptr");
           break;
         }
         const auto &ltp = re.local_track_published();
         const std::string &sid = ltp.track_sid();
-        const auto pubs = local_participant_->trackPublications();
+        const auto pubs = impl_->local_participant_->trackPublications();
         auto it = pubs.find(sid);
         if (it == pubs.end()) {
           LK_LOG_WARN("local_track_published for unknown sid: {}", sid);
@@ -500,14 +522,14 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kLocalTrackUnpublished: {
       LocalTrackUnpublishedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
-        if (!local_participant_) {
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
+        if (!impl_->local_participant_) {
           LK_LOG_ERROR("kLocalTrackUnpublished: local_participant_ is nullptr");
           break;
         }
         const auto &ltu = re.local_track_unpublished();
         const std::string &pub_sid = ltu.publication_sid();
-        const auto pubs = local_participant_->trackPublications();
+        const auto pubs = impl_->local_participant_->trackPublications();
         auto it = pubs.find(pub_sid);
         if (it == pubs.end()) {
           LK_LOG_WARN("local_track_unpublished for unknown publication sid: {}",
@@ -524,13 +546,13 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kLocalTrackSubscribed: {
       LocalTrackSubscribedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
-        if (!local_participant_) {
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
+        if (!impl_->local_participant_) {
           break;
         }
         const auto &lts = re.local_track_subscribed();
         const std::string &sid = lts.track_sid();
-        const auto pubs = local_participant_->trackPublications();
+        const auto pubs = impl_->local_participant_->trackPublications();
         auto it = pubs.find(sid);
         if (it == pubs.end()) {
           LK_LOG_WARN("local_track_subscribed for unknown sid: {}", sid);
@@ -548,11 +570,11 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kTrackPublished: {
       TrackPublishedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &tp = re.track_published();
         const std::string &identity = tp.participant_identity();
-        auto it = remote_participants_.find(identity);
-        if (it != remote_participants_.end()) {
+        auto it = impl_->remote_participants_.find(identity);
+        if (it != impl_->remote_participants_.end()) {
           RemoteParticipant *rparticipant = it->second.get();
           const auto &owned_publication = tp.publication();
           auto rpublication =
@@ -577,12 +599,12 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kTrackUnpublished: {
       TrackUnpublishedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &tu = re.track_unpublished();
         const std::string &identity = tu.participant_identity();
         const std::string &pub_sid = tu.publication_sid();
-        auto pit = remote_participants_.find(identity);
-        if (pit == remote_participants_.end()) {
+        auto pit = impl_->remote_participants_.find(identity);
+        if (pit == impl_->remote_participants_.end()) {
           LK_LOG_WARN("track_unpublished for unknown participant: {}",
                       identity);
           break;
@@ -615,10 +637,10 @@ void Room::OnEvent(const FfiEvent &event) {
       RemoteParticipant *rparticipant = nullptr;
       std::shared_ptr<Track> remote_track;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         // Find participant
-        auto pit = remote_participants_.find(identity);
-        if (pit == remote_participants_.end()) {
+        auto pit = impl_->remote_participants_.find(identity);
+        if (pit == impl_->remote_participants_.end()) {
           LK_LOG_WARN("track_subscribed for unknown participant: {}", identity);
           break;
         }
@@ -658,8 +680,9 @@ void Room::OnEvent(const FfiEvent &event) {
         delegate_snapshot->onTrackSubscribed(*this, ev);
       }
 
-      if (subscription_thread_dispatcher_ && remote_track && rpublication) {
-        subscription_thread_dispatcher_->handleTrackSubscribed(
+      if (impl_->subscription_thread_dispatcher_ && remote_track &&
+          rpublication) {
+        impl_->subscription_thread_dispatcher_->handleTrackSubscribed(
             identity, rpublication->source(), rpublication->name(),
             remote_track);
       }
@@ -670,12 +693,12 @@ void Room::OnEvent(const FfiEvent &event) {
       TrackSource unsub_source = TrackSource::SOURCE_UNKNOWN;
       std::string unsub_identity;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &tu = re.track_unsubscribed();
         unsub_identity = tu.participant_identity();
         const std::string &track_sid = tu.track_sid();
-        auto pit = remote_participants_.find(unsub_identity);
-        if (pit == remote_participants_.end()) {
+        auto pit = impl_->remote_participants_.find(unsub_identity);
+        if (pit == impl_->remote_participants_.end()) {
           LK_LOG_WARN("track_unsubscribed for unknown participant: {}",
                       unsub_identity);
           break;
@@ -703,9 +726,9 @@ void Room::OnEvent(const FfiEvent &event) {
         delegate_snapshot->onTrackUnsubscribed(*this, ev);
       }
 
-      if (subscription_thread_dispatcher_ &&
+      if (impl_->subscription_thread_dispatcher_ &&
           unsub_source != TrackSource::SOURCE_UNKNOWN) {
-        subscription_thread_dispatcher_->handleTrackUnsubscribed(
+        impl_->subscription_thread_dispatcher_->handleTrackUnsubscribed(
             unsub_identity, unsub_source,
             ev.publication ? ev.publication->name() : "");
       }
@@ -714,11 +737,11 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kTrackSubscriptionFailed: {
       TrackSubscriptionFailedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &tsf = re.track_subscription_failed();
         const std::string &identity = tsf.participant_identity();
-        auto pit = remote_participants_.find(identity);
-        if (pit == remote_participants_.end()) {
+        auto pit = impl_->remote_participants_.find(identity);
+        if (pit == impl_->remote_participants_.end()) {
           LK_LOG_WARN("track_subscription_failed for unknown participant: {}",
                       identity);
           break;
@@ -737,8 +760,9 @@ void Room::OnEvent(const FfiEvent &event) {
       auto remote_track =
           std::shared_ptr<RemoteDataTrack>(new RemoteDataTrack(rdtp.track()));
 
-      if (subscription_thread_dispatcher_) {
-        subscription_thread_dispatcher_->handleDataTrackPublished(remote_track);
+      if (impl_->subscription_thread_dispatcher_) {
+        impl_->subscription_thread_dispatcher_->handleDataTrackPublished(
+            remote_track);
       }
 
       DataTrackPublishedEvent ev;
@@ -751,8 +775,9 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kDataTrackUnpublished: {
       const auto &dtu = re.data_track_unpublished();
 
-      if (subscription_thread_dispatcher_) {
-        subscription_thread_dispatcher_->handleDataTrackUnpublished(dtu.sid());
+      if (impl_->subscription_thread_dispatcher_) {
+        impl_->subscription_thread_dispatcher_->handleDataTrackUnpublished(
+            dtu.sid());
       }
 
       DataTrackUnpublishedEvent ev;
@@ -766,16 +791,17 @@ void Room::OnEvent(const FfiEvent &event) {
       TrackMutedEvent ev;
       bool success = false;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &tm = re.track_muted();
         const std::string &identity = tm.participant_identity();
         const std::string &sid = tm.track_sid();
         Participant *participant = nullptr;
-        if (local_participant_ && local_participant_->identity() == identity) {
-          participant = local_participant_.get();
+        if (impl_->local_participant_ &&
+            impl_->local_participant_->identity() == identity) {
+          participant = impl_->local_participant_.get();
         } else {
-          auto pit = remote_participants_.find(identity);
-          if (pit != remote_participants_.end()) {
+          auto pit = impl_->remote_participants_.find(identity);
+          if (pit != impl_->remote_participants_.end()) {
             participant = pit->second.get();
           }
         }
@@ -805,16 +831,17 @@ void Room::OnEvent(const FfiEvent &event) {
       TrackUnmutedEvent ev;
       bool success = false;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &tu = re.track_unmuted();
         const std::string &identity = tu.participant_identity();
         const std::string &sid = tu.track_sid();
         Participant *participant = nullptr;
-        if (local_participant_ && local_participant_->identity() == identity) {
-          participant = local_participant_.get();
+        if (impl_->local_participant_ &&
+            impl_->local_participant_->identity() == identity) {
+          participant = impl_->local_participant_.get();
         } else {
-          auto pit = remote_participants_.find(identity);
-          if (pit != remote_participants_.end()) {
+          auto pit = impl_->remote_participants_.find(identity);
+          if (pit != impl_->remote_participants_.end()) {
             participant = pit->second.get();
           }
         }
@@ -848,18 +875,18 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kActiveSpeakersChanged: {
       ActiveSpeakersChangedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &asc = re.active_speakers_changed();
         for (const auto &identity : asc.participant_identities()) {
           // Appears to be clang-tidy false positive
           // NOLINTNEXTLINE(misc-const-correctness)
           Participant *participant = nullptr;
-          if (local_participant_ &&
-              local_participant_->identity() == identity) {
-            participant = local_participant_.get();
+          if (impl_->local_participant_ &&
+              impl_->local_participant_->identity() == identity) {
+            participant = impl_->local_participant_.get();
           } else {
-            auto pit = remote_participants_.find(identity);
-            if (pit != remote_participants_.end()) {
+            auto pit = impl_->remote_participants_.find(identity);
+            if (pit != impl_->remote_participants_.end()) {
               participant = pit->second.get();
             }
           }
@@ -876,11 +903,11 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kRoomMetadataChanged: {
       RoomMetadataChangedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
-        const auto old_metadata = room_info_.metadata;
-        room_info_.metadata = re.room_metadata_changed().metadata();
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
+        const auto old_metadata = impl_->room_info_.metadata;
+        impl_->room_info_.metadata = re.room_metadata_changed().metadata();
         ev.old_metadata = old_metadata;
-        ev.new_metadata = room_info_.metadata;
+        ev.new_metadata = impl_->room_info_.metadata;
       }
       if (delegate_snapshot) {
         delegate_snapshot->onRoomMetadataChanged(*this, ev);
@@ -890,9 +917,9 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kRoomSidChanged: {
       RoomSidChangedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
-        room_info_.sid = re.room_sid_changed().sid();
-        ev.sid = room_info_.sid.value_or(std::string{});
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
+        impl_->room_info_.sid = re.room_sid_changed().sid();
+        ev.sid = impl_->room_info_.sid.value_or(std::string{});
       }
       if (delegate_snapshot) {
         delegate_snapshot->onRoomSidChanged(*this, ev);
@@ -902,15 +929,16 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantMetadataChanged: {
       ParticipantMetadataChangedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &pm = re.participant_metadata_changed();
         const std::string &identity = pm.participant_identity();
         Participant *participant = nullptr;
-        if (local_participant_ && local_participant_->identity() == identity) {
-          participant = local_participant_.get();
+        if (impl_->local_participant_ &&
+            impl_->local_participant_->identity() == identity) {
+          participant = impl_->local_participant_.get();
         } else {
-          auto it = remote_participants_.find(identity);
-          if (it != remote_participants_.end()) {
+          auto it = impl_->remote_participants_.find(identity);
+          if (it != impl_->remote_participants_.end()) {
             participant = it->second.get();
           }
         }
@@ -935,15 +963,16 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantNameChanged: {
       ParticipantNameChangedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &pn = re.participant_name_changed();
         const std::string &identity = pn.participant_identity();
         Participant *participant = nullptr;
-        if (local_participant_ && local_participant_->identity() == identity) {
-          participant = local_participant_.get();
+        if (impl_->local_participant_ &&
+            impl_->local_participant_->identity() == identity) {
+          participant = impl_->local_participant_.get();
         } else {
-          auto it = remote_participants_.find(identity);
-          if (it != remote_participants_.end()) {
+          auto it = impl_->remote_participants_.find(identity);
+          if (it != impl_->remote_participants_.end()) {
             participant = it->second.get();
           }
         }
@@ -966,15 +995,16 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantAttributesChanged: {
       ParticipantAttributesChangedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &pa = re.participant_attributes_changed();
         const std::string &identity = pa.participant_identity();
         Participant *participant = nullptr;
-        if (local_participant_ && local_participant_->identity() == identity) {
-          participant = local_participant_.get();
+        if (impl_->local_participant_ &&
+            impl_->local_participant_->identity() == identity) {
+          participant = impl_->local_participant_.get();
         } else {
-          auto it = remote_participants_.find(identity);
-          if (it != remote_participants_.end()) {
+          auto it = impl_->remote_participants_.find(identity);
+          if (it != impl_->remote_participants_.end()) {
             participant = it->second.get();
           }
         }
@@ -1005,15 +1035,16 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantEncryptionStatusChanged: {
       ParticipantEncryptionStatusChangedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &pe = re.participant_encryption_status_changed();
         const std::string &identity = pe.participant_identity();
         Participant *participant = nullptr;
-        if (local_participant_ && local_participant_->identity() == identity) {
-          participant = local_participant_.get();
+        if (impl_->local_participant_ &&
+            impl_->local_participant_->identity() == identity) {
+          participant = impl_->local_participant_.get();
         } else {
-          auto it = remote_participants_.find(identity);
-          if (it != remote_participants_.end()) {
+          auto it = impl_->remote_participants_.find(identity);
+          if (it != impl_->remote_participants_.end()) {
             participant = it->second.get();
           }
         }
@@ -1035,15 +1066,16 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kConnectionQualityChanged: {
       ConnectionQualityChangedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &cq = re.connection_quality_changed();
         const std::string &identity = cq.participant_identity();
         Participant *participant = nullptr;
-        if (local_participant_ && local_participant_->identity() == identity) {
-          participant = local_participant_.get();
+        if (impl_->local_participant_ &&
+            impl_->local_participant_->identity() == identity) {
+          participant = impl_->local_participant_.get();
         } else {
-          auto it = remote_participants_.find(identity);
-          if (it != remote_participants_.end()) {
+          auto it = impl_->remote_participants_.find(identity);
+          if (it != impl_->remote_participants_.end()) {
             participant = it->second.get();
           }
         }
@@ -1069,9 +1101,9 @@ void Room::OnEvent(const FfiEvent &event) {
       const auto &dp = re.data_packet_received();
       RemoteParticipant *rp = nullptr;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
-        auto it = remote_participants_.find(dp.participant_identity());
-        if (it != remote_participants_.end()) {
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
+        auto it = impl_->remote_participants_.find(dp.participant_identity());
+        if (it != impl_->remote_participants_.end()) {
           rp = it->second.get();
         }
       }
@@ -1094,15 +1126,16 @@ void Room::OnEvent(const FfiEvent &event) {
       E2eeStateChangedEvent ev;
       {
         LK_LOG_DEBUG("e2ee_state_changed for participant");
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &es = re.e2ee_state_changed();
         const std::string &identity = es.participant_identity();
         Participant *participant = nullptr;
-        if (local_participant_ && local_participant_->identity() == identity) {
-          participant = local_participant_.get();
+        if (impl_->local_participant_ &&
+            impl_->local_participant_->identity() == identity) {
+          participant = impl_->local_participant_.get();
         } else {
-          auto it = remote_participants_.find(identity);
-          if (it != remote_participants_.end()) {
+          auto it = impl_->remote_participants_.find(identity);
+          if (it != impl_->remote_participants_.end()) {
             participant = it->second.get();
           }
         }
@@ -1128,14 +1161,14 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kConnectionStateChanged: {
       ConnectionStateChangedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &cs = re.connection_state_changed();
         // TODO, maybe we should update our |connection_state_|
         // correspoindingly, but the this kConnectionStateChanged event is never
         // triggered in my local test.
         LK_LOG_DEBUG("cs.state() is {} connection_state_ is {}",
                      static_cast<int>(cs.state()),
-                     static_cast<int>(connection_state_));
+                     static_cast<int>(impl_->connection_state_));
         ev.state = static_cast<ConnectionState>(cs.state());
       }
       if (delegate_snapshot) {
@@ -1166,8 +1199,8 @@ void Room::OnEvent(const FfiEvent &event) {
       break;
     }
     case proto::RoomEvent::kEos: {
-      if (subscription_thread_dispatcher_) {
-        subscription_thread_dispatcher_->stopAll();
+      if (impl_->subscription_thread_dispatcher_) {
+        impl_->subscription_thread_dispatcher_->stopAll();
       }
 
       int listener_to_remove = 0;
@@ -1185,20 +1218,20 @@ void Room::OnEvent(const FfiEvent &event) {
           old_byte_readers;
 
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
-        listener_to_remove = listener_id_;
-        listener_id_ = 0;
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
+        listener_to_remove = impl_->listener_id_;
+        impl_->listener_id_ = 0;
 
         // Reset connection state
-        connection_state_ = ConnectionState::Disconnected;
+        impl_->connection_state_ = ConnectionState::Disconnected;
 
         // Move state out for cleanup outside lock
-        old_local_participant = std::move(local_participant_);
-        old_remote_participants = std::move(remote_participants_);
-        old_room_handle = std::move(room_handle_);
-        old_e2ee_manager = std::move(e2ee_manager_);
-        old_text_readers = std::move(text_stream_readers_);
-        old_byte_readers = std::move(byte_stream_readers_);
+        old_local_participant = std::move(impl_->local_participant_);
+        old_remote_participants = std::move(impl_->remote_participants_);
+        old_room_handle = std::move(impl_->room_handle_);
+        old_e2ee_manager = std::move(impl_->e2ee_manager_);
+        old_text_readers = std::move(impl_->text_stream_readers_);
+        old_byte_readers = std::move(impl_->byte_stream_readers_);
       }
 
       // Remove listener outside lock
@@ -1230,14 +1263,14 @@ void Room::OnEvent(const FfiEvent &event) {
       std::shared_ptr<TextStreamReader> text_reader;
       std::shared_ptr<ByteStreamReader> byte_reader;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
 
         // Determine stream type from oneof in protobuf
         // Adjust these names if your generated C++ uses different ones
         const auto stream_type = header.content_header_case();
         if (stream_type == proto::DataStream::Header::kTextHeader) {
-          auto it = text_stream_handlers_.find(header.topic());
-          if (it == text_stream_handlers_.end()) {
+          auto it = impl_->text_stream_handlers_.find(header.topic());
+          if (it == impl_->text_stream_handlers_.end()) {
             // Ignore if no callback attached
             break;
           }
@@ -1245,17 +1278,17 @@ void Room::OnEvent(const FfiEvent &event) {
 
           const TextStreamInfo info = makeTextInfo(header);
           text_reader = std::make_shared<TextStreamReader>(info);
-          text_stream_readers_[header.stream_id()] = text_reader;
+          impl_->text_stream_readers_[header.stream_id()] = text_reader;
 
         } else if (stream_type == proto::DataStream::Header::kByteHeader) {
-          auto it = byte_stream_handlers_.find(header.topic());
-          if (it == byte_stream_handlers_.end()) {
+          auto it = impl_->byte_stream_handlers_.find(header.topic());
+          if (it == impl_->byte_stream_handlers_.end()) {
             break;
           }
           byte_cb = it->second;
           const ByteStreamInfo info = makeByteInfo(header);
           byte_reader = std::make_shared<ByteStreamReader>(info);
-          byte_stream_readers_[header.stream_id()] = byte_reader;
+          impl_->byte_stream_readers_[header.stream_id()] = byte_reader;
 
         } else {
           // unknown header type: ignore
@@ -1277,13 +1310,13 @@ void Room::OnEvent(const FfiEvent &event) {
       std::shared_ptr<TextStreamReader> text_reader;
       std::shared_ptr<ByteStreamReader> byte_reader;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
-        auto itT = text_stream_readers_.find(chunk.stream_id());
-        if (itT != text_stream_readers_.end()) {
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
+        auto itT = impl_->text_stream_readers_.find(chunk.stream_id());
+        if (itT != impl_->text_stream_readers_.end()) {
           text_reader = itT->second;
         } else {
-          auto itB = byte_stream_readers_.find(chunk.stream_id());
-          if (itB != byte_stream_readers_.end()) {
+          auto itB = impl_->byte_stream_readers_.find(chunk.stream_id());
+          if (itB != impl_->byte_stream_readers_.end()) {
             byte_reader = itB->second;
           }
         }
@@ -1309,16 +1342,16 @@ void Room::OnEvent(const FfiEvent &event) {
         trailer_attrs.emplace(kv.first, kv.second);
       }
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
-        auto itT = text_stream_readers_.find(trailer.stream_id());
-        if (itT != text_stream_readers_.end()) {
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
+        auto itT = impl_->text_stream_readers_.find(trailer.stream_id());
+        if (itT != impl_->text_stream_readers_.end()) {
           text_reader = itT->second;
-          text_stream_readers_.erase(itT);
+          impl_->text_stream_readers_.erase(itT);
         } else {
-          auto itB = byte_stream_readers_.find(trailer.stream_id());
-          if (itB != byte_stream_readers_.end()) {
+          auto itB = impl_->byte_stream_readers_.find(trailer.stream_id());
+          if (itB != impl_->byte_stream_readers_.end()) {
             byte_reader = itB->second;
-            byte_stream_readers_.erase(itB);
+            impl_->byte_stream_readers_.erase(itB);
           }
         }
       }
@@ -1368,18 +1401,18 @@ void Room::OnEvent(const FfiEvent &event) {
     case proto::RoomEvent::kParticipantsUpdated: {
       ParticipantsUpdatedEvent ev;
       {
-        const std::scoped_lock<std::mutex> guard(lock_);
+        const std::scoped_lock<std::mutex> guard(impl_->lock_);
         const auto &pu = re.participants_updated();
         for (const auto &info : pu.participants()) {
           const std::string &identity = info.identity();
           Participant *participant = nullptr;
 
-          if (local_participant_ &&
-              identity == local_participant_->identity()) {
-            participant = local_participant_.get();
+          if (impl_->local_participant_ &&
+              identity == impl_->local_participant_->identity()) {
+            participant = impl_->local_participant_.get();
           } else {
-            auto it = remote_participants_.find(identity);
-            if (it != remote_participants_.end()) {
+            auto it = impl_->remote_participants_.find(identity);
+            if (it != impl_->remote_participants_.end()) {
               participant = it->second.get();
             }
           }

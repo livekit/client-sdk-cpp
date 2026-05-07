@@ -16,20 +16,16 @@
 
 #pragma once
 
-#include <condition_variable>
-#include <cstdint>
-#include <deque>
+#include <cstddef>
 #include <memory>
-#include <mutex>
-#include <optional>
 #include <string>
 
 #include "audio_frame.h"
-#include "ffi_handle.h"
-#include "participant.h"
 #include "track.h"
 
 namespace livekit {
+
+class Participant;
 
 namespace proto {
 class FfiEvent;
@@ -119,34 +115,15 @@ public:
   void close();
 
 private:
-  AudioStream() = default;
+  AudioStream();
 
   void initFromTrack(const std::shared_ptr<Track> &track,
                      const Options &options);
   void initFromParticipant(Participant &participant, TrackSource track_source,
                            const Options &options);
 
-  // FFI event handler (registered with FfiClient)
-  void onFfiEvent(const proto::FfiEvent &event);
-
-  // Queue helpers
-  void pushFrame(AudioFrameEvent &&ev);
-  void pushEos();
-
-  mutable std::mutex mutex_;
-  std::condition_variable cv_;
-  std::deque<AudioFrameEvent> queue_;
-  std::size_t capacity_{0};
-  bool eof_{false};
-  bool closed_{false};
-
-  Options options_;
-
-  // Underlying FFI audio stream handle
-  FfiHandle stream_handle_;
-
-  // Listener id registered on FfiClient
-  std::int32_t listener_id_{0};
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 } // namespace livekit

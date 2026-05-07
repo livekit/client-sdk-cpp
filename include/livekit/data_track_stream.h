@@ -19,11 +19,8 @@
 #include "livekit/data_track_frame.h"
 #include "livekit/ffi_handle.h"
 
-#include <condition_variable>
 #include <cstdint>
-#include <deque>
 #include <memory>
-#include <mutex>
 #include <optional>
 
 namespace livekit {
@@ -90,43 +87,12 @@ public:
 private:
   friend class RemoteDataTrack;
 
-  DataTrackStream() = default;
+  DataTrackStream();
   /// Internal init helper, called by RemoteDataTrack.
   void init(FfiHandle subscription_handle);
 
-  /// FFI event handler, called by FfiClient.
-  void onFfiEvent(const proto::FfiEvent &event);
-
-  /// Push a received DataTrackFrame to the internal storage.
-  void pushFrame(DataTrackFrame &&frame);
-
-  /// Push an end-of-stream signal (EOS).
-  void pushEos();
-
-  /** Protects all mutable state below. */
-  mutable std::mutex mutex_;
-
-  /** Signalled when a frame is pushed or the subscription ends. */
-  std::condition_variable cv_;
-
-  /**
-   * Received frame awaiting read().
-   * NOTE: the Rust side handles buffering, so we should only really ever have
-   * one item.
-   */
-  std::optional<DataTrackFrame> frame_;
-
-  /** True once the remote side signals end-of-stream. */
-  bool eof_{false};
-
-  /** True after close() has been called by the consumer. */
-  bool closed_{false};
-
-  /** RAII handle for the Rust-owned subscription resource. */
-  FfiHandle subscription_handle_;
-
-  /** FfiClient listener id for routing FfiEvent callbacks to this object. */
-  std::int32_t listener_id_{0};
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
 };
 
 } // namespace livekit
