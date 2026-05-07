@@ -528,8 +528,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          # No submodules: scripts/clang-format.sh only walks our own src/
-          # tree (the client-sdk-rust submodule has its own .clang-format).
+          # No submodules: scripts/clang-format.sh only walks our own src/ tree
           fetch-depth: 1
 
       - name: Install clang-format 19
@@ -555,11 +554,6 @@ jobs:
       - name: Run clang-format
         env:
           FORMAT_BLOB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        # This script is intended to be run locally and in CI. It will
-        # auto-detect the GHA environment and emit PR file annotations
-        # plus a markdown step summary when GITHUB_ACTIONS=true. Default
-        # mode is check-only (--dry-run --Werror), which exits non-zero
-        # on any divergence from the repo-root .clang-format.
         run: ./scripts/clang-format.sh
 
   clang-tidy:
