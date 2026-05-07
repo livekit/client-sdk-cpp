@@ -50,6 +50,7 @@ constexpr auto kPublishManyTimeout = 5s;
 constexpr std::size_t kLargeFramePayloadBytes = 196608;
 constexpr char kE2EESharedSecret[] = "password";
 constexpr int kE2EEFrameCount = 5;
+constexpr int kTimestampFrameAttempts = 200;
 
 std::string makeTrackName(const std::string &suffix) {
   return std::string(kTrackNamePrefix) + "_" + suffix + "_" +
@@ -624,8 +625,19 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
     }
   });
 
-  const auto push_result =
-      local_track->tryPush(std::vector<std::uint8_t>(64, 0xFA), sent_timestamp);
+  // Push the same `sent_timestamp` repeatedly so that the test isn't sensitive
+  // to a single push being lost while the subscribe pipe is still warming up.
+  // Mirrors the livekit/e2e TS suite, which sends the same `userTimestamp` on
+  // every frame and asserts every received frame carries that value.
+  bool pushed = false;
+  for (int attempt = 0; attempt < kTimestampFrameAttempts; ++attempt) {
+    auto push_result = local_track->tryPush(
+        std::vector<std::uint8_t>(64, 0xFA), sent_timestamp);
+    pushed = static_cast<bool>(push_result) || pushed;
+    if (frame_future.wait_for(25ms) == std::future_status::ready) {
+      break;
+    }
+  }
   const auto frame_status = frame_future.wait_for(5s);
 
   if (frame_status != std::future_status::ready) {
@@ -636,10 +648,7 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
   reader.join();
   local_track->unpublishDataTrack();
 
-  if (!push_result) {
-    FAIL() << "Failed to push timestamped data frame: "
-           << describeDataTrackError(push_result.error());
-  }
+  ASSERT_TRUE(pushed) << "Failed to push timestamped data frame";
   ASSERT_EQ(frame_status, std::future_status::ready)
       << "Timed out waiting for timestamped frame";
 
@@ -801,7 +810,7 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampOnEncryptedDataTrack) {
   });
 
   bool pushed = false;
-  for (int attempt = 0; attempt < 200; ++attempt) {
+  for (int attempt = 0; attempt < kTimestampFrameAttempts; ++attempt) {
     auto payload_copy = payload;
     auto push_result =
         local_track->tryPush(std::move(payload_copy), sent_timestamp);
