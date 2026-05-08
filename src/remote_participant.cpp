@@ -24,31 +24,25 @@
 
 namespace livekit {
 
-RemoteParticipant::RemoteParticipant(
-    FfiHandle handle, std::string sid, std::string name, std::string identity,
-    std::string metadata,
-    std::unordered_map<std::string, std::string> attributes,
-    ParticipantKind kind, DisconnectReason reason)
-    : Participant(std::move(handle), std::move(sid), std::move(name),
-                  std::move(identity), std::move(metadata),
+RemoteParticipant::RemoteParticipant(FfiHandle handle, std::string sid, std::string name, std::string identity,
+                                     std::string metadata, std::unordered_map<std::string, std::string> attributes,
+                                     ParticipantKind kind, DisconnectReason reason)
+    : Participant(std::move(handle), std::move(sid), std::move(name), std::move(identity), std::move(metadata),
                   std::move(attributes), kind, reason),
       track_publications_() {}
 
 std::string RemoteParticipant::to_string() const {
   std::ostringstream oss;
-  oss << "rtc.RemoteParticipant(sid=" << sid() << ", identity=" << identity()
-      << ", name=" << name() << ")";
+  oss << "rtc.RemoteParticipant(sid=" << sid() << ", identity=" << identity() << ", name=" << name() << ")";
   return oss.str();
 }
 
-std::ostream &operator<<(std::ostream &os,
-                         const RemoteParticipant &participant) {
+std::ostream& operator<<(std::ostream& os, const RemoteParticipant& participant) {
   os << participant.to_string();
   return os;
 }
 
-std::shared_ptr<TrackPublication>
-RemoteParticipant::findTrackPublication(const std::string &sid) const {
+std::shared_ptr<TrackPublication> RemoteParticipant::findTrackPublication(const std::string& sid) const {
   auto it = track_publications_.find(sid);
   if (it == track_publications_.end()) {
     return nullptr;

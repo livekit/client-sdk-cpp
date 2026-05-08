@@ -16,15 +16,15 @@
 
 #pragma once
 
-#include "livekit/data_track_frame.h"
-#include "livekit/ffi_handle.h"
-
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <memory>
 #include <mutex>
 #include <optional>
+
+#include "livekit/data_track_frame.h"
+#include "livekit/ffi_handle.h"
 
 namespace livekit {
 
@@ -61,14 +61,14 @@ public:
 
   virtual ~DataTrackStream();
 
-  DataTrackStream(const DataTrackStream &) = delete;
-  DataTrackStream &operator=(const DataTrackStream &) = delete;
+  DataTrackStream(const DataTrackStream&) = delete;
+  DataTrackStream& operator=(const DataTrackStream&) = delete;
   // The FFI listener captures `this`, so moving the object would leave the
   // registered callback pointing at the old address.
-  DataTrackStream(DataTrackStream &&) noexcept = delete;
+  DataTrackStream(DataTrackStream&&) noexcept = delete;
   // Instances are created and returned as std::shared_ptr, so value-move
   // support is not required by the current API.
-  DataTrackStream &operator=(DataTrackStream &&) noexcept = delete;
+  DataTrackStream& operator=(DataTrackStream&&) noexcept = delete;
 
   /**
    * Blocking read: waits until a DataTrackFrame is available, or the
@@ -77,7 +77,7 @@ public:
    * @param out  On success, filled with the next data frame.
    * @return true if a frame was delivered; false if the stream ended.
    */
-  bool read(DataTrackFrame &out);
+  bool read(DataTrackFrame& out);
 
   /**
    * End the stream early.
@@ -95,10 +95,10 @@ private:
   void init(FfiHandle subscription_handle);
 
   /// FFI event handler, called by FfiClient.
-  void onFfiEvent(const proto::FfiEvent &event);
+  void onFfiEvent(const proto::FfiEvent& event);
 
   /// Push a received DataTrackFrame to the internal storage.
-  void pushFrame(DataTrackFrame &&frame);
+  void pushFrame(DataTrackFrame&& frame);
 
   /// Push an end-of-stream signal (EOS).
   void pushEos();

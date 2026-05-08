@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
+#include <gtest/gtest.h>
+
 #include "room_proto_converter.h"
 #include "video_utils.h"
-
-#include <gtest/gtest.h>
 
 namespace livekit::test {
 
@@ -86,10 +86,8 @@ TEST(TrackPublishOptionsTest, PacketTrailerFeaturesRoundTrip) {
 
   proto::TrackPublishOptions proto_options = toProto(options);
   ASSERT_EQ(proto_options.packet_trailer_features_size(), 2);
-  EXPECT_EQ(proto_options.packet_trailer_features(0),
-            proto::PacketTrailerFeature::PTF_USER_TIMESTAMP);
-  EXPECT_EQ(proto_options.packet_trailer_features(1),
-            proto::PacketTrailerFeature::PTF_FRAME_ID);
+  EXPECT_EQ(proto_options.packet_trailer_features(0), proto::PacketTrailerFeature::PTF_USER_TIMESTAMP);
+  EXPECT_EQ(proto_options.packet_trailer_features(1), proto::PacketTrailerFeature::PTF_FRAME_ID);
 
   TrackPublishOptions round_trip = fromProto(proto_options);
   EXPECT_TRUE(round_trip.packet_trailer_features.user_timestamp);

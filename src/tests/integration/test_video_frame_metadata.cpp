@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "tests/common/test_common.h"
-
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -25,26 +23,25 @@
 #include <optional>
 #include <thread>
 
+#include "tests/common/test_common.h"
+
 namespace livekit::test {
 
 class VideoFrameMetadataServerTest : public LiveKitTestBase {};
 
-TEST_F(VideoFrameMetadataServerTest,
-       UserTimestampRoundTripsToReceiverEventCallback) {
+TEST_F(VideoFrameMetadataServerTest, UserTimestampRoundTripsToReceiverEventCallback) {
   skipIfNotConfigured();
 
   Room sender_room;
   Room receiver_room;
   RoomOptions options;
 
-  ASSERT_TRUE(
-      receiver_room.Connect(config_.url, config_.token_b, options));
+  ASSERT_TRUE(receiver_room.Connect(config_.url, config_.token_b, options));
   ASSERT_TRUE(sender_room.Connect(config_.url, config_.token_a, options));
   ASSERT_NE(sender_room.localParticipant(), nullptr);
   ASSERT_NE(receiver_room.localParticipant(), nullptr);
 
-  const std::string sender_identity =
-      sender_room.localParticipant()->identity();
+  const std::string sender_identity = sender_room.localParticipant()->identity();
   ASSERT_FALSE(sender_identity.empty());
   ASSERT_TRUE(waitForParticipant(&receiver_room, sender_identity, 10s));
 
@@ -53,19 +50,18 @@ TEST_F(VideoFrameMetadataServerTest,
   std::optional<std::uint64_t> received_user_timestamp_us;
 
   const std::string track_name = "metadata-track";
-  receiver_room.setOnVideoFrameEventCallback(
-      sender_identity, track_name,
-      [&mutex, &cv, &received_user_timestamp_us](const VideoFrameEvent &event) {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (!event.metadata) {
-          return;
-        }
-        const auto &user_timestamp_us = event.metadata->user_timestamp_us;
-        if (user_timestamp_us.has_value() && *user_timestamp_us != 0) {
-          received_user_timestamp_us = user_timestamp_us;
-          cv.notify_all();
-        }
-      });
+  receiver_room.setOnVideoFrameEventCallback(sender_identity, track_name,
+                                             [&mutex, &cv, &received_user_timestamp_us](const VideoFrameEvent& event) {
+                                               std::lock_guard<std::mutex> lock(mutex);
+                                               if (!event.metadata) {
+                                                 return;
+                                               }
+                                               const auto& user_timestamp_us = event.metadata->user_timestamp_us;
+                                               if (user_timestamp_us.has_value() && *user_timestamp_us != 0) {
+                                                 received_user_timestamp_us = user_timestamp_us;
+                                                 cv.notify_all();
+                                               }
+                                             });
 
   auto source = std::make_shared<VideoSource>(16, 16);
   auto track = LocalVideoTrack::createLocalVideoTrack(track_name, source);
@@ -75,23 +71,20 @@ TEST_F(VideoFrameMetadataServerTest,
   publish_options.simulcast = false;
   publish_options.packet_trailer_features.user_timestamp = true;
 
-  ASSERT_NO_THROW(
-      sender_room.localParticipant()->publishTrack(track, publish_options));
+  ASSERT_NO_THROW(sender_room.localParticipant()->publishTrack(track, publish_options));
 
   const auto track_ready_deadline = std::chrono::steady_clock::now() + 10s;
   bool receiver_track_ready = false;
   while (std::chrono::steady_clock::now() < track_ready_deadline) {
-    auto *sender_on_receiver = receiver_room.remoteParticipant(sender_identity);
+    auto* sender_on_receiver = receiver_room.remoteParticipant(sender_identity);
     if (sender_on_receiver != nullptr) {
-      for (const auto &[sid, publication] :
-           sender_on_receiver->trackPublications()) {
+      for (const auto& [sid, publication] : sender_on_receiver->trackPublications()) {
         (void)sid;
         if (publication == nullptr) {
           continue;
         }
 
-        if (publication->name() != track_name ||
-            publication->kind() != TrackKind::KIND_VIDEO) {
+        if (publication->name() != track_name || publication->kind() != TrackKind::KIND_VIDEO) {
           continue;
         }
 
@@ -109,8 +102,7 @@ TEST_F(VideoFrameMetadataServerTest,
     std::this_thread::sleep_for(10ms);
   }
 
-  ASSERT_TRUE(receiver_track_ready)
-      << "Timed out waiting for receiver video track subscription";
+  ASSERT_TRUE(receiver_track_ready) << "Timed out waiting for receiver video track subscription";
 
   std::atomic<bool> publishing{true};
   std::thread publisher([&]() {
@@ -120,8 +112,7 @@ TEST_F(VideoFrameMetadataServerTest,
     while (publishing.load(std::memory_order_relaxed)) {
       const std::uint64_t user_timestamp_us = getTimestampUs();
       VideoCaptureOptions capture_options;
-      capture_options.timestamp_us =
-          static_cast<std::int64_t>(user_timestamp_us);
+      capture_options.timestamp_us = static_cast<std::int64_t>(user_timestamp_us);
       capture_options.metadata = VideoFrameMetadata{};
       capture_options.metadata->user_timestamp_us = user_timestamp_us;
 
@@ -138,9 +129,8 @@ TEST_F(VideoFrameMetadataServerTest,
   bool got_metadata = false;
   {
     std::unique_lock<std::mutex> lock(mutex);
-    got_metadata = cv.wait_for(lock, 10s, [&received_user_timestamp_us] {
-      return received_user_timestamp_us.has_value();
-    });
+    got_metadata =
+        cv.wait_for(lock, 10s, [&received_user_timestamp_us] { return received_user_timestamp_us.has_value(); });
   }
 
   publishing.store(false, std::memory_order_relaxed);

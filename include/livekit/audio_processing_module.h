@@ -81,17 +81,17 @@ public:
    * @param options Configuration for which processing features to enable.
    * @throws std::runtime_error if the APM could not be created.
    */
-  explicit AudioProcessingModule(const Options &options);
+  explicit AudioProcessingModule(const Options& options);
 
   virtual ~AudioProcessingModule() = default;
 
   // Non-copyable
-  AudioProcessingModule(const AudioProcessingModule &) = delete;
-  AudioProcessingModule &operator=(const AudioProcessingModule &) = delete;
+  AudioProcessingModule(const AudioProcessingModule&) = delete;
+  AudioProcessingModule& operator=(const AudioProcessingModule&) = delete;
 
   // Movable
-  AudioProcessingModule(AudioProcessingModule &&) noexcept = default;
-  AudioProcessingModule &operator=(AudioProcessingModule &&) noexcept = default;
+  AudioProcessingModule(AudioProcessingModule&&) noexcept = default;
+  AudioProcessingModule& operator=(AudioProcessingModule&&) noexcept = default;
 
   /**
    * @brief Process the forward (near-end/microphone) audio stream.
@@ -109,7 +109,7 @@ public:
    *
    * @note The frame must contain exactly 10ms of audio.
    */
-  void processStream(AudioFrame &frame);
+  void processStream(AudioFrame& frame);
 
   /**
    * @brief Process the reverse (far-end/speaker) audio stream.
@@ -127,7 +127,7 @@ public:
    *
    * @note The frame must contain exactly 10ms of audio.
    */
-  void processReverseStream(AudioFrame &frame);
+  void processReverseStream(AudioFrame& frame);
 
   /**
    * @brief Set the estimated delay between the reverse and forward streams.
@@ -159,9 +159,7 @@ private:
   bool valid() const noexcept { return handle_.valid(); }
 
   /// Get the underlying FFI handle ID (used internally).
-  std::uint64_t ffi_handle_id() const noexcept {
-    return static_cast<std::uint64_t>(handle_.get());
-  }
+  std::uint64_t ffi_handle_id() const noexcept { return static_cast<std::uint64_t>(handle_.get()); }
 
   FfiHandle handle_;
 };

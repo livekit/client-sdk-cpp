@@ -26,13 +26,11 @@ TrackKind fromProto(proto::TrackKind in);
 StreamState fromProto(proto::StreamState in);
 TrackSource fromProto(proto::TrackSource in);
 AudioTrackFeature fromProto(proto::AudioTrackFeature in);
-std::vector<AudioTrackFeature>
-convertAudioFeatures(const google::protobuf::RepeatedField<int> &features);
+std::vector<AudioTrackFeature> convertAudioFeatures(const google::protobuf::RepeatedField<int>& features);
 
 // Participant Utils
 ParticipantKind fromProto(proto::ParticipantKind kind);
-proto::ParticipantTrackPermission toProto(const ParticipantTrackPermission &in);
-ParticipantTrackPermission
-fromProto(const proto::ParticipantTrackPermission &in);
+proto::ParticipantTrackPermission toProto(const ParticipantTrackPermission& in);
+ParticipantTrackPermission fromProto(const proto::ParticipantTrackPermission& in);
 
 } // namespace livekit

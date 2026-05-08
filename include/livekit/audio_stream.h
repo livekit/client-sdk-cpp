@@ -87,21 +87,19 @@ public:
   };
 
   /// Factory: create an AudioStream bound to a specific Track
-  static std::shared_ptr<AudioStream>
-  fromTrack(const std::shared_ptr<Track> &track, const Options &options);
+  static std::shared_ptr<AudioStream> fromTrack(const std::shared_ptr<Track>& track, const Options& options);
 
   /// Factory: create an AudioStream from a Participant + TrackSource
-  static std::shared_ptr<AudioStream> fromParticipant(Participant &participant,
-                                                      TrackSource track_source,
-                                                      const Options &options);
+  static std::shared_ptr<AudioStream> fromParticipant(Participant& participant, TrackSource track_source,
+                                                      const Options& options);
 
   virtual ~AudioStream();
 
   /// No copy, assignment constructors.
-  AudioStream(const AudioStream &) = delete;
-  AudioStream &operator=(const AudioStream &) = delete;
-  AudioStream(AudioStream &&) noexcept;
-  AudioStream &operator=(AudioStream &&) noexcept;
+  AudioStream(const AudioStream&) = delete;
+  AudioStream& operator=(const AudioStream&) = delete;
+  AudioStream(AudioStream&&) noexcept;
+  AudioStream& operator=(AudioStream&&) noexcept;
 
   /// Blocking read: waits until there is an AudioFrameEvent available in the
   /// internal queue, or the stream reaches EOS / is closed.
@@ -109,7 +107,7 @@ public:
   /// \param out_event  On success, filled with the next audio frame.
   /// \return true if a frame was delivered; false if the stream ended
   ///         (end-of-stream or close()) and no more data is available.
-  bool read(AudioFrameEvent &out_event);
+  bool read(AudioFrameEvent& out_event);
 
   /// Signal that we are no longer interested in audio frames.
   ///
@@ -121,16 +119,14 @@ public:
 private:
   AudioStream() = default;
 
-  void initFromTrack(const std::shared_ptr<Track> &track,
-                     const Options &options);
-  void initFromParticipant(Participant &participant, TrackSource track_source,
-                           const Options &options);
+  void initFromTrack(const std::shared_ptr<Track>& track, const Options& options);
+  void initFromParticipant(Participant& participant, TrackSource track_source, const Options& options);
 
   // FFI event handler (registered with FfiClient)
-  void onFfiEvent(const proto::FfiEvent &event);
+  void onFfiEvent(const proto::FfiEvent& event);
 
   // Queue helpers
-  void pushFrame(AudioFrameEvent &&ev);
+  void pushFrame(AudioFrameEvent&& ev);
   void pushEos();
 
   mutable std::mutex mutex_;

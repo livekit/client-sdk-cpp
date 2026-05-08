@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-#include <atomic>
-#include <chrono>
 #include <gtest/gtest.h>
 #include <livekit/audio_frame.h>
 #include <livekit/livekit.h>
+
+#include <atomic>
+#include <chrono>
 #include <thread>
 #include <vector>
 
@@ -26,9 +27,7 @@ namespace livekit::test {
 
 class AudioFrameStressTest : public ::testing::Test {
 protected:
-  void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
-  }
+  void SetUp() override { livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole); }
 
   void TearDown() override { livekit::shutdown(); }
 };
@@ -43,21 +42,17 @@ TEST_F(AudioFrameStressTest, RapidFrameCreation) {
   auto start = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < num_iterations; ++i) {
-    AudioFrame frame =
-        AudioFrame::create(sample_rate, num_channels, samples_per_channel);
+    AudioFrame frame = AudioFrame::create(sample_rate, num_channels, samples_per_channel);
     ASSERT_EQ(frame.sample_rate(), sample_rate);
     ASSERT_EQ(frame.num_channels(), num_channels);
     ASSERT_EQ(frame.samples_per_channel(), samples_per_channel);
   }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Created " << num_iterations << " AudioFrames in "
-            << duration.count() << "ms"
-            << " (" << (num_iterations * 1000.0 / duration.count())
-            << " frames/sec)" << std::endl;
+  std::cout << "Created " << num_iterations << " AudioFrames in " << duration.count() << "ms"
+            << " (" << (num_iterations * 1000.0 / duration.count()) << " frames/sec)" << std::endl;
 }
 
 // Stress test: Large buffer allocation
@@ -69,18 +64,14 @@ TEST_F(AudioFrameStressTest, LargeBufferAllocation) {
   auto start = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < 100; ++i) {
-    AudioFrame frame =
-        AudioFrame::create(sample_rate, num_channels, samples_per_channel);
-    ASSERT_EQ(frame.total_samples(),
-              static_cast<size_t>(num_channels * samples_per_channel));
+    AudioFrame frame = AudioFrame::create(sample_rate, num_channels, samples_per_channel);
+    ASSERT_EQ(frame.total_samples(), static_cast<size_t>(num_channels * samples_per_channel));
   }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Created 100 large (1 second, 8-channel) AudioFrames in "
-            << duration.count() << "ms" << std::endl;
+  std::cout << "Created 100 large (1 second, 8-channel) AudioFrames in " << duration.count() << "ms" << std::endl;
 }
 
 // Stress test: Concurrent frame creation from multiple threads
@@ -103,19 +94,17 @@ TEST_F(AudioFrameStressTest, ConcurrentFrameCreation) {
     });
   }
 
-  for (auto &thread : threads) {
+  for (auto& thread : threads) {
     thread.join();
   }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
   EXPECT_EQ(total_frames.load(), num_threads * frames_per_thread);
 
-  std::cout << "Created " << total_frames.load() << " AudioFrames across "
-            << num_threads << " threads in " << duration.count() << "ms"
-            << std::endl;
+  std::cout << "Created " << total_frames.load() << " AudioFrames across " << num_threads << " threads in "
+            << duration.count() << "ms" << std::endl;
 }
 
 // Stress test: Memory pressure with many simultaneous frames
@@ -132,18 +121,16 @@ TEST_F(AudioFrameStressTest, MemoryPressure) {
   }
 
   // Verify all frames are valid
-  for (const auto &frame : frames) {
+  for (const auto& frame : frames) {
     ASSERT_EQ(frame.sample_rate(), 48000);
     ASSERT_EQ(frame.num_channels(), 2);
     ASSERT_EQ(frame.samples_per_channel(), 960);
   }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Held " << num_frames << " AudioFrames simultaneously in "
-            << duration.count() << "ms" << std::endl;
+  std::cout << "Held " << num_frames << " AudioFrames simultaneously in " << duration.count() << "ms" << std::endl;
 
   // Frames are destroyed when vector goes out of scope
 }
@@ -157,7 +144,7 @@ TEST_F(AudioFrameStressTest, DataModificationUnderLoad) {
 
   for (int f = 0; f < num_frames; ++f) {
     AudioFrame frame = AudioFrame::create(48000, 2, 960);
-    auto &data = frame.data();
+    auto& data = frame.data();
 
     for (int m = 0; m < modifications_per_frame; ++m) {
       // Simulate audio processing
@@ -168,12 +155,10 @@ TEST_F(AudioFrameStressTest, DataModificationUnderLoad) {
   }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Modified " << num_frames << " frames "
-            << modifications_per_frame << " times each in " << duration.count()
-            << "ms" << std::endl;
+  std::cout << "Modified " << num_frames << " frames " << modifications_per_frame << " times each in "
+            << duration.count() << "ms" << std::endl;
 }
 
 // Stress test: Copy operations
@@ -192,7 +177,7 @@ TEST_F(AudioFrameStressTest, CopyOperationsStress) {
   }
 
   // Verify all copies are independent
-  for (auto &copy : copies) {
+  for (auto& copy : copies) {
     ASSERT_EQ(copy.data()[0], 12345);
     copy.data()[0] = 0; // Modify copy
   }
@@ -201,11 +186,9 @@ TEST_F(AudioFrameStressTest, CopyOperationsStress) {
   ASSERT_EQ(original.data()[0], 12345);
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Performed " << num_copies << " copy operations in "
-            << duration.count() << "ms" << std::endl;
+  std::cout << "Performed " << num_copies << " copy operations in " << duration.count() << "ms" << std::endl;
 }
 
 // Stress test: Move operations
@@ -224,11 +207,9 @@ TEST_F(AudioFrameStressTest, MoveOperationsStress) {
   ASSERT_EQ(frame.sample_rate(), 48000);
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Performed " << num_moves << " move operations in "
-            << duration.count() << "ms" << std::endl;
+  std::cout << "Performed " << num_moves << " move operations in " << duration.count() << "ms" << std::endl;
 }
 
 // Stress test: Simulated real-time audio processing
@@ -250,7 +231,7 @@ TEST_F(AudioFrameStressTest, SimulatedRealtimeProcessing) {
     AudioFrame frame = AudioFrame::create(sample_rate, 2, samples_per_frame);
 
     // Simulate processing (apply simple gain)
-    auto &data = frame.data();
+    auto& data = frame.data();
     for (size_t j = 0; j < data.size(); ++j) {
       data[j] = static_cast<int16_t>(data[j] * 0.8);
     }
@@ -259,23 +240,16 @@ TEST_F(AudioFrameStressTest, SimulatedRealtimeProcessing) {
   }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
-  double processing_time_per_frame_us =
-      static_cast<double>(duration.count()) / total_frames;
+  double processing_time_per_frame_us = static_cast<double>(duration.count()) / total_frames;
   double available_time_per_frame_us = frame_size_ms * 1000.0;
 
-  std::cout << "Processed " << total_frames << " frames (" << duration_seconds
-            << "s of audio)" << std::endl;
-  std::cout << "Average processing time per frame: "
-            << processing_time_per_frame_us << "us" << std::endl;
-  std::cout << "Available time per frame: " << available_time_per_frame_us
-            << "us" << std::endl;
-  std::cout << "Processing overhead: "
-            << (processing_time_per_frame_us / available_time_per_frame_us *
-                100)
-            << "%" << std::endl;
+  std::cout << "Processed " << total_frames << " frames (" << duration_seconds << "s of audio)" << std::endl;
+  std::cout << "Average processing time per frame: " << processing_time_per_frame_us << "us" << std::endl;
+  std::cout << "Available time per frame: " << available_time_per_frame_us << "us" << std::endl;
+  std::cout << "Processing overhead: " << (processing_time_per_frame_us / available_time_per_frame_us * 100) << "%"
+            << std::endl;
 
   // Processing should be fast enough for real-time
   EXPECT_LT(processing_time_per_frame_us, available_time_per_frame_us)

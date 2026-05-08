@@ -16,11 +16,11 @@
 
 #pragma once
 
-#include "participant.h"
-
 #include <memory>
 #include <string>
 #include <unordered_map>
+
+#include "participant.h"
 
 namespace livekit {
 
@@ -28,31 +28,24 @@ class RemoteTrackPublication;
 
 class RemoteParticipant : public Participant {
 public:
-  using PublicationMap =
-      std::unordered_map<std::string, std::shared_ptr<RemoteTrackPublication>>;
+  using PublicationMap = std::unordered_map<std::string, std::shared_ptr<RemoteTrackPublication>>;
 
-  RemoteParticipant(FfiHandle handle, std::string sid, std::string name,
-                    std::string identity, std::string metadata,
-                    std::unordered_map<std::string, std::string> attributes,
-                    ParticipantKind kind, DisconnectReason reason);
+  RemoteParticipant(FfiHandle handle, std::string sid, std::string name, std::string identity, std::string metadata,
+                    std::unordered_map<std::string, std::string> attributes, ParticipantKind kind,
+                    DisconnectReason reason);
 
   // A dictionary of track publications associated with the participant.
-  const PublicationMap &trackPublications() const noexcept {
-    return track_publications_;
-  }
+  const PublicationMap& trackPublications() const noexcept { return track_publications_; }
 
   // Optional: non-const access if you want to mutate in-place.
-  PublicationMap &mutableTrackPublications() noexcept {
-    return track_publications_;
-  }
+  PublicationMap& mutableTrackPublications() noexcept { return track_publications_; }
 
   std::string to_string() const;
 
 protected:
   // Called by Room events like kTrackMuted. This is internal plumbing and not
   // intended to be called directly by SDK users.
-  std::shared_ptr<TrackPublication>
-  findTrackPublication(const std::string &sid) const override;
+  std::shared_ptr<TrackPublication> findTrackPublication(const std::string& sid) const override;
   friend class Room;
 
 private:
@@ -60,7 +53,6 @@ private:
 };
 
 // Convenience for logging / streaming
-std::ostream &operator<<(std::ostream &os,
-                         const RemoteParticipant &participant);
+std::ostream& operator<<(std::ostream& os, const RemoteParticipant& participant);
 
 } // namespace livekit

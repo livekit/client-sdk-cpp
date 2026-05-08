@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include <memory>
-
 #include <gtest/gtest.h>
+
+#include <memory>
 
 #include "livekit/local_track_publication.h"
 #include "livekit/remote_track_publication.h"
@@ -33,23 +33,19 @@ namespace {
 class FakeTrack : public Track {
 public:
   FakeTrack()
-      : Track(FfiHandle(), "fake-sid", "fake-name", TrackKind::KIND_AUDIO,
-              StreamState::STATE_ACTIVE,
+      : Track(FfiHandle(), "fake-sid", "fake-name", TrackKind::KIND_AUDIO, StreamState::STATE_ACTIVE,
               /*muted=*/false, /*remote=*/false) {}
 };
 
 // Default-construct the proto: the publication ctor only reads via getters,
 // which return well-defined defaults for unset fields. Using a zero handle
 // keeps the `FfiHandle` a no-op on destruction.
-proto::OwnedTrackPublication makeOwnedPub() {
-  return proto::OwnedTrackPublication{};
-}
+proto::OwnedTrackPublication makeOwnedPub() { return proto::OwnedTrackPublication{}; }
 
 template <typename Pub>
 class TrackPublicationTest : public ::testing::Test {};
 
-using PublicationTypes =
-    ::testing::Types<LocalTrackPublication, RemoteTrackPublication>;
+using PublicationTypes = ::testing::Types<LocalTrackPublication, RemoteTrackPublication>;
 TYPED_TEST_SUITE(TrackPublicationTest, PublicationTypes);
 
 } // namespace

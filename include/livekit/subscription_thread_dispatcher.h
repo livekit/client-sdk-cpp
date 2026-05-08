@@ -17,9 +17,6 @@
 #ifndef LIVEKIT_SUBSCRIPTION_THREAD_DISPATCHER_H
 #define LIVEKIT_SUBSCRIPTION_THREAD_DISPATCHER_H
 
-#include "livekit/audio_stream.h"
-#include "livekit/video_stream.h"
-
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -29,6 +26,9 @@
 #include <thread>
 #include <unordered_map>
 #include <vector>
+
+#include "livekit/audio_stream.h"
+#include "livekit/video_stream.h"
 
 namespace livekit {
 
@@ -40,24 +40,22 @@ class VideoFrame;
 
 /// Callback type for incoming audio frames.
 /// Invoked on a dedicated reader thread per (participant, source) pair.
-using AudioFrameCallback = std::function<void(const AudioFrame &)>;
+using AudioFrameCallback = std::function<void(const AudioFrame&)>;
 
 /// Callback type for incoming video frames.
 /// Invoked on a dedicated reader thread per (participant, source) pair.
-using VideoFrameCallback =
-    std::function<void(const VideoFrame &frame, std::int64_t timestamp_us)>;
+using VideoFrameCallback = std::function<void(const VideoFrame& frame, std::int64_t timestamp_us)>;
 
 /// Callback type for incoming video frame events.
 /// Invoked on a dedicated reader thread per (participant, track_name) pair.
-using VideoFrameEventCallback = std::function<void(const VideoFrameEvent &)>;
+using VideoFrameEventCallback = std::function<void(const VideoFrameEvent&)>;
 
 /// Callback type for incoming data track frames.
 /// Invoked on a dedicated reader thread per subscription.
 /// @param payload        Raw binary data received.
 /// @param user_timestamp Optional application-defined timestamp from sender.
 using DataFrameCallback =
-    std::function<void(const std::vector<std::uint8_t> &payload,
-                       std::optional<std::uint64_t> user_timestamp)>;
+    std::function<void(const std::vector<std::uint8_t>& payload, std::optional<std::uint64_t> user_timestamp)>;
 
 /// Opaque identifier returned by addOnDataFrameCallback, used to remove an
 /// individual subscription via removeOnDataFrameCallback.
@@ -106,9 +104,8 @@ public:
    * @param opts                 Options used when creating the backing
    *                             \ref AudioStream.
    */
-  void setOnAudioFrameCallback(const std::string &participant_identity,
-                               TrackSource source, AudioFrameCallback callback,
-                               const AudioStream::Options &opts = {});
+  void setOnAudioFrameCallback(const std::string& participant_identity, TrackSource source, AudioFrameCallback callback,
+                               const AudioStream::Options& opts = {});
 
   /**
    * Register or replace an audio frame callback for a remote subscription.
@@ -123,10 +120,8 @@ public:
    * @param opts                 Options used when creating the backing
    *                             \ref AudioStream.
    */
-  void setOnAudioFrameCallback(const std::string &participant_identity,
-                               const std::string &track_name,
-                               AudioFrameCallback callback,
-                               const AudioStream::Options &opts = {});
+  void setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
+                               AudioFrameCallback callback, const AudioStream::Options& opts = {});
 
   /**
    * Register or replace a video frame callback for a remote subscription.
@@ -141,9 +136,8 @@ public:
    * @param opts                 Options used when creating the backing
    *                             \ref VideoStream.
    */
-  void setOnVideoFrameCallback(const std::string &participant_identity,
-                               TrackSource source, VideoFrameCallback callback,
-                               const VideoStream::Options &opts = {});
+  void setOnVideoFrameCallback(const std::string& participant_identity, TrackSource source, VideoFrameCallback callback,
+                               const VideoStream::Options& opts = {});
 
   /**
    * Register or replace a video frame callback for a remote subscription.
@@ -158,10 +152,8 @@ public:
    * @param opts                 Options used when creating the backing
    *                             \ref VideoStream.
    */
-  void setOnVideoFrameCallback(const std::string &participant_identity,
-                               const std::string &track_name,
-                               VideoFrameCallback callback,
-                               const VideoStream::Options &opts = {});
+  void setOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
+                               VideoFrameCallback callback, const VideoStream::Options& opts = {});
 
   /**
    * Register or replace a rich video frame event callback for a remote
@@ -178,10 +170,8 @@ public:
    * @param opts                 Options used when creating the backing
    *                             \ref VideoStream.
    */
-  void setOnVideoFrameEventCallback(const std::string &participant_identity,
-                                    const std::string &track_name,
-                                    VideoFrameEventCallback callback,
-                                    const VideoStream::Options &opts = {});
+  void setOnVideoFrameEventCallback(const std::string& participant_identity, const std::string& track_name,
+                                    VideoFrameEventCallback callback, const VideoStream::Options& opts = {});
 
   /**
    * Remove an audio callback registration and stop any active reader.
@@ -192,8 +182,7 @@ public:
    * @param participant_identity Identity of the remote participant.
    * @param source               Track source to clear.
    */
-  void clearOnAudioFrameCallback(const std::string &participant_identity,
-                                 TrackSource source);
+  void clearOnAudioFrameCallback(const std::string& participant_identity, TrackSource source);
 
   /**
    * Remove an audio callback registration and stop any active reader.
@@ -204,8 +193,7 @@ public:
    * @param participant_identity Identity of the remote participant.
    * @param track_name           Track name to clear.
    */
-  void clearOnAudioFrameCallback(const std::string &participant_identity,
-                                 const std::string &track_name);
+  void clearOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name);
 
   /**
    * Remove a video callback registration and stop any active reader.
@@ -216,8 +204,7 @@ public:
    * @param participant_identity Identity of the remote participant.
    * @param source               Track source to clear.
    */
-  void clearOnVideoFrameCallback(const std::string &participant_identity,
-                                 TrackSource source);
+  void clearOnVideoFrameCallback(const std::string& participant_identity, TrackSource source);
 
   /**
    * Remove a video callback registration and stop any active reader.
@@ -228,8 +215,7 @@ public:
    * @param participant_identity Identity of the remote participant.
    * @param track_name           Track name to clear.
    */
-  void clearOnVideoFrameCallback(const std::string &participant_identity,
-                                 const std::string &track_name);
+  void clearOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name);
 
   /**
    * Start or restart reader dispatch for a newly subscribed remote track.
@@ -245,9 +231,8 @@ public:
    * @param source               Track source associated with the subscription.
    * @param track                Subscribed remote track to read from.
    */
-  void handleTrackSubscribed(const std::string &participant_identity,
-                             TrackSource source, const std::string &track_name,
-                             const std::shared_ptr<Track> &track);
+  void handleTrackSubscribed(const std::string& participant_identity, TrackSource source, const std::string& track_name,
+                             const std::shared_ptr<Track>& track);
 
   /**
    * Stop reader dispatch for an unsubscribed remote track.
@@ -261,9 +246,8 @@ public:
    * @param source               Track source associated with the subscription.
    * @param track_name           Track name associated with the subscription.
    */
-  void handleTrackUnsubscribed(const std::string &participant_identity,
-                               TrackSource source,
-                               const std::string &track_name);
+  void handleTrackUnsubscribed(const std::string& participant_identity, TrackSource source,
+                               const std::string& track_name);
 
   // ---------------------------------------------------------------
   // Data track callbacks
@@ -286,10 +270,8 @@ public:
    * @return An opaque ID that can later be passed to
    *         removeOnDataFrameCallback() to tear down this subscription.
    */
-  DataFrameCallbackId
-  addOnDataFrameCallback(const std::string &participant_identity,
-                         const std::string &track_name,
-                         DataFrameCallback callback);
+  DataFrameCallbackId addOnDataFrameCallback(const std::string& participant_identity, const std::string& track_name,
+                                             DataFrameCallback callback);
 
   /**
    * Remove a data frame callback previously registered via
@@ -310,7 +292,7 @@ public:
    *
    * @param track The newly published remote data track.
    */
-  void handleDataTrackPublished(const std::shared_ptr<RemoteDataTrack> &track);
+  void handleDataTrackPublished(const std::shared_ptr<RemoteDataTrack>& track);
 
   /**
    * Notify the dispatcher that a remote data track has been unpublished.
@@ -320,7 +302,7 @@ public:
    *
    * @param sid The SID of the unpublished data track.
    */
-  void handleDataTrackUnpublished(const std::string &sid);
+  void handleDataTrackUnpublished(const std::string& sid);
 
   /**
    * Stop all readers and clear all callback registrations.
@@ -341,15 +323,14 @@ private:
     TrackSource source;
     std::string track_name;
 
-    bool operator==(const CallbackKey &o) const {
-      return participant_identity == o.participant_identity &&
-             source == o.source && track_name == o.track_name;
+    bool operator==(const CallbackKey& o) const {
+      return participant_identity == o.participant_identity && source == o.source && track_name == o.track_name;
     }
   };
 
   /// Hash function for \ref CallbackKey so it can be used in unordered maps.
   struct CallbackKeyHash {
-    std::size_t operator()(const CallbackKey &k) const {
+    std::size_t operator()(const CallbackKey& k) const {
       auto h1 = std::hash<std::string>{}(k.participant_identity);
       auto h2 = std::hash<int>{}(static_cast<int>(k.source));
       auto h3 = std::hash<std::string>{}(k.track_name);
@@ -369,15 +350,14 @@ private:
     std::string participant_identity;
     std::string track_name;
 
-    bool operator==(const DataCallbackKey &o) const {
-      return participant_identity == o.participant_identity &&
-             track_name == o.track_name;
+    bool operator==(const DataCallbackKey& o) const {
+      return participant_identity == o.participant_identity && track_name == o.track_name;
     }
   };
 
   /// Hash function for \ref DataCallbackKey.
   struct DataCallbackKeyHash {
-    std::size_t operator()(const DataCallbackKey &k) const {
+    std::size_t operator()(const DataCallbackKey& k) const {
       auto h1 = std::hash<std::string>{}(k.participant_identity);
       auto h2 = std::hash<std::string>{}(k.track_name);
       return h1 ^ (h2 << 1);
@@ -415,30 +395,26 @@ private:
   ///
   /// Must be called with \ref lock_ held. The returned thread, if joinable,
   /// must be joined after releasing the lock.
-  std::thread extractReaderThreadLocked(const CallbackKey &key);
+  std::thread extractReaderThreadLocked(const CallbackKey& key);
 
   /// Select the appropriate reader startup path for \p track.
   ///
   /// Must be called with \ref lock_ held.
-  std::thread startReaderLocked(const CallbackKey &key,
-                                const std::shared_ptr<Track> &track);
+  std::thread startReaderLocked(const CallbackKey& key, const std::shared_ptr<Track>& track);
 
   /// Start an audio reader thread for \p key using \p track.
   ///
   /// Must be called with \ref lock_ held. Any previous reader for the same key
   /// is extracted and returned to the caller for joining outside the lock.
-  std::thread startAudioReaderLocked(const CallbackKey &key,
-                                     const std::shared_ptr<Track> &track,
-                                     const AudioFrameCallback &cb,
-                                     const AudioStream::Options &opts);
+  std::thread startAudioReaderLocked(const CallbackKey& key, const std::shared_ptr<Track>& track,
+                                     const AudioFrameCallback& cb, const AudioStream::Options& opts);
 
   /// Start a video reader thread for \p key using \p track.
   ///
   /// Must be called with \ref lock_ held. Any previous reader for the same key
   /// is extracted and returned to the caller for joining outside the lock.
-  std::thread startVideoReaderLocked(const CallbackKey &key,
-                                     const std::shared_ptr<Track> &track,
-                                     const RegisteredVideoCallback &callback);
+  std::thread startVideoReaderLocked(const CallbackKey& key, const std::shared_ptr<Track>& track,
+                                     const RegisteredVideoCallback& callback);
 
   /// Extract and close the data reader for a given callback ID, returning its
   /// thread.  Must be called with \ref lock_ held.
@@ -446,45 +422,36 @@ private:
 
   /// Extract and close the data reader for a given (participant, track_name)
   /// key, returning its thread.  Must be called with \ref lock_ held.
-  std::thread extractDataReaderThreadLocked(const DataCallbackKey &key);
+  std::thread extractDataReaderThreadLocked(const DataCallbackKey& key);
 
   /// Start a data reader thread for the given callback ID, key, and track.
   /// Must be called with \ref lock_ held.
-  std::thread
-  startDataReaderLocked(DataFrameCallbackId id, const DataCallbackKey &key,
-                        const std::shared_ptr<RemoteDataTrack> &track,
-                        const DataFrameCallback &cb);
+  std::thread startDataReaderLocked(DataFrameCallbackId id, const DataCallbackKey& key,
+                                    const std::shared_ptr<RemoteDataTrack>& track, const DataFrameCallback& cb);
 
   /// Protects callback registration maps and active reader state.
   mutable std::mutex lock_;
 
   /// Registered audio frame callbacks keyed by \ref CallbackKey.
-  std::unordered_map<CallbackKey, RegisteredAudioCallback, CallbackKeyHash>
-      audio_callbacks_;
+  std::unordered_map<CallbackKey, RegisteredAudioCallback, CallbackKeyHash> audio_callbacks_;
 
   /// Registered video frame callbacks keyed by \ref CallbackKey.
-  std::unordered_map<CallbackKey, RegisteredVideoCallback, CallbackKeyHash>
-      video_callbacks_;
+  std::unordered_map<CallbackKey, RegisteredVideoCallback, CallbackKeyHash> video_callbacks_;
 
   /// Active stream/thread state keyed by \ref CallbackKey.
-  std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash>
-      active_readers_;
+  std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash> active_readers_;
 
   /// Next auto-increment ID for data frame callbacks.
   DataFrameCallbackId next_data_callback_id_{0};
 
   /// Registered data frame callbacks keyed by opaque callback ID.
-  std::unordered_map<DataFrameCallbackId, RegisteredDataCallback>
-      data_callbacks_;
+  std::unordered_map<DataFrameCallbackId, RegisteredDataCallback> data_callbacks_;
 
   /// Active data reader threads keyed by callback ID.
-  std::unordered_map<DataFrameCallbackId, std::shared_ptr<ActiveDataReader>>
-      active_data_readers_;
+  std::unordered_map<DataFrameCallbackId, std::shared_ptr<ActiveDataReader>> active_data_readers_;
 
   /// Currently published remote data tracks, keyed by (participant, name).
-  std::unordered_map<DataCallbackKey, std::shared_ptr<RemoteDataTrack>,
-                     DataCallbackKeyHash>
-      remote_data_tracks_;
+  std::unordered_map<DataCallbackKey, std::shared_ptr<RemoteDataTrack>, DataCallbackKeyHash> remote_data_tracks_;
 
   /// Hard limit on concurrently active per-subscription reader threads.
   static constexpr int kMaxActiveReaders = 20;
