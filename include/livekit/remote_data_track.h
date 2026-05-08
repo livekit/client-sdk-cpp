@@ -69,7 +69,7 @@ public:
 
 #ifdef LIVEKIT_TEST_ACCESS
   /// Test-only accessor for exercising lower-level FFI subscription paths.
-  uintptr_t testFfiHandleId() const noexcept { return ffi_handle_id(); }
+  LIVEKIT_API uintptr_t testFfiHandleId() const noexcept { return ffi_handle_id(); }
 #endif
 
   /**
