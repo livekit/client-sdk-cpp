@@ -51,7 +51,7 @@ class OwnedRemoteDataTrack;
  *     }
  *   }
  */
-class LIVEKIT_API RemoteDataTrack {
+class RemoteDataTrack {
 public:
   ~RemoteDataTrack() = default;
 
@@ -65,11 +65,11 @@ public:
   const std::string& publisherIdentity() const noexcept { return publisher_identity_; }
 
   /// Whether the track is still published by the remote participant.
-  bool isPublished() const;
+  LIVEKIT_API bool isPublished() const;
 
 #ifdef LIVEKIT_TEST_ACCESS
   /// Test-only accessor for exercising lower-level FFI subscription paths.
-  LIVEKIT_API uintptr_t testFfiHandleId() const noexcept { return ffi_handle_id(); }
+  uintptr_t testFfiHandleId() const noexcept { return ffi_handle_id(); }
 #endif
 
   /**
@@ -78,7 +78,7 @@ public:
    * Returns a DataTrackStream that delivers frames via blocking
    * read(). Destroy the stream to unsubscribe.
    */
-  Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> subscribe(
+  LIVEKIT_API Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> subscribe(
       const DataTrackStream::Options& options = {});
 
 private:
