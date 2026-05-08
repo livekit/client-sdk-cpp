@@ -504,13 +504,24 @@ if [[ "${CI_MODE}" == "1" ]]; then
   write_step_summary "${log}"
 fi
 
-echo "Results written to: $(cd "$(dirname "${log}")" && pwd)/$(basename "${log}")"
-
 # Always emit the concise headline summary to stdout. Sets __TIDY_WARNINGS /
-# __TIDY_ERRORS globals which the strict-mode escalation below consumes.
+# __TIDY_ERRORS globals which the strict-mode escalation and the log
+# advertisement below consume.
 __TIDY_WARNINGS=0
 __TIDY_ERRORS=0
 print_stdout_summary "${log}"
+
+# Only advertise the log when the run actually produced findings. A clean
+# run still leaves per-file progress lines (`[N/M][T.Ts] /path/...`) in the
+# file, but that's transient noise -- delete it so a stale log from a
+# previous dirty run doesn't linger and confuse the next reader. CI
+# annotations and the step summary above have already been emitted from
+# the in-flight log, so cleanup here is purely about post-run state.
+if (( __TIDY_WARNINGS > 0 || __TIDY_ERRORS > 0 )); then
+  echo "Results written to: $(cd "$(dirname "${log}")" && pwd)/$(basename "${log}")"
+else
+  rm -f "${log}"
+fi
 
 # Strict mode: any warning escalates to a non-zero exit. Errors already make
 # run-clang-tidy itself exit non-zero (rc != 0), so this only changes the

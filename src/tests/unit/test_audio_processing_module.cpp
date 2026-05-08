@@ -32,9 +32,7 @@ namespace livekit::test {
 
 class AudioProcessingModuleTest : public ::testing::Test {
 protected:
-  void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
-  }
+  void SetUp() override { livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole); }
 
   void TearDown() override { livekit::shutdown(); }
 
@@ -45,17 +43,15 @@ protected:
   }
 
   // Helper to fill frame with sine wave
-  static void fillWithSineWave(AudioFrame &frame, double frequency,
-                               double amplitude = 10000.0) {
-    auto &data = frame.data();
+  static void fillWithSineWave(AudioFrame& frame, double frequency, double amplitude = 10000.0) {
+    auto& data = frame.data();
     int sample_rate = frame.sample_rate();
     int num_channels = frame.num_channels();
     int samples_per_channel = frame.samples_per_channel();
 
     for (int i = 0; i < samples_per_channel; ++i) {
       double t = static_cast<double>(i) / sample_rate;
-      auto sample = static_cast<std::int16_t>(
-          amplitude * std::sin(2.0 * M_PI * frequency * t));
+      auto sample = static_cast<std::int16_t>(amplitude * std::sin(2.0 * M_PI * frequency * t));
       for (int ch = 0; ch < num_channels; ++ch) {
         data[i * num_channels + ch] = sample;
       }
@@ -63,27 +59,25 @@ protected:
   }
 
   // Helper to fill frame with random noise
-  static void fillWithNoise(AudioFrame &frame, double amplitude = 5000.0,
-                            unsigned int seed = 0) {
-    std::mt19937 gen(static_cast<std::mt19937::result_type>(
-        seed == 0 ? std::random_device{}() : seed));
+  static void fillWithNoise(AudioFrame& frame, double amplitude = 5000.0, unsigned int seed = 0) {
+    std::mt19937 gen(static_cast<std::mt19937::result_type>(seed == 0 ? std::random_device{}() : seed));
     std::uniform_real_distribution<> dis(-amplitude, amplitude);
 
-    auto &data = frame.data();
-    for (auto &sample : data) {
+    auto& data = frame.data();
+    for (auto& sample : data) {
       sample = static_cast<std::int16_t>(dis(gen));
     }
   }
 
   // Calculate RMS (Root Mean Square) energy of audio frame
-  static double calculateRMS(const AudioFrame &frame) {
-    const auto &data = frame.data();
+  static double calculateRMS(const AudioFrame& frame) {
+    const auto& data = frame.data();
     if (data.empty()) {
       return 0.0;
     }
 
     double sum_squares = 0.0;
-    for (const auto &sample : data) {
+    for (const auto& sample : data) {
       sum_squares += static_cast<double>(sample) * static_cast<double>(sample);
     }
     return std::sqrt(sum_squares / static_cast<double>(data.size()));
@@ -91,10 +85,8 @@ protected:
 
   // Calculate energy in a specific frequency band using a simple DFT approach
   // This is a simplified calculation for testing purposes
-  static double calculateFrequencyBandEnergy(const AudioFrame &frame,
-                                             double low_freq,
-                                             double high_freq) {
-    const auto &data = frame.data();
+  static double calculateFrequencyBandEnergy(const AudioFrame& frame, double low_freq, double high_freq) {
+    const auto& data = frame.data();
     int sample_rate = frame.sample_rate();
     int num_channels = frame.num_channels();
     int samples_per_channel = frame.samples_per_channel();
@@ -111,13 +103,10 @@ protected:
 
     // Simple DFT for the frequency range of interest
     double energy = 0.0;
-    int low_bin =
-        static_cast<int>(low_freq * samples_per_channel / sample_rate);
-    int high_bin =
-        static_cast<int>(high_freq * samples_per_channel / sample_rate);
+    int low_bin = static_cast<int>(low_freq * samples_per_channel / sample_rate);
+    int high_bin = static_cast<int>(high_freq * samples_per_channel / sample_rate);
 
-    for (int k = std::max(1, low_bin);
-         k <= std::min(high_bin, samples_per_channel / 2); ++k) {
+    for (int k = std::max(1, low_bin); k <= std::min(high_bin, samples_per_channel / 2); ++k) {
       double real = 0.0;
       double imag = 0.0;
       double freq_rad = 2.0 * M_PI * k / samples_per_channel;
@@ -134,15 +123,12 @@ protected:
   }
 
   // Copy audio frame data
-  static std::vector<std::int16_t> copyFrameData(const AudioFrame &frame) {
-    return frame.data();
-  }
+  static std::vector<std::int16_t> copyFrameData(const AudioFrame& frame) { return frame.data(); }
 
   // Read a WAV file and return the raw PCM samples
   // Assumes 16-bit PCM format
-  static bool readWavFile(const std::string &path,
-                          std::vector<std::int16_t> &samples, int &sample_rate,
-                          int &num_channels) {
+  static bool readWavFile(const std::string& path, std::vector<std::int16_t>& samples, int& sample_rate,
+                          int& num_channels) {
     std::ifstream file(path, std::ios::binary);
     if (!file.is_open()) {
       std::cerr << "Failed to open WAV file: " << path << std::endl;
@@ -171,22 +157,22 @@ protected:
       char chunk_id[4];
       file.read(chunk_id, 4);
       std::uint32_t chunk_size;
-      file.read(reinterpret_cast<char *>(&chunk_size), 4);
+      file.read(reinterpret_cast<char*>(&chunk_size), 4);
 
       if (std::string(chunk_id, 4) == "fmt ") {
         std::uint16_t audio_format;
-        file.read(reinterpret_cast<char *>(&audio_format), 2);
+        file.read(reinterpret_cast<char*>(&audio_format), 2);
         if (audio_format != 1) { // PCM
           std::cerr << "Only PCM format supported" << std::endl;
           return false;
         }
 
         std::uint16_t channels;
-        file.read(reinterpret_cast<char *>(&channels), 2);
+        file.read(reinterpret_cast<char*>(&channels), 2);
         num_channels = channels;
 
         std::uint32_t rate;
-        file.read(reinterpret_cast<char *>(&rate), 4);
+        file.read(reinterpret_cast<char*>(&rate), 4);
         sample_rate = static_cast<int>(rate);
 
         file.seekg(chunk_size - 8, std::ios::cur); // Skip rest of fmt chunk
@@ -194,7 +180,7 @@ protected:
         // Read audio data
         size_t num_samples = chunk_size / sizeof(std::int16_t);
         samples.resize(num_samples);
-        file.read(reinterpret_cast<char *>(samples.data()), chunk_size);
+        file.read(reinterpret_cast<char*>(samples.data()), chunk_size);
         return true;
       } else {
         // Skip unknown chunk
@@ -207,8 +193,8 @@ protected:
   }
 
   // Scale audio samples by a factor (for simulating quiet/loud audio)
-  static void scaleAudio(std::vector<std::int16_t> &samples, double scale) {
-    for (auto &sample : samples) {
+  static void scaleAudio(std::vector<std::int16_t>& samples, double scale) {
+    for (auto& sample : samples) {
       double scaled = static_cast<double>(sample) * scale;
       sample = static_cast<std::int16_t>(std::clamp(scaled, -32768.0, 32767.0));
     }
@@ -506,12 +492,10 @@ TEST_F(AudioProcessingModuleTest, NoiseSuppressionReducesNoiseEnergy) {
   // Noise suppression should reduce energy significantly
   // We expect at least 50% reduction for pure noise input
   std::cout << "[NoiseSuppression] Avg input energy: " << avg_input_energy
-            << ", Avg output energy: " << avg_output_energy << ", Reduction: "
-            << (1.0 - avg_output_energy / avg_input_energy) * 100.0 << "%"
-            << std::endl;
+            << ", Avg output energy: " << avg_output_energy
+            << ", Reduction: " << (1.0 - avg_output_energy / avg_input_energy) * 100.0 << "%" << std::endl;
 
-  EXPECT_LT(avg_output_energy, avg_input_energy)
-      << "Noise suppression should reduce energy";
+  EXPECT_LT(avg_output_energy, avg_input_energy) << "Noise suppression should reduce energy";
 }
 
 TEST_F(AudioProcessingModuleTest, NoiseSuppressionPreservesSpeechLikeSignal) {
@@ -530,26 +514,23 @@ TEST_F(AudioProcessingModuleTest, NoiseSuppressionPreservesSpeechLikeSignal) {
 
   for (int i = 0; i < kFrames; ++i) {
     AudioFrame frame = create10msFrame(48000, 1);
-    auto &data = frame.data();
+    auto& data = frame.data();
     int sample_rate = frame.sample_rate();
     int samples_per_channel = frame.samples_per_channel();
 
     // Create speech-like signal with fundamental + harmonics (like voice)
     // Vary amplitude slightly to simulate natural speech variation
-    double amplitude_variation =
-        8000.0 + 2000.0 * std::sin(2.0 * M_PI * i / 20.0);
+    double amplitude_variation = 8000.0 + 2000.0 * std::sin(2.0 * M_PI * i / 20.0);
 
     for (int s = 0; s < samples_per_channel; ++s) {
       double t = static_cast<double>(s) / sample_rate;
       // Fundamental (250 Hz) + harmonics (typical of voiced speech)
-      double sample = amplitude_variation *
-                      (0.5 * std::sin(2.0 * M_PI * 250.0 * t) +  // Fundamental
-                       0.3 * std::sin(2.0 * M_PI * 500.0 * t) +  // 2nd harmonic
-                       0.15 * std::sin(2.0 * M_PI * 750.0 * t) + // 3rd harmonic
-                       0.05 * std::sin(2.0 * M_PI * 1000.0 * t)  // 4th harmonic
-                      );
-      data[s] =
-          static_cast<std::int16_t>(std::clamp(sample, -32768.0, 32767.0));
+      double sample = amplitude_variation * (0.5 * std::sin(2.0 * M_PI * 250.0 * t) +  // Fundamental
+                                             0.3 * std::sin(2.0 * M_PI * 500.0 * t) +  // 2nd harmonic
+                                             0.15 * std::sin(2.0 * M_PI * 750.0 * t) + // 3rd harmonic
+                                             0.05 * std::sin(2.0 * M_PI * 1000.0 * t)  // 4th harmonic
+                                            );
+      data[s] = static_cast<std::int16_t>(std::clamp(sample, -32768.0, 32767.0));
     }
 
     double input_energy = calculateRMS(frame);
@@ -565,16 +546,14 @@ TEST_F(AudioProcessingModuleTest, NoiseSuppressionPreservesSpeechLikeSignal) {
   double avg_output_energy = total_output_energy / kFrames;
   double preservation_ratio = avg_output_energy / avg_input_energy;
 
-  std::cout << "[NoiseSuppression-Speech] Avg input energy: "
-            << avg_input_energy << ", Avg output energy: " << avg_output_energy
-            << ", Preservation: " << preservation_ratio * 100.0 << "%"
+  std::cout << "[NoiseSuppression-Speech] Avg input energy: " << avg_input_energy
+            << ", Avg output energy: " << avg_output_energy << ", Preservation: " << preservation_ratio * 100.0 << "%"
             << std::endl;
 
   // Note: Even speech-like signals may be partially attenuated by NS
   // We just verify that the output has some significant energy
   // (i.e., NS doesn't completely silence the signal)
-  EXPECT_GT(avg_output_energy, avg_input_energy * 0.1)
-      << "Speech-like signals should not be completely suppressed";
+  EXPECT_GT(avg_output_energy, avg_input_energy * 0.1) << "Speech-like signals should not be completely suppressed";
 }
 
 // ============================================================================
@@ -611,13 +590,11 @@ TEST_F(AudioProcessingModuleTest, HighPassFilterAttenuatesLowFrequencies) {
   double avg_output_energy = total_output_energy / kFrames;
 
   std::cout << "[HighPassFilter-LowFreq] Avg input energy: " << avg_input_energy
-            << ", Avg output energy: " << avg_output_energy << ", Attenuation: "
-            << (1.0 - avg_output_energy / avg_input_energy) * 100.0 << "%"
-            << std::endl;
+            << ", Avg output energy: " << avg_output_energy
+            << ", Attenuation: " << (1.0 - avg_output_energy / avg_input_energy) * 100.0 << "%" << std::endl;
 
   // Low frequencies should be significantly attenuated
-  EXPECT_LT(avg_output_energy, avg_input_energy * 0.8)
-      << "High pass filter should attenuate low frequencies";
+  EXPECT_LT(avg_output_energy, avg_input_energy * 0.8) << "High pass filter should attenuate low frequencies";
 }
 
 TEST_F(AudioProcessingModuleTest, HighPassFilterPassesHighFrequencies) {
@@ -650,9 +627,9 @@ TEST_F(AudioProcessingModuleTest, HighPassFilterPassesHighFrequencies) {
   double avg_output_energy = total_output_energy / kFrames;
   double pass_ratio = avg_output_energy / avg_input_energy;
 
-  std::cout << "[HighPassFilter-HighFreq] Avg input energy: "
-            << avg_input_energy << ", Avg output energy: " << avg_output_energy
-            << ", Pass ratio: " << pass_ratio * 100.0 << "%" << std::endl;
+  std::cout << "[HighPassFilter-HighFreq] Avg input energy: " << avg_input_energy
+            << ", Avg output energy: " << avg_output_energy << ", Pass ratio: " << pass_ratio * 100.0 << "%"
+            << std::endl;
 
   // High frequencies should pass through with minimal attenuation
   // Allow up to 20% loss due to processing artifacts
@@ -721,7 +698,7 @@ TEST_F(AudioProcessingModuleTest, AGCProcessesAudioWithoutError) {
 
   for (int i = 0; i < kFrames; ++i) {
     AudioFrame frame = create10msFrame(48000, 1);
-    auto &data = frame.data();
+    auto& data = frame.data();
     int sample_rate = frame.sample_rate();
     int samples_per_channel = frame.samples_per_channel();
 
@@ -730,10 +707,8 @@ TEST_F(AudioProcessingModuleTest, AGCProcessesAudioWithoutError) {
 
     for (int s = 0; s < samples_per_channel; ++s) {
       double t = static_cast<double>(s) / sample_rate;
-      double sample = amplitude * (0.5 * std::sin(2.0 * M_PI * 250.0 * t) +
-                                   0.3 * std::sin(2.0 * M_PI * 500.0 * t));
-      data[s] =
-          static_cast<std::int16_t>(std::clamp(sample, -32768.0, 32767.0));
+      double sample = amplitude * (0.5 * std::sin(2.0 * M_PI * 250.0 * t) + 0.3 * std::sin(2.0 * M_PI * 500.0 * t));
+      data[s] = static_cast<std::int16_t>(std::clamp(sample, -32768.0, 32767.0));
     }
 
     total_input_energy += calculateRMS(frame);
@@ -745,13 +720,11 @@ TEST_F(AudioProcessingModuleTest, AGCProcessesAudioWithoutError) {
   double avg_output = total_output_energy / kFrames;
 
   std::cout << "[AGC] Processed " << kFrames << " frames. "
-            << "Avg input=" << avg_input << ", Avg output=" << avg_output
-            << std::endl;
+            << "Avg input=" << avg_input << ", Avg output=" << avg_output << std::endl;
 
   // Verify output is valid (not zero, not clipped)
   EXPECT_GT(avg_output, 0.0) << "AGC output should not be zero";
-  EXPECT_LT(avg_output, 30000.0)
-      << "AGC output should not be excessively clipped";
+  EXPECT_LT(avg_output, 30000.0) << "AGC output should not be excessively clipped";
 }
 
 TEST_F(AudioProcessingModuleTest, AGCHandlesVaryingInputLevels) {
@@ -784,8 +757,7 @@ TEST_F(AudioProcessingModuleTest, AGCHandlesVaryingInputLevels) {
   double quiet_avg = quiet_output_sum / kFramesPerPhase;
   double loud_avg = loud_output_sum / kFramesPerPhase;
 
-  std::cout << "[AGC-VaryingLevels] Quiet output=" << quiet_avg
-            << ", Loud output=" << loud_avg << std::endl;
+  std::cout << "[AGC-VaryingLevels] Quiet output=" << quiet_avg << ", Loud output=" << loud_avg << std::endl;
 
   // Verify outputs are valid and different levels produce different outputs
   EXPECT_GT(quiet_avg, 0.0) << "Quiet output should not be zero";
@@ -802,23 +774,22 @@ TEST_F(AudioProcessingModuleTest, AGCAttenuatesLoudSpeech) {
   int num_channels = 0;
 
   std::string wav_path = std::string(LIVEKIT_ROOT_DIR) + "/data/welcome.wav";
-  ASSERT_TRUE(readWavFile(wav_path, original_samples, sample_rate, num_channels)) << "Could not read " << wav_path << " (is Git LFS pulled?)";
+  ASSERT_TRUE(readWavFile(wav_path, original_samples, sample_rate, num_channels))
+      << "Could not read " << wav_path << " (is Git LFS pulled?)";
 
-  std::cout << "[AGC-LoudSpeech] Loaded " << original_samples.size()
-            << " samples, " << sample_rate << " Hz, " << num_channels
-            << " channels" << std::endl;
+  std::cout << "[AGC-LoudSpeech] Loaded " << original_samples.size() << " samples, " << sample_rate << " Hz, "
+            << num_channels << " channels" << std::endl;
 
   // Scale up to simulate loud input (3x original volume)
   std::vector<std::int16_t> loud_samples = original_samples;
   scaleAudio(loud_samples, 3.0);
 
   double loud_input_rms = 0.0;
-  for (const auto &s : loud_samples) {
+  for (const auto& s : loud_samples) {
     loud_input_rms += static_cast<double>(s) * static_cast<double>(s);
   }
   loud_input_rms = std::sqrt(loud_input_rms / loud_samples.size());
-  std::cout << "[AGC-LoudSpeech] Loud input RMS (3x): " << loud_input_rms
-            << std::endl;
+  std::cout << "[AGC-LoudSpeech] Loud input RMS (3x): " << loud_input_rms << std::endl;
 
   // Create APM with AGC enabled
   AudioProcessingModule::Options opts;
@@ -833,9 +804,8 @@ TEST_F(AudioProcessingModuleTest, AGCAttenuatesLoudSpeech) {
   int frame_count = 0;
 
   for (int f = 0; f < total_frames; ++f) {
-    std::vector<std::int16_t> frame_data(
-        loud_samples.begin() + f * samples_per_frame,
-        loud_samples.begin() + (f + 1) * samples_per_frame);
+    std::vector<std::int16_t> frame_data(loud_samples.begin() + f * samples_per_frame,
+                                         loud_samples.begin() + (f + 1) * samples_per_frame);
 
     AudioFrame frame(frame_data, sample_rate, num_channels, samples_per_frame);
     apm.processStream(frame);
@@ -845,20 +815,17 @@ TEST_F(AudioProcessingModuleTest, AGCAttenuatesLoudSpeech) {
   }
 
   double avg_output_rms = total_output_rms / frame_count;
-  double gain_applied =
-      (loud_input_rms > 0) ? (avg_output_rms / loud_input_rms) : 0.0;
+  double gain_applied = (loud_input_rms > 0) ? (avg_output_rms / loud_input_rms) : 0.0;
 
-  std::cout << "[AGC-LoudSpeech] Input RMS=" << loud_input_rms
-            << ", Output RMS=" << avg_output_rms
+  std::cout << "[AGC-LoudSpeech] Input RMS=" << loud_input_rms << ", Output RMS=" << avg_output_rms
             << ", Effective gain=" << gain_applied << "x" << std::endl;
 
   // Verify AGC attenuated the loud signal (gain < 1.0)
   EXPECT_GT(avg_output_rms, 0.0) << "Output should not be zero";
-  EXPECT_LT(gain_applied, 1.0)
-      << "AGC should attenuate loud audio (gain < 1.0)";
+  EXPECT_LT(gain_applied, 1.0) << "AGC should attenuate loud audio (gain < 1.0)";
 
-  std::cout << "[AGC-LoudSpeech] SUCCESS: AGC attenuated loud speech by "
-            << (1.0 - gain_applied) * 100.0 << "%" << std::endl;
+  std::cout << "[AGC-LoudSpeech] SUCCESS: AGC attenuated loud speech by " << (1.0 - gain_applied) * 100.0 << "%"
+            << std::endl;
 }
 
 TEST_F(AudioProcessingModuleTest, AGCWithNoiseSuppressionCombined) {
@@ -893,12 +860,11 @@ TEST_F(AudioProcessingModuleTest, AGCWithNoiseSuppressionCombined) {
     fillWithSineWave(frame, kSignalFrequency, kSignalAmplitude);
 
     // Add noise on top
-    auto &data = frame.data();
+    auto& data = frame.data();
     std::mt19937 gen(static_cast<std::mt19937::result_type>(kSeed + 50 + i));
     std::uniform_real_distribution<> dis(-kNoiseAmplitude, kNoiseAmplitude);
-    for (auto &sample : data) {
-      sample = static_cast<std::int16_t>(std::clamp(
-          static_cast<double>(sample) + dis(gen), -32768.0, 32767.0));
+    for (auto& sample : data) {
+      sample = static_cast<std::int16_t>(std::clamp(static_cast<double>(sample) + dis(gen), -32768.0, 32767.0));
     }
 
     apm.processStream(frame);
@@ -912,12 +878,11 @@ TEST_F(AudioProcessingModuleTest, AGCWithNoiseSuppressionCombined) {
   double avg_output_energy = signal_energy_sum / signal_frames;
 
   std::cout << "[AGC+NS Combined] Avg output energy: " << avg_output_energy
-            << " (input signal amplitude: " << kSignalAmplitude
-            << ", noise amplitude: " << kNoiseAmplitude << ")" << std::endl;
+            << " (input signal amplitude: " << kSignalAmplitude << ", noise amplitude: " << kNoiseAmplitude << ")"
+            << std::endl;
 
   // Should have reasonable output energy (AGC boosted, NS cleaned)
-  EXPECT_GT(avg_output_energy, 100.0)
-      << "Combined AGC+NS should produce reasonable output";
+  EXPECT_GT(avg_output_energy, 100.0) << "Combined AGC+NS should produce reasonable output";
 }
 
 } // namespace livekit::test

@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include "livekit/export.h"
-
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -47,14 +45,12 @@ struct DataTrackFrame {
    */
   std::optional<std::uint64_t> user_timestamp;
   DataTrackFrame() = default;
-  DataTrackFrame(const DataTrackFrame &) = default;
-  DataTrackFrame(DataTrackFrame &&) noexcept = default;
-  DataTrackFrame &operator=(const DataTrackFrame &) = default;
-  DataTrackFrame &operator=(DataTrackFrame &&) noexcept = default;
+  DataTrackFrame(const DataTrackFrame&) = default;
+  DataTrackFrame(DataTrackFrame&&) noexcept = default;
+  DataTrackFrame& operator=(const DataTrackFrame&) = default;
+  DataTrackFrame& operator=(DataTrackFrame&&) noexcept = default;
 
-  explicit DataTrackFrame(
-      std::vector<std::uint8_t> &&p,
-      std::optional<std::uint64_t> ts = std::nullopt) noexcept
+  explicit DataTrackFrame(std::vector<std::uint8_t>&& p, std::optional<std::uint64_t> ts = std::nullopt) noexcept
       : payload(std::move(p)), user_timestamp(ts) {}
 
   /**
@@ -64,8 +60,7 @@ struct DataTrackFrame {
    * @param owned The proto::DataTrackFrame to create a DataTrackFrame from.
    * @return The created DataTrackFrame.
    */
-  LIVEKIT_API static DataTrackFrame
-  fromOwnedInfo(const proto::DataTrackFrame &owned);
+  static DataTrackFrame fromOwnedInfo(const proto::DataTrackFrame& owned);
 };
 
 } // namespace livekit

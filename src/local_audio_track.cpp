@@ -24,25 +24,21 @@
 
 namespace livekit {
 
-LocalAudioTrack::LocalAudioTrack(FfiHandle handle,
-                                 const proto::OwnedTrack &track)
-    : Track(std::move(handle), track.info().sid(), track.info().name(),
-            fromProto(track.info().kind()),
-            fromProto(track.info().stream_state()), track.info().muted(),
-            false) {}
+LocalAudioTrack::LocalAudioTrack(FfiHandle handle, const proto::OwnedTrack& track)
+    : Track(std::move(handle), track.info().sid(), track.info().name(), fromProto(track.info().kind()),
+            fromProto(track.info().stream_state()), track.info().muted(), false) {}
 
-std::shared_ptr<LocalAudioTrack> LocalAudioTrack::createLocalAudioTrack(
-    const std::string &name, const std::shared_ptr<AudioSource> &source) {
+std::shared_ptr<LocalAudioTrack> LocalAudioTrack::createLocalAudioTrack(const std::string& name,
+                                                                        const std::shared_ptr<AudioSource>& source) {
   proto::FfiRequest req;
-  auto *msg = req.mutable_create_audio_track();
+  auto* msg = req.mutable_create_audio_track();
   msg->set_name(name);
   msg->set_source_handle(static_cast<uint64_t>(source->ffi_handle_id()));
 
   const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-  const proto::OwnedTrack &owned = resp.create_audio_track().track();
+  const proto::OwnedTrack& owned = resp.create_audio_track().track();
   FfiHandle handle(static_cast<uintptr_t>(owned.handle().id()));
-  return std::shared_ptr<LocalAudioTrack>(
-      new LocalAudioTrack(std::move(handle), owned));
+  return std::shared_ptr<LocalAudioTrack>(new LocalAudioTrack(std::move(handle), owned));
 }
 
 void LocalAudioTrack::mute() {
@@ -52,7 +48,7 @@ void LocalAudioTrack::mute() {
   }
 
   proto::FfiRequest req;
-  auto *msg = req.mutable_local_track_mute();
+  auto* msg = req.mutable_local_track_mute();
   msg->set_track_handle(static_cast<uint64_t>(ffi_handle_id()));
   msg->set_mute(true);
 
@@ -67,7 +63,7 @@ void LocalAudioTrack::unmute() {
   }
 
   proto::FfiRequest req;
-  auto *msg = req.mutable_local_track_mute();
+  auto* msg = req.mutable_local_track_mute();
   msg->set_track_handle(static_cast<uint64_t>(ffi_handle_id()));
   msg->set_mute(false);
 
@@ -75,8 +71,6 @@ void LocalAudioTrack::unmute() {
   setMuted(false);
 }
 
-std::string LocalAudioTrack::to_string() const {
-  return "rtc.LocalAudioTrack(sid=" + sid() + ", name=" + name() + ")";
-}
+std::string LocalAudioTrack::to_string() const { return "rtc.LocalAudioTrack(sid=" + sid() + ", name=" + name() + ")"; }
 
 } // namespace livekit

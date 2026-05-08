@@ -52,9 +52,7 @@ LIVEKIT_API LogLevel getLogLevel();
 /// The callback is invoked sequentially (never concurrently) from the
 /// thread that generated the log message. Implementations must not block
 /// for extended periods.
-using LogCallback =
-    std::function<void(LogLevel level, const std::string &logger_name,
-                       const std::string &message)>;
+using LogCallback = std::function<void(LogLevel level, const std::string& logger_name, const std::string& message)>;
 
 /// Install a custom log callback, replacing the default stderr sink.
 ///

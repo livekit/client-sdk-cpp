@@ -17,25 +17,19 @@
 #ifndef LIVEKIT_LK_LOG_H
 #define LIVEKIT_LK_LOG_H
 
-#include "livekit/export.h"
+#include <spdlog/spdlog.h>
 
 #include <memory>
-#include <spdlog/spdlog.h>
 
 namespace livekit::detail {
 
 /// Returns the shared "livekit" logger instance.
 /// The logger is created lazily on first access and lives until
 /// shutdownLogger() is called.  Safe to call before initialize().
-///
-/// Tagged LIVEKIT_INTERNAL_API: this is not part of the public ABI but must
-/// remain visible so that in-tree test binaries that include lk_log.h (and
-/// therefore expand LK_LOG_* macros referencing this symbol) can resolve it
-/// against liblivekit.
-LIVEKIT_INTERNAL_API std::shared_ptr<spdlog::logger> getLogger();
+std::shared_ptr<spdlog::logger> getLogger();
 
 /// Tears down the spdlog logger. Called by livekit::shutdown().
-LIVEKIT_INTERNAL_API void shutdownLogger();
+void shutdownLogger();
 
 } // namespace livekit::detail
 
@@ -49,17 +43,11 @@ LIVEKIT_INTERNAL_API void shutdownLogger();
 //
 // Default LIVEKIT_LOG_LEVEL is TRACE (nothing stripped).  For release builds
 // consider -DLIVEKIT_LOG_LEVEL=INFO or WARN to eliminate verbose calls.
-#define LK_LOG_TRACE(...)                                                      \
-  SPDLOG_LOGGER_TRACE(livekit::detail::getLogger(), __VA_ARGS__)
-#define LK_LOG_DEBUG(...)                                                      \
-  SPDLOG_LOGGER_DEBUG(livekit::detail::getLogger(), __VA_ARGS__)
-#define LK_LOG_INFO(...)                                                       \
-  SPDLOG_LOGGER_INFO(livekit::detail::getLogger(), __VA_ARGS__)
-#define LK_LOG_WARN(...)                                                       \
-  SPDLOG_LOGGER_WARN(livekit::detail::getLogger(), __VA_ARGS__)
-#define LK_LOG_ERROR(...)                                                      \
-  SPDLOG_LOGGER_ERROR(livekit::detail::getLogger(), __VA_ARGS__)
-#define LK_LOG_CRITICAL(...)                                                   \
-  SPDLOG_LOGGER_CRITICAL(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_TRACE(...) SPDLOG_LOGGER_TRACE(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_DEBUG(...) SPDLOG_LOGGER_DEBUG(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_INFO(...) SPDLOG_LOGGER_INFO(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_WARN(...) SPDLOG_LOGGER_WARN(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_ERROR(...) SPDLOG_LOGGER_ERROR(livekit::detail::getLogger(), __VA_ARGS__)
+#define LK_LOG_CRITICAL(...) SPDLOG_LOGGER_CRITICAL(livekit::detail::getLogger(), __VA_ARGS__)
 
 #endif /* LIVEKIT_LK_LOG_H */

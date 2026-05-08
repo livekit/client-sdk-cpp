@@ -1,0 +1,10 @@
+---
+BasedOnStyle: Google
+Language: Cpp
+Standard: c++17
+
+# LiveKit modifications to Google style below
+
+ColumnLimit: 120                  # more width on modern screens
+SpacesBeforeTrailingComments: 1   # one space for trailing namespace comments, e.g. `} // namespace foo` (Google uses 2)
+AccessModifierOffset: -2          # left-align public/protected/private with the class keyword (Google indents by 1)

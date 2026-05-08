@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include "livekit/export.h"
-
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -302,14 +300,14 @@ struct VideoSourceStats {
  * useful for monitoring audio quality and detecting issues like underruns.
  */
 struct AudioPlayoutStats {
-  std::string kind;                    ///< The type of media ("audio").
-  double synthesized_samples_duration; ///< Duration of synthesized samples in
-                                       ///< seconds.
+  std::string kind;                         ///< The type of media ("audio").
+  double synthesized_samples_duration;      ///< Duration of synthesized samples in
+                                            ///< seconds.
   std::uint32_t synthesized_samples_events; ///< Number of synthesis events
                                             ///< (e.g., concealment).
-  double total_samples_duration; ///< Total duration of all samples in seconds.
-  double total_playout_delay;    ///< Cumulative playout delay in seconds.
-  std::uint64_t total_samples_count; ///< Total number of samples played out.
+  double total_samples_duration;            ///< Total duration of all samples in seconds.
+  double total_playout_delay;               ///< Cumulative playout delay in seconds.
+  std::uint64_t total_samples_count;        ///< Total number of samples played out.
 };
 
 struct PeerConnectionStats {
@@ -492,11 +490,9 @@ struct RtcStreamStats {
 // Deprecated Track omitted on purpose.
 
 using RtcStatsVariant =
-    std::variant<RtcCodecStats, RtcInboundRtpStats, RtcOutboundRtpStats,
-                 RtcRemoteInboundRtpStats, RtcRemoteOutboundRtpStats,
-                 RtcMediaSourceStats, RtcMediaPlayoutStats,
-                 RtcPeerConnectionStats, RtcDataChannelStats, RtcTransportStats,
-                 RtcCandidatePairStats, RtcLocalCandidateStats,
+    std::variant<RtcCodecStats, RtcInboundRtpStats, RtcOutboundRtpStats, RtcRemoteInboundRtpStats,
+                 RtcRemoteOutboundRtpStats, RtcMediaSourceStats, RtcMediaPlayoutStats, RtcPeerConnectionStats,
+                 RtcDataChannelStats, RtcTransportStats, RtcCandidatePairStats, RtcLocalCandidateStats,
                  RtcRemoteCandidateStats, RtcCertificateStats, RtcStreamStats>;
 
 struct RtcStats {
@@ -507,38 +503,32 @@ struct RtcStats {
 // fromProto declarations
 // ----------------------
 
-LIVEKIT_API RtcStatsData fromProto(const proto::RtcStatsData &);
+RtcStatsData fromProto(const proto::RtcStatsData&);
 
-LIVEKIT_API CodecStats fromProto(const proto::CodecStats &);
-LIVEKIT_API RtpStreamStats fromProto(const proto::RtpStreamStats &);
-LIVEKIT_API ReceivedRtpStreamStats
-fromProto(const proto::ReceivedRtpStreamStats &);
-LIVEKIT_API InboundRtpStreamStats
-fromProto(const proto::InboundRtpStreamStats &);
-LIVEKIT_API SentRtpStreamStats fromProto(const proto::SentRtpStreamStats &);
-LIVEKIT_API OutboundRtpStreamStats
-fromProto(const proto::OutboundRtpStreamStats &);
-LIVEKIT_API RemoteInboundRtpStreamStats
-fromProto(const proto::RemoteInboundRtpStreamStats &);
-LIVEKIT_API RemoteOutboundRtpStreamStats
-fromProto(const proto::RemoteOutboundRtpStreamStats &);
-LIVEKIT_API MediaSourceStats fromProto(const proto::MediaSourceStats &);
-LIVEKIT_API AudioSourceStats fromProto(const proto::AudioSourceStats &);
-LIVEKIT_API VideoSourceStats fromProto(const proto::VideoSourceStats &);
-LIVEKIT_API AudioPlayoutStats fromProto(const proto::AudioPlayoutStats &);
-LIVEKIT_API PeerConnectionStats fromProto(const proto::PeerConnectionStats &);
-LIVEKIT_API DataChannelStats fromProto(const proto::DataChannelStats &);
-LIVEKIT_API TransportStats fromProto(const proto::TransportStats &);
-LIVEKIT_API CandidatePairStats fromProto(const proto::CandidatePairStats &);
-LIVEKIT_API IceCandidateStats fromProto(const proto::IceCandidateStats &);
-LIVEKIT_API CertificateStats fromProto(const proto::CertificateStats &);
-LIVEKIT_API StreamStats fromProto(const proto::StreamStats &);
+CodecStats fromProto(const proto::CodecStats&);
+RtpStreamStats fromProto(const proto::RtpStreamStats&);
+ReceivedRtpStreamStats fromProto(const proto::ReceivedRtpStreamStats&);
+InboundRtpStreamStats fromProto(const proto::InboundRtpStreamStats&);
+SentRtpStreamStats fromProto(const proto::SentRtpStreamStats&);
+OutboundRtpStreamStats fromProto(const proto::OutboundRtpStreamStats&);
+RemoteInboundRtpStreamStats fromProto(const proto::RemoteInboundRtpStreamStats&);
+RemoteOutboundRtpStreamStats fromProto(const proto::RemoteOutboundRtpStreamStats&);
+MediaSourceStats fromProto(const proto::MediaSourceStats&);
+AudioSourceStats fromProto(const proto::AudioSourceStats&);
+VideoSourceStats fromProto(const proto::VideoSourceStats&);
+AudioPlayoutStats fromProto(const proto::AudioPlayoutStats&);
+PeerConnectionStats fromProto(const proto::PeerConnectionStats&);
+DataChannelStats fromProto(const proto::DataChannelStats&);
+TransportStats fromProto(const proto::TransportStats&);
+CandidatePairStats fromProto(const proto::CandidatePairStats&);
+IceCandidateStats fromProto(const proto::IceCandidateStats&);
+CertificateStats fromProto(const proto::CertificateStats&);
+StreamStats fromProto(const proto::StreamStats&);
 
 // High-level:
-LIVEKIT_API RtcStats fromProto(const proto::RtcStats &);
+RtcStats fromProto(const proto::RtcStats&);
 
 // helper if you have repeated RtcStats in proto:
-LIVEKIT_API std::vector<RtcStats>
-fromProto(const std::vector<proto::RtcStats> &);
+std::vector<RtcStats> fromProto(const std::vector<proto::RtcStats>&);
 
 } // namespace livekit

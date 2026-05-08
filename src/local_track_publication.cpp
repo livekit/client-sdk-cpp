@@ -20,15 +20,11 @@
 
 namespace livekit {
 
-LocalTrackPublication::LocalTrackPublication(
-    const proto::OwnedTrackPublication &owned)
-    : TrackPublication(
-          FfiHandle(owned.handle().id()), owned.info().sid(),
-          owned.info().name(), fromProto(owned.info().kind()),
-          fromProto(owned.info().source()), owned.info().simulcasted(),
-          owned.info().width(), owned.info().height(), owned.info().mime_type(),
-          owned.info().muted(),
-          static_cast<EncryptionType>(owned.info().encryption_type()),
-          convertAudioFeatures(owned.info().audio_features())) {}
+LocalTrackPublication::LocalTrackPublication(const proto::OwnedTrackPublication& owned)
+    : TrackPublication(FfiHandle(owned.handle().id()), owned.info().sid(), owned.info().name(),
+                       fromProto(owned.info().kind()), fromProto(owned.info().source()), owned.info().simulcasted(),
+                       owned.info().width(), owned.info().height(), owned.info().mime_type(), owned.info().muted(),
+                       static_cast<EncryptionType>(owned.info().encryption_type()),
+                       convertAudioFeatures(owned.info().audio_features())) {}
 
 } // namespace livekit

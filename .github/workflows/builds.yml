@@ -19,6 +19,8 @@ on:
       - docker/Dockerfile.base
       - docker/Dockerfile.sdk
       - .github/workflows/**
+      - .clang-format
+      - scripts/clang-format.sh
   pull_request:
     branches: ["main"]
     paths:
@@ -37,6 +39,8 @@ on:
       - docker/Dockerfile.base
       - docker/Dockerfile.sdk
       - .github/workflows/**
+      - .clang-format
+      - scripts/clang-format.sh
   workflow_dispatch:
 
 permissions:
@@ -558,6 +562,42 @@ jobs:
             cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
             cmake --build build --parallel
           '
+
+  clang-format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # No submodules: scripts/clang-format.sh only walks our own src/ tree
+          fetch-depth: 1
+
+      - name: Install clang-format 22
+        run: |
+          set -eux
+          # Pin clang-format 22 to match the current macOS Homebrew LLVM
+          # Ubuntu 24.04's default clang-format ships with LLVM 18
+          sudo install -m 0755 -d /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
+          sudo chmod a+r /etc/apt/keyrings/llvm.asc
+          codename=$(lsb_release -cs)
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-22 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-22.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y clang-format-22
+          sudo ln -sf /usr/bin/clang-format-22 /usr/local/bin/clang-format
+          clang-format --version
+
+      - name: Run clang-format
+        env:
+          FORMAT_BLOB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/clang-format.sh
 
   clang-tidy:
     name: clang-tidy

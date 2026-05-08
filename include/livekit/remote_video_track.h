@@ -16,10 +16,10 @@
 
 #pragma once
 
-#include "export.h"
-#include "track.h"
 #include <memory>
 #include <string>
+
+#include "track.h"
 
 namespace livekit {
 
@@ -41,12 +41,12 @@ class VideoSource;
  * Applications generally interact with `RemoteVideoTrack` through events and
  * `RemoteTrackPublication`, not through direct construction.
  */
-class LIVEKIT_API RemoteVideoTrack : public Track {
+class RemoteVideoTrack : public Track {
 public:
   /// Constructs a `RemoteVideoTrack` from an internal protocol-level
   /// `OwnedTrack` description provided by the signaling/FFI layer.
   /// This constructor is intended for internal SDK use only.
-  explicit RemoteVideoTrack(const proto::OwnedTrack &track);
+  explicit RemoteVideoTrack(const proto::OwnedTrack& track);
 
   /// Returns a concise, human-readable string summarizing the track,
   /// including its SID and name. Useful for debugging and logging.

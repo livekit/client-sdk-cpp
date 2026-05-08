@@ -20,14 +20,11 @@
 
 namespace livekit {
 
-DataTrackFrame
-DataTrackFrame::fromOwnedInfo(const proto::DataTrackFrame &owned) {
+DataTrackFrame DataTrackFrame::fromOwnedInfo(const proto::DataTrackFrame& owned) {
   DataTrackFrame frame;
-  const auto &payload_str = owned.payload();
-  frame.payload.assign(
-      reinterpret_cast<const std::uint8_t *>(payload_str.data()),
-      reinterpret_cast<const std::uint8_t *>(payload_str.data()) +
-          payload_str.size());
+  const auto& payload_str = owned.payload();
+  frame.payload.assign(reinterpret_cast<const std::uint8_t*>(payload_str.data()),
+                       reinterpret_cast<const std::uint8_t*>(payload_str.data()) + payload_str.size());
   if (owned.has_user_timestamp()) {
     frame.user_timestamp = owned.user_timestamp();
   }
