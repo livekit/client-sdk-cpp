@@ -26,7 +26,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/local_audio_track.h"
 #include "livekit/local_data_track.h"
@@ -34,6 +33,7 @@
 #include "livekit/participant.h"
 #include "livekit/room_event_types.h"
 #include "livekit/rpc_error.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 

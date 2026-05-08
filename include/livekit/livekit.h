@@ -22,7 +22,6 @@
 #include "audio_stream.h"
 #include "build.h"
 #include "e2ee.h"
-#include "export.h"
 #include "local_audio_track.h"
 #include "local_participant.h"
 #include "local_track_publication.h"
@@ -39,6 +38,7 @@
 #include "video_frame.h"
 #include "video_source.h"
 #include "video_stream.h"
+#include "visibility.h"
 
 namespace livekit {
 

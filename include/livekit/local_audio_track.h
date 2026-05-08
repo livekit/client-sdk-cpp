@@ -20,9 +20,9 @@
 #include <string>
 
 #include "audio_frame.h"
-#include "export.h"
 #include "local_track_publication.h"
 #include "track.h"
+#include "visibility.h"
 
 namespace livekit {
 

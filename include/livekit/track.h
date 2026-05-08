@@ -15,6 +15,7 @@
  */
 
 #pragma once
+
 #include <cstdint>
 #include <future>
 #include <memory>
@@ -23,9 +24,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/stats.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 

@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include "livekit/export.h"
 #include "livekit/track_publication.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 

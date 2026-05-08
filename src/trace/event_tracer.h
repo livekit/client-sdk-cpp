@@ -39,7 +39,7 @@
 #ifndef LIVEKIT_TRACE_EVENT_TRACER_H_
 #define LIVEKIT_TRACE_EVENT_TRACER_H_
 
-#include "livekit/export.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 namespace trace {
@@ -54,8 +54,7 @@ typedef void (*AddTraceEventPtr)(char phase, const unsigned char* category_enabl
 //
 // This method must be called before any tracing begins. Functions
 // provided should be thread-safe.
-LIVEKIT_API void SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr,
-                                  AddTraceEventPtr add_trace_event_ptr);
+LIVEKIT_API void SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr, AddTraceEventPtr add_trace_event_ptr);
 
 // This class defines interface for the event tracing system to call
 // internally.  Tagged LIVEKIT_INTERNAL_API so the in-tree tracing tests

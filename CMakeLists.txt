@@ -375,7 +375,7 @@ add_library(livekit SHARED
 )
 # Symbol visibility: keep liblivekit's exported ABI restricted to the public
 # LiveKit API.  Every TU is compiled with -fvisibility=hidden, and only
-# declarations annotated with LIVEKIT_API (see include/livekit/export.h) are
+# declarations annotated with LIVEKIT_API (see include/livekit/visibility.h) are
 # re-exposed.  This prevents private dependencies (spdlog, protobuf, absl) from
 # leaking into the dynamic symbol table and clashing with consumer apps that
 # also link those libraries (e.g. ROS 2's rcl_logging_spdlog).

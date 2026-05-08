@@ -24,12 +24,12 @@
 #include <mutex>
 #include <optional>
 
-#include "export.h"
 #include "ffi_handle.h"
 #include "participant.h"
 #include "track.h"
 #include "video_frame.h"
 #include "video_source.h"
+#include "visibility.h"
 
 namespace livekit {
 

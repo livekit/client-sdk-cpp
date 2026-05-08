@@ -238,7 +238,7 @@ def main(argv: list[str]) -> int:
     print(
         "\nliblivekit must not re-export private dependency symbols.\n"
         "If you intentionally added a public symbol that triggered this, mark\n"
-        "it with LIVEKIT_API in include/livekit/export.h and rebuild.\n"
+        "it with LIVEKIT_API in include/livekit/visibility.h and rebuild.\n"
     )
     return 1
 

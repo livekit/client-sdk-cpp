@@ -47,8 +47,6 @@
 // Pull in every public header. The umbrella livekit.h covers most of the
 // surface; the explicit includes below cover headers it does not transitively
 // reference, so a regression in any single header is caught at compile time.
-#include <livekit/livekit.h>
-
 #include <livekit/audio_frame.h>
 #include <livekit/audio_processing_module.h>
 #include <livekit/audio_source.h>
@@ -60,8 +58,8 @@
 #include <livekit/data_track_info.h>
 #include <livekit/data_track_stream.h>
 #include <livekit/e2ee.h>
-#include <livekit/export.h>
 #include <livekit/ffi_handle.h>
+#include <livekit/livekit.h>
 #include <livekit/local_audio_track.h>
 #include <livekit/local_data_track.h>
 #include <livekit/local_participant.h>
@@ -81,12 +79,13 @@
 #include <livekit/rpc_error.h>
 #include <livekit/stats.h>
 #include <livekit/subscription_thread_dispatcher.h>
+#include <livekit/tracing.h>
 #include <livekit/track.h>
 #include <livekit/track_publication.h>
-#include <livekit/tracing.h>
 #include <livekit/video_frame.h>
 #include <livekit/video_source.h>
 #include <livekit/video_stream.h>
+#include <livekit/visibility.h>
 
 namespace {
 

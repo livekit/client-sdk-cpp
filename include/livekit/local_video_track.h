@@ -19,9 +19,9 @@
 #include <memory>
 #include <string>
 
-#include "export.h"
 #include "local_track_publication.h"
 #include "track.h"
+#include "visibility.h"
 
 namespace livekit {
 

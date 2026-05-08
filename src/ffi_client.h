@@ -30,9 +30,9 @@
 
 #include "data_track.pb.h"
 #include "livekit/data_track_error.h"
-#include "livekit/export.h"
 #include "livekit/result.h"
 #include "livekit/stats.h"
+#include "livekit/visibility.h"
 #include "lk_log.h"
 #include "room.pb.h"
 

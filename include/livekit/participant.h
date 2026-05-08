@@ -21,9 +21,9 @@
 #include <string>
 #include <unordered_map>
 
-#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_delegate.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 

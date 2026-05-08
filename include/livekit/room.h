@@ -23,10 +23,10 @@
 
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
-#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
 #include "livekit/subscription_thread_dispatcher.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 

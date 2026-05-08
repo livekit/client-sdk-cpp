@@ -21,7 +21,7 @@
 
 #include <memory>
 
-#include "livekit/export.h"
+#include "livekit/visibility.h"
 
 namespace livekit::detail {
 

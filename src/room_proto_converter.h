@@ -18,8 +18,8 @@
 
 #include <string>
 
-#include "livekit/export.h"
 #include "livekit/room_event_types.h"
+#include "livekit/visibility.h"
 #include "room.pb.h"
 
 namespace livekit {
@@ -62,8 +62,8 @@ LIVEKIT_INTERNAL_API DataStreamHeaderReceivedEvent fromProto(const proto::DataSt
 LIVEKIT_INTERNAL_API DataStreamChunkReceivedEvent fromProto(const proto::DataStreamChunkReceived& in);
 LIVEKIT_INTERNAL_API DataStreamTrailerReceivedEvent fromProto(const proto::DataStreamTrailerReceived& in);
 
-LIVEKIT_INTERNAL_API DataChannelBufferedAmountLowThresholdChangedEvent fromProto(
-    const proto::DataChannelBufferedAmountLowThresholdChanged& in);
+LIVEKIT_INTERNAL_API DataChannelBufferedAmountLowThresholdChangedEvent
+fromProto(const proto::DataChannelBufferedAmountLowThresholdChanged& in);
 
 LIVEKIT_INTERNAL_API ByteStreamOpenedEvent fromProto(const proto::ByteStreamOpened& in);
 LIVEKIT_INTERNAL_API TextStreamOpenedEvent fromProto(const proto::TextStreamOpened& in);

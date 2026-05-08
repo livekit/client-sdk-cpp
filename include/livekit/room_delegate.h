@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include "livekit/export.h"
 #include "livekit/room_event_types.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 

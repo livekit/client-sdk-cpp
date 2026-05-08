@@ -25,10 +25,10 @@
 #include <string>
 
 #include "audio_frame.h"
-#include "export.h"
 #include "ffi_handle.h"
 #include "participant.h"
 #include "track.h"
+#include "visibility.h"
 
 namespace livekit {
 

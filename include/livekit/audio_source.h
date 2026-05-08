@@ -19,8 +19,8 @@
 #include <cstdint>
 
 #include "livekit/audio_frame.h"
-#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 

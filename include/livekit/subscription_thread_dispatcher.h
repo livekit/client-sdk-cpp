@@ -28,8 +28,8 @@
 #include <vector>
 
 #include "livekit/audio_stream.h"
-#include "livekit/export.h"
 #include "livekit/video_stream.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 

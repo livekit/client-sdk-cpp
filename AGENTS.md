@@ -140,7 +140,8 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 ### Public API Surface
 
 - Keep public APIs small. Minimize what goes into `include/livekit/`.
-- All publicly visible symbols must use `LIVEKIT_API` macro (via `include/livekit/export.h`).
+- Use `#pragma once` to guard headers.
+- All publicly visible symbols must use `LIVEKIT_API` macro (via `include/livekit/visibility.h`).
 - Never introduce backwards compatibility breaking changes to the public API.
 - `lk_log.h` lives under `src/` (internal). The public-facing logging API is `include/livekit/logging.h`.
 - spdlog must not appear in any public header or installed header.
@@ -149,9 +150,9 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 
 The `livekit` shared library is built with hidden symbol visibility on all
 platforms. Only symbols explicitly tagged with `LIVEKIT_API` (declared in
-`include/livekit/export.h`) are part of the public ABI. Vendored static
-dependencies (spdlog, fmt, protobuf, absl) are also compiled with hidden
-visibility so their symbols cannot leak into `liblivekit.{so,dylib,dll}`.
+`include/livekit/visibility.h`) are part of the public ABI. Vendored static
+dependencies are also compiled with hidden visibility so their symbols cannot 
+leak into `liblivekit.{so,dylib,dll}`.
 
 Rules for new code:
 

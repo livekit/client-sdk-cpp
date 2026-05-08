@@ -22,9 +22,9 @@
 #include "livekit/data_track_error.h"
 #include "livekit/data_track_info.h"
 #include "livekit/data_track_stream.h"
-#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/result.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 

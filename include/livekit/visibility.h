@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_EXPORT_H
-#define LIVEKIT_EXPORT_H
+#pragma once
 
 // LIVEKIT_API marks a symbol as part of the public ABI of liblivekit.
 //
@@ -62,5 +61,3 @@
 #define LIVEKIT_INTERNAL_API
 #endif
 #endif
-
-#endif // LIVEKIT_EXPORT_H

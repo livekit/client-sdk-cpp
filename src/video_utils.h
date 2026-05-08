@@ -16,9 +16,9 @@
 
 #pragma once
 
-#include "livekit/export.h"
 #include "livekit/video_frame.h"
 #include "livekit/video_source.h"
+#include "livekit/visibility.h"
 #include "video_frame.pb.h"
 
 namespace livekit {

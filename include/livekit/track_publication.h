@@ -22,9 +22,9 @@
 #include <vector>
 
 #include "livekit/e2ee.h"
-#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/track.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 

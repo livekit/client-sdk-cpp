@@ -20,8 +20,8 @@
 #include <string>
 #include <unordered_map>
 
-#include "export.h"
 #include "participant.h"
+#include "visibility.h"
 
 namespace livekit {
 
