@@ -22,6 +22,7 @@
 #include "audio_stream.h"
 #include "build.h"
 #include "e2ee.h"
+#include "export.h"
 #include "local_audio_track.h"
 #include "local_participant.h"
 #include "local_track_publication.h"
@@ -59,11 +60,11 @@ enum class LogSink {
 /// @param log_sink  The log sink to use for SDK messages (default: Console).
 /// @returns true if initialization happened on this call, false if it was
 ///          already initialized.
-bool initialize(const LogLevel& level = LogLevel::Info, const LogSink& log_sink = LogSink::kConsole);
+LIVEKIT_API bool initialize(const LogLevel& level = LogLevel::Info, const LogSink& log_sink = LogSink::kConsole);
 
 /// Shut down the LiveKit SDK.
 ///
 /// After shutdown, you may call initialize() again.
-void shutdown();
+LIVEKIT_API void shutdown();
 
 } // namespace livekit

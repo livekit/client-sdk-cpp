@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "livekit/audio_stream.h"
+#include "livekit/export.h"
 #include "livekit/video_stream.h"
 
 namespace livekit {
@@ -83,7 +84,7 @@ using DataFrameCallbackId = std::uint64_t;
  * kinds can be added later without pushing more thread state back into
  * \ref Room.
  */
-class SubscriptionThreadDispatcher {
+class LIVEKIT_API SubscriptionThreadDispatcher {
 public:
   /// Constructs an empty dispatcher with no registered callbacks or readers.
   SubscriptionThreadDispatcher();

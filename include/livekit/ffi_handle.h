@@ -16,9 +16,9 @@
 
 #pragma once
 
-#include "livekit/export.h"
-
 #include <cstdint>
+
+#include "livekit/export.h"
 
 namespace livekit {
 

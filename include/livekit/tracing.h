@@ -19,6 +19,8 @@
 #include <string>
 #include <vector>
 
+#include "livekit/export.h"
+
 namespace livekit {
 
 /**
@@ -35,7 +37,7 @@ namespace livekit {
  * categories.
  * @return true if tracing was started, false if already running or file error
  */
-bool startTracing(const std::string& trace_file_path, const std::vector<std::string>& categories = {});
+LIVEKIT_API bool startTracing(const std::string& trace_file_path, const std::vector<std::string>& categories = {});
 
 /**
  * Stop tracing and flush remaining events to file.
@@ -43,13 +45,13 @@ bool startTracing(const std::string& trace_file_path, const std::vector<std::str
  * This blocks until all pending events are written and the file is closed.
  * After stopping, the trace file is complete and ready for analysis.
  */
-void stopTracing();
+LIVEKIT_API void stopTracing();
 
 /**
  * Check if tracing is currently active.
  *
  * @return true if tracing is running
  */
-bool isTracingEnabled();
+LIVEKIT_API bool isTracingEnabled();
 
 } // namespace livekit

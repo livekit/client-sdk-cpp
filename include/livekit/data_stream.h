@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include "livekit/export.h"
-
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -28,6 +26,8 @@
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "livekit/export.h"
 
 namespace livekit {
 

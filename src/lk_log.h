@@ -21,15 +21,22 @@
 
 #include <memory>
 
+#include "livekit/export.h"
+
 namespace livekit::detail {
 
 /// Returns the shared "livekit" logger instance.
 /// The logger is created lazily on first access and lives until
 /// shutdownLogger() is called.  Safe to call before initialize().
-std::shared_ptr<spdlog::logger> getLogger();
+///
+/// Tagged LIVEKIT_INTERNAL_API: this is not part of the public ABI but must
+/// remain visible so that in-tree test binaries that include lk_log.h (and
+/// therefore expand LK_LOG_* macros referencing this symbol) can resolve it
+/// against liblivekit.
+LIVEKIT_INTERNAL_API std::shared_ptr<spdlog::logger> getLogger();
 
 /// Tears down the spdlog logger. Called by livekit::shutdown().
-void shutdownLogger();
+LIVEKIT_INTERNAL_API void shutdownLogger();
 
 } // namespace livekit::detail
 

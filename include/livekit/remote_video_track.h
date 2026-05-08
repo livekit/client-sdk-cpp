@@ -19,6 +19,7 @@
 #include <memory>
 #include <string>
 
+#include "export.h"
 #include "track.h"
 
 namespace livekit {
@@ -41,7 +42,7 @@ class VideoSource;
  * Applications generally interact with `RemoteVideoTrack` through events and
  * `RemoteTrackPublication`, not through direct construction.
  */
-class RemoteVideoTrack : public Track {
+class LIVEKIT_API RemoteVideoTrack : public Track {
 public:
   /// Constructs a `RemoteVideoTrack` from an internal protocol-level
   /// `OwnedTrack` description provided by the signaling/FFI layer.

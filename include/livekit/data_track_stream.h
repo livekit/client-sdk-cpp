@@ -24,6 +24,7 @@
 #include <optional>
 
 #include "livekit/data_track_frame.h"
+#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 
 namespace livekit {
@@ -52,7 +53,7 @@ class FfiEvent;
  *     }
  *   }
  */
-class DataTrackStream {
+class LIVEKIT_API DataTrackStream {
 public:
   struct Options {
     /// Maximum frames buffered on the Rust side. Rust defaults to 16.

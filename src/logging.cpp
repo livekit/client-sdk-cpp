@@ -15,13 +15,14 @@
  */
 
 #include "livekit/logging.h"
-#include "lk_log.h"
 
 #include <spdlog/sinks/callback_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
 
 #include <mutex>
+
+#include "lk_log.h"
 
 namespace livekit {
 namespace {

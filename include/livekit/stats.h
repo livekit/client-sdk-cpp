@@ -23,6 +23,8 @@
 #include <variant>
 #include <vector>
 
+#include "livekit/export.h"
+
 namespace livekit {
 
 namespace proto {
@@ -503,32 +505,32 @@ struct RtcStats {
 // fromProto declarations
 // ----------------------
 
-RtcStatsData fromProto(const proto::RtcStatsData&);
+LIVEKIT_API RtcStatsData fromProto(const proto::RtcStatsData&);
 
-CodecStats fromProto(const proto::CodecStats&);
-RtpStreamStats fromProto(const proto::RtpStreamStats&);
-ReceivedRtpStreamStats fromProto(const proto::ReceivedRtpStreamStats&);
-InboundRtpStreamStats fromProto(const proto::InboundRtpStreamStats&);
-SentRtpStreamStats fromProto(const proto::SentRtpStreamStats&);
-OutboundRtpStreamStats fromProto(const proto::OutboundRtpStreamStats&);
-RemoteInboundRtpStreamStats fromProto(const proto::RemoteInboundRtpStreamStats&);
-RemoteOutboundRtpStreamStats fromProto(const proto::RemoteOutboundRtpStreamStats&);
-MediaSourceStats fromProto(const proto::MediaSourceStats&);
-AudioSourceStats fromProto(const proto::AudioSourceStats&);
-VideoSourceStats fromProto(const proto::VideoSourceStats&);
-AudioPlayoutStats fromProto(const proto::AudioPlayoutStats&);
-PeerConnectionStats fromProto(const proto::PeerConnectionStats&);
-DataChannelStats fromProto(const proto::DataChannelStats&);
-TransportStats fromProto(const proto::TransportStats&);
-CandidatePairStats fromProto(const proto::CandidatePairStats&);
-IceCandidateStats fromProto(const proto::IceCandidateStats&);
-CertificateStats fromProto(const proto::CertificateStats&);
-StreamStats fromProto(const proto::StreamStats&);
+LIVEKIT_API CodecStats fromProto(const proto::CodecStats&);
+LIVEKIT_API RtpStreamStats fromProto(const proto::RtpStreamStats&);
+LIVEKIT_API ReceivedRtpStreamStats fromProto(const proto::ReceivedRtpStreamStats&);
+LIVEKIT_API InboundRtpStreamStats fromProto(const proto::InboundRtpStreamStats&);
+LIVEKIT_API SentRtpStreamStats fromProto(const proto::SentRtpStreamStats&);
+LIVEKIT_API OutboundRtpStreamStats fromProto(const proto::OutboundRtpStreamStats&);
+LIVEKIT_API RemoteInboundRtpStreamStats fromProto(const proto::RemoteInboundRtpStreamStats&);
+LIVEKIT_API RemoteOutboundRtpStreamStats fromProto(const proto::RemoteOutboundRtpStreamStats&);
+LIVEKIT_API MediaSourceStats fromProto(const proto::MediaSourceStats&);
+LIVEKIT_API AudioSourceStats fromProto(const proto::AudioSourceStats&);
+LIVEKIT_API VideoSourceStats fromProto(const proto::VideoSourceStats&);
+LIVEKIT_API AudioPlayoutStats fromProto(const proto::AudioPlayoutStats&);
+LIVEKIT_API PeerConnectionStats fromProto(const proto::PeerConnectionStats&);
+LIVEKIT_API DataChannelStats fromProto(const proto::DataChannelStats&);
+LIVEKIT_API TransportStats fromProto(const proto::TransportStats&);
+LIVEKIT_API CandidatePairStats fromProto(const proto::CandidatePairStats&);
+LIVEKIT_API IceCandidateStats fromProto(const proto::IceCandidateStats&);
+LIVEKIT_API CertificateStats fromProto(const proto::CertificateStats&);
+LIVEKIT_API StreamStats fromProto(const proto::StreamStats&);
 
 // High-level:
-RtcStats fromProto(const proto::RtcStats&);
+LIVEKIT_API RtcStats fromProto(const proto::RtcStats&);
 
 // helper if you have repeated RtcStats in proto:
-std::vector<RtcStats> fromProto(const std::vector<proto::RtcStats>&);
+LIVEKIT_API std::vector<RtcStats> fromProto(const std::vector<proto::RtcStats>&);
 
 } // namespace livekit

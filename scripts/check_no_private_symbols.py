@@ -108,13 +108,59 @@ def _list_exports_linux(lib: Path) -> list[str]:
     return raw.splitlines()
 
 
+def _find_dumpbin_via_vswhere() -> str | None:
+    """Locate dumpbin.exe under the latest installed Visual Studio.
+
+    GitHub-hosted Windows runners (and standard local VS installs) don't add
+    dumpbin to PATH unless the user opens a Developer Command Prompt. vswhere
+    ships at a fixed location with every Visual Studio install since 2017 and
+    is the supported way to discover the install tree from a vanilla shell.
+    """
+    program_files_x86 = os.environ.get(
+        "ProgramFiles(x86)", r"C:\Program Files (x86)"
+    )
+    vswhere = Path(program_files_x86) / "Microsoft Visual Studio" / "Installer" \
+        / "vswhere.exe"
+    if not vswhere.exists():
+        return None
+    try:
+        proc = subprocess.run(
+            [
+                str(vswhere),
+                "-latest",
+                "-products", "*",
+                "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+                "-property", "installationPath",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        return None
+    install_path = proc.stdout.strip()
+    if not install_path:
+        return None
+    msvc_root = Path(install_path) / "VC" / "Tools" / "MSVC"
+    if not msvc_root.is_dir():
+        return None
+    # Pick the highest-versioned toolchain present (lexicographic order matches
+    # version order for dotted MSVC versions like "14.44.35207").
+    for version_dir in sorted(msvc_root.iterdir(), reverse=True):
+        candidate = version_dir / "bin" / "Hostx64" / "x64" / "dumpbin.exe"
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
 def _list_exports_windows(lib: Path) -> list[str]:
     # dumpbin ships with MSVC; it understands import libs (.lib) and DLLs.
-    dumpbin = shutil.which("dumpbin")
+    dumpbin = shutil.which("dumpbin") or _find_dumpbin_via_vswhere()
     if not dumpbin:
         sys.stderr.write(
-            "error: 'dumpbin' not on PATH; run from a Visual Studio "
-            "Developer command prompt or ensure dumpbin.exe is available\n"
+            "error: 'dumpbin' not on PATH and could not be located via "
+            "vswhere; run from a Visual Studio Developer command prompt or "
+            "ensure dumpbin.exe is available\n"
         )
         sys.exit(2)
     raw = subprocess.run(

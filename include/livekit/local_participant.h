@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "livekit/export.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/local_audio_track.h"
 #include "livekit/local_data_track.h"
@@ -54,7 +55,7 @@ struct RpcInvocationData {
  *
  * LocalParticipant, built on top of the participant.h base class.
  */
-class LocalParticipant : public Participant {
+class LIVEKIT_API LocalParticipant : public Participant {
 public:
   using PublicationMap = std::unordered_map<std::string, std::shared_ptr<LocalTrackPublication>>;
   using TrackMap = std::unordered_map<std::string, std::weak_ptr<Track>>;
