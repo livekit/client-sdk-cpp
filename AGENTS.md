@@ -110,7 +110,7 @@ Updates to ./build.sh and ./build.cmd should be accompanied by updates to this f
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
 
-**Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. On macOS: `brew install cmake ninja protobuf abseil spdlog`. On Linux: see the CI workflow for apt packages.
+**Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. On macOS: `brew install cmake ninja protobuf abseil`. On Linux: see the CI workflow for apt packages. spdlog is vendored automatically via FetchContent (or vcpkg on Windows) to avoid system conflicts, for example on ROS 2.
 
 ### SDK Packaging
 
@@ -140,31 +140,10 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 ### Public API Surface
 
 - Keep public APIs small. Minimize what goes into `include/livekit/`.
+- All publicly visible symbols must use `LIVEKIT_API` macro (via `include/livekit/export.h`).
 - Never introduce backwards compatibility breaking changes to the public API.
 - `lk_log.h` lives under `src/` (internal). The public-facing logging API is `include/livekit/logging.h`.
 - spdlog must not appear in any public header or installed header.
-
-### Error Handling
-
-- Use `LK_LOG_WARN` for non-fatal unexpected conditions.
-- Use `Result<T, E>` for operations that can fail with typed errors (e.g., data track publish/subscribe).
-
-### Integer Types
-
-- Prefer fixed-width integer types from `<cstdint>` (`std::int32_t`, `std::uint64_t`, etc.) over raw primitive integer types when size or signedness matters.
-- This applies in public APIs, FFI/protobuf-facing code, serialized payloads, handles, timestamps, IDs, and any cross-platform boundary where integer width must be explicit.
-- Use raw primitive integer types only when the value is intentionally platform-sized or when preserving an existing public API is necessary for backwards compatibility.
-- Do not change an existing public API from a raw primitive integer type to a fixed-width type for style consistency alone unless the compatibility impact has been reviewed.
-
-### Git Practices
-
-- Use `git mv` when moving or renaming files.
-
-### CMake
-
-- spdlog is linked **PRIVATE** to the `livekit` target. It must not appear in exported/installed dependencies.
-- protobuf is vendored via FetchContent on non-Windows platforms; Windows uses vcpkg.
-- The CMake install produces a `find_package(LiveKit CONFIG)`-compatible package with `LiveKitConfig.cmake`, `LiveKitTargets.cmake`, and `LiveKitConfigVersion.cmake`.
 
 ### Symbol Visibility / Exported ABI
 
@@ -189,6 +168,28 @@ Rules for new code:
 
 CI enforces the policy via `scripts/check_no_private_symbols.py`, which is
 also wired in as a CTest test (label `abi`):
+
+### Error Handling
+
+- Use `LK_LOG_WARN` for non-fatal unexpected conditions.
+- Use `Result<T, E>` for operations that can fail with typed errors (e.g., data track publish/subscribe).
+
+### Integer Types
+
+- Prefer fixed-width integer types from `<cstdint>` (`std::int32_t`, `std::uint64_t`, etc.) over raw primitive integer types when size or signedness matters.
+- This applies in public APIs, FFI/protobuf-facing code, serialized payloads, handles, timestamps, IDs, and any cross-platform boundary where integer width must be explicit.
+- Use raw primitive integer types only when the value is intentionally platform-sized or when preserving an existing public API is necessary for backwards compatibility.
+- Do not change an existing public API from a raw primitive integer type to a fixed-width type for style consistency alone unless the compatibility impact has been reviewed.
+
+### Git Practices
+
+- Use `git mv` when moving or renaming files.
+
+### CMake
+
+- spdlog is linked **PRIVATE** to the `livekit` target. It must not appear in exported/installed dependencies.
+- protobuf is vendored via FetchContent on non-Windows platforms; Windows uses vcpkg.
+- The CMake install produces a `find_package(LiveKit CONFIG)`-compatible package with `LiveKitConfig.cmake`, `LiveKitTargets.cmake`, and `LiveKitConfigVersion.cmake`.
 
 ```
 ctest -L abi --output-on-failure
