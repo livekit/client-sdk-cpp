@@ -17,6 +17,7 @@
 #pragma once
 
 #include "livekit/track_publication.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -24,16 +25,11 @@ namespace proto {
 class OwnedTrackPublication;
 }
 
-class Track;
-
-class RemoteTrackPublication : public TrackPublication {
+class LIVEKIT_API RemoteTrackPublication : public TrackPublication {
 public:
   /// Note, this RemoteTrackPublication is constructed internally only;
   /// safe to accept proto::OwnedTrackPublication.
-  explicit RemoteTrackPublication(const proto::OwnedTrackPublication &owned);
-
-  /// Typed accessor for the attached RemoteTrack (if any).
-  std::shared_ptr<Track> track() const noexcept;
+  explicit RemoteTrackPublication(const proto::OwnedTrackPublication& owned);
 
   bool subscribed() const noexcept { return subscribed_; }
 

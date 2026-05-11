@@ -16,11 +16,13 @@
 
 #pragma once
 
-#include "audio_frame.h"
-#include "local_track_publication.h"
-#include "track.h"
 #include <memory>
 #include <string>
+
+#include "livekit/audio_frame.h"
+#include "livekit/local_track_publication.h"
+#include "livekit/track.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -50,7 +52,7 @@ class AudioSource;
  *  The track name provided during creation is visible to remote
  *  participants and can be used for debugging or UI display.
  */
-class LocalAudioTrack : public Track {
+class LIVEKIT_API LocalAudioTrack : public Track {
 public:
   /// Creates a new local audio track backed by the given `AudioSource`.
   ///
@@ -61,9 +63,8 @@ public:
   ///               directly for frame capture.
   ///
   /// @return A shared pointer to the newly constructed `LocalAudioTrack`.
-  static std::shared_ptr<LocalAudioTrack>
-  createLocalAudioTrack(const std::string &name,
-                        const std::shared_ptr<AudioSource> &source);
+  static std::shared_ptr<LocalAudioTrack> createLocalAudioTrack(const std::string& name,
+                                                                const std::shared_ptr<AudioSource>& source);
 
   /// Mutes the audio track.
   ///
@@ -80,21 +81,18 @@ public:
 
   /// Returns the publication that owns this track, or nullptr if the track is
   /// not published.
-  std::shared_ptr<LocalTrackPublication> publication() const noexcept {
-    return local_publication_;
-  }
+  std::shared_ptr<LocalTrackPublication> publication() const noexcept { return local_publication_; }
 
   /// Sets the publication that owns this track.
   /// Note: std::move on a const& silently falls back to a copy, so we assign
   /// directly. Changing the virtual signature to take by value would enable
   /// a true move but is an API-breaking change left for a future revision.
-  void setPublication(const std::shared_ptr<LocalTrackPublication>
-                          &publication) noexcept override {
+  void setPublication(const std::shared_ptr<LocalTrackPublication>& publication) noexcept override {
     local_publication_ = publication;
   }
 
 private:
-  explicit LocalAudioTrack(FfiHandle handle, const proto::OwnedTrack &track);
+  explicit LocalAudioTrack(FfiHandle handle, const proto::OwnedTrack& track);
 
   /// The publication that owns this track. This is a nullptr until the track
   /// is published, and then points to the publication that owns this track.

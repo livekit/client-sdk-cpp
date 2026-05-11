@@ -17,8 +17,7 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 class SDKInitializationTest : public ::testing::Test {
 protected:
@@ -34,8 +33,7 @@ TEST_F(SDKInitializationTest, InitializeDefault) {
 
 TEST_F(SDKInitializationTest, InitializeWithLogLevel) {
   bool result = livekit::initialize(livekit::LogLevel::Debug);
-  EXPECT_TRUE(result)
-      << "Initialization with explicit log level should succeed";
+  EXPECT_TRUE(result) << "Initialization with explicit log level should succeed";
   EXPECT_EQ(livekit::getLogLevel(), livekit::LogLevel::Debug);
 }
 
@@ -57,9 +55,7 @@ TEST_F(SDKInitializationTest, ReinitializeAfterShutdown) {
   EXPECT_TRUE(second) << "Re-initialization after shutdown should succeed";
 }
 
-TEST_F(SDKInitializationTest, ShutdownWithoutInitialize) {
-  EXPECT_NO_THROW(livekit::shutdown());
-}
+TEST_F(SDKInitializationTest, ShutdownWithoutInitialize) { EXPECT_NO_THROW(livekit::shutdown()); }
 
 TEST_F(SDKInitializationTest, MultipleShutdowns) {
   livekit::initialize();
@@ -69,5 +65,4 @@ TEST_F(SDKInitializationTest, MultipleShutdowns) {
   EXPECT_NO_THROW(livekit::shutdown());
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

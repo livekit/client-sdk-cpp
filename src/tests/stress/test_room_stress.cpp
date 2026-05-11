@@ -14,22 +14,20 @@
  * limitations under the License.
  */
 
-#include <atomic>
-#include <chrono>
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
+
+#include <atomic>
+#include <chrono>
 #include <memory>
 #include <thread>
 #include <vector>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 class RoomStressTest : public ::testing::Test {
 protected:
-  void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
-  }
+  void SetUp() override { livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole); }
 
   void TearDown() override { livekit::shutdown(); }
 };
@@ -46,13 +44,10 @@ TEST_F(RoomStressTest, RapidRoomCreation) {
   }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Created and destroyed " << num_iterations << " Room objects in "
-            << duration.count() << "ms"
-            << " (" << (num_iterations * 1000.0 / duration.count())
-            << " rooms/sec)" << std::endl;
+  std::cout << "Created and destroyed " << num_iterations << " Room objects in " << duration.count() << "ms"
+            << " (" << (num_iterations * 1000.0 / duration.count()) << " rooms/sec)" << std::endl;
 }
 
 // Stress test: Multiple simultaneous Room objects
@@ -68,17 +63,15 @@ TEST_F(RoomStressTest, MultipleSimultaneousRooms) {
   }
 
   // Verify all rooms are valid
-  for (const auto &room : rooms) {
+  for (const auto& room : rooms) {
     ASSERT_NE(room, nullptr);
     ASSERT_EQ(room->localParticipant(), nullptr);
   }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Held " << num_rooms << " Room objects simultaneously in "
-            << duration.count() << "ms" << std::endl;
+  std::cout << "Held " << num_rooms << " Room objects simultaneously in " << duration.count() << "ms" << std::endl;
 
   // Rooms are destroyed when vector goes out of scope
 }
@@ -103,19 +96,17 @@ TEST_F(RoomStressTest, ConcurrentRoomCreation) {
     });
   }
 
-  for (auto &thread : threads) {
+  for (auto& thread : threads) {
     thread.join();
   }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
   EXPECT_EQ(total_rooms.load(), num_threads * rooms_per_thread);
 
-  std::cout << "Created " << total_rooms.load() << " Room objects across "
-            << num_threads << " threads in " << duration.count() << "ms"
-            << std::endl;
+  std::cout << "Created " << total_rooms.load() << " Room objects across " << num_threads << " threads in "
+            << duration.count() << "ms" << std::endl;
 }
 
 // Stress test: RoomOptions creation and copying
@@ -148,11 +139,9 @@ TEST_F(RoomStressTest, RoomOptionsStress) {
   }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Created and copied " << num_iterations << " RoomOptions in "
-            << duration.count() << "ms" << std::endl;
+  std::cout << "Created and copied " << num_iterations << " RoomOptions in " << duration.count() << "ms" << std::endl;
 }
 
 // Stress test: Stream handler registration and unregistration
@@ -165,10 +154,8 @@ TEST_F(RoomStressTest, StreamHandlerRegistrationStress) {
   // Register many handlers
   for (int i = 0; i < num_topics; ++i) {
     std::string topic = "topic_" + std::to_string(i);
-    room.registerTextStreamHandler(
-        topic, [](std::shared_ptr<TextStreamReader>, const std::string &) {});
-    room.registerByteStreamHandler(
-        topic, [](std::shared_ptr<ByteStreamReader>, const std::string &) {});
+    room.registerTextStreamHandler(topic, [](std::shared_ptr<TextStreamReader>, const std::string&) {});
+    room.registerByteStreamHandler(topic, [](std::shared_ptr<ByteStreamReader>, const std::string&) {});
   }
 
   // Unregister all handlers
@@ -179,11 +166,10 @@ TEST_F(RoomStressTest, StreamHandlerRegistrationStress) {
   }
 
   auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Registered and unregistered " << (num_topics * 2)
-            << " stream handlers in " << duration.count() << "ms" << std::endl;
+  std::cout << "Registered and unregistered " << (num_topics * 2) << " stream handlers in " << duration.count() << "ms"
+            << std::endl;
 }
 
 // Server-dependent stress tests
@@ -192,8 +178,8 @@ protected:
   void SetUp() override {
     livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
 
-    const char *url_env = std::getenv("LIVEKIT_URL");
-    const char *token_env = std::getenv("LIVEKIT_CALLER_TOKEN");
+    const char* url_env = std::getenv("LIVEKIT_URL");
+    const char* token_env = std::getenv("LIVEKIT_TOKEN_A");
 
     if (url_env && token_env) {
       server_url_ = url_env;
@@ -211,8 +197,8 @@ protected:
 
 TEST_F(RoomServerStressTest, RepeatedConnectDisconnect) {
   if (!server_available_) {
-    GTEST_SKIP()
-        << "LIVEKIT_URL and LIVEKIT_TOKEN not set, skipping server stress test";
+    GTEST_SKIP() << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set, skipping server "
+                    "stress test";
   }
 
   const int num_iterations = 10;
@@ -233,10 +219,8 @@ TEST_F(RoomServerStressTest, RepeatedConnectDisconnect) {
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::seconds>(end - start);
 
-  std::cout << "Completed " << num_iterations
-            << " connect/disconnect cycles in " << duration.count() << "s"
+  std::cout << "Completed " << num_iterations << " connect/disconnect cycles in " << duration.count() << "s"
             << std::endl;
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

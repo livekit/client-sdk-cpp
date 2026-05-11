@@ -35,7 +35,7 @@ namespace {
 // Note: This is a minimal parser for Chrome trace format, not a general JSON
 // parser
 
-std::string readFile(const std::string &path) {
+std::string readFile(const std::string& path) {
   std::ifstream file(path);
   if (!file.is_open()) {
     return "";
@@ -46,14 +46,14 @@ std::string readFile(const std::string &path) {
 }
 
 // Skip whitespace
-void skipWhitespace(const std::string &json, size_t &pos) {
+void skipWhitespace(const std::string& json, size_t& pos) {
   while (pos < json.size() && std::isspace(json[pos])) {
     pos++;
   }
 }
 
 // Parse a JSON string (assumes pos is at opening quote)
-std::string parseString(const std::string &json, size_t &pos) {
+std::string parseString(const std::string& json, size_t& pos) {
   if (pos >= json.size() || json[pos] != '"') {
     return "";
   }
@@ -64,24 +64,24 @@ std::string parseString(const std::string &json, size_t &pos) {
     if (json[pos] == '\\' && pos + 1 < json.size()) {
       pos++;
       switch (json[pos]) {
-      case '"':
-        result += '"';
-        break;
-      case '\\':
-        result += '\\';
-        break;
-      case 'n':
-        result += '\n';
-        break;
-      case 't':
-        result += '\t';
-        break;
-      case 'r':
-        result += '\r';
-        break;
-      default:
-        result += json[pos];
-        break;
+        case '"':
+          result += '"';
+          break;
+        case '\\':
+          result += '\\';
+          break;
+        case 'n':
+          result += '\n';
+          break;
+        case 't':
+          result += '\t';
+          break;
+        case 'r':
+          result += '\r';
+          break;
+        default:
+          result += json[pos];
+          break;
       }
     } else {
       result += json[pos];
@@ -95,14 +95,13 @@ std::string parseString(const std::string &json, size_t &pos) {
 }
 
 // Parse a JSON number
-double parseNumber(const std::string &json, size_t &pos) {
+double parseNumber(const std::string& json, size_t& pos) {
   size_t start = pos;
   if (pos < json.size() && (json[pos] == '-' || json[pos] == '+')) {
     pos++;
   }
-  while (pos < json.size() &&
-         (std::isdigit(json[pos]) || json[pos] == '.' || json[pos] == 'e' ||
-          json[pos] == 'E' || json[pos] == '-' || json[pos] == '+')) {
+  while (pos < json.size() && (std::isdigit(json[pos]) || json[pos] == '.' || json[pos] == 'e' || json[pos] == 'E' ||
+                               json[pos] == '-' || json[pos] == '+')) {
     pos++;
   }
   if (pos == start) {
@@ -116,7 +115,7 @@ double parseNumber(const std::string &json, size_t &pos) {
 }
 
 // Parse a trace event object
-TraceEvent parseTraceEvent(const std::string &json, size_t &pos) {
+TraceEvent parseTraceEvent(const std::string& json, size_t& pos) {
   TraceEvent event;
 
   skipWhitespace(json, pos);
@@ -202,8 +201,7 @@ TraceEvent parseTraceEvent(const std::string &json, size_t &pos) {
           // Determine value type
           if (json[pos] == '"') {
             event.string_args[arg_key] = parseString(json, pos);
-          } else if (json[pos] == '-' || json[pos] == '+' ||
-                     std::isdigit(json[pos])) {
+          } else if (json[pos] == '-' || json[pos] == '+' || std::isdigit(json[pos])) {
             event.double_args[arg_key] = parseNumber(json, pos);
           } else {
             // Skip unknown value types (booleans, nulls, nested objects)
@@ -212,8 +210,7 @@ TraceEvent parseTraceEvent(const std::string &json, size_t &pos) {
               if (json[pos] == '{' || json[pos] == '[')
                 depth++;
               else if (json[pos] == '}' || json[pos] == ']') {
-                if (depth == 0)
-                  break;
+                if (depth == 0) break;
                 depth--;
               } else if (json[pos] == ',' && depth == 0)
                 break;
@@ -236,8 +233,7 @@ TraceEvent parseTraceEvent(const std::string &json, size_t &pos) {
             depth--;
           pos++;
         }
-      } else if (pos < json.size() && (json[pos] == '-' || json[pos] == '+' ||
-                                       std::isdigit(json[pos]))) {
+      } else if (pos < json.size() && (json[pos] == '-' || json[pos] == '+' || std::isdigit(json[pos]))) {
         parseNumber(json, pos);
       } else {
         // Skip boolean/null
@@ -252,18 +248,16 @@ TraceEvent parseTraceEvent(const std::string &json, size_t &pos) {
 }
 
 // Calculate percentile from sorted values
-double percentile(const std::vector<double> &sorted, double p) {
-  if (sorted.empty())
-    return 0.0;
+double percentile(const std::vector<double>& sorted, double p) {
+  if (sorted.empty()) return 0.0;
   size_t idx = static_cast<size_t>(sorted.size() * p / 100.0);
-  if (idx >= sorted.size())
-    idx = sorted.size() - 1;
+  if (idx >= sorted.size()) idx = sorted.size() - 1;
   return sorted[idx];
 }
 
 } // namespace
 
-std::vector<TraceEvent> loadTraceFile(const std::string &trace_file_path) {
+std::vector<TraceEvent> loadTraceFile(const std::string& trace_file_path) {
   std::vector<TraceEvent> events;
 
   std::string json = readFile(trace_file_path);
@@ -304,8 +298,7 @@ std::vector<TraceEvent> loadTraceFile(const std::string &trace_file_path) {
   return events;
 }
 
-std::vector<double> calculateDurations(const std::vector<TraceEvent> &events,
-                                       const std::string &name) {
+std::vector<double> calculateDurations(const std::vector<TraceEvent>& events, const std::string& name) {
   std::vector<double> durations;
 
   // For scoped events (B/E): track by thread ID
@@ -314,7 +307,7 @@ std::vector<double> calculateDurations(const std::vector<TraceEvent> &events,
   // For async events (S/F): track by event ID
   std::unordered_map<uint64_t, uint64_t> async_begin_times;
 
-  for (const auto &event : events) {
+  for (const auto& event : events) {
     if (event.name != name) {
       continue;
     }
@@ -326,8 +319,7 @@ std::vector<double> calculateDurations(const std::vector<TraceEvent> &events,
       // Scoped end - match by thread ID
       auto it = scoped_begin_times.find(event.tid);
       if (it != scoped_begin_times.end()) {
-        double duration_ms =
-            static_cast<double>(event.timestamp_us - it->second) / 1000.0;
+        double duration_ms = static_cast<double>(event.timestamp_us - it->second) / 1000.0;
         durations.push_back(duration_ms);
         scoped_begin_times.erase(it);
       }
@@ -338,8 +330,7 @@ std::vector<double> calculateDurations(const std::vector<TraceEvent> &events,
       // Async finish - match by event ID
       auto it = async_begin_times.find(event.id);
       if (it != async_begin_times.end()) {
-        double duration_ms =
-            static_cast<double>(event.timestamp_us - it->second) / 1000.0;
+        double duration_ms = static_cast<double>(event.timestamp_us - it->second) / 1000.0;
         durations.push_back(duration_ms);
         async_begin_times.erase(it);
       }
@@ -349,8 +340,7 @@ std::vector<double> calculateDurations(const std::vector<TraceEvent> &events,
   return durations;
 }
 
-BenchmarkStats calculateStats(const std::string &name,
-                              const std::vector<double> &durations) {
+BenchmarkStats calculateStats(const std::string& name, const std::vector<double>& durations) {
   BenchmarkStats stats;
   stats.name = name;
   stats.count = durations.size();
@@ -375,21 +365,19 @@ BenchmarkStats calculateStats(const std::string &name,
   return stats;
 }
 
-BenchmarkStats analyzeTraceFile(const std::string &trace_file_path,
-                                const std::string &event_name) {
+BenchmarkStats analyzeTraceFile(const std::string& trace_file_path, const std::string& event_name) {
   auto events = loadTraceFile(trace_file_path);
   auto durations = calculateDurations(events, event_name);
   return calculateStats(event_name, durations);
 }
 
-std::map<std::string, BenchmarkStats>
-analyzeTraceFile(const std::string &trace_file_path,
-                 const std::vector<std::string> &event_names) {
+std::map<std::string, BenchmarkStats> analyzeTraceFile(const std::string& trace_file_path,
+                                                       const std::vector<std::string>& event_names) {
   std::map<std::string, BenchmarkStats> results;
 
   auto events = loadTraceFile(trace_file_path);
 
-  for (const auto &name : event_names) {
+  for (const auto& name : event_names) {
     auto durations = calculateDurations(events, name);
     results[name] = calculateStats(name, durations);
   }
@@ -397,7 +385,7 @@ analyzeTraceFile(const std::string &trace_file_path,
   return results;
 }
 
-void printStats(const BenchmarkStats &stats) {
+void printStats(const BenchmarkStats& stats) {
   std::cout << "\n========================================" << std::endl;
   std::cout << "  " << stats.name << std::endl;
   std::cout << "========================================" << std::endl;
@@ -418,40 +406,37 @@ void printStats(const BenchmarkStats &stats) {
   std::cout << "========================================\n" << std::endl;
 }
 
-void printComparisonTable(const std::vector<BenchmarkStats> &results) {
+void printComparisonTable(const std::vector<BenchmarkStats>& results) {
   if (results.empty()) {
     return;
   }
 
   // Find max name length for formatting
   size_t max_name_len = 10;
-  for (const auto &stats : results) {
+  for (const auto& stats : results) {
     max_name_len = std::max(max_name_len, stats.name.size());
   }
 
   // Print header
   std::cout << "\n"
-            << std::left << std::setw(max_name_len + 2) << "Metric"
-            << std::right << std::setw(8) << "Count" << std::setw(10) << "Min"
-            << std::setw(10) << "Avg" << std::setw(10) << "P50" << std::setw(10)
-            << "P95" << std::setw(10) << "P99" << std::setw(10) << "Max"
-            << std::endl;
+            << std::left << std::setw(max_name_len + 2) << "Metric" << std::right << std::setw(8) << "Count"
+            << std::setw(10) << "Min" << std::setw(10) << "Avg" << std::setw(10) << "P50" << std::setw(10) << "P95"
+            << std::setw(10) << "P99" << std::setw(10) << "Max" << std::endl;
 
   std::cout << std::string(max_name_len + 2 + 68, '-') << std::endl;
 
   // Print rows
   std::cout << std::fixed << std::setprecision(1);
-  for (const auto &stats : results) {
-    std::cout << std::left << std::setw(max_name_len + 2) << stats.name
-              << std::right << std::setw(8) << stats.count << std::setw(10)
-              << stats.min_ms << std::setw(10) << stats.avg_ms << std::setw(10)
-              << stats.p50_ms << std::setw(10) << stats.p95_ms << std::setw(10)
-              << stats.p99_ms << std::setw(10) << stats.max_ms << std::endl;
+  for (const auto& stats : results) {
+    std::cout << std::left << std::setw(max_name_len + 2) << stats.name << std::right << std::setw(8) << stats.count
+              << std::setw(10) << stats.min_ms << std::setw(10) << stats.avg_ms << std::setw(10) << stats.p50_ms
+              << std::setw(10) << stats.p95_ms << std::setw(10) << stats.p99_ms << std::setw(10) << stats.max_ms
+              << std::endl;
   }
   std::cout << std::endl;
 }
 
-std::string exportToCsv(const std::vector<BenchmarkStats> &results) {
+std::string exportToCsv(const std::vector<BenchmarkStats>& results) {
   std::ostringstream csv;
 
   // Header
@@ -459,10 +444,9 @@ std::string exportToCsv(const std::vector<BenchmarkStats> &results) {
 
   // Data rows
   csv << std::fixed << std::setprecision(3);
-  for (const auto &stats : results) {
-    csv << stats.name << "," << stats.count << "," << stats.min_ms << ","
-        << stats.avg_ms << "," << stats.p50_ms << "," << stats.p95_ms << ","
-        << stats.p99_ms << "," << stats.max_ms << "\n";
+  for (const auto& stats : results) {
+    csv << stats.name << "," << stats.count << "," << stats.min_ms << "," << stats.avg_ms << "," << stats.p50_ms << ","
+        << stats.p95_ms << "," << stats.p99_ms << "," << stats.max_ms << "\n";
   }
 
   return csv.str();

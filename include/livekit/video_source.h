@@ -17,8 +17,10 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 
 #include "livekit/ffi_handle.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -37,10 +39,31 @@ enum class VideoRotation {
 };
 
 /**
+ * Optional packet-trailer metadata carried alongside a video frame.
+ *
+ * Each field is independently optional because the corresponding transport
+ * feature can be negotiated separately.
+ */
+struct VideoFrameMetadata {
+  std::optional<std::uint64_t> user_timestamp_us;
+  std::optional<std::uint32_t> frame_id;
+};
+
+/**
+ * Capture options for a single outbound video frame.
+ */
+struct VideoCaptureOptions {
+  std::int64_t timestamp_us = 0;
+  VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0;
+  // Populate meta data when you want to send user timestamps or frame IDs.
+  std::optional<VideoFrameMetadata> metadata;
+};
+
+/**
  * Represents a real-time video source that can accept frames from the
  * application and feed them into the LiveKit core.
  */
-class VideoSource {
+class LIVEKIT_API VideoSource {
 public:
   /**
    * Create a new native video source with a fixed resolution.
@@ -54,10 +77,10 @@ public:
   VideoSource(int width, int height);
   virtual ~VideoSource() = default;
 
-  VideoSource(const VideoSource &) = delete;
-  VideoSource &operator=(const VideoSource &) = delete;
-  VideoSource(VideoSource &&) noexcept = default;
-  VideoSource &operator=(VideoSource &&) noexcept = default;
+  VideoSource(const VideoSource&) = delete;
+  VideoSource& operator=(const VideoSource&) = delete;
+  VideoSource(VideoSource&&) noexcept = default;
+  VideoSource& operator=(VideoSource&&) noexcept = default;
 
   /// Source resolution as declared at construction.
   int width() const noexcept { return width_; }
@@ -69,16 +92,15 @@ public:
   /**
    * Push a VideoFrame into the FFI video source.
    *
-   * @param frame         Video frame to send.
-   * @param timestamp_us  Optional timestamp in microseconds.
-   * @param rotation      Video rotation enum.
-   * @param timeout_ms    Controls waiting behavior:
-   *
-   * Notes:
-   *   - Fire-and-forget to send a frame to FFI
-   *     lifetime correctly (e.g., persistent frame pools, GPU buffers, etc.).
+   * @param frame    Video frame to send.
+   * @param options  Timestamp, rotation, and optional metadata for this frame.
    */
-  void captureFrame(const VideoFrame &frame, std::int64_t timestamp_us = 0,
+  void captureFrame(const VideoFrame& frame, const VideoCaptureOptions& options);
+
+  /**
+   * Backward-compatible convenience overload for timestamp + rotation only.
+   */
+  void captureFrame(const VideoFrame& frame, std::int64_t timestamp_us = 0,
                     VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0);
 
 private:

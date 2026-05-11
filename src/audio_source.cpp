@@ -41,18 +41,17 @@ static double now_seconds() {
 // ============================================================================
 
 AudioSource::AudioSource(int sample_rate, int num_channels, int queue_size_ms)
-    : sample_rate_(sample_rate), num_channels_(num_channels),
-      queue_size_ms_(queue_size_ms) {
+    : sample_rate_(sample_rate), num_channels_(num_channels), queue_size_ms_(queue_size_ms) {
   proto::FfiRequest req;
-  auto *msg = req.mutable_new_audio_source();
+  auto* msg = req.mutable_new_audio_source();
   msg->set_type(proto::AudioSourceType::AUDIO_SOURCE_NATIVE);
   msg->set_sample_rate(static_cast<std::uint32_t>(sample_rate_));
   msg->set_num_channels(static_cast<std::uint32_t>(num_channels_));
   msg->set_queue_size_ms(static_cast<std::uint32_t>(queue_size_ms_));
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
 
-  const auto &source_info = resp.new_audio_source().source();
+  const auto& source_info = resp.new_audio_source().source();
   // Wrap FFI handle in RAII FfiHandle
   handle_ = FfiHandle(static_cast<uintptr_t>(source_info.handle().id()));
 }
@@ -62,9 +61,9 @@ double AudioSource::queuedDuration() const noexcept {
     return 0.0;
   }
 
-  double now = now_seconds();
-  double elapsed = now - last_capture_;
-  double remaining = q_size_ - elapsed;
+  const double now = now_seconds();
+  const double elapsed = now - last_capture_;
+  const double remaining = q_size_ - elapsed;
   return remaining > 0.0 ? remaining : 0.0;
 }
 
@@ -80,7 +79,7 @@ void AudioSource::clearQueue() {
   }
 
   proto::FfiRequest req;
-  auto *msg = req.mutable_clear_audio_buffer();
+  auto* msg = req.mutable_clear_audio_buffer();
   msg->set_source_handle(static_cast<std::uint64_t>(handle_.get()));
 
   (void)FfiClient::instance().sendRequest(req);
@@ -89,7 +88,7 @@ void AudioSource::clearQueue() {
   resetQueueTracking();
 }
 
-void AudioSource::captureFrame(const AudioFrame &frame, int timeout_ms) {
+void AudioSource::captureFrame(const AudioFrame& frame, int timeout_ms) {
   using namespace std::chrono_literals;
   if (!handle_) {
     return;
@@ -100,10 +99,9 @@ void AudioSource::captureFrame(const AudioFrame &frame, int timeout_ms) {
   }
 
   // Queue tracking, same logic as before
-  double now = now_seconds();
-  double elapsed = (last_capture_ == 0.0) ? 0.0 : (now - last_capture_);
-  double frame_duration = static_cast<double>(frame.samples_per_channel()) /
-                          static_cast<double>(sample_rate_);
+  const double now = now_seconds();
+  const double elapsed = (last_capture_ == 0.0) ? 0.0 : (now - last_capture_);
+  const double frame_duration = static_cast<double>(frame.samples_per_channel()) / static_cast<double>(sample_rate_);
   q_size_ += frame_duration - elapsed;
   if (q_size_ < 0.0) {
     q_size_ = 0.0; // clamp
@@ -111,7 +109,7 @@ void AudioSource::captureFrame(const AudioFrame &frame, int timeout_ms) {
   last_capture_ = now;
 
   // Build AudioFrameBufferInfo from the wrapper
-  proto::AudioFrameBufferInfo buf = frame.toProto();
+  const proto::AudioFrameBufferInfo buf = frame.toProto();
   // Use async FFI API and block until the callback completes
   auto fut = FfiClient::instance().captureAudioFrameAsync(handle_.get(), buf);
   if (timeout_ms == 0) {
@@ -120,8 +118,7 @@ void AudioSource::captureFrame(const AudioFrame &frame, int timeout_ms) {
   }
   // This will throw std::runtime_error if the callback reported an error
   auto status = fut.wait_for(std::chrono::milliseconds(timeout_ms));
-  if (status == std::future_status::ready ||
-      status == std::future_status::deferred) {
+  if (status == std::future_status::ready || status == std::future_status::deferred) {
     fut.get();
   } else { // std::future_status::timeout
     LK_LOG_WARN("captureAudioFrameAsync timed out after {} ms", timeout_ms);

@@ -18,6 +18,9 @@
  * Use of this source code is governed by a BSD-style license.
  */
 
+// NOLINTBEGIN
+// External code: this header is derived from WebRTC's event_tracer.h
+
 // This file defines the interface for event tracing in LiveKit SDK.
 //
 // Event log handlers are set through SetupEventTracer(). User of this API will
@@ -36,49 +39,32 @@
 #ifndef LIVEKIT_TRACE_EVENT_TRACER_H_
 #define LIVEKIT_TRACE_EVENT_TRACER_H_
 
-// Platform-specific DLL export macro
-#if defined(_WIN32)
-#if defined(LIVEKIT_BUILDING_SDK)
-#define LIVEKIT_EXPORT __declspec(dllexport)
-#else
-#define LIVEKIT_EXPORT __declspec(dllimport)
-#endif
-#else
-#define LIVEKIT_EXPORT __attribute__((visibility("default")))
-#endif
+#include "livekit/visibility.h"
 
 namespace livekit {
 namespace trace {
 
-typedef const unsigned char *(*GetCategoryEnabledPtr)(const char *name);
-typedef void (*AddTraceEventPtr)(char phase,
-                                 const unsigned char *category_enabled,
-                                 const char *name, unsigned long long id,
-                                 int num_args, const char **arg_names,
-                                 const unsigned char *arg_types,
-                                 const unsigned long long *arg_values,
+typedef const unsigned char* (*GetCategoryEnabledPtr)(const char* name);
+typedef void (*AddTraceEventPtr)(char phase, const unsigned char* category_enabled, const char* name,
+                                 unsigned long long id, int num_args, const char** arg_names,
+                                 const unsigned char* arg_types, const unsigned long long* arg_values,
                                  unsigned char flags);
 
 // User of LiveKit SDK can call this method to setup custom event tracing.
 //
 // This method must be called before any tracing begins. Functions
 // provided should be thread-safe.
-LIVEKIT_EXPORT void
-SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr,
-                 AddTraceEventPtr add_trace_event_ptr);
+LIVEKIT_API void SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr, AddTraceEventPtr add_trace_event_ptr);
 
 // This class defines interface for the event tracing system to call
-// internally. Do not call these methods directly.
-class EventTracer {
+// internally.
+class LIVEKIT_INTERNAL_API EventTracer {
 public:
-  static const unsigned char *GetCategoryEnabled(const char *name);
+  static const unsigned char* GetCategoryEnabled(const char* name);
 
-  static void AddTraceEvent(char phase, const unsigned char *category_enabled,
-                            const char *name, unsigned long long id,
-                            int num_args, const char **arg_names,
-                            const unsigned char *arg_types,
-                            const unsigned long long *arg_values,
-                            unsigned char flags);
+  static void AddTraceEvent(char phase, const unsigned char* category_enabled, const char* name, unsigned long long id,
+                            int num_args, const char** arg_names, const unsigned char* arg_types,
+                            const unsigned long long* arg_values, unsigned char flags);
 };
 
 } // namespace trace
@@ -88,5 +74,7 @@ public:
 namespace webrtc {
 using namespace livekit::trace;
 } // namespace webrtc
+
+// NOLINTEND
 
 #endif // LIVEKIT_TRACE_EVENT_TRACER_H_

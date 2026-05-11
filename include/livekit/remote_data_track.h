@@ -16,14 +16,15 @@
 
 #pragma once
 
+#include <memory>
+#include <string>
+
 #include "livekit/data_track_error.h"
 #include "livekit/data_track_info.h"
 #include "livekit/data_track_stream.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/result.h"
-
-#include <memory>
-#include <string>
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -54,19 +55,17 @@ class RemoteDataTrack {
 public:
   ~RemoteDataTrack() = default;
 
-  RemoteDataTrack(const RemoteDataTrack &) = delete;
-  RemoteDataTrack &operator=(const RemoteDataTrack &) = delete;
+  RemoteDataTrack(const RemoteDataTrack&) = delete;
+  RemoteDataTrack& operator=(const RemoteDataTrack&) = delete;
 
   /// Metadata about this data track.
-  const DataTrackInfo &info() const noexcept { return info_; }
+  const DataTrackInfo& info() const noexcept { return info_; }
 
   /// Identity of the remote participant who published this track.
-  const std::string &publisherIdentity() const noexcept {
-    return publisher_identity_;
-  }
+  const std::string& publisherIdentity() const noexcept { return publisher_identity_; }
 
   /// Whether the track is still published by the remote participant.
-  bool isPublished() const;
+  LIVEKIT_API bool isPublished() const;
 
 #ifdef LIVEKIT_TEST_ACCESS
   /// Test-only accessor for exercising lower-level FFI subscription paths.
@@ -79,13 +78,13 @@ public:
    * Returns a DataTrackStream that delivers frames via blocking
    * read(). Destroy the stream to unsubscribe.
    */
-  Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>
-  subscribe(const DataTrackStream::Options &options = {});
+  LIVEKIT_API Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> subscribe(
+      const DataTrackStream::Options& options = {});
 
 private:
   friend class Room;
 
-  explicit RemoteDataTrack(const proto::OwnedRemoteDataTrack &owned);
+  explicit RemoteDataTrack(const proto::OwnedRemoteDataTrack& owned);
 
   uintptr_t ffi_handle_id() const noexcept { return handle_.get(); }
   /** RAII wrapper for the Rust-owned FFI resource. */

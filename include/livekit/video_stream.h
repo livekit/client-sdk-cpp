@@ -19,23 +19,30 @@
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
 
-#include "ffi_handle.h"
-#include "participant.h"
-#include "track.h"
-#include "video_frame.h"
-#include "video_source.h"
+#include "livekit/ffi_handle.h"
+#include "livekit/participant.h"
+#include "livekit/track.h"
+#include "livekit/video_frame.h"
+#include "livekit/video_source.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
 // A single video frame event delivered by VideoStream::read().
 struct VideoFrameEvent {
   VideoFrame frame;
+  // WebRTC frame timestamp in microseconds.
+  // This may be translated onto WebRTC's internal capture-time timeline and
+  // should not be expected to match application-provided metadata such as
+  // VideoFrameMetadata::user_timestamp_us exactly.
   std::int64_t timestamp_us;
   VideoRotation rotation;
+  std::optional<VideoFrameMetadata> metadata;
 };
 
 namespace proto {
@@ -47,8 +54,8 @@ class FfiEvent;
 //
 // Typical usage:
 //
-//   AudioStream::Options opts;
-//   auto stream = AudioStream::fromTrack(remoteAudioTrack, opts);
+//   VideoStream::Options opts;
+//   auto stream = VideoStream::fromTrack(remoteVideoTrack, opts);
 //
 //   AudioFrameEvent ev;
 //   while (stream->read(ev)) {
@@ -57,7 +64,7 @@ class FfiEvent;
 //
 //   stream->close();  // optional, called automatically in destructor
 //
-class VideoStream {
+class LIVEKIT_API VideoStream {
 public:
   struct Options {
     // Maximum number of VideoFrameEvent items buffered in the internal queue.
@@ -73,20 +80,18 @@ public:
   };
 
   // Factory: create a VideoStream bound to a specific Track
-  static std::shared_ptr<VideoStream>
-  fromTrack(const std::shared_ptr<Track> &track, const Options &options);
+  static std::shared_ptr<VideoStream> fromTrack(const std::shared_ptr<Track>& track, const Options& options);
 
   // Factory: create a VideoStream from a Participant + TrackSource
-  static std::shared_ptr<VideoStream> fromParticipant(Participant &participant,
-                                                      TrackSource track_source,
-                                                      const Options &options);
+  static std::shared_ptr<VideoStream> fromParticipant(Participant& participant, TrackSource track_source,
+                                                      const Options& options);
 
   virtual ~VideoStream();
 
-  VideoStream(const VideoStream &) = delete;
-  VideoStream &operator=(const VideoStream &) = delete;
-  VideoStream(VideoStream &&) noexcept;
-  VideoStream &operator=(VideoStream &&) noexcept;
+  VideoStream(const VideoStream&) = delete;
+  VideoStream& operator=(const VideoStream&) = delete;
+  VideoStream(VideoStream&&) noexcept;
+  VideoStream& operator=(VideoStream&&) noexcept;
 
   /// Blocking read: waits until a VideoFrameEvent is available in the internal
   /// queue, or the stream reaches EOS / is closed.
@@ -94,7 +99,7 @@ public:
   /// \param out  On success, filled with the next video frame event.
   /// \return true if a frame was delivered; false if the stream ended
   ///         (end-of-stream or close()) and no more data is available.
-  bool read(VideoFrameEvent &out);
+  bool read(VideoFrameEvent& out);
 
   /// Signal that we are no longer interested in video frames.
   ///
@@ -107,16 +112,14 @@ private:
   VideoStream() = default;
 
   // Internal init helpers, used by the factories
-  void initFromTrack(const std::shared_ptr<Track> &track,
-                     const Options &options);
-  void initFromParticipant(Participant &participant, TrackSource source,
-                           const Options &options);
+  void initFromTrack(const std::shared_ptr<Track>& track, const Options& options);
+  void initFromParticipant(Participant& participant, TrackSource source, const Options& options);
 
   // FFI event handler (registered with FfiClient)
-  void onFfiEvent(const proto::FfiEvent &event);
+  void onFfiEvent(const proto::FfiEvent& event);
 
   // Queue helpers
-  void pushFrame(VideoFrameEvent &&ev);
+  void pushFrame(VideoFrameEvent&& ev);
   void pushEos();
 
   mutable std::mutex mutex_;
@@ -130,7 +133,7 @@ private:
   FfiHandle stream_handle_;
 
   // Listener id registered on FfiClient
-  std::int64_t listener_id_{0};
+  std::int32_t listener_id_{0};
 };
 
 } // namespace livekit

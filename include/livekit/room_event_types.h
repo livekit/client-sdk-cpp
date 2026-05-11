@@ -189,8 +189,7 @@ struct AttributeEntry {
 
   AttributeEntry() = default;
 
-  AttributeEntry(std::string k, std::string v)
-      : key(std::move(k)), value(std::move(v)) {}
+  AttributeEntry(std::string k, std::string v) : key(std::move(k)), value(std::move(v)) {}
 };
 
 /**
@@ -308,6 +307,17 @@ struct AudioEncodingOptions {
 };
 
 /**
+ * Optional RTP packet-trailer features for published video tracks.
+ */
+struct PacketTrailerFeatures {
+  /** Embed a user-supplied wall-clock timestamp. */
+  bool user_timestamp = false;
+
+  /** Embed a monotonically increasing frame identifier. */
+  bool frame_id = false;
+};
+
+/**
  * Options for publishing a track to the room.
  */
 struct TrackPublishOptions {
@@ -337,6 +347,9 @@ struct TrackPublishOptions {
 
   /** Enable pre-connect buffering for lower startup latency. */
   std::optional<bool> preconnect_buffer;
+
+  /** Optional packet-trailer features to enable for published video. */
+  PacketTrailerFeatures packet_trailer_features{};
 };
 
 // ---------------------------------------------------------
@@ -348,7 +361,7 @@ struct TrackPublishOptions {
  */
 struct ParticipantConnectedEvent {
   /** The newly connected remote participant (owned by Room). */
-  RemoteParticipant *participant = nullptr;
+  RemoteParticipant* participant = nullptr;
 };
 
 /**
@@ -356,7 +369,7 @@ struct ParticipantConnectedEvent {
  */
 struct ParticipantDisconnectedEvent {
   /** The participant that disconnected (owned by Room). */
-  RemoteParticipant *participant = nullptr;
+  RemoteParticipant* participant = nullptr;
 
   /** Reason for the disconnect, if known. */
   DisconnectReason reason = DisconnectReason::Unknown;
@@ -397,7 +410,7 @@ struct TrackPublishedEvent {
   std::shared_ptr<RemoteTrackPublication> publication;
 
   /** Remote participant who owns this track (owned by Room). */
-  RemoteParticipant *participant = nullptr;
+  RemoteParticipant* participant = nullptr;
 };
 
 /**
@@ -408,7 +421,7 @@ struct TrackUnpublishedEvent {
   std::shared_ptr<RemoteTrackPublication> publication;
 
   /** Remote participant who owned this track (owned by Room). */
-  RemoteParticipant *participant = nullptr;
+  RemoteParticipant* participant = nullptr;
 };
 
 /**
@@ -422,7 +435,7 @@ struct TrackSubscribedEvent {
   std::shared_ptr<RemoteTrackPublication> publication;
 
   /** Remote participant who owns the track (owned by Room). */
-  RemoteParticipant *participant = nullptr;
+  RemoteParticipant* participant = nullptr;
 };
 
 /**
@@ -436,7 +449,7 @@ struct TrackUnsubscribedEvent {
   std::shared_ptr<RemoteTrackPublication> publication;
 
   /** Remote participant who owns the track (owned by Room). */
-  RemoteParticipant *participant = nullptr;
+  RemoteParticipant* participant = nullptr;
 };
 
 /**
@@ -444,7 +457,7 @@ struct TrackUnsubscribedEvent {
  */
 struct TrackSubscriptionFailedEvent {
   /** Remote participant for which the subscription failed (owned by Room). */
-  RemoteParticipant *participant = nullptr;
+  RemoteParticipant* participant = nullptr;
 
   /** SID of the track that failed to subscribe. */
   std::string track_sid;
@@ -458,7 +471,7 @@ struct TrackSubscriptionFailedEvent {
  */
 struct TrackMutedEvent {
   /** Local or remote participant who owns the track (owned by Room). */
-  Participant *participant = nullptr;
+  Participant* participant = nullptr;
 
   /** Publication that was muted. */
   std::shared_ptr<TrackPublication> publication;
@@ -469,7 +482,7 @@ struct TrackMutedEvent {
  */
 struct TrackUnmutedEvent {
   /** Local or remote participant who owns the track (owned by Room). */
-  Participant *participant = nullptr;
+  Participant* participant = nullptr;
 
   /** Publication that was unmuted. */
   std::shared_ptr<TrackPublication> publication;
@@ -480,7 +493,7 @@ struct TrackUnmutedEvent {
  */
 struct ActiveSpeakersChangedEvent {
   /** Participants currently considered active speakers (owned by Room). */
-  std::vector<Participant *> speakers;
+  std::vector<Participant*> speakers;
 };
 
 /**
@@ -507,7 +520,7 @@ struct RoomSidChangedEvent {
  */
 struct ParticipantMetadataChangedEvent {
   /** Participant whose metadata changed (owned by Room). */
-  Participant *participant = nullptr;
+  Participant* participant = nullptr;
 
   /** Old metadata value. */
   std::string old_metadata;
@@ -521,7 +534,7 @@ struct ParticipantMetadataChangedEvent {
  */
 struct ParticipantNameChangedEvent {
   /** Participant whose name changed (owned by Room). */
-  Participant *participant = nullptr;
+  Participant* participant = nullptr;
 
   /** Previous name. */
   std::string old_name;
@@ -535,7 +548,7 @@ struct ParticipantNameChangedEvent {
  */
 struct ParticipantAttributesChangedEvent {
   /** Participant whose attributes changed (owned by Room). */
-  Participant *participant = nullptr;
+  Participant* participant = nullptr;
 
   /** Set of attributes that changed (key/value pairs). */
   std::vector<AttributeEntry> changed_attributes;
@@ -546,7 +559,7 @@ struct ParticipantAttributesChangedEvent {
  */
 struct ParticipantEncryptionStatusChangedEvent {
   /** Participant whose encryption status changed (owned by Room). */
-  Participant *participant = nullptr;
+  Participant* participant = nullptr;
 
   /** True if the participant is now fully encrypted. */
   bool is_encrypted = false;
@@ -557,7 +570,7 @@ struct ParticipantEncryptionStatusChangedEvent {
  */
 struct ConnectionQualityChangedEvent {
   /** Participant whose connection quality changed (owned by Room). */
-  Participant *participant = nullptr;
+  Participant* participant = nullptr;
 
   /** New connection quality. */
   ConnectionQuality quality = ConnectionQuality::Good;
@@ -575,7 +588,7 @@ struct UserDataPacketEvent {
 
   /** Remote participant that sent this packet, or nullptr if server (owned by
    * Room). */
-  RemoteParticipant *participant = nullptr;
+  RemoteParticipant* participant = nullptr;
 
   /** Optional topic associated with this data (may be empty). */
   std::string topic;
@@ -592,7 +605,7 @@ struct SipDtmfReceivedEvent {
   std::string digit;
 
   /** Remote participant that sent the DTMF (owned by Room). */
-  RemoteParticipant *participant = nullptr;
+  RemoteParticipant* participant = nullptr;
 };
 
 /**
@@ -713,7 +726,7 @@ struct RoomMovedEvent {
  */
 struct ParticipantsUpdatedEvent {
   /** Participants updated in this event (owned by Room). */
-  std::vector<Participant *> participants;
+  std::vector<Participant*> participants;
 };
 
 /**
@@ -721,7 +734,7 @@ struct ParticipantsUpdatedEvent {
  */
 struct E2eeStateChangedEvent {
   /** Local or remote participant whose state changed (owned by Room). */
-  Participant *participant = nullptr;
+  Participant* participant = nullptr;
 
   /** New encryption state. */
   EncryptionState state = EncryptionState::New;

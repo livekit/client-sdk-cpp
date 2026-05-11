@@ -36,10 +36,10 @@ namespace benchmark {
 // Trace Categories (for documentation/organization)
 // =============================================================================
 
-constexpr const char *kCategoryConnect = "livekit.benchmark.connect";
-constexpr const char *kCategoryRpc = "livekit.benchmark.rpc";
-constexpr const char *kCategoryAudio = "livekit.benchmark.audio";
-constexpr const char *kCategoryDataChannel = "livekit.benchmark.datachannel";
+constexpr const char* kCategoryConnect = "livekit.benchmark.connect";
+constexpr const char* kCategoryRpc = "livekit.benchmark.rpc";
+constexpr const char* kCategoryAudio = "livekit.benchmark.audio";
+constexpr const char* kCategoryDataChannel = "livekit.benchmark.datachannel";
 
 // =============================================================================
 // Trace Event Structure (for parsing trace files)
@@ -49,8 +49,8 @@ constexpr const char *kCategoryDataChannel = "livekit.benchmark.datachannel";
  * Represents a single trace event parsed from a trace file.
  */
 struct TraceEvent {
-  char phase = 0; // 'B' = begin, 'E' = end, 'S' = async start, 'F' = async
-                  // finish, 'I' = instant
+  char phase = 0;            // 'B' = begin, 'E' = end, 'S' = async start, 'F' = async
+                             // finish, 'I' = instant
   std::string category;      // Event category
   std::string name;          // Event name
   uint64_t id = 0;           // Event ID (for async event pairing)
@@ -91,7 +91,7 @@ struct BenchmarkStats {
  * @param trace_file_path Path to the trace JSON file
  * @return Vector of parsed trace events, empty if file cannot be read
  */
-std::vector<TraceEvent> loadTraceFile(const std::string &trace_file_path);
+std::vector<TraceEvent> loadTraceFile(const std::string& trace_file_path);
 
 /**
  * Calculate durations for paired begin/end or async start/finish events.
@@ -104,8 +104,7 @@ std::vector<TraceEvent> loadTraceFile(const std::string &trace_file_path);
  * @param name Event name to match (category is ignored, matches by name only)
  * @return Vector of durations in milliseconds
  */
-std::vector<double> calculateDurations(const std::vector<TraceEvent> &events,
-                                       const std::string &name);
+std::vector<double> calculateDurations(const std::vector<TraceEvent>& events, const std::string& name);
 
 /**
  * Calculate statistics from duration measurements.
@@ -114,8 +113,7 @@ std::vector<double> calculateDurations(const std::vector<TraceEvent> &events,
  * @param durations Vector of duration measurements in milliseconds
  * @return Calculated statistics
  */
-BenchmarkStats calculateStats(const std::string &name,
-                              const std::vector<double> &durations);
+BenchmarkStats calculateStats(const std::string& name, const std::vector<double>& durations);
 
 /**
  * Analyze a trace file and calculate statistics for a specific event.
@@ -127,8 +125,7 @@ BenchmarkStats calculateStats(const std::string &name,
  * @param event_name Event name to analyze
  * @return Statistics for the event, or empty stats if not found
  */
-BenchmarkStats analyzeTraceFile(const std::string &trace_file_path,
-                                const std::string &event_name);
+BenchmarkStats analyzeTraceFile(const std::string& trace_file_path, const std::string& event_name);
 
 /**
  * Analyze a trace file and calculate statistics for multiple events.
@@ -137,9 +134,8 @@ BenchmarkStats analyzeTraceFile(const std::string &trace_file_path,
  * @param event_names List of event names to analyze
  * @return Map of event name to statistics
  */
-std::map<std::string, BenchmarkStats>
-analyzeTraceFile(const std::string &trace_file_path,
-                 const std::vector<std::string> &event_names);
+std::map<std::string, BenchmarkStats> analyzeTraceFile(const std::string& trace_file_path,
+                                                       const std::vector<std::string>& event_names);
 
 // =============================================================================
 // Output Functions
@@ -150,14 +146,14 @@ analyzeTraceFile(const std::string &trace_file_path,
  *
  * @param stats Statistics to print
  */
-void printStats(const BenchmarkStats &stats);
+void printStats(const BenchmarkStats& stats);
 
 /**
  * Print a comparison table of multiple benchmark results.
  *
  * @param results Vector of benchmark statistics to compare
  */
-void printComparisonTable(const std::vector<BenchmarkStats> &results);
+void printComparisonTable(const std::vector<BenchmarkStats>& results);
 
 /**
  * Export benchmark results to CSV format.
@@ -165,7 +161,7 @@ void printComparisonTable(const std::vector<BenchmarkStats> &results);
  * @param results Vector of benchmark statistics
  * @return CSV formatted string
  */
-std::string exportToCsv(const std::vector<BenchmarkStats> &results);
+std::string exportToCsv(const std::vector<BenchmarkStats>& results);
 
 // =============================================================================
 // Benchmark Session (wraps tracing lifecycle)
@@ -182,8 +178,7 @@ std::string exportToCsv(const std::vector<BenchmarkStats> &results);
  */
 class BenchmarkSession {
 public:
-  BenchmarkSession(const std::string &name,
-                   const std::vector<std::string> &categories = {})
+  BenchmarkSession(const std::string& name, const std::vector<std::string>& categories = {})
       : name_(name), categories_(categories) {
     if (categories_.empty()) {
       categories_ = {"livekit", "livekit.*"};
@@ -196,32 +191,26 @@ public:
     }
   }
 
-  void start(const std::string &trace_filename = "") {
-    if (running_)
-      return;
-    trace_filename_ =
-        trace_filename.empty() ? (name_ + "_trace.json") : trace_filename;
+  void start(const std::string& trace_filename = "") {
+    if (running_) return;
+    trace_filename_ = trace_filename.empty() ? (name_ + "_trace.json") : trace_filename;
     livekit::startTracing(trace_filename_, categories_);
     running_ = true;
-    std::cout << "\n=== Benchmark Session Started: " << name_
-              << " ===" << std::endl;
+    std::cout << "\n=== Benchmark Session Started: " << name_ << " ===" << std::endl;
   }
 
   void stop() {
-    if (!running_)
-      return;
+    if (!running_) return;
     livekit::stopTracing();
     running_ = false;
-    std::cout << "=== Benchmark Session Stopped: " << name_
-              << " ===" << std::endl;
+    std::cout << "=== Benchmark Session Stopped: " << name_ << " ===" << std::endl;
     std::cout << "Trace saved to: " << trace_filename_ << std::endl;
-    std::cout << "View in Chrome: chrome://tracing or https://ui.perfetto.dev"
-              << std::endl;
+    std::cout << "View in Chrome: chrome://tracing or https://ui.perfetto.dev" << std::endl;
   }
 
   bool isRunning() const { return running_; }
-  const std::string &name() const { return name_; }
-  const std::string &traceFilename() const { return trace_filename_; }
+  const std::string& name() const { return name_; }
+  const std::string& traceFilename() const { return trace_filename_; }
 
 private:
   std::string name_;
@@ -240,9 +229,7 @@ private:
  */
 class TracedStressStats {
 public:
-  TracedStressStats(const std::string &name,
-                    const char *category = kCategoryRpc)
-      : name_(name), category_(category) {}
+  TracedStressStats(const std::string& name, const char* category = kCategoryRpc) : name_(name), category_(category) {}
 
   void recordCall(bool success, double latency_ms, size_t payload_size = 0) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -256,7 +243,7 @@ public:
     }
   }
 
-  void recordError(const std::string &error_type) {
+  void recordError(const std::string& error_type) {
     std::lock_guard<std::mutex> lock(mutex_);
     error_counts_[error_type]++;
   }
@@ -306,11 +293,9 @@ public:
     std::cout << "Successful:       " << successful_calls_ << std::endl;
     std::cout << "Failed:           " << failed_calls_ << std::endl;
     std::cout << "Success rate:     " << std::fixed << std::setprecision(2)
-              << (total_calls_ > 0 ? (100.0 * successful_calls_ / total_calls_)
-                                   : 0.0)
-              << "%" << std::endl;
-    std::cout << "Total bytes:      " << total_bytes_ << " ("
-              << (total_bytes_ / (1024.0 * 1024.0)) << " MB)" << std::endl;
+              << (total_calls_ > 0 ? (100.0 * successful_calls_ / total_calls_) : 0.0) << "%" << std::endl;
+    std::cout << "Total bytes:      " << total_bytes_ << " (" << (total_bytes_ / (1024.0 * 1024.0)) << " MB)"
+              << std::endl;
 
     if (!latencies_.empty()) {
       std::vector<double> sorted = latencies_;
@@ -321,8 +306,7 @@ public:
 
       auto percentile = [&sorted](double p) {
         size_t idx = static_cast<size_t>(sorted.size() * p / 100.0);
-        if (idx >= sorted.size())
-          idx = sorted.size() - 1;
+        if (idx >= sorted.size()) idx = sorted.size() - 1;
         return sorted[idx];
       };
 
@@ -337,7 +321,7 @@ public:
 
     if (!error_counts_.empty()) {
       std::cout << "\nError breakdown:" << std::endl;
-      for (const auto &pair : error_counts_) {
+      for (const auto& pair : error_counts_) {
         std::cout << "  " << pair.first << ": " << pair.second << std::endl;
       }
     }
@@ -357,7 +341,7 @@ public:
 
 private:
   std::string name_;
-  const char *category_;
+  const char* category_;
   mutable std::mutex mutex_;
 
   int total_calls_ = 0;

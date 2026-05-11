@@ -24,10 +24,11 @@
 #include <optional>
 #include <string>
 
-#include "audio_frame.h"
-#include "ffi_handle.h"
-#include "participant.h"
-#include "track.h"
+#include "livekit/audio_frame.h"
+#include "livekit/ffi_handle.h"
+#include "livekit/participant.h"
+#include "livekit/track.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -41,9 +42,13 @@ class FfiEvent;
  * This struct wraps an AudioFrame and is used as the output type when
  * reading from an AudioStream.
  */
+// NOLINTBEGIN(bugprone-exception-escape)
+// AudioFrame can throw in various places monitored by bugprone-exception-escape
+// Suppressing for now, would require significant refactor to fix
 struct AudioFrameEvent {
   AudioFrame frame; ///< The decoded PCM audio frame.
 };
+// NOLINTEND(bugprone-exception-escape)
 
 /**
  * Represents a pull-based stream of decoded PCM audio frames coming from
@@ -61,7 +66,7 @@ struct AudioFrameEvent {
  *
  *   stream->close();  // optional, called automatically in destructor
  */
-class AudioStream {
+class LIVEKIT_API AudioStream {
 public:
   /// Configuration options for AudioStream creation.
   struct Options {
@@ -83,21 +88,19 @@ public:
   };
 
   /// Factory: create an AudioStream bound to a specific Track
-  static std::shared_ptr<AudioStream>
-  fromTrack(const std::shared_ptr<Track> &track, const Options &options);
+  static std::shared_ptr<AudioStream> fromTrack(const std::shared_ptr<Track>& track, const Options& options);
 
   /// Factory: create an AudioStream from a Participant + TrackSource
-  static std::shared_ptr<AudioStream> fromParticipant(Participant &participant,
-                                                      TrackSource track_source,
-                                                      const Options &options);
+  static std::shared_ptr<AudioStream> fromParticipant(Participant& participant, TrackSource track_source,
+                                                      const Options& options);
 
   virtual ~AudioStream();
 
   /// No copy, assignment constructors.
-  AudioStream(const AudioStream &) = delete;
-  AudioStream &operator=(const AudioStream &) = delete;
-  AudioStream(AudioStream &&) noexcept;
-  AudioStream &operator=(AudioStream &&) noexcept;
+  AudioStream(const AudioStream&) = delete;
+  AudioStream& operator=(const AudioStream&) = delete;
+  AudioStream(AudioStream&&) noexcept;
+  AudioStream& operator=(AudioStream&&) noexcept;
 
   /// Blocking read: waits until there is an AudioFrameEvent available in the
   /// internal queue, or the stream reaches EOS / is closed.
@@ -105,7 +108,7 @@ public:
   /// \param out_event  On success, filled with the next audio frame.
   /// \return true if a frame was delivered; false if the stream ended
   ///         (end-of-stream or close()) and no more data is available.
-  bool read(AudioFrameEvent &out_event);
+  bool read(AudioFrameEvent& out_event);
 
   /// Signal that we are no longer interested in audio frames.
   ///
@@ -117,16 +120,14 @@ public:
 private:
   AudioStream() = default;
 
-  void initFromTrack(const std::shared_ptr<Track> &track,
-                     const Options &options);
-  void initFromParticipant(Participant &participant, TrackSource track_source,
-                           const Options &options);
+  void initFromTrack(const std::shared_ptr<Track>& track, const Options& options);
+  void initFromParticipant(Participant& participant, TrackSource track_source, const Options& options);
 
   // FFI event handler (registered with FfiClient)
-  void onFfiEvent(const proto::FfiEvent &event);
+  void onFfiEvent(const proto::FfiEvent& event);
 
   // Queue helpers
-  void pushFrame(AudioFrameEvent &&ev);
+  void pushFrame(AudioFrameEvent&& ev);
   void pushEos();
 
   mutable std::mutex mutex_;
@@ -142,7 +143,7 @@ private:
   FfiHandle stream_handle_;
 
   // Listener id registered on FfiClient
-  std::int64_t listener_id_{0};
+  std::int32_t listener_id_{0};
 };
 
 } // namespace livekit

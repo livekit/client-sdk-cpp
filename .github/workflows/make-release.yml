@@ -30,13 +30,14 @@ jobs:
           - os: ubuntu-24.04-arm
             name: linux-arm64
             generator: Ninja
-          - os: macos-latest
+          - os: macos-26-xlarge
             name: macos-arm64
             generator: Ninja
-          - os: macos-latest
+          - os: macos-26-large
             name: macos-x64
             generator: Ninja
-          - os: windows-latest
+            # Pinned to Windows 2022 for current VS 17 implementation
+          - os: windows-2022
             name: windows-x64
             generator: "Visual Studio 17 2022"
 
@@ -198,6 +199,49 @@ jobs:
 
           Write-Host "Bundle contents:"
           Get-ChildItem -Recurse -File $bundleDir | Select-Object -First 200 | ForEach-Object { $_.FullName }
+
+      # ---------- Verify exported ABI: no third-party symbol leaks ----------
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v6.0.0
+        with:
+          python-version: '3.x'
+
+      - name: Symbol leak check (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -eux
+          libdir="build-release/lib"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            lib="${libdir}/liblivekit.dylib"
+            if [[ ! -f "${lib}" ]]; then
+              lib="build-release/bin/liblivekit.dylib"
+            fi
+          else
+            lib="${libdir}/liblivekit.so"
+            if [[ ! -f "${lib}" ]]; then
+              lib="build-release/bin/liblivekit.so"
+            fi
+          fi
+          python3 .github/scripts/check_no_private_symbols.py "${lib}"
+
+      - name: Symbol leak check (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "build-release/bin/livekit.dll",
+            "build-release/lib/livekit.dll"
+          )
+          $lib = $null
+          foreach ($p in $candidates) {
+            if (Test-Path -LiteralPath $p) { $lib = $p; break }
+          }
+          if ($null -eq $lib) {
+            Write-Error "livekit.dll not found in any of: $($candidates -join ', ')"
+            exit 1
+          }
+          python .github/scripts/check_no_private_symbols.py "$lib"
 
       # ---------- Upload artifact (raw directory, no pre-compression) ----------
       - name: Upload build artifact

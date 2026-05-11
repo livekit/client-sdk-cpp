@@ -18,18 +18,14 @@
 
 #include "ffi.pb.h"
 #include "ffi_client.h"
-#include "livekit/video_source.h"
 #include "track.pb.h"
 #include "track_proto_converter.h"
 
 namespace livekit {
 
-RemoteVideoTrack::RemoteVideoTrack(const proto::OwnedTrack &track)
-    : Track(FfiHandle{static_cast<uintptr_t>(track.handle().id())},
-            track.info().sid(), track.info().name(),
-            fromProto(track.info().kind()),
-            fromProto(track.info().stream_state()), track.info().muted(),
-            true) {}
+RemoteVideoTrack::RemoteVideoTrack(const proto::OwnedTrack& track)
+    : Track(FfiHandle{static_cast<uintptr_t>(track.handle().id())}, track.info().sid(), track.info().name(),
+            fromProto(track.info().kind()), fromProto(track.info().stream_state()), track.info().muted(), true) {}
 
 std::string RemoteVideoTrack::to_string() const {
   return "rtc.RemoteVideoTrack(sid=" + sid() + ", name=" + name() + ")";

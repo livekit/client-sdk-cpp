@@ -16,7 +16,6 @@
 
 #include "livekit/video_source.h"
 
-#include <chrono>
 #include <stdexcept>
 
 #include "ffi.pb.h"
@@ -27,16 +26,14 @@
 
 namespace livekit {
 
-VideoSource::VideoSource(int width, int height)
-    : width_(width), height_(height) {
-
+VideoSource::VideoSource(int width, int height) : width_(width), height_(height) {
   proto::FfiRequest req;
-  auto *msg = req.mutable_new_video_source();
+  auto* msg = req.mutable_new_video_source();
   msg->set_type(proto::VideoSourceType::VIDEO_SOURCE_NATIVE);
   msg->mutable_resolution()->set_width(width_);
   msg->mutable_resolution()->set_height(height_);
 
-  auto resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   if (!resp.has_new_video_source()) {
     throw std::runtime_error("VideoSource: missing new_video_source");
   }
@@ -44,24 +41,29 @@ VideoSource::VideoSource(int width, int height)
   handle_ = FfiHandle(resp.new_video_source().source().handle().id());
 }
 
-void VideoSource::captureFrame(const VideoFrame &frame,
-                               std::int64_t timestamp_us,
-                               VideoRotation rotation) {
+void VideoSource::captureFrame(const VideoFrame& frame, const VideoCaptureOptions& options) {
   if (!handle_) {
     return;
   }
 
-  proto::VideoBufferInfo buf = toProto(frame);
+  const proto::VideoBufferInfo buf = toProto(frame);
   proto::FfiRequest req;
-  auto *msg = req.mutable_capture_video_frame();
+  auto* msg = req.mutable_capture_video_frame();
   msg->set_source_handle(handle_.get());
   msg->mutable_buffer()->CopyFrom(buf);
-  msg->set_timestamp_us(timestamp_us);
-  msg->set_rotation(static_cast<proto::VideoRotation>(rotation));
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  msg->set_timestamp_us(options.timestamp_us);
+  msg->set_rotation(static_cast<proto::VideoRotation>(options.rotation));
+  if (auto metadata = toProto(options.metadata)) {
+    msg->mutable_metadata()->CopyFrom(*metadata);
+  }
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   if (!resp.has_capture_video_frame()) {
     throw std::runtime_error("FfiResponse missing capture_video_frame");
   }
+}
+
+void VideoSource::captureFrame(const VideoFrame& frame, std::int64_t timestamp_us, VideoRotation rotation) {
+  captureFrame(frame, VideoCaptureOptions{timestamp_us, rotation});
 }
 
 } // namespace livekit

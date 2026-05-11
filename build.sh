@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
+LOCAL_INSTALL_DIR="${PROJECT_ROOT}/local-install"
 BUILD_TYPE="Release"
 PRESET=""
 
@@ -34,12 +35,14 @@ Commands:
   debug             Configure + build Debug version (build-debug/)
   debug-examples    Configure + build Debug version with examples
   debug-tests       Configure + build Debug version with tests
+  debug-all         Configure + build Debug version with tests + examples
   release           Configure + build Release version (build-release/)
   release-examples  Configure + build Release version with examples
   release-tests     Configure + build Release version with tests
+  release-all       Configure + build Release version with tests + examples
   build-all         Configure + build all of the above (debug/release + examples + tests)
-  clean             Clean both Debug and Release build directories
-  clean-all         Full clean (build dirs + Rust targets)
+  clean             Clean both Debug and Release build directories + local-install
+  clean-all         Full clean (build dirs + local-install + Rust targets)
   help              Show this help message
 
 Options (for debug / release):
@@ -159,14 +162,39 @@ configure() {
   fi
 }
 
+detect_parallel_jobs() {
+  if [[ -n "${CMAKE_BUILD_PARALLEL_LEVEL:-}" ]]; then
+    echo "${CMAKE_BUILD_PARALLEL_LEVEL}"
+    return
+  fi
+
+  local jobs=""
+  if command -v getconf >/dev/null 2>&1; then
+    jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || true)"
+  fi
+  if [[ -z "${jobs}" || ! "${jobs}" =~ ^[0-9]+$ || "${jobs}" -lt 1 ]]; then
+    if command -v sysctl >/dev/null 2>&1; then
+      jobs="$(sysctl -n hw.ncpu 2>/dev/null || true)"
+    fi
+  fi
+  if [[ -z "${jobs}" || ! "${jobs}" =~ ^[0-9]+$ || "${jobs}" -lt 1 ]]; then
+    jobs="2"
+  fi
+
+  echo "${jobs}"
+}
+
 build() {
-  echo "==> Building (${BUILD_TYPE})..."
+  local parallel_jobs
+  parallel_jobs="$(detect_parallel_jobs)"
+
+  echo "==> Building (${BUILD_TYPE}) with ${parallel_jobs} parallel jobs..."
   if [[ -n "${PRESET}" ]] && [[ -f "${PROJECT_ROOT}/CMakePresets.json" ]]; then
     # Use preset build if available
-    cmake --build --preset "${PRESET}"
+    cmake --build --preset "${PRESET}" --parallel "${parallel_jobs}"
   else
     # Fallback to traditional build
-    cmake --build "${BUILD_DIR}"
+    cmake --build "${BUILD_DIR}" --parallel "${parallel_jobs}"
   fi
 }
 
@@ -300,18 +328,24 @@ clean() {
   else
     echo "   (skipping) build-release does not exist."
   fi
+
+  echo "   Removing local-install..."
+  rm -rf "${LOCAL_INSTALL_DIR}" || true
   
   echo "==> Clean complete."
 }
 
 clean_all() {
-  echo "==> Running full clean-all (C++ + Rust)..."
+  echo "==> Running full clean-all (C++ + local-install + Rust)..."
 
   echo "Removing build-debug directory..."
   rm -rf "${PROJECT_ROOT}/build-debug" || true
 
   echo "Removing build-release directory..."
   rm -rf "${PROJECT_ROOT}/build-release" || true
+
+  echo "Removing local-install directory..."
+  rm -rf "${LOCAL_INSTALL_DIR}" || true
 
   echo "Removing Rust debug artifacts..."
   rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/debug" || true
@@ -399,6 +433,32 @@ case "${cmd}" in
     BUILD_TYPE="Release"
     BUILD_DIR="${PROJECT_ROOT}/build-release"
     PRESET="${OS_TYPE}-release-tests"
+    configure
+    build
+    if [[ "${DO_BUNDLE}" == "1" ]]; then
+      install_bundle
+      if [[ "${DO_ARCHIVE}" == "1" ]]; then
+        archive_bundle
+      fi
+    fi
+    ;;
+  release-all)
+    BUILD_TYPE="Release"
+    BUILD_DIR="${PROJECT_ROOT}/build-release"
+    PRESET="${OS_TYPE}-release-all"
+    configure
+    build
+    if [[ "${DO_BUNDLE}" == "1" ]]; then
+      install_bundle
+      if [[ "${DO_ARCHIVE}" == "1" ]]; then
+        archive_bundle
+      fi
+    fi
+    ;;
+  debug-all)
+    BUILD_TYPE="Debug"
+    BUILD_DIR="${PROJECT_ROOT}/build-debug"
+    PRESET="${OS_TYPE}-debug-all"
     configure
     build
     if [[ "${DO_BUNDLE}" == "1" ]]; then

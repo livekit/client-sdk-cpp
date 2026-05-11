@@ -16,15 +16,15 @@
 
 #pragma once
 
+#include <livekit/livekit.h>
+
 #include <atomic>
 #include <chrono>
 #include <cstdint>
-#include <livekit/livekit.h>
 #include <memory>
 #include <thread>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 // Default video dimensions for tests
 constexpr int kDefaultVideoWidth = 640;
@@ -33,9 +33,9 @@ constexpr int kDefaultVideoHeight = 360;
 /// Fill a VideoFrame with webcam-like colors (green tint with varying blue).
 /// @param frame The VideoFrame to fill (must be ARGB format).
 /// @param frame_index Frame counter used to vary the blue channel.
-inline void fillWebcamLikeFrame(VideoFrame &frame, std::uint64_t frame_index) {
+inline void fillWebcamLikeFrame(VideoFrame& frame, std::uint64_t frame_index) {
   // ARGB layout: [A, R, G, B]
-  std::uint8_t *data = frame.data();
+  std::uint8_t* data = frame.data();
   const std::size_t size = frame.dataSize();
   const std::uint8_t blue = static_cast<std::uint8_t>((frame_index * 3) % 255);
   for (std::size_t i = 0; i < size; i += 4) {
@@ -50,11 +50,9 @@ inline void fillWebcamLikeFrame(VideoFrame &frame, std::uint64_t frame_index) {
 /// @param frame The VideoFrame to fill (must be ARGB format).
 /// @param frame_index Frame counter encoded into metadata.
 /// @param timestamp_us Timestamp in microseconds encoded into metadata.
-inline void fillRedFrameWithMetadata(VideoFrame &frame,
-                                     std::uint64_t frame_index,
-                                     std::uint64_t timestamp_us) {
+inline void fillRedFrameWithMetadata(VideoFrame& frame, std::uint64_t frame_index, std::uint64_t timestamp_us) {
   // ARGB layout: [A, R, G, B]
-  std::uint8_t *data = frame.data();
+  std::uint8_t* data = frame.data();
   const std::size_t size = frame.dataSize();
   for (std::size_t i = 0; i < size; i += 4) {
     data[i + 0] = 255; // A
@@ -81,19 +79,17 @@ inline void fillRedFrameWithMetadata(VideoFrame &frame,
 }
 
 /// Wrapper for fillWebcamLikeFrame with timestamp parameter (ignored).
-inline void fillWebcamWrapper(VideoFrame &frame, std::uint64_t frame_index,
-                              std::uint64_t /*timestamp_us*/) {
+inline void fillWebcamWrapper(VideoFrame& frame, std::uint64_t frame_index, std::uint64_t /*timestamp_us*/) {
   fillWebcamLikeFrame(frame, frame_index);
 }
 
 /// Wrapper for fillRedFrameWithMetadata.
-inline void fillRedWrapper(VideoFrame &frame, std::uint64_t frame_index,
-                           std::uint64_t timestamp_us) {
+inline void fillRedWrapper(VideoFrame& frame, std::uint64_t frame_index, std::uint64_t timestamp_us) {
   fillRedFrameWithMetadata(frame, frame_index, timestamp_us);
 }
 
 /// Type alias for video frame fill functions.
-using VideoFrameFillFn = void (*)(VideoFrame &, std::uint64_t, std::uint64_t);
+using VideoFrameFillFn = void (*)(VideoFrame&, std::uint64_t, std::uint64_t);
 
 /// Run a video capture loop, calling the fill function for each frame.
 /// @param source The VideoSource to capture frames to.
@@ -102,21 +98,17 @@ using VideoFrameFillFn = void (*)(VideoFrame &, std::uint64_t, std::uint64_t);
 /// @param width Video frame width (default: kDefaultVideoWidth).
 /// @param height Video frame height (default: kDefaultVideoHeight).
 /// @param frame_interval Frame interval (default: 33ms for ~30fps).
-inline void runVideoLoop(
-    const std::shared_ptr<VideoSource> &source, std::atomic<bool> &running,
-    VideoFrameFillFn fill_fn, int width = kDefaultVideoWidth,
-    int height = kDefaultVideoHeight,
-    std::chrono::milliseconds frame_interval = std::chrono::milliseconds(33)) {
+inline void runVideoLoop(const std::shared_ptr<VideoSource>& source, std::atomic<bool>& running,
+                         VideoFrameFillFn fill_fn, int width = kDefaultVideoWidth, int height = kDefaultVideoHeight,
+                         std::chrono::milliseconds frame_interval = std::chrono::milliseconds(33)) {
   VideoFrame frame = VideoFrame::create(width, height, VideoBufferType::ARGB);
   std::uint64_t frame_index = 0;
   while (running.load(std::memory_order_relaxed)) {
     const auto now = std::chrono::steady_clock::now().time_since_epoch();
-    const auto ts_us = static_cast<std::uint64_t>(
-        std::chrono::duration_cast<std::chrono::microseconds>(now).count());
+    const auto ts_us = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(now).count());
     fill_fn(frame, frame_index, ts_us);
     try {
-      source->captureFrame(frame, static_cast<std::int64_t>(ts_us),
-                           VideoRotation::VIDEO_ROTATION_0);
+      source->captureFrame(frame, static_cast<std::int64_t>(ts_us), VideoRotation::VIDEO_ROTATION_0);
     } catch (...) {
       break;
     }
@@ -125,5 +117,4 @@ inline void runVideoLoop(
   }
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

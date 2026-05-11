@@ -16,12 +16,12 @@
 
 #include "livekit/data_track_stream.h"
 
+#include <utility>
+
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "lk_log.h"
-
-#include <utility>
 
 namespace livekit {
 
@@ -32,25 +32,23 @@ DataTrackStream::~DataTrackStream() { close(); }
 void DataTrackStream::init(FfiHandle subscription_handle) {
   subscription_handle_ = std::move(subscription_handle);
 
-  listener_id_ = FfiClient::instance().AddListener(
-      [this](const FfiEvent &e) { this->onFfiEvent(e); });
+  listener_id_ = FfiClient::instance().AddListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
 }
 
-bool DataTrackStream::read(DataTrackFrame &out) {
+bool DataTrackStream::read(DataTrackFrame& out) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_ || eof_) {
       return false;
     }
 
-    const auto subscription_handle =
-        static_cast<std::uint64_t>(subscription_handle_.get());
+    const auto subscription_handle = static_cast<std::uint64_t>(subscription_handle_.get());
 
     // Signal the Rust side that we're ready to receive the next frame.
     // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
     // from the underlying stream until notified via this request.
     proto::FfiRequest req;
-    auto *msg = req.mutable_data_track_stream_read();
+    auto* msg = req.mutable_data_track_stream_read();
     msg->set_stream_handle(subscription_handle);
     FfiClient::instance().sendRequest(req);
   }
@@ -62,22 +60,32 @@ bool DataTrackStream::read(DataTrackFrame &out) {
     return false;
   }
 
-  out = std::move(*frame_);
+  out = std::move(*frame_); // NOLINT(bugprone-unchecked-optional-access)
   frame_.reset();
   return true;
 }
 
+std::optional<SubscribeDataTrackError> DataTrackStream::terminalError() const {
+  const std::scoped_lock<std::mutex> lock(mutex_);
+  return terminal_error_;
+}
+
 void DataTrackStream::close() {
-  std::int64_t listener_id = -1;
+  std::int32_t listener_id = -1;
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_) {
       return;
     }
     closed_ = true;
+    // Preserve errors reported by EOS for post-stream inspection, but do not
+    // treat a local early close as a terminal subscription error.
+    if (!eof_) {
+      terminal_error_.reset();
+    }
     subscription_handle_.reset();
     listener_id = listener_id_;
-    listener_id_ = 0;
+    listener_id_ = -1;
   }
 
   if (listener_id != -1) {
@@ -87,31 +95,35 @@ void DataTrackStream::close() {
   cv_.notify_all();
 }
 
-void DataTrackStream::onFfiEvent(const FfiEvent &event) {
+void DataTrackStream::onFfiEvent(const FfiEvent& event) {
   if (event.message_case() != FfiEvent::kDataTrackStreamEvent) {
     return;
   }
 
-  const auto &dts = event.data_track_stream_event();
+  const auto& dts = event.data_track_stream_event();
   {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (closed_ || dts.stream_handle() !=
-                       static_cast<std::uint64_t>(subscription_handle_.get())) {
+    const std::scoped_lock<std::mutex> lock(mutex_);
+    if (closed_ || dts.stream_handle() != static_cast<std::uint64_t>(subscription_handle_.get())) {
       return;
     }
   }
 
   if (dts.has_frame_received()) {
-    const auto &fr = dts.frame_received().frame();
+    const auto& fr = dts.frame_received().frame();
     DataTrackFrame frame = DataTrackFrame::fromOwnedInfo(fr);
     pushFrame(std::move(frame));
   } else if (dts.has_eos()) {
-    pushEos();
+    std::optional<SubscribeDataTrackError> error;
+    const auto& eos = dts.eos();
+    if (eos.has_error()) {
+      error = SubscribeDataTrackError::fromProto(eos.error());
+    }
+    pushEos(std::move(error));
   }
 }
 
-void DataTrackStream::pushFrame(DataTrackFrame &&frame) {
-  std::lock_guard<std::mutex> lock(mutex_);
+void DataTrackStream::pushFrame(DataTrackFrame&& frame) {
+  const std::scoped_lock<std::mutex> lock(mutex_);
 
   if (closed_ || eof_) {
     return;
@@ -126,13 +138,14 @@ void DataTrackStream::pushFrame(DataTrackFrame &&frame) {
   cv_.notify_one();
 }
 
-void DataTrackStream::pushEos() {
+void DataTrackStream::pushEos(std::optional<SubscribeDataTrackError> error) {
   {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const std::scoped_lock<std::mutex> lock(mutex_);
     if (eof_) {
       return;
     }
     eof_ = true;
+    terminal_error_ = std::move(error);
   }
   cv_.notify_all();
 }

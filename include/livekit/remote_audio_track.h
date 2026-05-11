@@ -16,9 +16,11 @@
 
 #pragma once
 
-#include "track.h"
 #include <memory>
 #include <string>
+
+#include "livekit/track.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -40,12 +42,12 @@ class AudioSource;
  * Applications generally interact with `RemoteAudioTrack` through events and
  * `RemoteTrackPublication`, not through direct construction.
  */
-class RemoteAudioTrack : public Track {
+class LIVEKIT_API RemoteAudioTrack : public Track {
 public:
   /// Constructs a `RemoteAudioTrack` from an internal protocol-level
   /// `OwnedTrack` description provided by the signaling/FFI layer.
   /// This constructor is intended for internal SDK use only.
-  explicit RemoteAudioTrack(const proto::OwnedTrack &track);
+  explicit RemoteAudioTrack(const proto::OwnedTrack& track);
 
   /// Returns a concise, human-readable string summarizing the track,
   /// including its SID and name. Useful for debugging and logging.

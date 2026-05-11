@@ -30,7 +30,7 @@ lib/
 *.dylib
 *.dll
 *.exe
-livekit.log
+*.log
 web/
 *trace.json
 compile_commands.json

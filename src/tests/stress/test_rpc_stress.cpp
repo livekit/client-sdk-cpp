@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-#include "../benchmark/benchmark_utils.h"
-#include "../common/test_common.h"
 #include <fstream>
 #include <random>
 #include <sstream>
 
+#include "../benchmark/benchmark_utils.h"
+#include "../common/test_common.h"
+
 using namespace livekit::test::benchmark;
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 // Maximum RPC payload size (15KB)
 constexpr size_t kMaxRpcPayloadSize = 15 * 1024;
 
 // Path to test data file (relative to repo root)
-static const char *kTestDataFile = "data/rpc_test_data.txt";
+static const char* kTestDataFile = "data/rpc_test_data.txt";
 
 // Loaded test data lines
 static std::vector<std::string> gTestDataLines;
@@ -48,7 +48,7 @@ void loadTestData() {
     };
 
     std::ifstream file;
-    for (const auto &path : search_paths) {
+    for (const auto& path : search_paths) {
       file.open(path);
       if (file.is_open()) {
         std::cout << "Loaded test data from: " << path << std::endl;
@@ -57,8 +57,7 @@ void loadTestData() {
     }
 
     if (!file.is_open()) {
-      std::cerr << "Warning: Could not find " << kTestDataFile
-                << ", using fallback test data" << std::endl;
+      std::cerr << "Warning: Could not find " << kTestDataFile << ", using fallback test data" << std::endl;
       // Fallback to some default lines if file not found
       gTestDataLines = {
           "This is a fallback test line for RPC stress testing.",
@@ -76,14 +75,13 @@ void loadTestData() {
     }
     file.close();
 
-    std::cout << "Loaded " << gTestDataLines.size() << " lines of test data"
-              << std::endl;
+    std::cout << "Loaded " << gTestDataLines.size() << " lines of test data" << std::endl;
   });
 }
 
 // Truncate a string at a valid UTF-8 boundary, then pad with spaces to exact
 // size
-std::string truncateUtf8AndPad(const std::string &str, size_t target_size) {
+std::string truncateUtf8AndPad(const std::string& str, size_t target_size) {
   if (str.size() <= target_size) {
     // Pad with spaces to reach target size
     std::string result = str;
@@ -119,7 +117,7 @@ std::string generateRandomPayload(size_t size) {
   loadTestData();
 
   static thread_local std::random_device rd;
-  static thread_local std::mt19937 gen(rd());
+  static thread_local std::mt19937 gen(static_cast<std::mt19937::result_type>(rd()));
 
   if (gTestDataLines.empty()) {
     // Should not happen, but return empty string if no data
@@ -134,7 +132,7 @@ std::string generateRandomPayload(size_t size) {
   // Build payload from random lines
   while (result.size() < size) {
     size_t line_idx = dis(gen);
-    const std::string &line = gTestDataLines[line_idx];
+    const std::string& line = gTestDataLines[line_idx];
     if (!result.empty()) {
       result += "\n";
     }
@@ -152,25 +150,21 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
   skipIfNotConfigured();
 
   std::cout << "\n=== RPC Max Payload Stress Test ===" << std::endl;
-  std::cout << "Duration: " << config_.stress_duration_seconds << " seconds"
-            << std::endl;
+  std::cout << "Duration: " << config_.stress_duration_seconds << " seconds" << std::endl;
   std::cout << "Caller threads: " << config_.num_caller_threads << std::endl;
-  std::cout << "Max payload size: " << kMaxRpcPayloadSize << " bytes (15KB)"
-            << std::endl;
+  std::cout << "Max payload size: " << kMaxRpcPayloadSize << " bytes (15KB)" << std::endl;
 
   // Create receiver room
   auto receiver_room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.receiver_token, options);
+  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   auto receiver_info = receiver_room->room_info();
-  std::cout << "Receiver connected - Room: " << receiver_info.name
-            << " (SID: " << receiver_info.sid.value_or("unknown") << ")"
-            << std::endl;
+  std::cout << "Receiver connected - Room: " << receiver_info.name << " (SID: " << receiver_info.sid.value_or("unknown")
+            << ")" << std::endl;
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
 
@@ -178,9 +172,7 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
 
   // Register RPC handler that processes max payloads
   receiver_room->localParticipant()->registerRpcMethod(
-      "max-payload-stress",
-      [&total_received](
-          const RpcInvocationData &data) -> std::optional<std::string> {
+      "max-payload-stress", [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
         total_received++;
         // Echo the payload back for round-trip verification
         return data.payload;
@@ -188,17 +180,14 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
 
   // Create caller room
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected =
-      caller_room->Connect(config_.url, config_.caller_token, options);
+  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   auto caller_info = caller_room->room_info();
-  std::cout << "Caller connected - Room: " << caller_info.name
-            << " (SID: " << caller_info.sid.value_or("unknown") << ")"
-            << std::endl;
+  std::cout << "Caller connected - Room: " << caller_info.name << " (SID: " << caller_info.sid.value_or("unknown")
+            << ")" << std::endl;
 
-  bool receiver_visible =
-      waitForParticipant(caller_room.get(), receiver_identity, 10s);
+  bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
   std::cout << "Both rooms connected. Starting stress test..." << std::endl;
@@ -230,13 +219,11 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
         auto call_start = std::chrono::high_resolution_clock::now();
 
         try {
-          std::string response = caller_room->localParticipant()->performRpc(
-              receiver_identity, "max-payload-stress", payload, 60.0);
+          std::string response =
+              caller_room->localParticipant()->performRpc(receiver_identity, "max-payload-stress", payload, 60.0);
 
           auto call_end = std::chrono::high_resolution_clock::now();
-          double latency_ms =
-              std::chrono::duration<double, std::milli>(call_end - call_start)
-                  .count();
+          double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
 
           // Verify response by comparing checksum (more efficient than full
           // comparison)
@@ -245,27 +232,21 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
             response_checksum += static_cast<unsigned char>(c);
           }
 
-          if (response.size() == payload.size() &&
-              response_checksum == expected_checksum) {
+          if (response.size() == payload.size() && response_checksum == expected_checksum) {
             stats.recordCall(true, latency_ms, kMaxRpcPayloadSize);
           } else {
             stats.recordCall(false, latency_ms, kMaxRpcPayloadSize);
             stats.recordError("checksum_mismatch");
-            std::cerr << "[CHECKSUM MISMATCH] sent size=" << payload.size()
-                      << " checksum=" << expected_checksum
-                      << " | received size=" << response.size()
-                      << " checksum=" << response_checksum << std::endl;
+            std::cerr << "[CHECKSUM MISMATCH] sent size=" << payload.size() << " checksum=" << expected_checksum
+                      << " | received size=" << response.size() << " checksum=" << response_checksum << std::endl;
           }
-        } catch (const RpcError &e) {
+        } catch (const RpcError& e) {
           auto call_end = std::chrono::high_resolution_clock::now();
-          double latency_ms =
-              std::chrono::duration<double, std::milli>(call_end - call_start)
-                  .count();
+          double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
           stats.recordCall(false, latency_ms, kMaxRpcPayloadSize);
 
           auto code = static_cast<RpcError::ErrorCode>(e.code());
-          std::cerr << "[RPC ERROR] code=" << e.code() << " message=\""
-                    << e.message() << "\""
+          std::cerr << "[RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\""
                     << " data=\"" << e.data() << "\""
                     << " latency=" << latency_ms << "ms" << std::endl;
 
@@ -278,7 +259,7 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
           } else {
             stats.recordError("rpc_error_" + std::to_string(e.code()));
           }
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
           stats.recordCall(false, 0, kMaxRpcPayloadSize);
           stats.recordError("exception");
           std::cerr << "[EXCEPTION] " << e.what() << std::endl;
@@ -295,20 +276,16 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
     int last_total = 0;
     while (running.load()) {
       std::this_thread::sleep_for(30s);
-      if (!running.load())
-        break;
+      if (!running.load()) break;
 
       auto elapsed = std::chrono::steady_clock::now() - start_time;
-      auto elapsed_seconds =
-          std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
+      auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
       int current_total = stats.totalCalls();
       int calls_per_30s = current_total - last_total;
       last_total = current_total;
 
-      std::cout << "[" << elapsed_seconds << "s] Total: " << current_total
-                << " | Success: " << stats.successfulCalls()
-                << " | Failed: " << stats.failedCalls()
-                << " | Rate: " << (calls_per_30s / 30.0) << " calls/sec"
+      std::cout << "[" << elapsed_seconds << "s] Total: " << current_total << " | Success: " << stats.successfulCalls()
+                << " | Failed: " << stats.failedCalls() << " | Rate: " << (calls_per_30s / 30.0) << " calls/sec"
                 << " | Received: " << total_received.load() << std::endl;
     }
   });
@@ -322,7 +299,7 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
   running.store(false);
 
   // Wait for all threads
-  for (auto &t : caller_threads) {
+  for (auto& t : caller_threads) {
     t.join();
   }
   progress_thread.join();
@@ -334,10 +311,7 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
 
   // Verify results
   EXPECT_GT(stats.successfulCalls(), 0) << "No successful calls";
-  double success_rate =
-      (stats.totalCalls() > 0)
-          ? (100.0 * stats.successfulCalls() / stats.totalCalls())
-          : 0.0;
+  double success_rate = (stats.totalCalls() > 0) ? (100.0 * stats.successfulCalls() / stats.totalCalls()) : 0.0;
   EXPECT_GT(success_rate, 95.0) << "Success rate below 95%";
 
   receiver_room->localParticipant()->unregisterRpcMethod("max-payload-stress");
@@ -354,25 +328,21 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   constexpr size_t kSmallPayloadSize = 1000;
 
   std::cout << "\n=== RPC Small Payload Stress Test ===" << std::endl;
-  std::cout << "Duration: " << config_.stress_duration_seconds << " seconds"
-            << std::endl;
+  std::cout << "Duration: " << config_.stress_duration_seconds << " seconds" << std::endl;
   std::cout << "Caller threads: " << config_.num_caller_threads << std::endl;
-  std::cout << "Payload size: " << kSmallPayloadSize
-            << " bytes (single SCTP chunk)" << std::endl;
+  std::cout << "Payload size: " << kSmallPayloadSize << " bytes (single SCTP chunk)" << std::endl;
 
   // Create receiver room
   auto receiver_room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.receiver_token, options);
+  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   auto receiver_info = receiver_room->room_info();
-  std::cout << "Receiver connected - Room: " << receiver_info.name
-            << " (SID: " << receiver_info.sid.value_or("unknown") << ")"
-            << std::endl;
+  std::cout << "Receiver connected - Room: " << receiver_info.name << " (SID: " << receiver_info.sid.value_or("unknown")
+            << ")" << std::endl;
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
 
@@ -380,26 +350,21 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
 
   // Register RPC handler
   receiver_room->localParticipant()->registerRpcMethod(
-      "small-payload-stress",
-      [&total_received](
-          const RpcInvocationData &data) -> std::optional<std::string> {
+      "small-payload-stress", [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
         total_received++;
         return data.payload;
       });
 
   // Create caller room
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected =
-      caller_room->Connect(config_.url, config_.caller_token, options);
+  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   auto caller_info = caller_room->room_info();
-  std::cout << "Caller connected - Room: " << caller_info.name
-            << " (SID: " << caller_info.sid.value_or("unknown") << ")"
-            << std::endl;
+  std::cout << "Caller connected - Room: " << caller_info.name << " (SID: " << caller_info.sid.value_or("unknown")
+            << ")" << std::endl;
 
-  bool receiver_visible =
-      waitForParticipant(caller_room.get(), receiver_identity, 10s);
+  bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
   std::cout << "Both rooms connected. Starting stress test..." << std::endl;
@@ -430,13 +395,11 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
         auto call_start = std::chrono::high_resolution_clock::now();
 
         try {
-          std::string response = caller_room->localParticipant()->performRpc(
-              receiver_identity, "small-payload-stress", payload, 60.0);
+          std::string response =
+              caller_room->localParticipant()->performRpc(receiver_identity, "small-payload-stress", payload, 60.0);
 
           auto call_end = std::chrono::high_resolution_clock::now();
-          double latency_ms =
-              std::chrono::duration<double, std::milli>(call_end - call_start)
-                  .count();
+          double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
 
           // Verify response by comparing checksum
           size_t response_checksum = 0;
@@ -444,23 +407,19 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
             response_checksum += static_cast<unsigned char>(c);
           }
 
-          if (response.size() == payload.size() &&
-              response_checksum == expected_checksum) {
+          if (response.size() == payload.size() && response_checksum == expected_checksum) {
             stats.recordCall(true, latency_ms, kSmallPayloadSize);
           } else {
             stats.recordCall(false, latency_ms, kSmallPayloadSize);
             stats.recordError("checksum_mismatch");
           }
-        } catch (const RpcError &e) {
+        } catch (const RpcError& e) {
           auto call_end = std::chrono::high_resolution_clock::now();
-          double latency_ms =
-              std::chrono::duration<double, std::milli>(call_end - call_start)
-                  .count();
+          double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
           stats.recordCall(false, latency_ms, kSmallPayloadSize);
 
           auto code = static_cast<RpcError::ErrorCode>(e.code());
-          std::cerr << "[RPC ERROR] code=" << e.code() << " message=\""
-                    << e.message() << "\""
+          std::cerr << "[RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\""
                     << " data=\"" << e.data() << "\"" << std::endl;
           if (code == RpcError::ErrorCode::RESPONSE_TIMEOUT) {
             stats.recordError("timeout");
@@ -471,7 +430,7 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
           } else {
             stats.recordError("rpc_error_" + std::to_string(e.code()));
           }
-        } catch (const std::exception &e) {
+        } catch (const std::exception& e) {
           stats.recordCall(false, 0, kSmallPayloadSize);
           stats.recordError("exception");
           std::cerr << "[EXCEPTION] " << e.what() << std::endl;
@@ -488,20 +447,16 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
     int last_total = 0;
     while (running.load()) {
       std::this_thread::sleep_for(30s);
-      if (!running.load())
-        break;
+      if (!running.load()) break;
 
       auto elapsed = std::chrono::steady_clock::now() - start_time;
-      auto elapsed_seconds =
-          std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
+      auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
       int current_total = stats.totalCalls();
       int calls_per_30s = current_total - last_total;
       last_total = current_total;
 
-      std::cout << "[" << elapsed_seconds << "s] Total: " << current_total
-                << " | Success: " << stats.successfulCalls()
-                << " | Failed: " << stats.failedCalls()
-                << " | Rate: " << (calls_per_30s / 30.0) << " calls/sec"
+      std::cout << "[" << elapsed_seconds << "s] Total: " << current_total << " | Success: " << stats.successfulCalls()
+                << " | Failed: " << stats.failedCalls() << " | Rate: " << (calls_per_30s / 30.0) << " calls/sec"
                 << " | Received: " << total_received.load() << std::endl;
     }
   });
@@ -515,7 +470,7 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   running.store(false);
 
   // Wait for all threads
-  for (auto &t : caller_threads) {
+  for (auto& t : caller_threads) {
     t.join();
   }
   progress_thread.join();
@@ -527,14 +482,10 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
 
   // Verify results
   EXPECT_GT(stats.successfulCalls(), 0) << "No successful calls";
-  double success_rate =
-      (stats.totalCalls() > 0)
-          ? (100.0 * stats.successfulCalls() / stats.totalCalls())
-          : 0.0;
+  double success_rate = (stats.totalCalls() > 0) ? (100.0 * stats.successfulCalls() / stats.totalCalls()) : 0.0;
   EXPECT_GT(success_rate, 95.0) << "Success rate below 95%";
 
-  receiver_room->localParticipant()->unregisterRpcMethod(
-      "small-payload-stress");
+  receiver_room->localParticipant()->unregisterRpcMethod("small-payload-stress");
   caller_room.reset();
   receiver_room.reset();
 }
@@ -544,47 +495,38 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   skipIfNotConfigured();
 
   std::cout << "\n=== Bidirectional RPC Stress Test ===" << std::endl;
-  std::cout << "Duration: " << config_.stress_duration_seconds << " seconds"
-            << std::endl;
+  std::cout << "Duration: " << config_.stress_duration_seconds << " seconds" << std::endl;
 
   auto room_a = std::make_unique<Room>();
   auto room_b = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool a_connected =
-      room_a->Connect(config_.url, config_.caller_token, options);
+  bool a_connected = room_a->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(a_connected) << "Room A failed to connect";
 
-  bool b_connected =
-      room_b->Connect(config_.url, config_.receiver_token, options);
+  bool b_connected = room_b->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(b_connected) << "Room B failed to connect";
 
   std::string identity_a = room_a->localParticipant()->identity();
   std::string identity_b = room_b->localParticipant()->identity();
 
-  ASSERT_TRUE(waitForParticipant(room_a.get(), identity_b, 10s))
-      << "Room B not visible to Room A";
-  ASSERT_TRUE(waitForParticipant(room_b.get(), identity_a, 10s))
-      << "Room A not visible to Room B";
+  ASSERT_TRUE(waitForParticipant(room_a.get(), identity_b, 10s)) << "Room B not visible to Room A";
+  ASSERT_TRUE(waitForParticipant(room_b.get(), identity_a, 10s)) << "Room A not visible to Room B";
 
   std::atomic<int> a_received{0};
   std::atomic<int> b_received{0};
 
   // Register handlers on both sides - echo payload back for verification
   room_a->localParticipant()->registerRpcMethod(
-      "ping",
-      [&a_received](
-          const RpcInvocationData &data) -> std::optional<std::string> {
+      "ping", [&a_received](const RpcInvocationData& data) -> std::optional<std::string> {
         a_received++;
         // Echo the payload back for round-trip verification
         return data.payload;
       });
 
   room_b->localParticipant()->registerRpcMethod(
-      "ping",
-      [&b_received](
-          const RpcInvocationData &data) -> std::optional<std::string> {
+      "ping", [&b_received](const RpcInvocationData& data) -> std::optional<std::string> {
         b_received++;
         // Echo the payload back for round-trip verification
         return data.payload;
@@ -615,13 +557,10 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
       auto call_start = std::chrono::high_resolution_clock::now();
 
       try {
-        std::string response = room_a->localParticipant()->performRpc(
-            identity_b, "ping", payload, 60.0);
+        std::string response = room_a->localParticipant()->performRpc(identity_b, "ping", payload, 60.0);
 
         auto call_end = std::chrono::high_resolution_clock::now();
-        double latency_ms =
-            std::chrono::duration<double, std::milli>(call_end - call_start)
-                .count();
+        double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
 
         // Verify response by comparing checksum
         size_t response_checksum = 0;
@@ -629,22 +568,18 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
           response_checksum += static_cast<unsigned char>(c);
         }
 
-        if (response.size() == payload.size() &&
-            response_checksum == expected_checksum) {
+        if (response.size() == payload.size() && response_checksum == expected_checksum) {
           stats_a_to_b.recordCall(true, latency_ms, kMaxRpcPayloadSize);
         } else {
           stats_a_to_b.recordCall(false, latency_ms, kMaxRpcPayloadSize);
-          std::cerr << "[A->B MISMATCH] sent size=" << payload.size()
-                    << " checksum=" << expected_checksum
-                    << " | received size=" << response.size()
-                    << " checksum=" << response_checksum << std::endl;
+          std::cerr << "[A->B MISMATCH] sent size=" << payload.size() << " checksum=" << expected_checksum
+                    << " | received size=" << response.size() << " checksum=" << response_checksum << std::endl;
         }
-      } catch (const RpcError &e) {
+      } catch (const RpcError& e) {
         stats_a_to_b.recordCall(false, 0, kMaxRpcPayloadSize);
-        std::cerr << "[A->B RPC ERROR] code=" << e.code() << " message=\""
-                  << e.message() << "\""
+        std::cerr << "[A->B RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\""
                   << " data=\"" << e.data() << "\"" << std::endl;
-      } catch (const std::exception &ex) {
+      } catch (const std::exception& ex) {
         stats_a_to_b.recordCall(false, 0, kMaxRpcPayloadSize);
         std::cerr << "[A->B EXCEPTION] " << ex.what() << std::endl;
       }
@@ -667,13 +602,10 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
       auto call_start = std::chrono::high_resolution_clock::now();
 
       try {
-        std::string response = room_b->localParticipant()->performRpc(
-            identity_a, "ping", payload, 60.0);
+        std::string response = room_b->localParticipant()->performRpc(identity_a, "ping", payload, 60.0);
 
         auto call_end = std::chrono::high_resolution_clock::now();
-        double latency_ms =
-            std::chrono::duration<double, std::milli>(call_end - call_start)
-                .count();
+        double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
 
         // Verify response by comparing checksum
         size_t response_checksum = 0;
@@ -681,22 +613,18 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
           response_checksum += static_cast<unsigned char>(c);
         }
 
-        if (response.size() == payload.size() &&
-            response_checksum == expected_checksum) {
+        if (response.size() == payload.size() && response_checksum == expected_checksum) {
           stats_b_to_a.recordCall(true, latency_ms, kMaxRpcPayloadSize);
         } else {
           stats_b_to_a.recordCall(false, latency_ms, kMaxRpcPayloadSize);
-          std::cerr << "[B->A MISMATCH] sent size=" << payload.size()
-                    << " checksum=" << expected_checksum
-                    << " | received size=" << response.size()
-                    << " checksum=" << response_checksum << std::endl;
+          std::cerr << "[B->A MISMATCH] sent size=" << payload.size() << " checksum=" << expected_checksum
+                    << " | received size=" << response.size() << " checksum=" << response_checksum << std::endl;
         }
-      } catch (const RpcError &e) {
+      } catch (const RpcError& e) {
         stats_b_to_a.recordCall(false, 0, kMaxRpcPayloadSize);
-        std::cerr << "[B->A RPC ERROR] code=" << e.code() << " message=\""
-                  << e.message() << "\""
+        std::cerr << "[B->A RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\""
                   << " data=\"" << e.data() << "\"" << std::endl;
-      } catch (const std::exception &ex) {
+      } catch (const std::exception& ex) {
         stats_b_to_a.recordCall(false, 0, kMaxRpcPayloadSize);
         std::cerr << "[B->A EXCEPTION] " << ex.what() << std::endl;
       }
@@ -709,20 +637,15 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   std::thread progress_thread([&]() {
     while (running.load()) {
       std::this_thread::sleep_for(30s);
-      if (!running.load())
-        break;
+      if (!running.load()) break;
 
       auto elapsed = std::chrono::steady_clock::now() - start_time;
-      auto elapsed_seconds =
-          std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
+      auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
 
       std::cout << "[" << elapsed_seconds << "s] "
-                << "A->B: " << stats_a_to_b.successfulCalls() << "/"
-                << stats_a_to_b.totalCalls() << " | "
-                << "B->A: " << stats_b_to_a.successfulCalls() << "/"
-                << stats_b_to_a.totalCalls() << " | "
-                << "A rcvd: " << a_received.load()
-                << " | B rcvd: " << b_received.load() << std::endl;
+                << "A->B: " << stats_a_to_b.successfulCalls() << "/" << stats_a_to_b.totalCalls() << " | "
+                << "B->A: " << stats_b_to_a.successfulCalls() << "/" << stats_b_to_a.totalCalls() << " | "
+                << "A rcvd: " << a_received.load() << " | B rcvd: " << b_received.load() << std::endl;
     }
   });
 
@@ -746,8 +669,7 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   stats_b_to_a.printStats();
 
   // Print comparison table
-  std::vector<BenchmarkStats> all_stats = {stats_a_to_b.getLatencyStats(),
-                                           stats_b_to_a.getLatencyStats()};
+  std::vector<BenchmarkStats> all_stats = {stats_a_to_b.getLatencyStats(), stats_b_to_a.getLatencyStats()};
   std::cout << "\n=== Comparison Table ===" << std::endl;
   printComparisonTable(all_stats);
 
@@ -765,16 +687,14 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   skipIfNotConfigured();
 
   std::cout << "\n=== High Throughput Burst Test ===" << std::endl;
-  std::cout << "Duration: " << config_.stress_duration_seconds << " seconds"
-            << std::endl;
+  std::cout << "Duration: " << config_.stress_duration_seconds << " seconds" << std::endl;
   std::cout << "Testing rapid-fire RPC with max payload (15KB)..." << std::endl;
 
   auto receiver_room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.receiver_token, options);
+  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -782,21 +702,17 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   std::atomic<int> total_received{0};
 
   receiver_room->localParticipant()->registerRpcMethod(
-      "burst-test",
-      [&total_received](
-          const RpcInvocationData &data) -> std::optional<std::string> {
+      "burst-test", [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
         total_received++;
         // Echo the payload back for round-trip verification
         return data.payload;
       });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected =
-      caller_room->Connect(config_.url, config_.caller_token, options);
+  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
-  bool receiver_visible =
-      waitForParticipant(caller_room.get(), receiver_identity, 10s);
+  bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
   // Start benchmark session with tracing
@@ -825,13 +741,11 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
         auto call_start = std::chrono::high_resolution_clock::now();
 
         try {
-          std::string response = caller_room->localParticipant()->performRpc(
-              receiver_identity, "burst-test", payload, 60.0);
+          std::string response =
+              caller_room->localParticipant()->performRpc(receiver_identity, "burst-test", payload, 60.0);
 
           auto call_end = std::chrono::high_resolution_clock::now();
-          double latency_ms =
-              std::chrono::duration<double, std::milli>(call_end - call_start)
-                  .count();
+          double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
 
           // Verify response by comparing checksum
           size_t response_checksum = 0;
@@ -839,22 +753,18 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
             response_checksum += static_cast<unsigned char>(c);
           }
 
-          if (response.size() == payload.size() &&
-              response_checksum == expected_checksum) {
+          if (response.size() == payload.size() && response_checksum == expected_checksum) {
             stats.recordCall(true, latency_ms, kMaxRpcPayloadSize);
           } else {
             stats.recordCall(false, latency_ms, kMaxRpcPayloadSize);
-            std::cerr << "[BURST MISMATCH] sent size=" << payload.size()
-                      << " checksum=" << expected_checksum
-                      << " | received size=" << response.size()
-                      << " checksum=" << response_checksum << std::endl;
+            std::cerr << "[BURST MISMATCH] sent size=" << payload.size() << " checksum=" << expected_checksum
+                      << " | received size=" << response.size() << " checksum=" << response_checksum << std::endl;
           }
-        } catch (const RpcError &e) {
+        } catch (const RpcError& e) {
           stats.recordCall(false, 0, kMaxRpcPayloadSize);
-          std::cerr << "[BURST RPC ERROR] code=" << e.code() << " message=\""
-                    << e.message() << "\""
+          std::cerr << "[BURST RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\""
                     << " data=\"" << e.data() << "\"" << std::endl;
-        } catch (const std::exception &ex) {
+        } catch (const std::exception& ex) {
           stats.recordCall(false, 0, kMaxRpcPayloadSize);
           std::cerr << "[BURST EXCEPTION] " << ex.what() << std::endl;
         }
@@ -869,23 +779,19 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
     int last_total = 0;
     while (running.load()) {
       std::this_thread::sleep_for(10s);
-      if (!running.load())
-        break;
+      if (!running.load()) break;
 
       int current = stats.totalCalls();
       double rate = (current - last_total) / 10.0;
       last_total = current;
 
       auto elapsed = std::chrono::steady_clock::now() - start_time;
-      auto elapsed_seconds =
-          std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
+      auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
 
       std::cout << "[" << elapsed_seconds << "s] "
-                << "Total: " << current
-                << " | Success: " << stats.successfulCalls()
-                << " | Rate: " << rate << " calls/sec"
-                << " | Throughput: " << (rate * kMaxRpcPayloadSize / 1024.0)
-                << " KB/sec" << std::endl;
+                << "Total: " << current << " | Success: " << stats.successfulCalls() << " | Rate: " << rate
+                << " calls/sec"
+                << " | Throughput: " << (rate * kMaxRpcPayloadSize / 1024.0) << " KB/sec" << std::endl;
     }
   });
 
@@ -895,7 +801,7 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
 
   running.store(false);
 
-  for (auto &t : burst_threads) {
+  for (auto& t : burst_threads) {
     t.join();
   }
   progress_thread.join();
@@ -905,17 +811,13 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   // Print trace-based statistics
   stats.printStats();
 
-  auto total_time = std::chrono::duration_cast<std::chrono::seconds>(
-                        std::chrono::steady_clock::now() - start_time)
-                        .count();
+  auto total_time =
+      std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count();
   double avg_rate = static_cast<double>(stats.totalCalls()) / total_time;
-  double throughput_kbps =
-      (static_cast<double>(stats.successfulCalls()) * kMaxRpcPayloadSize) /
-      (total_time * 1024.0);
+  double throughput_kbps = (static_cast<double>(stats.successfulCalls()) * kMaxRpcPayloadSize) / (total_time * 1024.0);
 
   std::cout << "Average rate: " << avg_rate << " calls/sec" << std::endl;
-  std::cout << "Average throughput: " << throughput_kbps << " KB/sec"
-            << std::endl;
+  std::cout << "Average throughput: " << throughput_kbps << " KB/sec" << std::endl;
 
   EXPECT_GT(stats.successfulCalls(), 0);
 
@@ -924,5 +826,4 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   receiver_room.reset();
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

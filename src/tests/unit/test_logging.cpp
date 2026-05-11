@@ -17,16 +17,15 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
-#include "lk_log.h"
-
 #include <atomic>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
-namespace livekit {
-namespace test {
+#include "lk_log.h"
+
+namespace livekit::test {
 
 class LoggingTest : public ::testing::Test {
 protected:
@@ -54,9 +53,7 @@ TEST_F(LoggingTest, SetAndGetLogLevel) {
   }
 }
 
-TEST_F(LoggingTest, DefaultLogLevelIsInfo) {
-  EXPECT_EQ(livekit::getLogLevel(), LogLevel::Info);
-}
+TEST_F(LoggingTest, DefaultLogLevelIsInfo) { EXPECT_EQ(livekit::getLogLevel(), LogLevel::Info); }
 
 // ---------------------------------------------------------------------------
 // setLogCallback captures messages
@@ -72,8 +69,7 @@ TEST_F(LoggingTest, CallbackReceivesLogMessages) {
   std::mutex mtx;
   std::vector<Captured> captured;
 
-  livekit::setLogCallback([&](LogLevel level, const std::string &logger_name,
-                              const std::string &message) {
+  livekit::setLogCallback([&](LogLevel level, const std::string& logger_name, const std::string& message) {
     std::lock_guard<std::mutex> lock(mtx);
     captured.push_back({level, logger_name, message});
   });
@@ -86,7 +82,7 @@ TEST_F(LoggingTest, CallbackReceivesLogMessages) {
   ASSERT_GE(captured.size(), 1u);
 
   bool found = false;
-  for (const auto &entry : captured) {
+  for (const auto& entry : captured) {
     if (entry.message.find("hello from test") != std::string::npos) {
       EXPECT_EQ(entry.level, LogLevel::Info);
       EXPECT_EQ(entry.logger_name, "livekit");
@@ -101,11 +97,10 @@ TEST_F(LoggingTest, CallbackReceivesCorrectLevel) {
   std::mutex mtx;
   std::vector<LogLevel> levels_seen;
 
-  livekit::setLogCallback(
-      [&](LogLevel level, const std::string &, const std::string &) {
-        std::lock_guard<std::mutex> lock(mtx);
-        levels_seen.push_back(level);
-      });
+  livekit::setLogCallback([&](LogLevel level, const std::string&, const std::string&) {
+    std::lock_guard<std::mutex> lock(mtx);
+    levels_seen.push_back(level);
+  });
 
   livekit::setLogLevel(LogLevel::Trace);
 
@@ -127,10 +122,7 @@ TEST_F(LoggingTest, CallbackReceivesCorrectLevel) {
 TEST_F(LoggingTest, MessagesFilteredBelowLevel) {
   std::atomic<int> call_count{0};
 
-  livekit::setLogCallback(
-      [&](LogLevel, const std::string &, const std::string &) {
-        call_count.fetch_add(1);
-      });
+  livekit::setLogCallback([&](LogLevel, const std::string&, const std::string&) { call_count.fetch_add(1); });
 
   livekit::setLogLevel(LogLevel::Warn);
 
@@ -138,24 +130,19 @@ TEST_F(LoggingTest, MessagesFilteredBelowLevel) {
   LK_LOG_DEBUG("should be filtered");
   LK_LOG_INFO("should be filtered");
 
-  EXPECT_EQ(call_count.load(), 0)
-      << "Messages below Warn should not reach callback";
+  EXPECT_EQ(call_count.load(), 0) << "Messages below Warn should not reach callback";
 
   LK_LOG_WARN("should pass");
   LK_LOG_ERROR("should pass");
   LK_LOG_CRITICAL("should pass");
 
-  EXPECT_EQ(call_count.load(), 3)
-      << "Messages at or above Warn should reach callback";
+  EXPECT_EQ(call_count.load(), 3) << "Messages at or above Warn should reach callback";
 }
 
 TEST_F(LoggingTest, OffLevelSuppressesEverything) {
   std::atomic<int> call_count{0};
 
-  livekit::setLogCallback(
-      [&](LogLevel, const std::string &, const std::string &) {
-        call_count.fetch_add(1);
-      });
+  livekit::setLogCallback([&](LogLevel, const std::string&, const std::string&) { call_count.fetch_add(1); });
 
   livekit::setLogLevel(LogLevel::Off);
 
@@ -176,10 +163,7 @@ TEST_F(LoggingTest, OffLevelSuppressesEverything) {
 TEST_F(LoggingTest, NullCallbackRestoresDefault) {
   std::atomic<int> call_count{0};
 
-  livekit::setLogCallback(
-      [&](LogLevel, const std::string &, const std::string &) {
-        call_count.fetch_add(1);
-      });
+  livekit::setLogCallback([&](LogLevel, const std::string&, const std::string&) { call_count.fetch_add(1); });
 
   livekit::setLogLevel(LogLevel::Trace);
   LK_LOG_INFO("goes to callback");
@@ -189,8 +173,7 @@ TEST_F(LoggingTest, NullCallbackRestoresDefault) {
   livekit::setLogCallback(nullptr);
 
   LK_LOG_INFO("goes to stderr, not callback");
-  EXPECT_EQ(call_count.load(), before)
-      << "After setLogCallback(nullptr), old callback should not fire";
+  EXPECT_EQ(call_count.load(), before) << "After setLogCallback(nullptr), old callback should not fire";
 }
 
 // ---------------------------------------------------------------------------
@@ -201,8 +184,7 @@ TEST_F(LoggingTest, ReplacingCallbackStopsOldOne) {
   std::atomic<int> old_count{0};
   std::atomic<int> new_count{0};
 
-  livekit::setLogCallback([&](LogLevel, const std::string &,
-                              const std::string &) { old_count.fetch_add(1); });
+  livekit::setLogCallback([&](LogLevel, const std::string&, const std::string&) { old_count.fetch_add(1); });
 
   livekit::setLogLevel(LogLevel::Trace);
   LK_LOG_INFO("to old");
@@ -210,13 +192,11 @@ TEST_F(LoggingTest, ReplacingCallbackStopsOldOne) {
 
   int old_before = old_count.load();
 
-  livekit::setLogCallback([&](LogLevel, const std::string &,
-                              const std::string &) { new_count.fetch_add(1); });
+  livekit::setLogCallback([&](LogLevel, const std::string&, const std::string&) { new_count.fetch_add(1); });
 
   LK_LOG_INFO("to new");
 
-  EXPECT_EQ(old_count.load(), old_before)
-      << "Old callback should not receive messages after replacement";
+  EXPECT_EQ(old_count.load(), old_before) << "Old callback should not receive messages after replacement";
   EXPECT_GE(new_count.load(), 1) << "New callback should receive messages";
 }
 
@@ -227,11 +207,9 @@ TEST_F(LoggingTest, ReplacingCallbackStopsOldOne) {
 TEST_F(LoggingTest, LogLevelPreservedAcrossCallbackChange) {
   livekit::setLogLevel(LogLevel::Error);
 
-  livekit::setLogCallback(
-      [](LogLevel, const std::string &, const std::string &) {});
+  livekit::setLogCallback([](LogLevel, const std::string&, const std::string&) {});
 
-  EXPECT_EQ(livekit::getLogLevel(), LogLevel::Error)
-      << "setLogCallback should preserve the current log level";
+  EXPECT_EQ(livekit::getLogLevel(), LogLevel::Error) << "setLogCallback should preserve the current log level";
 }
 
 // ---------------------------------------------------------------------------
@@ -257,7 +235,7 @@ TEST_F(LoggingTest, ConcurrentSetLogLevelDoesNotCrash) {
     });
   }
 
-  for (auto &th : threads) {
+  for (auto& th : threads) {
     th.join();
   }
 }
@@ -265,10 +243,7 @@ TEST_F(LoggingTest, ConcurrentSetLogLevelDoesNotCrash) {
 TEST_F(LoggingTest, ConcurrentLogEmissionDoesNotCrash) {
   std::atomic<int> call_count{0};
 
-  livekit::setLogCallback(
-      [&](LogLevel, const std::string &, const std::string &) {
-        call_count.fetch_add(1);
-      });
+  livekit::setLogCallback([&](LogLevel, const std::string&, const std::string&) { call_count.fetch_add(1); });
 
   livekit::setLogLevel(LogLevel::Trace);
 
@@ -286,12 +261,11 @@ TEST_F(LoggingTest, ConcurrentLogEmissionDoesNotCrash) {
     });
   }
 
-  for (auto &th : threads) {
+  for (auto& th : threads) {
     th.join();
   }
 
   EXPECT_GE(call_count.load(), kThreads * kIterations);
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

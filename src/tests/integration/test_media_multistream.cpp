@@ -14,9 +14,6 @@
  * limitations under the License.
  */
 
-#include "../common/audio_utils.h"
-#include "../common/test_common.h"
-#include "../common/video_utils.h"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -26,8 +23,11 @@
 #include <thread>
 #include <vector>
 
-namespace livekit {
-namespace test {
+#include "../common/audio_utils.h"
+#include "../common/test_common.h"
+#include "../common/video_utils.h"
+
+namespace livekit::test {
 
 using namespace std::chrono_literals;
 
@@ -48,10 +48,9 @@ struct MediaSubscriptionState {
 
 class MediaTrackCollectorDelegate : public RoomDelegate {
 public:
-  explicit MediaTrackCollectorDelegate(MediaSubscriptionState &state)
-      : state_(state) {}
+  explicit MediaTrackCollectorDelegate(MediaSubscriptionState& state) : state_(state) {}
 
-  void onTrackSubscribed(Room &, const TrackSubscribedEvent &event) override {
+  void onTrackSubscribed(Room&, const TrackSubscribedEvent& event) override {
     std::lock_guard<std::mutex> lock(state_.mutex);
     std::string name = "<unknown>";
     std::string sid = "<unknown>";
@@ -67,14 +66,13 @@ public:
       name = event.publication->name();
       state_.subscribed_track_names.insert(name);
     }
-    std::cerr << "[MediaMultiStream] onTrackSubscribed name=" << name
-              << " sid=" << sid << " audio_count=" << state_.audio_tracks
-              << " video_count=" << state_.video_tracks << std::endl;
+    std::cerr << "[MediaMultiStream] onTrackSubscribed name=" << name << " sid=" << sid
+              << " audio_count=" << state_.audio_tracks << " video_count=" << state_.video_tracks << std::endl;
     state_.cv.notify_all();
   }
 
 private:
-  MediaSubscriptionState &state_;
+  MediaSubscriptionState& state_;
 };
 
 } // namespace
@@ -84,11 +82,9 @@ protected:
   void runPublishTwoVideoAndTwoAudioTracks(bool single_peer_connection);
 };
 
-void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
-    bool single_peer_connection) {
+void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(bool single_peer_connection) {
   if (!config_.available) {
-    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_CALLER_TOKEN, and "
-                    "LIVEKIT_RECEIVER_TOKEN not set";
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   RoomOptions options;
@@ -100,18 +96,13 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
 
   auto receiver_room = std::make_unique<Room>();
   receiver_room->setDelegate(&receiver_delegate);
-  ASSERT_TRUE(
-      receiver_room->Connect(config_.url, config_.receiver_token, options))
-      << "Receiver failed to connect";
+  ASSERT_TRUE(receiver_room->Connect(config_.url, config_.token_b, options)) << "Receiver failed to connect";
 
   auto sender_room = std::make_unique<Room>();
-  ASSERT_TRUE(sender_room->Connect(config_.url, config_.caller_token, options))
-      << "Sender failed to connect";
+  ASSERT_TRUE(sender_room->Connect(config_.url, config_.token_a, options)) << "Sender failed to connect";
 
-  const std::string receiver_identity =
-      receiver_room->localParticipant()->identity();
-  const std::string sender_identity =
-      sender_room->localParticipant()->identity();
+  const std::string receiver_identity = receiver_room->localParticipant()->identity();
+  const std::string sender_identity = sender_room->localParticipant()->identity();
 
   constexpr int kVideoTrackCount = 10;
   constexpr int kAudioTrackCount = 10;
@@ -134,27 +125,22 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
     const std::string name = "video-track-" + std::to_string(i);
     auto track = LocalVideoTrack::createLocalVideoTrack(name, source);
     TrackPublishOptions opts;
-    opts.source = (i % 2 == 0) ? TrackSource::SOURCE_CAMERA
-                               : TrackSource::SOURCE_SCREENSHARE;
+    opts.source = (i % 2 == 0) ? TrackSource::SOURCE_CAMERA : TrackSource::SOURCE_SCREENSHARE;
     sender_room->localParticipant()->publishTrack(track, opts);
-    std::cerr << "[MediaMultiStream] published video " << name
-              << " sid=" << track->sid() << std::endl;
+    std::cerr << "[MediaMultiStream] published video " << name << " sid=" << track->sid() << std::endl;
     video_sources.push_back(source);
     video_tracks.push_back(track);
     expected_names.insert(name);
   }
 
   for (int i = 0; i < kAudioTrackCount; ++i) {
-    auto source =
-        std::make_shared<AudioSource>(kAudioSampleRate, kAudioChannels, 0);
+    auto source = std::make_shared<AudioSource>(kAudioSampleRate, kAudioChannels, 0);
     const std::string name = "audio-track-" + std::to_string(i);
     auto track = LocalAudioTrack::createLocalAudioTrack(name, source);
     TrackPublishOptions opts;
-    opts.source = (i % 2 == 0) ? TrackSource::SOURCE_MICROPHONE
-                               : TrackSource::SOURCE_SCREENSHARE_AUDIO;
+    opts.source = (i % 2 == 0) ? TrackSource::SOURCE_MICROPHONE : TrackSource::SOURCE_SCREENSHARE_AUDIO;
     sender_room->localParticipant()->publishTrack(track, opts);
-    std::cerr << "[MediaMultiStream] published audio " << name
-              << " sid=" << track->sid() << std::endl;
+    std::cerr << "[MediaMultiStream] published audio " << name << " sid=" << track->sid() << std::endl;
     audio_sources.push_back(source);
     audio_tracks.push_back(track);
     expected_names.insert(name);
@@ -165,94 +151,81 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(
     auto source = video_sources[static_cast<std::size_t>(i)];
     const bool red_mode = (i % 2 == 1);
     threads.emplace_back([source, &running, red_mode]() {
-      runVideoLoop(source, running,
-                   red_mode ? fillRedWrapper : fillWebcamWrapper);
+      runVideoLoop(source, running, red_mode ? fillRedWrapper : fillWebcamWrapper);
     });
   }
   for (int i = 0; i < kAudioTrackCount; ++i) {
     auto source = audio_sources[static_cast<std::size_t>(i)];
     const bool siren_mode = (i % 2 == 1);
     const double base_freq = 320.0 + static_cast<double>(i) * 40.0;
-    threads.emplace_back([source, &running, base_freq, siren_mode]() {
-      runToneLoop(source, running, base_freq, siren_mode);
-    });
+    threads.emplace_back(
+        [source, &running, base_freq, siren_mode]() { runToneLoop(source, running, base_freq, siren_mode); });
   }
 
   {
     std::unique_lock<std::mutex> lock(receiver_state.mutex);
-    const bool all_received = receiver_state.cv.wait_for(lock, 20s, [&]() {
-      return receiver_state.subscribed_track_names.size() >=
-             expected_names.size();
-    });
+    const bool all_received = receiver_state.cv.wait_for(
+        lock, 20s, [&]() { return receiver_state.subscribed_track_names.size() >= expected_names.size(); });
     EXPECT_TRUE(all_received) << "Timed out waiting for all subscribed tracks";
     if (!all_received) {
       std::cerr << "[MediaMultiStream] timeout waiting subscriptions; received "
                    "names:";
-      for (const auto &n : receiver_state.subscribed_track_names) {
+      for (const auto& n : receiver_state.subscribed_track_names) {
         std::cerr << " " << n;
       }
-      std::cerr << " (audio=" << receiver_state.audio_tracks
-                << " video=" << receiver_state.video_tracks << ")" << std::endl;
+      std::cerr << " (audio=" << receiver_state.audio_tracks << " video=" << receiver_state.video_tracks << ")"
+                << std::endl;
     }
   }
 
   {
     std::lock_guard<std::mutex> lock(receiver_state.mutex);
-    for (const auto &expected_name : expected_names) {
-      EXPECT_TRUE(receiver_state.subscribed_track_names.count(expected_name) >
-                  0)
+    for (const auto& expected_name : expected_names) {
+      EXPECT_TRUE(receiver_state.subscribed_track_names.count(expected_name) > 0)
           << "Missing subscribed track: " << expected_name;
     }
     EXPECT_GE(receiver_state.video_tracks, kVideoTrackCount);
     EXPECT_GE(receiver_state.audio_tracks, kAudioTrackCount);
   }
 
-  auto *sender_on_receiver = receiver_room->remoteParticipant(sender_identity);
+  auto* sender_on_receiver = receiver_room->remoteParticipant(sender_identity);
   ASSERT_NE(sender_on_receiver, nullptr);
-  std::cerr << "[MediaMultiStream] receiver sees sender publications="
-            << sender_on_receiver->trackPublications().size() << std::endl;
-  for (const auto &kv : sender_on_receiver->trackPublications()) {
-    const auto &pub = kv.second;
-    std::cerr << "[MediaMultiStream] remote publication sid=" << kv.first
-              << " name=" << (pub ? pub->name() : "<null>") << " kind="
-              << (pub && pub->kind() == TrackKind::KIND_AUDIO ? "audio"
-                                                              : "video")
-              << " source=" << (pub ? static_cast<int>(pub->source()) : -1)
-              << std::endl;
+  std::cerr << "[MediaMultiStream] receiver sees sender publications=" << sender_on_receiver->trackPublications().size()
+            << std::endl;
+  for (const auto& kv : sender_on_receiver->trackPublications()) {
+    const auto& pub = kv.second;
+    std::cerr << "[MediaMultiStream] remote publication sid=" << kv.first << " name=" << (pub ? pub->name() : "<null>")
+              << " kind=" << (pub && pub->kind() == TrackKind::KIND_AUDIO ? "audio" : "video")
+              << " source=" << (pub ? static_cast<int>(pub->source()) : -1) << std::endl;
   }
   EXPECT_GE(sender_on_receiver->trackPublications().size(),
             static_cast<std::size_t>(kVideoTrackCount + kAudioTrackCount));
 
   running.store(false, std::memory_order_relaxed);
-  for (auto &t : threads) {
+  for (auto& t : threads) {
     if (t.joinable()) {
       t.join();
     }
   }
 
-  for (const auto &track : video_tracks) {
+  for (const auto& track : video_tracks) {
     if (track->publication()) {
-      sender_room->localParticipant()->unpublishTrack(
-          track->publication()->sid());
+      sender_room->localParticipant()->unpublishTrack(track->publication()->sid());
     }
   }
-  for (const auto &track : audio_tracks) {
+  for (const auto& track : audio_tracks) {
     if (track->publication()) {
-      sender_room->localParticipant()->unpublishTrack(
-          track->publication()->sid());
+      sender_room->localParticipant()->unpublishTrack(track->publication()->sid());
     }
   }
 }
 
-TEST_F(MediaMultiStreamIntegrationTest,
-       PublishTwoVideoAndTwoAudioTracks_DualPeerConnection) {
+TEST_F(MediaMultiStreamIntegrationTest, PublishTwoVideoAndTwoAudioTracks_DualPeerConnection) {
   runPublishTwoVideoAndTwoAudioTracks(false);
 }
 
-TEST_F(MediaMultiStreamIntegrationTest,
-       PublishTwoVideoAndTwoAudioTracks_SinglePeerConnection) {
+TEST_F(MediaMultiStreamIntegrationTest, PublishTwoVideoAndTwoAudioTracks_SinglePeerConnection) {
   runPublishTwoVideoAndTwoAudioTracks(true);
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

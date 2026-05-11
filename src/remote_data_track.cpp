@@ -16,18 +16,18 @@
 
 #include "livekit/remote_data_track.h"
 
+#include <stdexcept>
+
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
-
-#include <stdexcept>
+#include "lk_log.h"
 
 namespace livekit {
 
-RemoteDataTrack::RemoteDataTrack(const proto::OwnedRemoteDataTrack &owned)
-    : handle_(static_cast<uintptr_t>(owned.handle().id())),
-      publisher_identity_(owned.publisher_identity()) {
-  const auto &pi = owned.info();
+RemoteDataTrack::RemoteDataTrack(const proto::OwnedRemoteDataTrack& owned)
+    : handle_(static_cast<uintptr_t>(owned.handle().id())), publisher_identity_(owned.publisher_identity()) {
+  const auto& pi = owned.info();
   info_.name = pi.name();
   info_.sid = pi.sid();
   info_.uses_e2ee = pi.uses_e2ee();
@@ -39,38 +39,38 @@ bool RemoteDataTrack::isPublished() const {
   }
 
   proto::FfiRequest req;
-  auto *msg = req.mutable_remote_data_track_is_published();
+  auto* msg = req.mutable_remote_data_track_is_published();
   msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
 
-  proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   return resp.remote_data_track_is_published().is_published();
 }
 
-Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>
-RemoteDataTrack::subscribe(const DataTrackStream::Options &options) {
+Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> RemoteDataTrack::subscribe(
+    const DataTrackStream::Options& options) {
   if (!handle_.valid()) {
-    return Result<std::shared_ptr<DataTrackStream>,
-                  SubscribeDataTrackError>::failure(SubscribeDataTrackError{
-        SubscribeDataTrackErrorCode::INVALID_HANDLE,
-        "RemoteDataTrack::subscribe: invalid FFI "
-        "handle"});
+    LK_LOG_WARN("Subscribe data track failed: code={} message={}",
+                static_cast<std::uint32_t>(SubscribeDataTrackErrorCode::INVALID_HANDLE),
+                "RemoteDataTrack::subscribe: invalid FFI handle");
+    return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::failure(
+        SubscribeDataTrackError{SubscribeDataTrackErrorCode::INVALID_HANDLE,
+                                "RemoteDataTrack::subscribe: invalid FFI "
+                                "handle"});
   }
 
-  auto result = FfiClient::instance().subscribeDataTrack(
-      static_cast<std::uint64_t>(handle_.get()), options.buffer_size);
+  auto result =
+      FfiClient::instance().subscribeDataTrack(static_cast<std::uint64_t>(handle_.get()), options.buffer_size);
   if (!result) {
-    return Result<std::shared_ptr<DataTrackStream>,
-                  SubscribeDataTrackError>::failure(std::move(result).error());
+    return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::failure(std::move(result).error());
   }
 
-  proto::OwnedDataTrackStream owned_sub = result.value();
+  const proto::OwnedDataTrackStream owned_sub = result.value();
 
   FfiHandle sub_handle(static_cast<uintptr_t>(owned_sub.handle().id()));
 
   auto stream = std::shared_ptr<DataTrackStream>(new DataTrackStream());
   stream->init(std::move(sub_handle));
-  return Result<std::shared_ptr<DataTrackStream>,
-                SubscribeDataTrackError>::success(std::move(stream));
+  return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::success(std::move(stream));
 }
 
 } // namespace livekit

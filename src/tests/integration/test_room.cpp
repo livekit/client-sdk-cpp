@@ -17,14 +17,11 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
-namespace livekit {
-namespace test {
+namespace livekit::test {
 
 class RoomTest : public ::testing::Test {
 protected:
-  void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
-  }
+  void SetUp() override { livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole); }
 
   void TearDown() override { livekit::shutdown(); }
 };
@@ -32,20 +29,16 @@ protected:
 TEST_F(RoomTest, CreateRoom) {
   Room room;
   // Room should be created without issues
-  EXPECT_EQ(room.localParticipant(), nullptr)
-      << "Local participant should be null before connect";
+  EXPECT_EQ(room.localParticipant(), nullptr) << "Local participant should be null before connect";
 }
 
 TEST_F(RoomTest, RoomOptionsDefaults) {
   RoomOptions options;
 
-  EXPECT_TRUE(options.auto_subscribe)
-      << "auto_subscribe should default to true";
+  EXPECT_TRUE(options.auto_subscribe) << "auto_subscribe should default to true";
   EXPECT_FALSE(options.dynacast) << "dynacast should default to false";
-  EXPECT_FALSE(options.rtc_config.has_value())
-      << "rtc_config should not have a value by default";
-  EXPECT_FALSE(options.encryption.has_value())
-      << "encryption should not have a value by default";
+  EXPECT_FALSE(options.rtc_config.has_value()) << "rtc_config should not have a value by default";
+  EXPECT_FALSE(options.encryption.has_value()) << "encryption should not have a value by default";
 }
 
 TEST_F(RoomTest, RtcConfigDefaults) {
@@ -74,8 +67,7 @@ TEST_F(RoomTest, RoomWithCustomRtcConfig) {
 
   RtcConfig rtc_config;
   rtc_config.ice_servers.push_back({"stun:stun.l.google.com:19302", "", ""});
-  rtc_config.ice_servers.push_back(
-      {"turn:turn.example.com:3478", "user", "pass"});
+  rtc_config.ice_servers.push_back({"turn:turn.example.com:3478", "user", "pass"});
 
   options.rtc_config = rtc_config;
 
@@ -88,25 +80,23 @@ TEST_F(RoomTest, RoomWithCustomRtcConfig) {
 TEST_F(RoomTest, RemoteParticipantsEmptyBeforeConnect) {
   Room room;
   auto participants = room.remoteParticipants();
-  EXPECT_TRUE(participants.empty())
-      << "Remote participants should be empty before connect";
+  EXPECT_TRUE(participants.empty()) << "Remote participants should be empty before connect";
 }
 
 TEST_F(RoomTest, RemoteParticipantLookupBeforeConnect) {
   Room room;
   auto participant = room.remoteParticipant("nonexistent");
-  EXPECT_EQ(participant, nullptr)
-      << "Looking up participant before connect should return nullptr";
+  EXPECT_EQ(participant, nullptr) << "Looking up participant before connect should return nullptr";
 }
 
-// Server-dependent tests - require LIVEKIT_URL and LIVEKIT_TOKEN env vars
+// Server-dependent tests - require LIVEKIT_URL and LIVEKIT_TOKEN_A env vars
 class RoomServerTest : public ::testing::Test {
 protected:
   void SetUp() override {
     livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
 
-    const char *url_env = std::getenv("LIVEKIT_URL");
-    const char *token_env = std::getenv("LIVEKIT_CALLER_TOKEN");
+    const char* url_env = std::getenv("LIVEKIT_URL");
+    const char* token_env = std::getenv("LIVEKIT_TOKEN_A");
 
     if (url_env && token_env) {
       server_url_ = url_env;
@@ -124,7 +114,7 @@ protected:
 
 TEST_F(RoomServerTest, ConnectToServer) {
   if (!server_available_) {
-    GTEST_SKIP() << "LIVEKIT_URL and LIVEKIT_TOKEN not set, skipping server "
+    GTEST_SKIP() << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set, skipping server "
                     "connection test";
   }
 
@@ -135,8 +125,7 @@ TEST_F(RoomServerTest, ConnectToServer) {
   EXPECT_TRUE(connected) << "Should connect to server successfully";
 
   if (connected) {
-    EXPECT_NE(room.localParticipant(), nullptr)
-        << "Local participant should exist after connect";
+    EXPECT_NE(room.localParticipant(), nullptr) << "Local participant should exist after connect";
   }
 }
 
@@ -160,5 +149,4 @@ TEST_F(RoomServerTest, ConnectWithInvalidUrl) {
   EXPECT_FALSE(connected) << "Should fail to connect to invalid URL";
 }
 
-} // namespace test
-} // namespace livekit
+} // namespace livekit::test

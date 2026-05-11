@@ -79,6 +79,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `LiveKitConfig.cmake.in`) |
 | `docker/` | Dockerfile for CI and SDK distribution images |
+| `scripts/` | Developer / CI helper scripts (e.g. `clang-tidy.sh`) |
 | `.github/workflows/` | GitHub Actions CI workflows |
 
 ### Key Types
@@ -102,11 +103,14 @@ Updates to ./build.sh and ./build.cmd should be accompanied by updates to this f
 ./build.sh release-tests      # Release build with tests
 ./build.sh release-examples   # Release build with examples
 ./build.sh build-all          # All of the above
-./build.sh clean              # Clean build artifacts
-./build.sh clean-all          # Full clean (C++ + Rust targets)
+./build.sh clean              # Clean build artifacts + local-install
+./build.sh clean-all          # Full clean (C++ + local-install + Rust targets)
 ```
 
-**Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. On macOS: `brew install cmake ninja protobuf abseil spdlog`. On Linux: see the CI workflow for apt packages.
+The build scripts pass an explicit job count to `cmake --build --parallel`. Set
+`CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
+
+**Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. On macOS: `brew install cmake ninja protobuf abseil`. On Linux: see the CI workflow for apt packages. spdlog is vendored automatically via FetchContent (or vcpkg on Windows) to avoid system conflicts.
 
 ### SDK Packaging
 
@@ -136,14 +140,81 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 ### Public API Surface
 
 - Keep public APIs small. Minimize what goes into `include/livekit/`.
+- Use `#pragma once` to guard headers.
+- All publicly visible symbols must use `LIVEKIT_API` macro (via `include/livekit/visibility.h`).
 - Never introduce backwards compatibility breaking changes to the public API.
 - `lk_log.h` lives under `src/` (internal). The public-facing logging API is `include/livekit/logging.h`.
 - spdlog must not appear in any public header or installed header.
+
+### Include Conventions
+
+- **Public headers (`include/livekit/*.h`) must include other public headers
+  with the `livekit/` prefix**: `#include "livekit/track.h"`, never the bare
+  `#include "track.h"` form. The prefixed spelling matches what consumers see
+  (`#include <livekit/track.h>`), resolves through the standard `-I include/`
+  search path rather than the implementation-defined "current directory first"
+  rule of `#include "..."`, and avoids accidental name collisions with
+  third-party headers that happen to share short names like `track.h`.
+- Use double quotes for project headers (`#include "livekit/foo.h"`) and angle
+  brackets for system / third-party headers (`#include <vector>`,
+  `#include <gtest/gtest.h>`).
+- Implementation files in `src/` may include internal headers without a
+  prefix (`#include "ffi_client.h"`); they are not part of the public
+  surface and live alongside their consumers.
+- Test code (in-tree or external-style canaries) must consume public
+  headers via `<livekit/foo.h>` to mirror real consumer usage
+
+### Symbol Visibility / Exported ABI
+
+The `livekit` shared library is built with hidden symbol visibility on all
+platforms. Only symbols explicitly tagged with `LIVEKIT_API` (declared in
+`include/livekit/visibility.h`) are part of the public ABI. Vendored static
+dependencies are also compiled with hidden visibility so their symbols cannot 
+leak into `liblivekit.{so,dylib,dll}`.
+
+Rules for new code:
+
+- Mark any new public class, free function, or out-of-line static method with
+  `LIVEKIT_API`.  POD/aggregate structs and pure-inline classes do not need
+  annotation because they emit no out-of-line symbols.
+- For internal symbols that must remain visible to in-tree tests (the tests
+  link the same shared library), use `LIVEKIT_INTERNAL_API`.  External
+  consumers must not rely on these.
+- Do not add `__declspec(dllexport)` or `__attribute__((visibility("default")))`
+  by hand; always go through `LIVEKIT_API` / `LIVEKIT_INTERNAL_API`.
+- On Windows, `WINDOWS_EXPORT_ALL_SYMBOLS` is **deliberately disabled** for the
+  `livekit` target.  Use `LIVEKIT_API` to export.
+
+The exported ABI is enforced by `.github/scripts/check_no_private_symbols.py`,
+run from the `make-release.yml` "Symbol leak check" CI step so a leak blocks
+the release build itself (it does not run on regular pushes/PRs). The script
+fails if `nm`/`dumpbin` reports any exported symbol matching a forbidden
+substring (currently `spdlog::`, `fmt::v`, `google::protobuf`, `absl::`). To
+run it locally, point it at the built shared library:
+
+```bash
+python3 .github/scripts/check_no_private_symbols.py \
+    build-release/lib/liblivekit.dylib   # or .so / livekit.dll
+```
+
+**When adding a new third-party library or vendored dependency to the SDK,
+update `.github/scripts/check_no_private_symbols.py` to add a forbidden
+substring pattern for the new dependency's namespace/symbol prefix.** The
+denylist is intentionally explicit — a new dep that leaks symbols will
+otherwise silently pollute `liblivekit.{so,dylib,dll}` and clash at runtime
+with the same library loaded elsewhere in the host process.
 
 ### Error Handling
 
 - Use `LK_LOG_WARN` for non-fatal unexpected conditions.
 - Use `Result<T, E>` for operations that can fail with typed errors (e.g., data track publish/subscribe).
+
+### Integer Types
+
+- Prefer fixed-width integer types from `<cstdint>` (`std::int32_t`, `std::uint64_t`, etc.) over raw primitive integer types when size or signedness matters.
+- This applies in public APIs, FFI/protobuf-facing code, serialized payloads, handles, timestamps, IDs, and any cross-platform boundary where integer width must be explicit.
+- Use raw primitive integer types only when the value is intentionally platform-sized or when preserving an existing public API is necessary for backwards compatibility.
+- Do not change an existing public API from a raw primitive integer type to a fixed-width type for style consistency alone unless the compatibility impact has been reviewed.
 
 ### Git Practices
 
@@ -156,7 +227,15 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 - The CMake install produces a `find_package(LiveKit CONFIG)`-compatible package with `LiveKitConfig.cmake`, `LiveKitTargets.cmake`, and `LiveKitConfigVersion.cmake`.
 
 ### Readability and Performance
+
 Code should be easy to read and understand. If a sacrifice is made for performance or readability, it should be documented.
+
+Adhere to clang-format checks configured in `.clang-format`. Run `./scripts/clang-format.sh` if needed to confirm code styling, and `./scripts/clang-format.sh --fix` to auto-format generated code created.
+
+### Static Analysis
+
+Adhere to clang-tidy checks configured in `.clang-tidy`. Run `./scripts/clang-tidy.sh` if needed to confirm code quality.
+
 ## Dependencies
 
 | Dependency | Scope | Notes |
@@ -165,6 +244,12 @@ Code should be easy to read and understand. If a sacrifice is made for performan
 | spdlog | **Private** | FetchContent or system package; must NOT leak into public API |
 | client-sdk-rust | Build-time | Git submodule, built via cargo during CMake build |
 | Google Test | Test only | FetchContent in `src/tests/CMakeLists.txt` |
+
+When adding a new private/vendored dependency to this table, also add a
+forbidden symbol pattern for it to
+`.github/scripts/check_no_private_symbols.py` so the "Symbol leak check"
+CI step will fail loudly if its symbols escape the public ABI of
+`liblivekit`.
 
 ## Testing
 
@@ -180,10 +265,8 @@ Integration tests (`src/tests/integration/`) cover: room connections, callbacks,
 When adding new client facing functionality, add a new test case to the existing test suite.
 When adding new client facing functionality, add benchmarking to understand the limitations of the new functionality.
 
-## Formatting
-Use clang formatting that aligns with the existing codebase.
-
 ## General C++ Development
+
 - Do not use dynamic memory allocation after initialization
 - Keep each function short (roughly ≤ 60 lines)
 - Declare all data objects at the smallest possible level of scope

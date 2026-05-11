@@ -21,9 +21,7 @@
 #include <string>
 #include <vector>
 
-namespace livekit {
-namespace trace {
-namespace internal {
+namespace livekit::trace::internal {
 
 /**
  * Start tracing and write events to the specified file.
@@ -36,8 +34,7 @@ namespace internal {
  * @return true if tracing started successfully, false if already running or
  * file error
  */
-bool StartTracing(const std::string &file_path,
-                  const std::vector<std::string> &categories);
+bool StartTracing(const std::string& file_path, const std::vector<std::string>& categories);
 
 /**
  * Stop tracing and flush all pending events.
@@ -54,8 +51,6 @@ void StopTracing();
  */
 bool IsTracingEnabled();
 
-} // namespace internal
-} // namespace trace
-} // namespace livekit
+} // namespace livekit::trace::internal
 
 #endif // LIVEKIT_TRACE_EVENT_TRACER_INTERNAL_H_

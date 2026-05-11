@@ -15,12 +15,12 @@
  */
 
 #include "livekit/tracing.h"
+
 #include "trace/event_tracer_internal.h"
 
 namespace livekit {
 
-bool startTracing(const std::string &trace_file_path,
-                  const std::vector<std::string> &categories) {
+bool startTracing(const std::string& trace_file_path, const std::vector<std::string>& categories) {
   return trace::internal::StartTracing(trace_file_path, categories);
 }
 
