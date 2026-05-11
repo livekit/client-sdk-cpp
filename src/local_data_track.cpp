@@ -16,59 +16,52 @@
 
 #include "livekit/local_data_track.h"
 
-#include "livekit/data_track_error.h"
-#include "lk_log.h"
-
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
+#include "livekit/data_track_error.h"
+#include "lk_log.h"
 
 namespace livekit {
 
-LocalDataTrack::LocalDataTrack(const proto::OwnedLocalDataTrack &owned)
+LocalDataTrack::LocalDataTrack(const proto::OwnedLocalDataTrack& owned)
     : handle_(static_cast<uintptr_t>(owned.handle().id())) {
-  const auto &pi = owned.info();
+  const auto& pi = owned.info();
   info_.name = pi.name();
   info_.sid = pi.sid();
   info_.uses_e2ee = pi.uses_e2ee();
 }
 
-Result<void, LocalDataTrackTryPushError>
-LocalDataTrack::tryPush(const DataTrackFrame &frame) {
+Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(const DataTrackFrame& frame) {
   if (!handle_.valid()) {
-    return Result<void, LocalDataTrackTryPushError>::failure(
-        LocalDataTrackTryPushError{
-            LocalDataTrackTryPushErrorCode::INVALID_HANDLE,
-            "LocalDataTrack::tryPush: invalid FFI handle"});
+    return Result<void, LocalDataTrackTryPushError>::failure(LocalDataTrackTryPushError{
+        LocalDataTrackTryPushErrorCode::INVALID_HANDLE, "LocalDataTrack::tryPush: invalid FFI handle"});
   }
 
   try {
     proto::FfiRequest req;
-    auto *msg = req.mutable_local_data_track_try_push();
+    auto* msg = req.mutable_local_data_track_try_push();
     msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
-    auto *pf = msg->mutable_frame();
+    auto* pf = msg->mutable_frame();
     pf->set_payload(frame.payload.data(), frame.payload.size());
     if (frame.user_timestamp.has_value()) {
       pf->set_user_timestamp(frame.user_timestamp.value());
     }
 
     const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-    const auto &r = resp.local_data_track_try_push();
+    const auto& r = resp.local_data_track_try_push();
     if (r.has_error()) {
-      return Result<void, LocalDataTrackTryPushError>::failure(
-          LocalDataTrackTryPushError::fromProto(r.error()));
+      return Result<void, LocalDataTrackTryPushError>::failure(LocalDataTrackTryPushError::fromProto(r.error()));
     }
     return Result<void, LocalDataTrackTryPushError>::success();
-  } catch (const std::exception &e) {
+  } catch (const std::exception& e) {
     return Result<void, LocalDataTrackTryPushError>::failure(
-        LocalDataTrackTryPushError{LocalDataTrackTryPushErrorCode::INTERNAL,
-                                   e.what()});
+        LocalDataTrackTryPushError{LocalDataTrackTryPushErrorCode::INTERNAL, e.what()});
   }
 }
 
-Result<void, LocalDataTrackTryPushError>
-LocalDataTrack::tryPush(std::vector<std::uint8_t> &&payload,
-                        std::optional<std::uint64_t> user_timestamp) {
+Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(std::vector<std::uint8_t>&& payload,
+                                                                 std::optional<std::uint64_t> user_timestamp) {
   DataTrackFrame frame;
   frame.payload = std::move(payload);
   frame.user_timestamp = user_timestamp;
@@ -81,7 +74,7 @@ bool LocalDataTrack::isPublished() const {
   }
 
   proto::FfiRequest req;
-  auto *msg = req.mutable_local_data_track_is_published();
+  auto* msg = req.mutable_local_data_track_is_published();
   msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
 
   const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
@@ -94,7 +87,7 @@ void LocalDataTrack::unpublishDataTrack() {
   }
 
   proto::FfiRequest req;
-  auto *msg = req.mutable_local_data_track_unpublish();
+  auto* msg = req.mutable_local_data_track_unpublish();
   msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
 
   (void)FfiClient::instance().sendRequest(req);

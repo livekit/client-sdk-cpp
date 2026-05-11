@@ -53,30 +53,28 @@ class DataStream;
 struct RoomOptions;
 struct TrackPublishOptions;
 
-using FfiCallbackFn = void (*)(const uint8_t *, size_t);
-extern "C" void livekit_ffi_initialize(FfiCallbackFn cb, bool capture_logs,
-                                       const char *sdk,
-                                       const char *sdk_version);
+using FfiCallbackFn = void (*)(const uint8_t*, size_t);
+extern "C" void livekit_ffi_initialize(FfiCallbackFn cb, bool capture_logs, const char* sdk, const char* sdk_version);
 
 extern "C" void livekit_ffi_dispose();
 
-extern "C" void LivekitFfiCallback(const uint8_t *buf, size_t len);
+extern "C" void LivekitFfiCallback(const uint8_t* buf, size_t len);
 
 // The FfiClient is used to communicate with the FFI interface of the Rust SDK
 // We use the generated protocol messages to facilitate the communication
 class FfiClient {
 public:
   using ListenerId = int;
-  using Listener = std::function<void(const proto::FfiEvent &)>;
+  using Listener = std::function<void(const proto::FfiEvent&)>;
   using AsyncId = std::uint64_t;
 
   ~FfiClient();
-  FfiClient(const FfiClient &) = delete;
-  FfiClient &operator=(const FfiClient &) = delete;
-  FfiClient(FfiClient &&) = delete;
-  FfiClient &operator=(FfiClient &&) = delete;
+  FfiClient(const FfiClient&) = delete;
+  FfiClient& operator=(const FfiClient&) = delete;
+  FfiClient(FfiClient&&) = delete;
+  FfiClient& operator=(FfiClient&&) = delete;
 
-  static FfiClient &instance() noexcept {
+  static FfiClient& instance() noexcept {
     static FfiClient instance;
     return instance;
   }
@@ -90,76 +88,58 @@ public:
 
   bool isInitialized() const noexcept;
 
-  ListenerId AddListener(const Listener &listener);
+  ListenerId AddListener(const Listener& listener);
   void RemoveListener(ListenerId id);
 
   // Room APIs
-  std::future<proto::ConnectCallback> connectAsync(const std::string &url,
-                                                   const std::string &token,
-                                                   const RoomOptions &options);
+  std::future<proto::ConnectCallback> connectAsync(const std::string& url, const std::string& token,
+                                                   const RoomOptions& options);
 
   // Track APIs
   std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);
 
   // Participant APIs
-  std::future<proto::OwnedTrackPublication>
-  publishTrackAsync(std::uint64_t local_participant_handle,
-                    std::uint64_t track_handle,
-                    const TrackPublishOptions &options);
-  std::future<void> unpublishTrackAsync(std::uint64_t local_participant_handle,
-                                        const std::string &track_sid,
+  std::future<proto::OwnedTrackPublication> publishTrackAsync(std::uint64_t local_participant_handle,
+                                                              std::uint64_t track_handle,
+                                                              const TrackPublishOptions& options);
+  std::future<void> unpublishTrackAsync(std::uint64_t local_participant_handle, const std::string& track_sid,
                                         bool stop_on_unpublish);
-  std::future<void>
-  publishDataAsync(std::uint64_t local_participant_handle,
-                   const std::uint8_t *data_ptr, std::uint64_t data_len,
-                   bool reliable,
-                   const std::vector<std::string> &destination_identities,
-                   const std::string &topic);
-  std::future<void>
-  publishSipDtmfAsync(std::uint64_t local_participant_handle,
-                      std::uint32_t code, const std::string &digit,
-                      const std::vector<std::string> &destination_identities);
-  std::future<void>
-  setLocalMetadataAsync(std::uint64_t local_participant_handle,
-                        const std::string &metadata);
-  std::future<void>
-  captureAudioFrameAsync(std::uint64_t source_handle,
-                         const proto::AudioFrameBufferInfo &buffer);
-  std::future<std::string> performRpcAsync(
-      std::uint64_t local_participant_handle,
-      const std::string &destination_identity, const std::string &method,
-      const std::string &payload,
-      std::optional<std::uint32_t> response_timeout_ms = std::nullopt);
+  std::future<void> publishDataAsync(std::uint64_t local_participant_handle, const std::uint8_t* data_ptr,
+                                     std::uint64_t data_len, bool reliable,
+                                     const std::vector<std::string>& destination_identities, const std::string& topic);
+  std::future<void> publishSipDtmfAsync(std::uint64_t local_participant_handle, std::uint32_t code,
+                                        const std::string& digit,
+                                        const std::vector<std::string>& destination_identities);
+  std::future<void> setLocalMetadataAsync(std::uint64_t local_participant_handle, const std::string& metadata);
+  std::future<void> captureAudioFrameAsync(std::uint64_t source_handle, const proto::AudioFrameBufferInfo& buffer);
+  std::future<std::string> performRpcAsync(std::uint64_t local_participant_handle,
+                                           const std::string& destination_identity, const std::string& method,
+                                           const std::string& payload,
+                                           std::optional<std::uint32_t> response_timeout_ms = std::nullopt);
 
   // Data Track APIs
-  std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>
-  publishDataTrackAsync(std::uint64_t local_participant_handle,
-                        const std::string &track_name);
+  std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> publishDataTrackAsync(
+      std::uint64_t local_participant_handle, const std::string& track_name);
 
-  Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>
-  subscribeDataTrack(std::uint64_t track_handle,
-                     std::optional<std::uint32_t> buffer_size = std::nullopt);
+  Result<proto::OwnedDataTrackStream, SubscribeDataTrackError> subscribeDataTrack(
+      std::uint64_t track_handle, std::optional<std::uint32_t> buffer_size = std::nullopt);
 
   // Data stream functionalities
-  std::future<void>
-  sendStreamHeaderAsync(std::uint64_t local_participant_handle,
-                        const proto::DataStream::Header &header,
-                        const std::vector<std::string> &destination_identities,
-                        const std::string &sender_identity);
-  std::future<void>
-  sendStreamChunkAsync(std::uint64_t local_participant_handle,
-                       const proto::DataStream::Chunk &chunk,
-                       const std::vector<std::string> &destination_identities,
-                       const std::string &sender_identity);
-  std::future<void>
-  sendStreamTrailerAsync(std::uint64_t local_participant_handle,
-                         const proto::DataStream::Trailer &trailer,
-                         const std::string &sender_identity);
+  std::future<void> sendStreamHeaderAsync(std::uint64_t local_participant_handle,
+                                          const proto::DataStream::Header& header,
+                                          const std::vector<std::string>& destination_identities,
+                                          const std::string& sender_identity);
+  std::future<void> sendStreamChunkAsync(std::uint64_t local_participant_handle, const proto::DataStream::Chunk& chunk,
+                                         const std::vector<std::string>& destination_identities,
+                                         const std::string& sender_identity);
+  std::future<void> sendStreamTrailerAsync(std::uint64_t local_participant_handle,
+                                           const proto::DataStream::Trailer& trailer,
+                                           const std::string& sender_identity);
 
   // Generic function for sending a request to the Rust FFI.
   // Note: For asynchronous requests, use the dedicated async functions instead
   // of sendRequest.
-  proto::FfiResponse sendRequest(const proto::FfiRequest &request) const;
+  proto::FfiResponse sendRequest(const proto::FfiRequest& request) const;
 
 private:
   FfiClient() = default;
@@ -168,40 +148,34 @@ private:
   struct PendingBase {
     AsyncId async_id = 0; // Client-generated async ID for cancellation
     virtual ~PendingBase() = default;
-    virtual bool matches(const proto::FfiEvent &event) const = 0;
-    virtual void complete(const proto::FfiEvent &event) = 0;
+    virtual bool matches(const proto::FfiEvent& event) const = 0;
+    virtual void complete(const proto::FfiEvent& event) = 0;
     virtual void cancel() = 0; // Cancel the pending operation
   };
-  template <typename T> struct Pending : PendingBase {
+  template <typename T>
+  struct Pending : PendingBase {
     std::promise<T> promise;
-    std::function<bool(const proto::FfiEvent &)> match;
-    std::function<void(const proto::FfiEvent &, std::promise<T> &)> handler;
+    std::function<bool(const proto::FfiEvent&)> match;
+    std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler;
 
-    bool matches(const proto::FfiEvent &event) const override {
-      return match && match(event);
-    }
+    bool matches(const proto::FfiEvent& event) const override { return match && match(event); }
 
-    void complete(const proto::FfiEvent &event) override {
-      handler(event, promise);
-    }
+    void complete(const proto::FfiEvent& event) override { handler(event, promise); }
 
     void cancel() override {
       try {
-        promise.set_exception(std::make_exception_ptr(
-            std::runtime_error("Async operation cancelled")));
-      } catch (const std::future_error &e) {
-        // Unlikely to throw here as the promise should be satisfied before cancel()
-        // Logging a debug message to avoid clang empty catch warning
-        LK_LOG_DEBUG("FfiClient::cancel: promise already satisfied: {}",
-                     e.what());
+        promise.set_exception(std::make_exception_ptr(std::runtime_error("Async operation cancelled")));
+      } catch (const std::future_error& e) {
+        // Unlikely to throw here as the promise should be satisfied before
+        // cancel() Logging a debug message to avoid clang empty catch warning
+        LK_LOG_DEBUG("FfiClient::cancel: promise already satisfied: {}", e.what());
       }
     }
   };
 
   template <typename T>
-  std::future<T> registerAsync(
-      AsyncId async_id, std::function<bool(const proto::FfiEvent &)> match,
-      std::function<void(const proto::FfiEvent &, std::promise<T> &)> handler);
+  std::future<T> registerAsync(AsyncId async_id, std::function<bool(const proto::FfiEvent&)> match,
+                               std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler);
 
   // Generate a unique client-side async ID for request correlation
   AsyncId generateAsyncId();
@@ -213,12 +187,11 @@ private:
   std::unordered_map<ListenerId, Listener> listeners_;
   std::atomic<ListenerId> next_listener_id{1};
   mutable std::mutex lock_;
-  mutable std::unordered_map<AsyncId, std::unique_ptr<PendingBase>>
-      pending_by_id_;
+  mutable std::unordered_map<AsyncId, std::unique_ptr<PendingBase>> pending_by_id_;
   std::atomic<AsyncId> next_async_id_{1};
 
-  void PushEvent(const proto::FfiEvent &event) const;
-  friend void LivekitFfiCallback(const uint8_t *buf, size_t len);
+  void PushEvent(const proto::FfiEvent& event) const;
+  friend void LivekitFfiCallback(const uint8_t* buf, size_t len);
   std::atomic<bool> initialized_{false};
 };
 } // namespace livekit

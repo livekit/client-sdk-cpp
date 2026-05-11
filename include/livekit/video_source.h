@@ -76,10 +76,10 @@ public:
   VideoSource(int width, int height);
   virtual ~VideoSource() = default;
 
-  VideoSource(const VideoSource &) = delete;
-  VideoSource &operator=(const VideoSource &) = delete;
-  VideoSource(VideoSource &&) noexcept = default;
-  VideoSource &operator=(VideoSource &&) noexcept = default;
+  VideoSource(const VideoSource&) = delete;
+  VideoSource& operator=(const VideoSource&) = delete;
+  VideoSource(VideoSource&&) noexcept = default;
+  VideoSource& operator=(VideoSource&&) noexcept = default;
 
   /// Source resolution as declared at construction.
   int width() const noexcept { return width_; }
@@ -94,13 +94,12 @@ public:
    * @param frame    Video frame to send.
    * @param options  Timestamp, rotation, and optional metadata for this frame.
    */
-  void captureFrame(const VideoFrame &frame,
-                    const VideoCaptureOptions &options);
+  void captureFrame(const VideoFrame& frame, const VideoCaptureOptions& options);
 
   /**
    * Backward-compatible convenience overload for timestamp + rotation only.
    */
-  void captureFrame(const VideoFrame &frame, std::int64_t timestamp_us = 0,
+  void captureFrame(const VideoFrame& frame, std::int64_t timestamp_us = 0,
                     VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0);
 
 private:

@@ -16,11 +16,11 @@
 
 #pragma once
 
-#include "local_track_publication.h"
-#include "track.h"
-
 #include <memory>
 #include <string>
+
+#include "local_track_publication.h"
+#include "track.h"
 
 namespace livekit {
 
@@ -62,9 +62,8 @@ public:
   ///               directly for frame capture.
   ///
   /// @return A shared pointer to the newly constructed `LocalVideoTrack`.
-  static std::shared_ptr<LocalVideoTrack>
-  createLocalVideoTrack(const std::string &name,
-                        const std::shared_ptr<VideoSource> &source);
+  static std::shared_ptr<LocalVideoTrack> createLocalVideoTrack(const std::string& name,
+                                                                const std::shared_ptr<VideoSource>& source);
 
   /// Mutes the video track.
   ///
@@ -81,21 +80,18 @@ public:
 
   /// Returns the publication that owns this track, or nullptr if the track is
   /// not published.
-  std::shared_ptr<LocalTrackPublication> publication() const noexcept {
-    return local_publication_;
-  }
+  std::shared_ptr<LocalTrackPublication> publication() const noexcept { return local_publication_; }
 
   /// Sets the publication that owns this track.
   /// Note: std::move on a const& silently falls back to a copy, so we assign
   /// directly. Changing the virtual signature to take by value would enable
   /// a true move but is a API-breaking change hence left for a future revision.
-  void setPublication(const std::shared_ptr<LocalTrackPublication>
-                          &publication) noexcept override {
+  void setPublication(const std::shared_ptr<LocalTrackPublication>& publication) noexcept override {
     local_publication_ = publication;
   }
 
 private:
-  explicit LocalVideoTrack(FfiHandle handle, const proto::OwnedTrack &track);
+  explicit LocalVideoTrack(FfiHandle handle, const proto::OwnedTrack& track);
 
   /// The publication that owns this track. This is a nullptr until the track
   /// is published, and then points to the publication that owns this track.

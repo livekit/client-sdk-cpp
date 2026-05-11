@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+#include <gtest/gtest.h>
+#include <livekit/livekit.h>
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
-#include <gtest/gtest.h>
-#include <livekit/livekit.h>
 #include <mutex>
 #include <random>
 #include <string>
@@ -42,9 +43,9 @@ struct RpcTestConfig {
 
   static RpcTestConfig fromEnv() {
     RpcTestConfig config;
-    const char *url = std::getenv("LIVEKIT_URL");
-    const char *token_a = std::getenv("LIVEKIT_TOKEN_A");
-    const char *token_b = std::getenv("LIVEKIT_TOKEN_B");
+    const char* url = std::getenv("LIVEKIT_URL");
+    const char* token_a = std::getenv("LIVEKIT_TOKEN_A");
+    const char* token_b = std::getenv("LIVEKIT_TOKEN_B");
 
     if (url && token_a && token_b) {
       config.url = url;
@@ -71,8 +72,7 @@ static const std::vector<std::string> kSampleSentences = {
 std::string generateRandomPayload(size_t size) {
   static std::random_device rd;
   static std::mt19937 gen(static_cast<std::mt19937::result_type>(rd()));
-  static std::uniform_int_distribution<size_t> dis(0,
-                                                   kSampleSentences.size() - 1);
+  static std::uniform_int_distribution<size_t> dis(0, kSampleSentences.size() - 1);
 
   std::string result;
   result.reserve(size);
@@ -81,8 +81,7 @@ std::string generateRandomPayload(size_t size) {
   size_t start_idx = dis(gen);
 
   while (result.size() < size) {
-    const std::string &sentence =
-        kSampleSentences[(start_idx + result.size()) % kSampleSentences.size()];
+    const std::string& sentence = kSampleSentences[(start_idx + result.size()) % kSampleSentences.size()];
     result += sentence;
   }
 
@@ -90,8 +89,7 @@ std::string generateRandomPayload(size_t size) {
 }
 
 // Wait for a remote participant to appear
-bool waitForParticipant(Room *room, const std::string &identity,
-                        std::chrono::milliseconds timeout) {
+bool waitForParticipant(Room* room, const std::string& identity, std::chrono::milliseconds timeout) {
   auto start = std::chrono::steady_clock::now();
   while (std::chrono::steady_clock::now() - start < timeout) {
     if (room->remoteParticipant(identity) != nullptr) {
@@ -117,8 +115,7 @@ protected:
 // Test basic RPC round-trip
 TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
   if (!config_.available) {
-    GTEST_SKIP()
-        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   // Create receiver room
@@ -126,8 +123,7 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
   RoomOptions receiver_options;
   receiver_options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(
-      config_.url, config_.token_b, receiver_options);
+  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, receiver_options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -136,16 +132,13 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
   // full payload
   std::atomic<int> rpc_calls_received{0};
   receiver_room->localParticipant()->registerRpcMethod(
-      "echo",
-      [&rpc_calls_received](
-          const RpcInvocationData &data) -> std::optional<std::string> {
+      "echo", [&rpc_calls_received](const RpcInvocationData& data) -> std::optional<std::string> {
         rpc_calls_received++;
         size_t checksum = 0;
         for (char c : data.payload) {
           checksum += static_cast<unsigned char>(c);
         }
-        return "echo:" + std::to_string(data.payload.size()) + ":" +
-               std::to_string(checksum);
+        return "echo:" + std::to_string(data.payload.size()) + ":" + std::to_string(checksum);
       });
 
   // Create caller room
@@ -153,19 +146,16 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
   RoomOptions caller_options;
   caller_options.auto_subscribe = true;
 
-  bool caller_connected =
-      caller_room->Connect(config_.url, config_.token_a, caller_options);
+  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, caller_options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   // Wait for receiver to be visible to caller
-  bool receiver_visible =
-      waitForParticipant(caller_room.get(), receiver_identity, 10s);
+  bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
   // Perform RPC call
   std::string test_payload = "hello world";
-  std::string response = caller_room->localParticipant()->performRpc(
-      receiver_identity, "echo", test_payload, 10.0);
+  std::string response = caller_room->localParticipant()->performRpc(receiver_identity, "echo", test_payload, 10.0);
 
   // Verify response contains correct size and checksum
   size_t expected_checksum = 0;
@@ -173,8 +163,7 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
     expected_checksum += static_cast<unsigned char>(c);
   }
   std::string expected_response =
-      "echo:" + std::to_string(test_payload.size()) + ":" +
-      std::to_string(expected_checksum);
+      "echo:" + std::to_string(test_payload.size()) + ":" + std::to_string(expected_checksum);
   EXPECT_EQ(response, expected_response);
   EXPECT_EQ(rpc_calls_received.load(), 1);
 
@@ -187,16 +176,14 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
 // Test maximum payload size (15KB)
 TEST_F(RpcIntegrationTest, MaxPayloadSize) {
   if (!config_.available) {
-    GTEST_SKIP()
-        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -204,23 +191,19 @@ TEST_F(RpcIntegrationTest, MaxPayloadSize) {
   // Register handler that echoes payload size
   receiver_room->localParticipant()->registerRpcMethod(
       "payload-size",
-      [](const RpcInvocationData &data) -> std::optional<std::string> {
-        return std::to_string(data.payload.size());
-      });
+      [](const RpcInvocationData& data) -> std::optional<std::string> { return std::to_string(data.payload.size()); });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected =
-      caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
-  bool receiver_visible =
-      waitForParticipant(caller_room.get(), receiver_identity, 10s);
+  bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
   // Test with max payload size (15KB)
   std::string max_payload = generateRandomPayload(kMaxRpcPayloadSize);
-  std::string response = caller_room->localParticipant()->performRpc(
-      receiver_identity, "payload-size", max_payload, 30.0);
+  std::string response =
+      caller_room->localParticipant()->performRpc(receiver_identity, "payload-size", max_payload, 30.0);
 
   EXPECT_EQ(response, std::to_string(kMaxRpcPayloadSize));
 
@@ -232,44 +215,34 @@ TEST_F(RpcIntegrationTest, MaxPayloadSize) {
 // Test RPC timeout
 TEST_F(RpcIntegrationTest, RpcTimeout) {
   if (!config_.available) {
-    GTEST_SKIP()
-        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
 
   // Register handler that takes too long
-  receiver_room->localParticipant()->registerRpcMethod(
-      "slow-method",
-      [](const RpcInvocationData &) -> std::optional<std::string> {
-        std::this_thread::sleep_for(10s);
-        return "done";
-      });
+  receiver_room->localParticipant()->registerRpcMethod("slow-method",
+                                                       [](const RpcInvocationData&) -> std::optional<std::string> {
+                                                         std::this_thread::sleep_for(10s);
+                                                         return "done";
+                                                       });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected =
-      caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
-  bool receiver_visible =
-      waitForParticipant(caller_room.get(), receiver_identity, 10s);
+  bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
   // Call with short timeout - should fail
-  EXPECT_THROW(
-      {
-        caller_room->localParticipant()->performRpc(receiver_identity,
-                                                    "slow-method", "", 2.0);
-      },
-      RpcError);
+  EXPECT_THROW({ caller_room->localParticipant()->performRpc(receiver_identity, "slow-method", "", 2.0); }, RpcError);
 
   receiver_room->localParticipant()->unregisterRpcMethod("slow-method");
   caller_room.reset();
@@ -279,37 +252,31 @@ TEST_F(RpcIntegrationTest, RpcTimeout) {
 // Test RPC with unsupported method
 TEST_F(RpcIntegrationTest, UnsupportedMethod) {
   if (!config_.available) {
-    GTEST_SKIP()
-        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected =
-      caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
-  bool receiver_visible =
-      waitForParticipant(caller_room.get(), receiver_identity, 10s);
+  bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
   // Call unregistered method
   try {
-    caller_room->localParticipant()->performRpc(receiver_identity,
-                                                "nonexistent-method", "", 5.0);
+    caller_room->localParticipant()->performRpc(receiver_identity, "nonexistent-method", "", 5.0);
     FAIL() << "Expected RpcError for unsupported method";
-  } catch (const RpcError &e) {
-    EXPECT_EQ(static_cast<RpcError::ErrorCode>(e.code()),
-              RpcError::ErrorCode::UNSUPPORTED_METHOD);
+  } catch (const RpcError& e) {
+    EXPECT_EQ(static_cast<RpcError::ErrorCode>(e.code()), RpcError::ErrorCode::UNSUPPORTED_METHOD);
   }
 
   caller_room.reset();
@@ -319,16 +286,14 @@ TEST_F(RpcIntegrationTest, UnsupportedMethod) {
 // Test RPC with application error
 TEST_F(RpcIntegrationTest, ApplicationError) {
   if (!config_.available) {
-    GTEST_SKIP()
-        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -336,26 +301,20 @@ TEST_F(RpcIntegrationTest, ApplicationError) {
   // Register handler that throws an error
   receiver_room->localParticipant()->registerRpcMethod(
       "error-method",
-      [](const RpcInvocationData &) -> std::optional<std::string> {
-        throw std::runtime_error("intentional error");
-      });
+      [](const RpcInvocationData&) -> std::optional<std::string> { throw std::runtime_error("intentional error"); });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected =
-      caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
-  bool receiver_visible =
-      waitForParticipant(caller_room.get(), receiver_identity, 10s);
+  bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
   try {
-    caller_room->localParticipant()->performRpc(receiver_identity,
-                                                "error-method", "", 5.0);
+    caller_room->localParticipant()->performRpc(receiver_identity, "error-method", "", 5.0);
     FAIL() << "Expected RpcError for application error";
-  } catch (const RpcError &e) {
-    EXPECT_EQ(static_cast<RpcError::ErrorCode>(e.code()),
-              RpcError::ErrorCode::APPLICATION_ERROR);
+  } catch (const RpcError& e) {
+    EXPECT_EQ(static_cast<RpcError::ErrorCode>(e.code()), RpcError::ErrorCode::APPLICATION_ERROR);
   }
 
   receiver_room->localParticipant()->unregisterRpcMethod("error-method");
@@ -366,25 +325,21 @@ TEST_F(RpcIntegrationTest, ApplicationError) {
 // Test multiple concurrent RPC calls
 TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
   if (!config_.available) {
-    GTEST_SKIP()
-        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
 
   std::atomic<int> calls_processed{0};
   receiver_room->localParticipant()->registerRpcMethod(
-      "counter",
-      [&calls_processed](
-          const RpcInvocationData &data) -> std::optional<std::string> {
+      "counter", [&calls_processed](const RpcInvocationData& data) -> std::optional<std::string> {
         int id = std::stoi(data.payload);
         calls_processed++;
         std::this_thread::sleep_for(100ms); // Simulate some work
@@ -392,12 +347,10 @@ TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
       });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected =
-      caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
-  bool receiver_visible =
-      waitForParticipant(caller_room.get(), receiver_identity, 10s);
+  bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
   const int num_concurrent_calls = 10;
@@ -407,19 +360,19 @@ TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
   for (int i = 0; i < num_concurrent_calls; ++i) {
     threads.emplace_back([&, i]() {
       try {
-        std::string response = caller_room->localParticipant()->performRpc(
-            receiver_identity, "counter", std::to_string(i), 30.0);
+        std::string response =
+            caller_room->localParticipant()->performRpc(receiver_identity, "counter", std::to_string(i), 30.0);
         int expected = i * 2;
         if (std::stoi(response) == expected) {
           successful_calls++;
         }
-      } catch (const std::exception &e) {
+      } catch (const std::exception& e) {
         std::cerr << "RPC call " << i << " failed: " << e.what() << std::endl;
       }
     });
   }
 
-  for (auto &t : threads) {
+  for (auto& t : threads) {
     t.join();
   }
 
@@ -434,16 +387,14 @@ TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
 // Integration test: Run for approximately 1 minute
 TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   if (!config_.available) {
-    GTEST_SKIP()
-        << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
   }
 
   auto receiver_room = std::make_unique<Room>();
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected =
-      receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -452,20 +403,17 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   std::atomic<size_t> total_bytes_received{0};
 
   receiver_room->localParticipant()->registerRpcMethod(
-      "integration-test",
-      [&](const RpcInvocationData &data) -> std::optional<std::string> {
+      "integration-test", [&](const RpcInvocationData& data) -> std::optional<std::string> {
         total_received++;
         total_bytes_received += data.payload.size();
         return "ack:" + std::to_string(data.payload.size());
       });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected =
-      caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
-  bool receiver_visible =
-      waitForParticipant(caller_room.get(), receiver_identity, 10s);
+  bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
   ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
 
   // Run for 1 minute
@@ -479,8 +427,7 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
 
   // Sender thread
   std::thread sender([&]() {
-    std::vector<size_t> payload_sizes = {100, 1024, 5 * 1024, 10 * 1024,
-                                         kMaxRpcPayloadSize};
+    std::vector<size_t> payload_sizes = {100, 1024, 5 * 1024, 10 * 1024, kMaxRpcPayloadSize};
     int size_index = 0;
 
     while (running.load()) {
@@ -488,12 +435,12 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
       std::string payload = generateRandomPayload(payload_size);
 
       try {
-        std::string response = caller_room->localParticipant()->performRpc(
-            receiver_identity, "integration-test", payload, 30.0);
+        std::string response =
+            caller_room->localParticipant()->performRpc(receiver_identity, "integration-test", payload, 30.0);
         if (response == "ack:" + std::to_string(payload_size)) {
           successful_calls++;
         }
-      } catch (const std::exception &e) {
+      } catch (const std::exception& e) {
         failed_calls++;
       }
 
@@ -506,10 +453,8 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   // Wait for test duration
   while (std::chrono::steady_clock::now() - start_time < test_duration) {
     std::this_thread::sleep_for(1s);
-    std::cout << "Progress: sent=" << total_sent.load()
-              << " successful=" << successful_calls.load()
-              << " failed=" << failed_calls.load()
-              << " received=" << total_received.load() << std::endl;
+    std::cout << "Progress: sent=" << total_sent.load() << " successful=" << successful_calls.load()
+              << " failed=" << failed_calls.load() << " received=" << total_received.load() << std::endl;
   }
 
   running.store(false);
@@ -520,8 +465,7 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   std::cout << "Successful: " << successful_calls.load() << std::endl;
   std::cout << "Failed: " << failed_calls.load() << std::endl;
   std::cout << "Total received: " << total_received.load() << std::endl;
-  std::cout << "Total bytes received: " << total_bytes_received.load()
-            << std::endl;
+  std::cout << "Total bytes received: " << total_bytes_received.load() << std::endl;
 
   EXPECT_GT(successful_calls.load(), 0);
   EXPECT_EQ(total_sent.load(), total_received.load());

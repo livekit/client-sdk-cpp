@@ -71,10 +71,10 @@ public:
   AudioSource(int sample_rate, int num_channels, int queue_size_ms = 0);
   virtual ~AudioSource() = default;
 
-  AudioSource(const AudioSource &) = delete;
-  AudioSource &operator=(const AudioSource &) = delete;
-  AudioSource(AudioSource &&) noexcept = default;
-  AudioSource &operator=(AudioSource &&) noexcept = default;
+  AudioSource(const AudioSource&) = delete;
+  AudioSource& operator=(const AudioSource&) = delete;
+  AudioSource(AudioSource&&) noexcept = default;
+  AudioSource& operator=(AudioSource&&) noexcept = default;
 
   /// The sample rate of the audio source in Hz.
   int sample_rate() const noexcept { return sample_rate_; }
@@ -83,9 +83,7 @@ public:
   int num_channels() const noexcept { return num_channels_; }
 
   /// Underlying FFI handle ID used in FFI requests.
-  std::uint64_t ffi_handle_id() const noexcept {
-    return static_cast<std::uint64_t>(handle_.get());
-  }
+  std::uint64_t ffi_handle_id() const noexcept { return static_cast<std::uint64_t>(handle_.get()); }
 
   /// Current duration of queued audio (in seconds).
   double queuedDuration() const noexcept;
@@ -139,7 +137,7 @@ public:
    *   - the FFI reports an error
    *   - a timeout occurs in bounded-wait mode
    */
-  void captureFrame(const AudioFrame &frame, int timeout_ms = 20);
+  void captureFrame(const AudioFrame& frame, int timeout_ms = 20);
 
 private:
   // Internal helper to reset the local queue tracking (like _release_waiter).

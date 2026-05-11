@@ -28,13 +28,11 @@ namespace livekit {
 
 namespace {
 
-std::string bytesToString(const std::vector<std::uint8_t> &v) {
-  return std::string(reinterpret_cast<const char *>(v.data()), v.size());
+std::string bytesToString(const std::vector<std::uint8_t>& v) {
+  return std::string(reinterpret_cast<const char*>(v.data()), v.size());
 }
 
-std::vector<std::uint8_t> stringToBytes(const std::string &s) {
-  return std::vector<std::uint8_t>(s.begin(), s.end());
-}
+std::vector<std::uint8_t> stringToBytes(const std::string& s) { return std::vector<std::uint8_t>(s.begin(), s.end()); }
 
 } // namespace
 
@@ -42,26 +40,20 @@ std::vector<std::uint8_t> stringToBytes(const std::string &s) {
 // KeyProvider
 // ============================================================================
 
-E2EEManager::KeyProvider::KeyProvider(std::uint64_t room_handle,
-                                      KeyProviderOptions options)
+E2EEManager::KeyProvider::KeyProvider(std::uint64_t room_handle, KeyProviderOptions options)
     : room_handle_(room_handle), options_(std::move(options)) {}
 
-const KeyProviderOptions &E2EEManager::KeyProvider::options() const {
-  return options_;
-}
+const KeyProviderOptions& E2EEManager::KeyProvider::options() const { return options_; }
 
-void E2EEManager::KeyProvider::setSharedKey(
-    const std::vector<std::uint8_t> &key, int key_index) {
+void E2EEManager::KeyProvider::setSharedKey(const std::vector<std::uint8_t>& key, int key_index) {
   proto::FfiRequest req;
   req.mutable_e2ee()->set_room_handle(room_handle_);
   req.mutable_e2ee()->mutable_set_shared_key()->set_key_index(key_index);
-  req.mutable_e2ee()->mutable_set_shared_key()->set_shared_key(
-      bytesToString(key));
+  req.mutable_e2ee()->mutable_set_shared_key()->set_shared_key(bytesToString(key));
   FfiClient::instance().sendRequest(req);
 }
 
-std::vector<std::uint8_t>
-E2EEManager::KeyProvider::exportSharedKey(int key_index) const {
+std::vector<std::uint8_t> E2EEManager::KeyProvider::exportSharedKey(int key_index) const {
   proto::FfiRequest req;
   req.mutable_e2ee()->set_room_handle(room_handle_);
   req.mutable_e2ee()->mutable_get_shared_key()->set_key_index(key_index);
@@ -69,8 +61,7 @@ E2EEManager::KeyProvider::exportSharedKey(int key_index) const {
   return stringToBytes(resp.e2ee().get_shared_key().key());
 }
 
-std::vector<std::uint8_t>
-E2EEManager::KeyProvider::ratchetSharedKey(int key_index) {
+std::vector<std::uint8_t> E2EEManager::KeyProvider::ratchetSharedKey(int key_index) {
   proto::FfiRequest req;
   req.mutable_e2ee()->set_room_handle(room_handle_);
   req.mutable_e2ee()->mutable_ratchet_shared_key()->set_key_index(key_index);
@@ -78,37 +69,30 @@ E2EEManager::KeyProvider::ratchetSharedKey(int key_index) {
   return stringToBytes(resp.e2ee().ratchet_shared_key().new_key());
 }
 
-void E2EEManager::KeyProvider::setKey(const std::string &participant_identity,
-                                      const std::vector<std::uint8_t> &key,
+void E2EEManager::KeyProvider::setKey(const std::string& participant_identity, const std::vector<std::uint8_t>& key,
                                       int key_index) {
   proto::FfiRequest req;
   req.mutable_e2ee()->set_room_handle(room_handle_);
-  req.mutable_e2ee()->mutable_set_key()->set_participant_identity(
-      participant_identity);
+  req.mutable_e2ee()->mutable_set_key()->set_participant_identity(participant_identity);
   req.mutable_e2ee()->mutable_set_key()->set_key_index(key_index);
   req.mutable_e2ee()->mutable_set_key()->set_key(bytesToString(key));
   FfiClient::instance().sendRequest(req);
 }
 
-std::vector<std::uint8_t>
-E2EEManager::KeyProvider::exportKey(const std::string &participant_identity,
-                                    int key_index) const {
+std::vector<std::uint8_t> E2EEManager::KeyProvider::exportKey(const std::string& participant_identity,
+                                                              int key_index) const {
   proto::FfiRequest req;
   req.mutable_e2ee()->set_room_handle(room_handle_);
-  req.mutable_e2ee()->mutable_get_key()->set_participant_identity(
-      participant_identity);
+  req.mutable_e2ee()->mutable_get_key()->set_participant_identity(participant_identity);
   req.mutable_e2ee()->mutable_get_key()->set_key_index(key_index);
   auto resp = FfiClient::instance().sendRequest(req);
   return stringToBytes(resp.e2ee().get_key().key());
 }
 
-std::vector<std::uint8_t>
-E2EEManager::KeyProvider::ratchetKey(const std::string &participant_identity,
-                                     int key_index) {
+std::vector<std::uint8_t> E2EEManager::KeyProvider::ratchetKey(const std::string& participant_identity, int key_index) {
   proto::FfiRequest req;
   req.mutable_e2ee()->set_room_handle(room_handle_);
-  req.mutable_e2ee()->mutable_ratchet_key()->set_participant_identity(
-      participant_identity);
+  req.mutable_e2ee()->mutable_ratchet_key()->set_participant_identity(participant_identity);
   req.mutable_e2ee()->mutable_ratchet_key()->set_key_index(key_index);
   auto resp = FfiClient::instance().sendRequest(req);
   return stringToBytes(resp.e2ee().ratchet_key().new_key());
@@ -118,24 +102,21 @@ E2EEManager::KeyProvider::ratchetKey(const std::string &participant_identity,
 // FrameCryptor
 // ============================================================================
 
-E2EEManager::FrameCryptor::FrameCryptor(std::uint64_t room_handle,
-                                        std::string participant_identity,
-                                        int key_index, bool enabled)
-    : room_handle_(room_handle), enabled_(enabled),
+E2EEManager::FrameCryptor::FrameCryptor(std::uint64_t room_handle, std::string participant_identity, int key_index,
+                                        bool enabled)
+    : room_handle_(room_handle),
+      enabled_(enabled),
       participant_identity_(std::move(participant_identity)),
       key_index_(key_index) {}
 
-const std::string &E2EEManager::FrameCryptor::participantIdentity() const {
-  return participant_identity_;
-}
+const std::string& E2EEManager::FrameCryptor::participantIdentity() const { return participant_identity_; }
 int E2EEManager::FrameCryptor::keyIndex() const { return key_index_; }
 bool E2EEManager::FrameCryptor::enabled() const { return enabled_; }
 
 void E2EEManager::FrameCryptor::setEnabled(bool enabled) {
   proto::FfiRequest req;
   req.mutable_e2ee()->set_room_handle(room_handle_);
-  req.mutable_e2ee()->mutable_cryptor_set_enabled()->set_participant_identity(
-      participant_identity_);
+  req.mutable_e2ee()->mutable_cryptor_set_enabled()->set_participant_identity(participant_identity_);
   req.mutable_e2ee()->mutable_cryptor_set_enabled()->set_enabled(enabled);
   FfiClient::instance().sendRequest(req);
 }
@@ -143,8 +124,7 @@ void E2EEManager::FrameCryptor::setEnabled(bool enabled) {
 void E2EEManager::FrameCryptor::setKeyIndex(int key_index) {
   proto::FfiRequest req;
   req.mutable_e2ee()->set_room_handle(room_handle_);
-  req.mutable_e2ee()->mutable_cryptor_set_key_index()->set_participant_identity(
-      participant_identity_);
+  req.mutable_e2ee()->mutable_cryptor_set_key_index()->set_participant_identity(participant_identity_);
   req.mutable_e2ee()->mutable_cryptor_set_key_index()->set_key_index(key_index);
   FfiClient::instance().sendRequest(req);
 }
@@ -153,7 +133,7 @@ void E2EEManager::FrameCryptor::setKeyIndex(int key_index) {
 // E2EEManager
 // ============================================================================
 
-E2EEManager::E2EEManager(std::uint64_t room_handle, const E2EEOptions &options)
+E2EEManager::E2EEManager(std::uint64_t room_handle, const E2EEOptions& options)
     : room_handle_(room_handle),
       enabled_(true), // or false, depending on your desired default behavior
       options_(options),
@@ -169,21 +149,18 @@ void E2EEManager::setEnabled(bool enabled) {
   enabled_ = enabled;
 }
 
-E2EEManager::KeyProvider *E2EEManager::keyProvider() { return &key_provider_; }
-const E2EEManager::KeyProvider *E2EEManager::keyProvider() const {
-  return &key_provider_;
-}
+E2EEManager::KeyProvider* E2EEManager::keyProvider() { return &key_provider_; }
+const E2EEManager::KeyProvider* E2EEManager::keyProvider() const { return &key_provider_; }
 
 std::vector<E2EEManager::FrameCryptor> E2EEManager::frameCryptors() const {
   proto::FfiRequest req;
   req.mutable_e2ee()->set_room_handle(room_handle_);
   auto resp = FfiClient::instance().sendRequest(req);
   std::vector<E2EEManager::FrameCryptor> out;
-  const auto &list = resp.e2ee().manager_get_frame_cryptors().frame_cryptors();
+  const auto& list = resp.e2ee().manager_get_frame_cryptors().frame_cryptors();
   out.reserve(static_cast<std::size_t>(list.size()));
-  for (const auto &fc : list) {
-    out.emplace_back(room_handle_, fc.participant_identity(), fc.key_index(),
-                     fc.enabled());
+  for (const auto& fc : list) {
+    out.emplace_back(room_handle_, fc.participant_identity(), fc.key_index(), fc.enabled());
   }
   return out;
 }

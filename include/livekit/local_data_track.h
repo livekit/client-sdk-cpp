@@ -16,17 +16,17 @@
 
 #pragma once
 
-#include "livekit/data_track_error.h"
-#include "livekit/data_track_frame.h"
-#include "livekit/data_track_info.h"
-#include "livekit/ffi_handle.h"
-#include "livekit/result.h"
-
 #include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "livekit/data_track_error.h"
+#include "livekit/data_track_frame.h"
+#include "livekit/data_track_info.h"
+#include "livekit/ffi_handle.h"
+#include "livekit/result.h"
 
 namespace livekit {
 
@@ -59,11 +59,11 @@ class LocalDataTrack {
 public:
   ~LocalDataTrack() = default;
 
-  LocalDataTrack(const LocalDataTrack &) = delete;
-  LocalDataTrack &operator=(const LocalDataTrack &) = delete;
+  LocalDataTrack(const LocalDataTrack&) = delete;
+  LocalDataTrack& operator=(const LocalDataTrack&) = delete;
 
   /// Metadata about this data track.
-  const DataTrackInfo &info() const noexcept { return info_; }
+  const DataTrackInfo& info() const noexcept { return info_; }
 
   /**
    * Try to push a frame to all subscribers of this track.
@@ -71,7 +71,7 @@ public:
    * @return success on delivery acceptance, or a typed error describing why
    *         the frame could not be queued.
    */
-  Result<void, LocalDataTrackTryPushError> tryPush(const DataTrackFrame &frame);
+  Result<void, LocalDataTrackTryPushError> tryPush(const DataTrackFrame& frame);
 
   /**
    * Try to push a frame to all subscribers of this track.
@@ -79,9 +79,8 @@ public:
    * @return success on delivery acceptance, or a typed error describing why
    *         the frame could not be queued.
    */
-  Result<void, LocalDataTrackTryPushError>
-  tryPush(std::vector<std::uint8_t> &&payload,
-          std::optional<std::uint64_t> user_timestamp = std::nullopt);
+  Result<void, LocalDataTrackTryPushError> tryPush(std::vector<std::uint8_t>&& payload,
+                                                   std::optional<std::uint64_t> user_timestamp = std::nullopt);
 
   /// Whether the track is still published in the room.
   bool isPublished() const;
@@ -96,7 +95,7 @@ public:
 private:
   friend class LocalParticipant;
 
-  explicit LocalDataTrack(const proto::OwnedLocalDataTrack &owned);
+  explicit LocalDataTrack(const proto::OwnedLocalDataTrack& owned);
 
   uintptr_t ffi_handle_id() const noexcept { return handle_.get(); }
 

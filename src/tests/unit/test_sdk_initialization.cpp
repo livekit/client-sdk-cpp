@@ -33,8 +33,7 @@ TEST_F(SDKInitializationTest, InitializeDefault) {
 
 TEST_F(SDKInitializationTest, InitializeWithLogLevel) {
   bool result = livekit::initialize(livekit::LogLevel::Debug);
-  EXPECT_TRUE(result)
-      << "Initialization with explicit log level should succeed";
+  EXPECT_TRUE(result) << "Initialization with explicit log level should succeed";
   EXPECT_EQ(livekit::getLogLevel(), livekit::LogLevel::Debug);
 }
 
@@ -56,9 +55,7 @@ TEST_F(SDKInitializationTest, ReinitializeAfterShutdown) {
   EXPECT_TRUE(second) << "Re-initialization after shutdown should succeed";
 }
 
-TEST_F(SDKInitializationTest, ShutdownWithoutInitialize) {
-  EXPECT_NO_THROW(livekit::shutdown());
-}
+TEST_F(SDKInitializationTest, ShutdownWithoutInitialize) { EXPECT_NO_THROW(livekit::shutdown()); }
 
 TEST_F(SDKInitializationTest, MultipleShutdowns) {
   livekit::initialize();

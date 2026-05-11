@@ -35,9 +35,9 @@ namespace data_track_throughput {
 
 using json = nlohmann::json;
 
-constexpr const char *kDefaultTrackName = "data-track-throughput";
-constexpr const char *kPrepareRpcMethod = "throughput.prepare";
-constexpr const char *kFinishRpcMethod = "throughput.finish";
+constexpr const char* kDefaultTrackName = "data-track-throughput";
+constexpr const char* kPrepareRpcMethod = "throughput.prepare";
+constexpr const char* kFinishRpcMethod = "throughput.finish";
 constexpr std::size_t kMinimumPayloadBytes = 1024;
 constexpr std::size_t kMaximumPayloadBytes = 256ull * 1024ull * 1024ull;
 constexpr double kMinimumRateHz = 1.0;
@@ -47,38 +47,31 @@ constexpr std::uint32_t kFrameMagic = 0x31545444u;               // "DTT1"
 constexpr std::uint32_t kFrameVersion = 1;
 constexpr std::size_t kFrameHeaderBytes = 56;
 
-inline std::string getenvOrEmpty(const char *name) {
-  const char *value = std::getenv(name);
+inline std::string getenvOrEmpty(const char* name) {
+  const char* value = std::getenv(name);
   return value == nullptr ? std::string{} : std::string(value);
 }
 
 inline std::uint64_t nowSystemUs() {
   using namespace std::chrono;
-  return static_cast<std::uint64_t>(
-      duration_cast<microseconds>(system_clock::now().time_since_epoch())
-          .count());
+  return static_cast<std::uint64_t>(duration_cast<microseconds>(system_clock::now().time_since_epoch()).count());
 }
 
 inline std::string toLower(std::string value) {
-  std::transform(
-      value.begin(), value.end(), value.begin(),
-      [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  std::transform(value.begin(), value.end(), value.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
   return value;
 }
 
 inline std::string trim(std::string value) {
   auto is_space = [](unsigned char c) { return std::isspace(c) != 0; };
-  value.erase(value.begin(),
-              std::find_if(value.begin(), value.end(),
-                           [&](unsigned char c) { return !is_space(c); }));
-  value.erase(std::find_if(value.rbegin(), value.rend(),
-                           [&](unsigned char c) { return !is_space(c); })
-                  .base(),
+  value.erase(value.begin(), std::find_if(value.begin(), value.end(), [&](unsigned char c) { return !is_space(c); }));
+  value.erase(std::find_if(value.rbegin(), value.rend(), [&](unsigned char c) { return !is_space(c); }).base(),
               value.end());
   return value;
 }
 
-inline std::size_t parseByteSize(const std::string &text) {
+inline std::size_t parseByteSize(const std::string& text) {
   const std::string lowered = toLower(trim(text));
   if (lowered.empty()) {
     throw std::runtime_error("Empty byte size");
@@ -86,8 +79,7 @@ inline std::size_t parseByteSize(const std::string &text) {
 
   std::size_t split = 0;
   while (split < lowered.size() &&
-         (std::isdigit(static_cast<unsigned char>(lowered[split])) != 0 ||
-          lowered[split] == '.')) {
+         (std::isdigit(static_cast<unsigned char>(lowered[split])) != 0 || lowered[split] == '.')) {
     ++split;
   }
 
@@ -111,7 +103,7 @@ inline std::size_t parseByteSize(const std::string &text) {
 }
 
 inline std::string humanBytes(std::size_t bytes) {
-  static constexpr const char *kUnits[] = {"B", "KiB", "MiB", "GiB"};
+  static constexpr const char* kUnits[] = {"B", "KiB", "MiB", "GiB"};
   double value = static_cast<double>(bytes);
   std::size_t unit_index = 0;
   while (value >= 1024.0 && unit_index + 1 < std::size(kUnits)) {
@@ -120,12 +112,11 @@ inline std::string humanBytes(std::size_t bytes) {
   }
 
   std::ostringstream oss;
-  oss << std::fixed << std::setprecision(unit_index == 0 ? 0 : 2) << value
-      << kUnits[unit_index];
+  oss << std::fixed << std::setprecision(unit_index == 0 ? 0 : 2) << value << kUnits[unit_index];
   return oss.str();
 }
 
-inline std::string csvEscape(const std::string &value) {
+inline std::string csvEscape(const std::string& value) {
   if (value.find_first_of(",\"\n") == std::string::npos) {
     return value;
   }
@@ -142,8 +133,7 @@ inline std::string csvEscape(const std::string &value) {
   return escaped;
 }
 
-inline void ensureCsvHeader(const std::filesystem::path &path,
-                            const std::string &header) {
+inline void ensureCsvHeader(const std::filesystem::path& path, const std::string& header) {
   if (std::filesystem::exists(path)) {
     return;
   }
@@ -186,24 +176,19 @@ struct FrameHeader {
   std::uint64_t send_time_us = 0;
 };
 
-inline void writeLe32(std::vector<std::uint8_t> &buffer, std::size_t offset,
-                      std::uint32_t value) {
+inline void writeLe32(std::vector<std::uint8_t>& buffer, std::size_t offset, std::uint32_t value) {
   for (int idx = 0; idx < 4; ++idx) {
-    buffer[offset + idx] =
-        static_cast<std::uint8_t>((value >> (idx * 8)) & 0xFF);
+    buffer[offset + idx] = static_cast<std::uint8_t>((value >> (idx * 8)) & 0xFF);
   }
 }
 
-inline void writeLe64(std::vector<std::uint8_t> &buffer, std::size_t offset,
-                      std::uint64_t value) {
+inline void writeLe64(std::vector<std::uint8_t>& buffer, std::size_t offset, std::uint64_t value) {
   for (int idx = 0; idx < 8; ++idx) {
-    buffer[offset + idx] =
-        static_cast<std::uint8_t>((value >> (idx * 8)) & 0xFF);
+    buffer[offset + idx] = static_cast<std::uint8_t>((value >> (idx * 8)) & 0xFF);
   }
 }
 
-inline std::uint32_t readLe32(const std::vector<std::uint8_t> &buffer,
-                              std::size_t offset) {
+inline std::uint32_t readLe32(const std::vector<std::uint8_t>& buffer, std::size_t offset) {
   std::uint32_t value = 0;
   for (int idx = 0; idx < 4; ++idx) {
     value |= static_cast<std::uint32_t>(buffer[offset + idx]) << (idx * 8);
@@ -211,8 +196,7 @@ inline std::uint32_t readLe32(const std::vector<std::uint8_t> &buffer,
   return value;
 }
 
-inline std::uint64_t readLe64(const std::vector<std::uint8_t> &buffer,
-                              std::size_t offset) {
+inline std::uint64_t readLe64(const std::vector<std::uint8_t>& buffer, std::size_t offset) {
   std::uint64_t value = 0;
   for (int idx = 0; idx < 8; ++idx) {
     value |= static_cast<std::uint64_t>(buffer[offset + idx]) << (idx * 8);
@@ -220,15 +204,13 @@ inline std::uint64_t readLe64(const std::vector<std::uint8_t> &buffer,
   return value;
 }
 
-inline std::vector<std::uint8_t> makePayload(const ScenarioRequest &request,
-                                             std::uint64_t sequence,
+inline std::vector<std::uint8_t> makePayload(const ScenarioRequest& request, std::uint64_t sequence,
                                              std::uint64_t send_time_us) {
   if (request.packet_size_bytes < kFrameHeaderBytes) {
     throw std::runtime_error("Payload too small for frame header");
   }
 
-  std::vector<std::uint8_t> payload(request.packet_size_bytes,
-                                    static_cast<std::uint8_t>(sequence & 0xFF));
+  std::vector<std::uint8_t> payload(request.packet_size_bytes, static_cast<std::uint8_t>(sequence & 0xFF));
   writeLe32(payload, 0, kFrameMagic);
   writeLe32(payload, 4, kFrameVersion);
   writeLe64(payload, 8, request.run_id);
@@ -240,13 +222,11 @@ inline std::vector<std::uint8_t> makePayload(const ScenarioRequest &request,
   return payload;
 }
 
-inline std::optional<FrameHeader>
-parseHeader(const std::vector<std::uint8_t> &payload) {
+inline std::optional<FrameHeader> parseHeader(const std::vector<std::uint8_t>& payload) {
   if (payload.size() < kFrameHeaderBytes) {
     return std::nullopt;
   }
-  if (readLe32(payload, 0) != kFrameMagic ||
-      readLe32(payload, 4) != kFrameVersion) {
+  if (readLe32(payload, 0) != kFrameMagic || readLe32(payload, 4) != kFrameVersion) {
     return std::nullopt;
   }
 
@@ -260,8 +240,7 @@ parseHeader(const std::vector<std::uint8_t> &payload) {
   return header;
 }
 
-inline std::string defaultScenarioName(std::size_t packet_size_bytes,
-                                       double rate_hz) {
+inline std::string defaultScenarioName(std::size_t packet_size_bytes, double rate_hz) {
   std::ostringstream oss;
   oss << humanBytes(packet_size_bytes);
   oss << "_" << std::fixed << std::setprecision(0) << rate_hz << "Hz";
@@ -275,11 +254,9 @@ inline std::vector<std::size_t> defaultPayloadSizesBytes() {
           128ull * 1024ull, 256ull * 1024ull, 512ull * 1024ull};
 }
 
-inline std::vector<double> defaultRatesHz() {
-  return {1.0, 5.0, 10.0, 25.0, 50.0, 100.0, 200.0, 500.0, 1000.0};
-}
+inline std::vector<double> defaultRatesHz() { return {1.0, 5.0, 10.0, 25.0, 50.0, 100.0, 200.0, 500.0, 1000.0}; }
 
-inline json toJson(const ScenarioRequest &request) {
+inline json toJson(const ScenarioRequest& request) {
   return json{
       {"run_id", request.run_id},
       {"scenario_name", request.scenario_name},
@@ -291,7 +268,7 @@ inline json toJson(const ScenarioRequest &request) {
   };
 }
 
-inline ScenarioRequest scenarioRequestFromJson(const json &value) {
+inline ScenarioRequest scenarioRequestFromJson(const json& value) {
   ScenarioRequest request;
   request.run_id = value.at("run_id").get<std::uint64_t>();
   request.scenario_name = value.at("scenario_name").get<std::string>();
@@ -303,7 +280,7 @@ inline ScenarioRequest scenarioRequestFromJson(const json &value) {
   return request;
 }
 
-inline json toJson(const ProducerStats &stats) {
+inline json toJson(const ProducerStats& stats) {
   return json{
       {"run_id", stats.run_id},
       {"scenario_name", stats.scenario_name},
@@ -317,53 +294,43 @@ inline json toJson(const ProducerStats &stats) {
   };
 }
 
-inline ProducerStats producerStatsFromJson(const json &value) {
+inline ProducerStats producerStatsFromJson(const json& value) {
   ProducerStats stats;
   stats.run_id = value.at("run_id").get<std::uint64_t>();
   stats.scenario_name = value.at("scenario_name").get<std::string>();
   stats.attempted_count = value.at("attempted_count").get<std::size_t>();
-  stats.enqueue_success_count =
-      value.at("enqueue_success_count").get<std::size_t>();
-  stats.enqueue_failure_count =
-      value.at("enqueue_failure_count").get<std::size_t>();
+  stats.enqueue_success_count = value.at("enqueue_success_count").get<std::size_t>();
+  stats.enqueue_failure_count = value.at("enqueue_failure_count").get<std::size_t>();
   stats.attempted_bytes = value.at("attempted_bytes").get<std::uint64_t>();
   stats.enqueued_bytes = value.at("enqueued_bytes").get<std::uint64_t>();
-  stats.first_send_time_us =
-      value.at("first_send_time_us").get<std::uint64_t>();
+  stats.first_send_time_us = value.at("first_send_time_us").get<std::uint64_t>();
   stats.last_send_time_us = value.at("last_send_time_us").get<std::uint64_t>();
   return stats;
 }
 
-inline bool exceedsDataRateBudget(const ScenarioRequest &request) {
-  return static_cast<double>(request.packet_size_bytes) *
-             request.desired_rate_hz >
-         kMaximumDataRateBytesPerSec;
+inline bool exceedsDataRateBudget(const ScenarioRequest& request) {
+  return static_cast<double>(request.packet_size_bytes) * request.desired_rate_hz > kMaximumDataRateBytesPerSec;
 }
 
-inline void validateScenario(const ScenarioRequest &request) {
+inline void validateScenario(const ScenarioRequest& request) {
   if (request.message_count == 0) {
     throw std::runtime_error("message_count must be greater than zero");
   }
-  if (request.desired_rate_hz < kMinimumRateHz ||
-      request.desired_rate_hz > kMaximumRateHz) {
+  if (request.desired_rate_hz < kMinimumRateHz || request.desired_rate_hz > kMaximumRateHz) {
     throw std::runtime_error("desired_rate_hz must be between 1 and 50000");
   }
-  if (request.packet_size_bytes < kMinimumPayloadBytes ||
-      request.packet_size_bytes > kMaximumPayloadBytes) {
-    throw std::runtime_error(
-        "packet_size_bytes must be between 1 KiB and 256 MiB");
+  if (request.packet_size_bytes < kMinimumPayloadBytes || request.packet_size_bytes > kMaximumPayloadBytes) {
+    throw std::runtime_error("packet_size_bytes must be between 1 KiB and 256 MiB");
   }
   if (exceedsDataRateBudget(request)) {
     throw std::runtime_error("scenario exceeds data-rate budget of 10 Gbps");
   }
 }
 
-inline std::vector<ScenarioRequest>
-makeScenarioPlan(const std::string &producer_identity,
-                 const std::string &track_name,
-                 std::size_t messages_per_scenario,
-                 const std::vector<std::size_t> &payload_sizes,
-                 const std::vector<double> &rates) {
+inline std::vector<ScenarioRequest> makeScenarioPlan(const std::string& producer_identity,
+                                                     const std::string& track_name, std::size_t messages_per_scenario,
+                                                     const std::vector<std::size_t>& payload_sizes,
+                                                     const std::vector<double>& rates) {
   std::vector<ScenarioRequest> scenarios;
   std::uint64_t run_id = 1;
 
@@ -387,12 +354,11 @@ makeScenarioPlan(const std::string &producer_identity,
   return scenarios;
 }
 
-inline std::vector<ScenarioRequest>
-makeDefaultScenarioPlan(const std::string &producer_identity,
-                        const std::string &track_name,
-                        std::size_t messages_per_scenario) {
-  return makeScenarioPlan(producer_identity, track_name, messages_per_scenario,
-                          defaultPayloadSizesBytes(), defaultRatesHz());
+inline std::vector<ScenarioRequest> makeDefaultScenarioPlan(const std::string& producer_identity,
+                                                            const std::string& track_name,
+                                                            std::size_t messages_per_scenario) {
+  return makeScenarioPlan(producer_identity, track_name, messages_per_scenario, defaultPayloadSizesBytes(),
+                          defaultRatesHz());
 }
 
 } // namespace data_track_throughput

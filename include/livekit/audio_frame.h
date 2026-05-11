@@ -47,26 +47,24 @@ public:
    * Throws std::invalid_argument if the data size is inconsistent with
    * num_channels * samples_per_channel.
    */
-  AudioFrame(std::vector<std::int16_t> data, int sample_rate, int num_channels,
-             int samples_per_channel);
+  AudioFrame(std::vector<std::int16_t> data, int sample_rate, int num_channels, int samples_per_channel);
   AudioFrame(); // Default constructor
   virtual ~AudioFrame() = default;
 
   /**
    * Create a new zero-initialized AudioFrame instance.
    */
-  static AudioFrame create(int sample_rate, int num_channels,
-                           int samples_per_channel);
+  static AudioFrame create(int sample_rate, int num_channels, int samples_per_channel);
 
   /**
    * Construct an AudioFrame by copying data out of an OwnedAudioFrameBuffer.
    */
-  static AudioFrame fromOwnedInfo(const proto::OwnedAudioFrameBuffer &owned);
+  static AudioFrame fromOwnedInfo(const proto::OwnedAudioFrameBuffer& owned);
 
   // ---- Accessors ----
 
-  const std::vector<std::int16_t> &data() const noexcept { return data_; }
-  std::vector<std::int16_t> &data() noexcept { return data_; }
+  const std::vector<std::int16_t>& data() const noexcept { return data_; }
+  std::vector<std::int16_t>& data() noexcept { return data_; }
 
   /// Number of samples in the buffer (per all channels).
   std::size_t total_samples() const noexcept { return data_.size(); }

@@ -44,8 +44,7 @@ struct PublishDataTrackError {
   PublishDataTrackErrorCode code{PublishDataTrackErrorCode::UNKNOWN};
   std::string message;
 
-  static PublishDataTrackError
-  fromProto(const proto::PublishDataTrackError &error);
+  static PublishDataTrackError fromProto(const proto::PublishDataTrackError& error);
 };
 
 enum class LocalDataTrackTryPushErrorCode : std::uint32_t {
@@ -60,8 +59,7 @@ struct LocalDataTrackTryPushError {
   LocalDataTrackTryPushErrorCode code{LocalDataTrackTryPushErrorCode::UNKNOWN};
   std::string message;
 
-  static LocalDataTrackTryPushError
-  fromProto(const proto::LocalDataTrackTryPushError &error);
+  static LocalDataTrackTryPushError fromProto(const proto::LocalDataTrackTryPushError& error);
 };
 
 enum class SubscribeDataTrackErrorCode : std::uint32_t {
@@ -78,8 +76,7 @@ struct SubscribeDataTrackError {
   SubscribeDataTrackErrorCode code{SubscribeDataTrackErrorCode::UNKNOWN};
   std::string message;
 
-  static SubscribeDataTrackError
-  fromProto(const proto::SubscribeDataTrackError &error);
+  static SubscribeDataTrackError fromProto(const proto::SubscribeDataTrackError& error);
 };
 
 } // namespace livekit
