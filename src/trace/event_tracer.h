@@ -57,8 +57,7 @@ typedef void (*AddTraceEventPtr)(char phase, const unsigned char* category_enabl
 LIVEKIT_API void SetupEventTracer(GetCategoryEnabledPtr get_category_enabled_ptr, AddTraceEventPtr add_trace_event_ptr);
 
 // This class defines interface for the event tracing system to call
-// internally.  Tagged LIVEKIT_INTERNAL_API so the in-tree tracing tests
-// (src/tests/unit/test_tracing.cpp) can resolve the static methods.
+// internally.
 class LIVEKIT_INTERNAL_API EventTracer {
 public:
   static const unsigned char* GetCategoryEnabled(const char* name);

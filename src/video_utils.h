@@ -24,8 +24,6 @@
 namespace livekit {
 
 // Video FFI Utils.
-// Tagged LIVEKIT_INTERNAL_API: not part of the public ABI, but exposed so
-// in-tree tests that include this header can link.
 LIVEKIT_INTERNAL_API proto::VideoBufferInfo toProto(const VideoFrame& frame);
 LIVEKIT_INTERNAL_API VideoFrame fromOwnedProto(const proto::OwnedVideoBuffer& owned);
 LIVEKIT_INTERNAL_API VideoFrame convertViaFfi(const VideoFrame& frame, VideoBufferType dst, bool flip_y);

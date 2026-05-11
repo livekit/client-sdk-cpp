@@ -63,9 +63,6 @@ extern "C" void LivekitFfiCallback(const uint8_t* buf, size_t len);
 
 // The FfiClient is used to communicate with the FFI interface of the Rust SDK
 // We use the generated protocol messages to facilitate the communication.
-//
-// Tagged LIVEKIT_INTERNAL_API: not part of the public ABI; exposed only so the
-// in-tree test binaries can call into the singleton.
 class LIVEKIT_INTERNAL_API FfiClient {
 public:
   using ListenerId = int;

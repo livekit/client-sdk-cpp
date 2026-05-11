@@ -110,7 +110,7 @@ Updates to ./build.sh and ./build.cmd should be accompanied by updates to this f
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
 
-**Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. On macOS: `brew install cmake ninja protobuf abseil`. On Linux: see the CI workflow for apt packages. spdlog is vendored automatically via FetchContent (or vcpkg on Windows) to avoid system conflicts, for example on ROS 2.
+**Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. On macOS: `brew install cmake ninja protobuf abseil`. On Linux: see the CI workflow for apt packages. spdlog is vendored automatically via FetchContent (or vcpkg on Windows) to avoid system conflicts.
 
 ### SDK Packaging
 
@@ -162,8 +162,7 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
   prefix (`#include "ffi_client.h"`); they are not part of the public
   surface and live alongside their consumers.
 - Test code (in-tree or external-style canaries) must consume public
-  headers via `<livekit/foo.h>` to mirror real consumer usage; see
-  `src/tests/consumer_link/test_consumer_link.cpp`.
+  headers via `<livekit/foo.h>` to mirror real consumer usage
 
 ### Symbol Visibility / Exported ABI
 
@@ -185,9 +184,6 @@ Rules for new code:
   by hand; always go through `LIVEKIT_API` / `LIVEKIT_INTERNAL_API`.
 - On Windows, `WINDOWS_EXPORT_ALL_SYMBOLS` is **deliberately disabled** for the
   `livekit` target.  Use `LIVEKIT_API` to export.
-
-CI enforces the policy via `scripts/check_no_private_symbols.py`, which is
-also wired in as a CTest test (label `abi`):
 
 ### Error Handling
 
@@ -211,19 +207,14 @@ also wired in as a CTest test (label `abi`):
 - protobuf is vendored via FetchContent on non-Windows platforms; Windows uses vcpkg.
 - The CMake install produces a `find_package(LiveKit CONFIG)`-compatible package with `LiveKitConfig.cmake`, `LiveKitTargets.cmake`, and `LiveKitConfigVersion.cmake`.
 
-```
-ctest -L abi --output-on-failure
-```
-
-The script fails if `nm`/`dumpbin` reports any exported symbol containing
-`spdlog`, `fmt::v`, `google::protobuf`, or `absl::`.
-
 ### Readability and Performance
+
 Code should be easy to read and understand. If a sacrifice is made for performance or readability, it should be documented.
 
-Adhere to clang-format checks configured in `.clang-format`. Run `./scripts/clang-format.sh` if needed to confirm code styling.
+Adhere to clang-format checks configured in `.clang-format`. Run `./scripts/clang-format.sh` if needed to confirm code styling, and `./scripts/clang-format.sh --fix` to auto-format generated code created.
 
 ### Static Analysis
+
 Adhere to clang-tidy checks configured in `.clang-tidy`. Run `./scripts/clang-tidy.sh` if needed to confirm code quality.
 
 ## Dependencies
@@ -249,10 +240,8 @@ Integration tests (`src/tests/integration/`) cover: room connections, callbacks,
 When adding new client facing functionality, add a new test case to the existing test suite.
 When adding new client facing functionality, add benchmarking to understand the limitations of the new functionality.
 
-## Formatting
-Use clang formatting that aligns with the existing codebase.
-
 ## General C++ Development
+
 - Do not use dynamic memory allocation after initialization
 - Keep each function short (roughly ≤ 60 lines)
 - Declare all data objects at the smallest possible level of scope

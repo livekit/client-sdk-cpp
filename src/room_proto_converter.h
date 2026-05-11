@@ -29,10 +29,6 @@ class RemoteParticipant;
 struct ByteStreamInfo;
 struct TextStreamInfo;
 
-// All declarations below are tagged LIVEKIT_INTERNAL_API: they are NOT part of
-// the public SDK ABI, but must be exported so that the in-tree test binaries
-// (which include this header directly) can resolve them against liblivekit.
-
 // --------- basic helper conversions ---------
 
 LIVEKIT_INTERNAL_API ConnectionQuality toConnectionQuality(proto::ConnectionQuality in);
