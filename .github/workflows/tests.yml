@@ -192,7 +192,7 @@ jobs:
 
       - name: Symbol leak check (Windows)
         if: runner.os == 'Windows'
-        continue-on-error: true
+        continue-on-error: true # Still fail the build, just don't block remaining tests running
         shell: pwsh
         run: |
           $candidates = @(
