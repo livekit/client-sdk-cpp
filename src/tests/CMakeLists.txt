@@ -331,27 +331,3 @@ endif()
 if(TARGET livekit_stress_tests)
   add_dependencies(run_all_tests livekit_stress_tests)
 endif()
-
-# ============================================================================
-# ABI verification: liblivekit must not re-export private dependency symbols
-# ============================================================================
-#
-# scripts/check_no_private_symbols.py asserts that no spdlog/fmt/protobuf/absl
-# symbols are visible in the dynamic symbol table of the built shared library.
-# This catches regressions where a new TU is added without -fvisibility=hidden
-# or a public header forgets to gate exports through LIVEKIT_API.
-find_package(Python3 COMPONENTS Interpreter)
-if(Python3_Interpreter_FOUND)
-  add_test(
-    NAME livekit_no_private_symbols
-    COMMAND ${Python3_EXECUTABLE}
-            "${LIVEKIT_ROOT_DIR}/scripts/check_no_private_symbols.py"
-            "$<TARGET_FILE:livekit>"
-  )
-  set_tests_properties(livekit_no_private_symbols PROPERTIES
-    LABELS "abi"
-  )
-else()
-  message(WARNING
-    "Python3 not found; skipping livekit_no_private_symbols ABI test")
-endif()

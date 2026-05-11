@@ -185,6 +185,24 @@ Rules for new code:
 - On Windows, `WINDOWS_EXPORT_ALL_SYMBOLS` is **deliberately disabled** for the
   `livekit` target.  Use `LIVEKIT_API` to export.
 
+The exported ABI is enforced by `.github/scripts/check_no_private_symbols.py`,
+run from the `tests.yml` "Symbol leak check" CI step. The script fails if
+`nm`/`dumpbin` reports any exported symbol matching a forbidden substring
+(currently `spdlog::`, `fmt::v`, `google::protobuf`, `absl::`). To run it
+locally, point it at the built shared library:
+
+```bash
+python3 .github/scripts/check_no_private_symbols.py \
+    build-release/lib/liblivekit.dylib   # or .so / livekit.dll
+```
+
+**When adding a new third-party library or vendored dependency to the SDK,
+update `.github/scripts/check_no_private_symbols.py` to add a forbidden
+substring pattern for the new dependency's namespace/symbol prefix.** The
+denylist is intentionally explicit — a new dep that leaks symbols will
+otherwise silently pollute `liblivekit.{so,dylib,dll}` and clash at runtime
+with the same library loaded elsewhere in the host process.
+
 ### Error Handling
 
 - Use `LK_LOG_WARN` for non-fatal unexpected conditions.
@@ -225,6 +243,12 @@ Adhere to clang-tidy checks configured in `.clang-tidy`. Run `./scripts/clang-ti
 | spdlog | **Private** | FetchContent or system package; must NOT leak into public API |
 | client-sdk-rust | Build-time | Git submodule, built via cargo during CMake build |
 | Google Test | Test only | FetchContent in `src/tests/CMakeLists.txt` |
+
+When adding a new private/vendored dependency to this table, also add a
+forbidden symbol pattern for it to
+`.github/scripts/check_no_private_symbols.py` so the "Symbol leak check"
+CI step will fail loudly if its symbols escape the public ABI of
+`liblivekit`.
 
 ## Testing
 
