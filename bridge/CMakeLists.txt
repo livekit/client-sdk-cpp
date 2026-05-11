@@ -14,8 +14,20 @@ add_library(livekit_bridge SHARED
   src/rpc_controller.h
 )
 
+# Workaround for bridge deprecation: handle visbility differently to avoid
+# major LIVEKIT_API changes across its code, and not affecting the SDK
 if(WIN32)
   set_target_properties(livekit_bridge PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+else()
+  set_target_properties(livekit_bridge PROPERTIES
+    CXX_VISIBILITY_PRESET default
+    C_VISIBILITY_PRESET default
+    VISIBILITY_INLINES_HIDDEN OFF
+  )
+  target_compile_options(livekit_bridge INTERFACE
+    -fvisibility=default
+    -fno-visibility-inlines-hidden
+  )
 endif()
 
 target_include_directories(livekit_bridge

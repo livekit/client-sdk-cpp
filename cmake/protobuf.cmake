@@ -120,22 +120,12 @@ set(ABSL_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 set(utf8_range_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 
 # Force hidden visibility on every target created by the FetchContent
-# subprojects below.  Setting these as CACHE BOOL FORCE before
+# subprojects below. Setting these as CACHE BOOL FORCE before
 # FetchContent_MakeAvailable propagates to every add_library() call inside
 # absl / protobuf / utf8_range, so their .o files are compiled with
-# -fvisibility=hidden -fvisibility-inlines-hidden.  Without this, even though
+# -fvisibility=hidden -fvisibility-inlines-hidden. Without this, even though
 # liblivekit itself is hidden, absl's static archives would carry default-
 # visibility symbols that the linker happily re-exports.
-#
-# We snapshot the previous values so we can restore them after
-# FetchContent_MakeAvailable; otherwise sibling components like the bridge
-# library would also inherit hidden visibility, which would break the bridge
-# unit tests that need access to internal bridge symbols.
-set(_livekit_prev_cxx_visibility "${CMAKE_CXX_VISIBILITY_PRESET}")
-set(_livekit_prev_c_visibility "${CMAKE_C_VISIBILITY_PRESET}")
-set(_livekit_prev_inlines_hidden "${CMAKE_VISIBILITY_INLINES_HIDDEN}")
-set(_livekit_prev_pic "${CMAKE_POSITION_INDEPENDENT_CODE}")
-
 set(CMAKE_CXX_VISIBILITY_PRESET hidden CACHE STRING "" FORCE)
 set(CMAKE_C_VISIBILITY_PRESET hidden CACHE STRING "" FORCE)
 set(CMAKE_VISIBILITY_INLINES_HIDDEN ON CACHE BOOL "" FORCE)
@@ -183,30 +173,6 @@ endif()
 
 # Now make protobuf available.
 FetchContent_MakeAvailable(livekit_protobuf)
-
-# Restore the prior visibility cache values so the rest of the build (e.g.
-# the deprecated bridge target and its tests) can use the project default
-# visibility.  The livekit target itself sets CXX_VISIBILITY_PRESET hidden
-# explicitly via target properties, so it does not depend on these globals.
-if(_livekit_prev_cxx_visibility STREQUAL "")
-  unset(CMAKE_CXX_VISIBILITY_PRESET CACHE)
-else()
-  set(CMAKE_CXX_VISIBILITY_PRESET "${_livekit_prev_cxx_visibility}"
-      CACHE STRING "" FORCE)
-endif()
-if(_livekit_prev_c_visibility STREQUAL "")
-  unset(CMAKE_C_VISIBILITY_PRESET CACHE)
-else()
-  set(CMAKE_C_VISIBILITY_PRESET "${_livekit_prev_c_visibility}"
-      CACHE STRING "" FORCE)
-endif()
-if(_livekit_prev_inlines_hidden STREQUAL "")
-  unset(CMAKE_VISIBILITY_INLINES_HIDDEN CACHE)
-else()
-  set(CMAKE_VISIBILITY_INLINES_HIDDEN "${_livekit_prev_inlines_hidden}"
-      CACHE BOOL "" FORCE)
-endif()
-# Position-independent code remains ON globally (it was forced ON anyway).
 
 # Protobuf targets: modern protobuf exports protobuf::protoc etc.
 if(TARGET protobuf::protoc)
