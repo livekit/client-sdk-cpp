@@ -22,6 +22,8 @@
 
 #include <mutex>
 
+#include "lk_log.h"
+
 namespace livekit {
 namespace {
 

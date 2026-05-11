@@ -51,10 +51,11 @@ if(UNIT_TEST_SOURCES)
     ${BENCHMARK_UTILS_SOURCES}
   )
 
-  # On Windows, protobuf default-instance symbols (constinit globals) are not
-  # auto-exported from livekit.dll by WINDOWS_EXPORT_ALL_SYMBOLS.  Link the
-  # proto object library directly so the test binary has its own copy.
-  if(WIN32 AND TARGET livekit_proto)
+  # liblivekit no longer re-exports protobuf/absl symbols (hidden visibility +
+  # --exclude-libs,ALL).  Tests that touch livekit::proto::* types or absl
+  # helpers must link the proto object library and the libprotobuf static
+  # archive directly.
+  if(TARGET livekit_proto)
     target_sources(livekit_unit_tests PRIVATE $<TARGET_OBJECTS:livekit_proto>)
   endif()
 
@@ -149,10 +150,11 @@ if(INTEGRATION_TEST_SOURCES)
     ${BENCHMARK_UTILS_SOURCES}
   )
 
-  # On Windows, protobuf default-instance symbols (constinit globals) are not
-  # auto-exported from livekit.dll by WINDOWS_EXPORT_ALL_SYMBOLS.  Link the
-  # proto object library directly so the test binary has its own copy.
-  if(WIN32 AND TARGET livekit_proto)
+  # liblivekit no longer re-exports protobuf/absl symbols (hidden visibility +
+  # --exclude-libs,ALL).  Tests that touch livekit::proto::* types or absl
+  # helpers must link the proto object library and the libprotobuf static
+  # archive directly.
+  if(TARGET livekit_proto)
     target_sources(livekit_integration_tests PRIVATE $<TARGET_OBJECTS:livekit_proto>)
   endif()
 
@@ -160,7 +162,7 @@ if(INTEGRATION_TEST_SOURCES)
     PRIVATE
       livekit
       spdlog::spdlog
-      $<$<PLATFORM_ID:Windows>:${LIVEKIT_PROTOBUF_TARGET}>
+      ${LIVEKIT_PROTOBUF_TARGET}
       GTest::gtest_main
   )
 

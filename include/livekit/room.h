@@ -26,6 +26,7 @@
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
 #include "livekit/subscription_thread_dispatcher.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -94,7 +95,7 @@ struct RoomOptions {
 ///   - participant list (local + remote)
 ///   - track publications
 ///   - server events forwarded to a RoomDelegate
-class Room {
+class LIVEKIT_API Room {
 public:
   Room();
   ~Room();

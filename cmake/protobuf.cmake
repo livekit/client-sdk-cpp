@@ -119,6 +119,18 @@ set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
 set(ABSL_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 set(utf8_range_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 
+# Force hidden visibility on every target created by the FetchContent
+# subprojects below. Setting these as CACHE BOOL FORCE before
+# FetchContent_MakeAvailable propagates to every add_library() call inside
+# absl / protobuf / utf8_range, so their .o files are compiled with
+# -fvisibility=hidden -fvisibility-inlines-hidden. Without this, even though
+# liblivekit itself is hidden, absl's static archives would carry default-
+# visibility symbols that the linker happily re-exports.
+set(CMAKE_CXX_VISIBILITY_PRESET hidden CACHE STRING "" FORCE)
+set(CMAKE_C_VISIBILITY_PRESET hidden CACHE STRING "" FORCE)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN ON CACHE BOOL "" FORCE)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
+
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_CONFORMANCE OFF CACHE BOOL "" FORCE)

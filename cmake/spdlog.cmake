@@ -50,6 +50,12 @@ include(FetchContent)
 
 set(LIVEKIT_SPDLOG_VERSION "1.15.1" CACHE STRING "Vendored spdlog version")
 
+# Warn any existing users of old option
+if(DEFINED LIVEKIT_USE_SYSTEM_SPDLOG)
+  message(WARNING
+    "LIVEKIT_USE_SYSTEM_SPDLOG is no longer supported and will be ignored")
+endif()
+
 # ---------------------------------------------------------------------------
 # Windows: use vcpkg
 # ---------------------------------------------------------------------------
@@ -74,5 +80,17 @@ set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE)
 
 FetchContent_MakeAvailable(livekit_spdlog)
+
+# spdlog is linked PRIVATE into liblivekit and must not leak its symbols into
+# the SDK's exported ABI.  Force hidden visibility on the spdlog target so its
+# object files don't carry default-visibility symbols into liblivekit.
+if(TARGET spdlog)
+  set_target_properties(spdlog PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    C_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON
+  )
+endif()
 
 message(STATUS "macOS/Linux: using vendored spdlog v${LIVEKIT_SPDLOG_VERSION}")

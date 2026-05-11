@@ -32,6 +32,7 @@
 #include "livekit/data_track_error.h"
 #include "livekit/result.h"
 #include "livekit/stats.h"
+#include "livekit/visibility.h"
 #include "lk_log.h"
 #include "room.pb.h"
 
@@ -61,8 +62,8 @@ extern "C" void livekit_ffi_dispose();
 extern "C" void LivekitFfiCallback(const uint8_t* buf, size_t len);
 
 // The FfiClient is used to communicate with the FFI interface of the Rust SDK
-// We use the generated protocol messages to facilitate the communication
-class FfiClient {
+// We use the generated protocol messages to facilitate the communication.
+class LIVEKIT_INTERNAL_API FfiClient {
 public:
   using ListenerId = int;
   using Listener = std::function<void(const proto::FfiEvent&)>;

@@ -27,6 +27,7 @@
 #include "livekit/data_track_info.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/result.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -55,7 +56,7 @@ class OwnedLocalDataTrack;
  *     dt->unpublishDataTrack();
  *   }
  */
-class LocalDataTrack {
+class LIVEKIT_API LocalDataTrack {
 public:
   ~LocalDataTrack() = default;
 

@@ -33,6 +33,7 @@
 #include "livekit/participant.h"
 #include "livekit/room_event_types.h"
 #include "livekit/rpc_error.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -54,7 +55,7 @@ struct RpcInvocationData {
  *
  * LocalParticipant, built on top of the participant.h base class.
  */
-class LocalParticipant : public Participant {
+class LIVEKIT_API LocalParticipant : public Participant {
 public:
   using PublicationMap = std::unordered_map<std::string, std::shared_ptr<LocalTrackPublication>>;
   using TrackMap = std::unordered_map<std::string, std::weak_ptr<Track>>;

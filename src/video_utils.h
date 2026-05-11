@@ -18,17 +18,18 @@
 
 #include "livekit/video_frame.h"
 #include "livekit/video_source.h"
+#include "livekit/visibility.h"
 #include "video_frame.pb.h"
 
 namespace livekit {
 
-// Video FFI Utils
-proto::VideoBufferInfo toProto(const VideoFrame& frame);
-VideoFrame fromOwnedProto(const proto::OwnedVideoBuffer& owned);
-VideoFrame convertViaFfi(const VideoFrame& frame, VideoBufferType dst, bool flip_y);
-proto::VideoBufferType toProto(const VideoBufferType t);
-VideoBufferType fromProto(const proto::VideoBufferType t);
-std::optional<proto::FrameMetadata> toProto(const std::optional<VideoFrameMetadata>& metadata);
-std::optional<VideoFrameMetadata> fromProto(const proto::FrameMetadata& metadata);
+// Video FFI Utils.
+LIVEKIT_INTERNAL_API proto::VideoBufferInfo toProto(const VideoFrame& frame);
+LIVEKIT_INTERNAL_API VideoFrame fromOwnedProto(const proto::OwnedVideoBuffer& owned);
+LIVEKIT_INTERNAL_API VideoFrame convertViaFfi(const VideoFrame& frame, VideoBufferType dst, bool flip_y);
+LIVEKIT_INTERNAL_API proto::VideoBufferType toProto(const VideoBufferType t);
+LIVEKIT_INTERNAL_API VideoBufferType fromProto(const proto::VideoBufferType t);
+LIVEKIT_INTERNAL_API std::optional<proto::FrameMetadata> toProto(const std::optional<VideoFrameMetadata>& metadata);
+LIVEKIT_INTERNAL_API std::optional<VideoFrameMetadata> fromProto(const proto::FrameMetadata& metadata);
 
 } // namespace livekit

@@ -24,6 +24,7 @@
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/track.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -37,7 +38,7 @@ class RemoteTrack;
  * Wraps the immutable publication info plus an FFI handle, and
  * holds a weak reference to the associated Track (if any).
  */
-class TrackPublication {
+class LIVEKIT_API TrackPublication {
 public:
   virtual ~TrackPublication() = default;
 
