@@ -21,6 +21,7 @@
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
+#include "lk_log.h"
 
 namespace livekit {
 
@@ -48,6 +49,9 @@ bool RemoteDataTrack::isPublished() const {
 Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> RemoteDataTrack::subscribe(
     const DataTrackStream::Options& options) {
   if (!handle_.valid()) {
+    LK_LOG_WARN("Subscribe data track failed: code={} message={}",
+                static_cast<std::uint32_t>(SubscribeDataTrackErrorCode::INVALID_HANDLE),
+                "RemoteDataTrack::subscribe: invalid FFI handle");
     return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::failure(
         SubscribeDataTrackError{SubscribeDataTrackErrorCode::INVALID_HANDLE,
                                 "RemoteDataTrack::subscribe: invalid FFI "

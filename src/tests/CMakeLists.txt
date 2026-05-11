@@ -62,7 +62,7 @@ if(UNIT_TEST_SOURCES)
     PRIVATE
       livekit
       spdlog::spdlog
-      $<$<PLATFORM_ID:Windows>:${LIVEKIT_PROTOBUF_TARGET}>
+      ${LIVEKIT_PROTOBUF_TARGET}
       GTest::gtest_main
   )
 
