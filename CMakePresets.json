@@ -452,10 +452,6 @@
       "configurePreset": "linux-debug-tests"
     },
     {
-      "name": "linux-coverage-tests",
-      "configurePreset": "linux-coverage-tests"
-    },
-    {
       "name": "macos-release-tests",
       "configurePreset": "macos-release-tests"
     },
@@ -491,13 +487,6 @@
     {
       "name": "linux-debug-tests",
       "configurePreset": "linux-debug-tests",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "linux-coverage-tests",
-      "configurePreset": "linux-coverage-tests",
       "output": {
         "outputOnFailure": true
       }
