@@ -696,6 +696,13 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(DataFrameCallbac
         LK_LOG_ERROR("Data frame callback exception: {}", e.what());
       }
     }
+    const auto error = stream->terminalError();
+    if (error.has_value()) {
+      LK_LOG_ERROR(
+          "Data reader stream ended with subscription error for \"{}\" from "
+          "\"{}\": code={} message={}",
+          track_name, identity, static_cast<std::uint32_t>(error->code), error->message);
+    }
     LK_LOG_INFO("Data reader thread exiting for \"{}\" track=\"{}\"", identity, track_name);
   });
   // NOLINTEND(bugprone-lambda-function-name)

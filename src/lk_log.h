@@ -21,15 +21,17 @@
 
 #include <memory>
 
+#include "livekit/visibility.h"
+
 namespace livekit::detail {
 
 /// Returns the shared "livekit" logger instance.
 /// The logger is created lazily on first access and lives until
 /// shutdownLogger() is called.  Safe to call before initialize().
-std::shared_ptr<spdlog::logger> getLogger();
+LIVEKIT_INTERNAL_API std::shared_ptr<spdlog::logger> getLogger();
 
 /// Tears down the spdlog logger. Called by livekit::shutdown().
-void shutdownLogger();
+LIVEKIT_INTERNAL_API void shutdownLogger();
 
 } // namespace livekit::detail
 

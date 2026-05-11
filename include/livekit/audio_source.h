@@ -20,6 +20,7 @@
 
 #include "livekit/audio_frame.h"
 #include "livekit/ffi_handle.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -33,7 +34,7 @@ class FfiClient;
 /**
  * Represents a real-time audio source with an internal audio queue.
  */
-class AudioSource {
+class LIVEKIT_API AudioSource {
 public:
   /**
    * Create a new native audio source.

@@ -24,10 +24,11 @@
 #include <optional>
 #include <string>
 
-#include "audio_frame.h"
-#include "ffi_handle.h"
-#include "participant.h"
-#include "track.h"
+#include "livekit/audio_frame.h"
+#include "livekit/ffi_handle.h"
+#include "livekit/participant.h"
+#include "livekit/track.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -65,7 +66,7 @@ struct AudioFrameEvent {
  *
  *   stream->close();  // optional, called automatically in destructor
  */
-class AudioStream {
+class LIVEKIT_API AudioStream {
 public:
   /// Configuration options for AudioStream creation.
   struct Options {

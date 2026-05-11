@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include "livekit/visibility.h"
+
 namespace livekit {
 
 namespace proto {
@@ -34,7 +36,7 @@ class OwnedAudioFrameBuffer;
  * number of channels, and samples per channel. It is used for capturing and
  * processing audio in the LiveKit SDK.
  */
-class AudioFrame {
+class LIVEKIT_API AudioFrame {
 public:
   /**
    * Construct an AudioFrame from raw PCM samples.

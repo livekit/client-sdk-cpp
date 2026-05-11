@@ -24,6 +24,7 @@
 #include "livekit/data_track_stream.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/result.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -64,7 +65,7 @@ public:
   const std::string& publisherIdentity() const noexcept { return publisher_identity_; }
 
   /// Whether the track is still published by the remote participant.
-  bool isPublished() const;
+  LIVEKIT_API bool isPublished() const;
 
 #ifdef LIVEKIT_TEST_ACCESS
   /// Test-only accessor for exercising lower-level FFI subscription paths.
@@ -77,7 +78,7 @@ public:
    * Returns a DataTrackStream that delivers frames via blocking
    * read(). Destroy the stream to unsubscribe.
    */
-  Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> subscribe(
+  LIVEKIT_API Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> subscribe(
       const DataTrackStream::Options& options = {});
 
 private:

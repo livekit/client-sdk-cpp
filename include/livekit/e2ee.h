@@ -22,6 +22,8 @@
 #include <string>
 #include <vector>
 
+#include "livekit/visibility.h"
+
 namespace livekit {
 
 /* Encryption algorithm type used by the underlying stack.
@@ -105,7 +107,7 @@ struct E2EEOptions {
  * - Providing a shared key up-front is convenient for shared-key E2EE, but is
  * not required by the API shape (keys may be supplied later).
  */
-class E2EEManager {
+class LIVEKIT_API E2EEManager {
 public:
   /** If your application requires key rotation during the lifetime of a single
    * room or unique keys per participant (such as when implementing the MEGOLM
@@ -113,7 +115,7 @@ public:
    * https://docs.livekit.io/home/client/encryption/#custom-key-provider doe
    * details
    *  */
-  class KeyProvider {
+  class LIVEKIT_API KeyProvider {
   public:
     ~KeyProvider() = default;
 
@@ -150,7 +152,7 @@ public:
     KeyProviderOptions options_;
   };
 
-  class FrameCryptor {
+  class LIVEKIT_API FrameCryptor {
   public:
     FrameCryptor(std::uint64_t room_handle, std::string participant_identity, int key_index, bool enabled);
     ~FrameCryptor() = default;

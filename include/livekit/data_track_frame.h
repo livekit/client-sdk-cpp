@@ -20,6 +20,8 @@
 #include <optional>
 #include <vector>
 
+#include "livekit/visibility.h"
+
 namespace livekit {
 
 namespace proto {
@@ -60,7 +62,7 @@ struct DataTrackFrame {
    * @param owned The proto::DataTrackFrame to create a DataTrackFrame from.
    * @return The created DataTrackFrame.
    */
-  static DataTrackFrame fromOwnedInfo(const proto::DataTrackFrame& owned);
+  LIVEKIT_API static DataTrackFrame fromOwnedInfo(const proto::DataTrackFrame& owned);
 };
 
 } // namespace livekit

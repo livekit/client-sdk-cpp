@@ -20,13 +20,14 @@
 #include <string>
 #include <unordered_map>
 
-#include "participant.h"
+#include "livekit/participant.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
 class RemoteTrackPublication;
 
-class RemoteParticipant : public Participant {
+class LIVEKIT_API RemoteParticipant : public Participant {
 public:
   using PublicationMap = std::unordered_map<std::string, std::shared_ptr<RemoteTrackPublication>>;
 
@@ -53,6 +54,6 @@ private:
 };
 
 // Convenience for logging / streaming
-std::ostream& operator<<(std::ostream& os, const RemoteParticipant& participant);
+LIVEKIT_API std::ostream& operator<<(std::ostream& os, const RemoteParticipant& participant);
 
 } // namespace livekit

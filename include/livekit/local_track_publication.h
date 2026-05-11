@@ -17,6 +17,7 @@
 #pragma once
 
 #include "livekit/track_publication.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
@@ -24,7 +25,7 @@ namespace proto {
 class OwnedTrackPublication;
 }
 
-class LocalTrackPublication : public TrackPublication {
+class LIVEKIT_API LocalTrackPublication : public TrackPublication {
 public:
   /// Note, this LocalTrackPublication is constructed internally only;
   /// safe to accept proto::OwnedTrackPublication.

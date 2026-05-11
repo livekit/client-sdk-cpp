@@ -18,6 +18,8 @@
 
 #include <cstdint>
 
+#include "livekit/visibility.h"
+
 namespace livekit {
 
 /**
@@ -26,7 +28,7 @@ namespace livekit {
  * Ensures that the handle is automatically released via
  * livekit_ffi_drop_handle() when the object goes out of scope.
  */
-class FfiHandle {
+class LIVEKIT_API FfiHandle {
 public:
   explicit FfiHandle(uintptr_t h = 0) noexcept;
   ~FfiHandle();

@@ -19,6 +19,7 @@
 #include <string>
 
 #include "livekit/room_event_types.h"
+#include "livekit/visibility.h"
 #include "room.pb.h"
 
 namespace livekit {
@@ -30,62 +31,64 @@ struct TextStreamInfo;
 
 // --------- basic helper conversions ---------
 
-ConnectionQuality toConnectionQuality(proto::ConnectionQuality in);
-ConnectionState toConnectionState(proto::ConnectionState in);
-DataPacketKind toDataPacketKind(proto::DataPacketKind in);
-DisconnectReason toDisconnectReason(proto::DisconnectReason in);
+LIVEKIT_INTERNAL_API ConnectionQuality toConnectionQuality(proto::ConnectionQuality in);
+LIVEKIT_INTERNAL_API ConnectionState toConnectionState(proto::ConnectionState in);
+LIVEKIT_INTERNAL_API DataPacketKind toDataPacketKind(proto::DataPacketKind in);
+LIVEKIT_INTERNAL_API DisconnectReason toDisconnectReason(proto::DisconnectReason in);
 
-UserPacketData fromProto(const proto::UserPacket& in);
-SipDtmfData fromProto(const proto::SipDTMF& in);
-RoomInfoData fromProto(const proto::RoomInfo& in);
+LIVEKIT_INTERNAL_API UserPacketData fromProto(const proto::UserPacket& in);
+LIVEKIT_INTERNAL_API SipDtmfData fromProto(const proto::SipDTMF& in);
+LIVEKIT_INTERNAL_API RoomInfoData fromProto(const proto::RoomInfo& in);
 
-DataStreamHeaderData fromProto(const proto::DataStream_Header& in);
-DataStreamChunkData fromProto(const proto::DataStream_Chunk& in);
-DataStreamTrailerData fromProto(const proto::DataStream_Trailer& in);
+LIVEKIT_INTERNAL_API DataStreamHeaderData fromProto(const proto::DataStream_Header& in);
+LIVEKIT_INTERNAL_API DataStreamChunkData fromProto(const proto::DataStream_Chunk& in);
+LIVEKIT_INTERNAL_API DataStreamTrailerData fromProto(const proto::DataStream_Trailer& in);
 
 // --------- event conversions (RoomEvent.oneof message) ---------
 
-RoomSidChangedEvent fromProto(const proto::RoomSidChanged& in);
+LIVEKIT_INTERNAL_API RoomSidChangedEvent fromProto(const proto::RoomSidChanged& in);
 
-ConnectionStateChangedEvent fromProto(const proto::ConnectionStateChanged& in);
-DisconnectedEvent fromProto(const proto::Disconnected& in);
-ReconnectingEvent fromProto(const proto::Reconnecting& in);
-ReconnectedEvent fromProto(const proto::Reconnected& in);
-RoomEosEvent fromProto(const proto::RoomEOS& in);
+LIVEKIT_INTERNAL_API ConnectionStateChangedEvent fromProto(const proto::ConnectionStateChanged& in);
+LIVEKIT_INTERNAL_API DisconnectedEvent fromProto(const proto::Disconnected& in);
+LIVEKIT_INTERNAL_API ReconnectingEvent fromProto(const proto::Reconnecting& in);
+LIVEKIT_INTERNAL_API ReconnectedEvent fromProto(const proto::Reconnected& in);
+LIVEKIT_INTERNAL_API RoomEosEvent fromProto(const proto::RoomEOS& in);
 
-DataStreamHeaderReceivedEvent fromProto(const proto::DataStreamHeaderReceived& in);
-DataStreamChunkReceivedEvent fromProto(const proto::DataStreamChunkReceived& in);
-DataStreamTrailerReceivedEvent fromProto(const proto::DataStreamTrailerReceived& in);
+LIVEKIT_INTERNAL_API DataStreamHeaderReceivedEvent fromProto(const proto::DataStreamHeaderReceived& in);
+LIVEKIT_INTERNAL_API DataStreamChunkReceivedEvent fromProto(const proto::DataStreamChunkReceived& in);
+LIVEKIT_INTERNAL_API DataStreamTrailerReceivedEvent fromProto(const proto::DataStreamTrailerReceived& in);
 
-DataChannelBufferedAmountLowThresholdChangedEvent fromProto(
-    const proto::DataChannelBufferedAmountLowThresholdChanged& in);
+LIVEKIT_INTERNAL_API DataChannelBufferedAmountLowThresholdChangedEvent
+fromProto(const proto::DataChannelBufferedAmountLowThresholdChanged& in);
 
-ByteStreamOpenedEvent fromProto(const proto::ByteStreamOpened& in);
-TextStreamOpenedEvent fromProto(const proto::TextStreamOpened& in);
+LIVEKIT_INTERNAL_API ByteStreamOpenedEvent fromProto(const proto::ByteStreamOpened& in);
+LIVEKIT_INTERNAL_API TextStreamOpenedEvent fromProto(const proto::TextStreamOpened& in);
 
-RoomUpdatedEvent roomUpdatedFromProto(const proto::RoomInfo& in); // room_updated
-RoomMovedEvent roomMovedFromProto(const proto::RoomInfo& in);     // moved
+LIVEKIT_INTERNAL_API RoomUpdatedEvent roomUpdatedFromProto(const proto::RoomInfo& in); // room_updated
+LIVEKIT_INTERNAL_API RoomMovedEvent roomMovedFromProto(const proto::RoomInfo& in);     // moved
 
 // --------- room options conversions ---------
 
-proto::AudioEncoding toProto(const AudioEncodingOptions& in);
-AudioEncodingOptions fromProto(const proto::AudioEncoding& in);
+LIVEKIT_INTERNAL_API proto::AudioEncoding toProto(const AudioEncodingOptions& in);
+LIVEKIT_INTERNAL_API AudioEncodingOptions fromProto(const proto::AudioEncoding& in);
 
-proto::VideoEncoding toProto(const VideoEncodingOptions& in);
-VideoEncodingOptions fromProto(const proto::VideoEncoding& in);
+LIVEKIT_INTERNAL_API proto::VideoEncoding toProto(const VideoEncodingOptions& in);
+LIVEKIT_INTERNAL_API VideoEncodingOptions fromProto(const proto::VideoEncoding& in);
 
-proto::TrackPublishOptions toProto(const TrackPublishOptions& in);
-TrackPublishOptions fromProto(const proto::TrackPublishOptions& in);
+LIVEKIT_INTERNAL_API proto::TrackPublishOptions toProto(const TrackPublishOptions& in);
+LIVEKIT_INTERNAL_API TrackPublishOptions fromProto(const proto::TrackPublishOptions& in);
 
 // --------- room Data Packet conversions ---------
 
-UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived& in, RemoteParticipant* participant);
+LIVEKIT_INTERNAL_API UserDataPacketEvent userDataPacketFromProto(const proto::DataPacketReceived& in,
+                                                                 RemoteParticipant* participant);
 
-SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived& in, RemoteParticipant* participant);
+LIVEKIT_INTERNAL_API SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived& in,
+                                                           RemoteParticipant* participant);
 
 // --------- room Data Stream conversions ---------
-std::map<std::string, std::string> toAttrMap(const proto::DataStream::Trailer& trailer);
-ByteStreamInfo makeByteInfo(const proto::DataStream::Header& header);
-TextStreamInfo makeTextInfo(const proto::DataStream::Header& header);
+LIVEKIT_INTERNAL_API std::map<std::string, std::string> toAttrMap(const proto::DataStream::Trailer& trailer);
+LIVEKIT_INTERNAL_API ByteStreamInfo makeByteInfo(const proto::DataStream::Header& header);
+LIVEKIT_INTERNAL_API TextStreamInfo makeTextInfo(const proto::DataStream::Header& header);
 
 } // namespace livekit

@@ -9,6 +9,8 @@ on:
       - cpp-example-collection/**
       - bridge/**
       - client-sdk-rust/**
+      - cmake/**
+      - scripts/**
       - CMakeLists.txt
       - build.sh
       - build.cmd
@@ -27,6 +29,8 @@ on:
       - cpp-example-collection/**
       - bridge/**
       - client-sdk-rust/**
+      - cmake/**
+      - scripts/**
       - CMakeLists.txt
       - build.sh
       - build.cmd
@@ -133,15 +137,14 @@ jobs:
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
             libabsl-dev \
-            libwayland-dev libdecor-0-dev \
-            libspdlog-dev
+            libwayland-dev libdecor-0-dev
 
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
         run: |
           set -eux
           brew update
-          brew install cmake ninja protobuf abseil spdlog
+          brew install cmake ninja protobuf abseil
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)

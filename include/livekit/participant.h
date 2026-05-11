@@ -23,12 +23,13 @@
 
 #include "livekit/ffi_handle.h"
 #include "livekit/room_delegate.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
 enum class ParticipantKind { Standard = 0, Ingress, Egress, Sip, Agent };
 
-class Participant {
+class LIVEKIT_API Participant {
 public:
   Participant(FfiHandle handle, std::string sid, std::string name, std::string identity, std::string metadata,
               std::unordered_map<std::string, std::string> attributes, ParticipantKind kind, DisconnectReason reason)

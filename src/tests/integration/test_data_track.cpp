@@ -340,6 +340,60 @@ TEST_F(DataTrackE2ETest, UnpublishUpdatesPublishedStateEndToEnd) {
       << "Remote track did not report unpublished state";
 }
 
+TEST_F(DataTrackE2ETest, SubscribeAfterUnpublishReportsTerminalError) {
+  const auto track_name = makeTrackName("subscribe_after_unpublish");
+
+  DataTrackPublishedDelegate subscriber_delegate;
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[1].delegate = &subscriber_delegate;
+
+  auto rooms = testRooms(room_configs);
+  auto& publisher_room = rooms[0];
+
+  auto local_track = requirePublishedTrack(publisher_room->localParticipant(), track_name);
+  ASSERT_TRUE(local_track->isPublished());
+
+  auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
+  ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
+  ASSERT_TRUE(remote_track->isPublished());
+
+  local_track->unpublishDataTrack();
+  ASSERT_FALSE(local_track->isPublished());
+  ASSERT_TRUE(waitForCondition([&]() { return !remote_track->isPublished(); }, 2s))
+      << "Remote track did not report unpublished state";
+
+  auto subscribe_result = remote_track->subscribe();
+  if (!subscribe_result) {
+    FAIL() << "Expected subscribe to return a stream before terminal EOS: "
+           << describeDataTrackError(subscribe_result.error());
+  }
+  auto subscription = subscribe_result.value();
+
+  std::promise<bool> read_promise;
+  auto read_future = read_promise.get_future();
+  std::thread reader([subscription, promise = std::move(read_promise)]() mutable {
+    DataTrackFrame frame;
+    promise.set_value(subscription->read(frame));
+  });
+
+  const auto read_status = read_future.wait_for(5s);
+  if (read_status != std::future_status::ready) {
+    subscription->close();
+  }
+  reader.join();
+
+  // TODO(BOT-347): this sometimes fails with a timeout.
+  ASSERT_EQ(read_status, std::future_status::ready) << "Timed out waiting for terminal data-track EOS";
+  EXPECT_FALSE(read_future.get()) << "Unpublished track subscription unexpectedly delivered a frame";
+
+  const auto terminal_error = subscription->terminalError();
+  ASSERT_TRUE(terminal_error.has_value()) << "Expected terminal subscribe error on EOS";
+  // EXPECT_EQ(terminal_error->code, SubscribeDataTrackErrorCode::UNPUBLISHED);
+  // should this actually be internal?
+  EXPECT_EQ(terminal_error->code, SubscribeDataTrackErrorCode::INTERNAL);
+  EXPECT_FALSE(terminal_error->message.empty());
+}
+
 TEST_F(DataTrackE2ETest, PublishManyTracks) {
   auto rooms = testRooms(1);
   auto& room = rooms[0];
