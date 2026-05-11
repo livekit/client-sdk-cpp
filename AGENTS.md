@@ -146,6 +146,25 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 - `lk_log.h` lives under `src/` (internal). The public-facing logging API is `include/livekit/logging.h`.
 - spdlog must not appear in any public header or installed header.
 
+### Include Conventions
+
+- **Public headers (`include/livekit/*.h`) must include other public headers
+  with the `livekit/` prefix**: `#include "livekit/track.h"`, never the bare
+  `#include "track.h"` form. The prefixed spelling matches what consumers see
+  (`#include <livekit/track.h>`), resolves through the standard `-I include/`
+  search path rather than the implementation-defined "current directory first"
+  rule of `#include "..."`, and avoids accidental name collisions with
+  third-party headers that happen to share short names like `track.h`.
+- Use double quotes for project headers (`#include "livekit/foo.h"`) and angle
+  brackets for system / third-party headers (`#include <vector>`,
+  `#include <gtest/gtest.h>`).
+- Implementation files in `src/` may include internal headers without a
+  prefix (`#include "ffi_client.h"`); they are not part of the public
+  surface and live alongside their consumers.
+- Test code (in-tree or external-style canaries) must consume public
+  headers via `<livekit/foo.h>` to mirror real consumer usage; see
+  `src/tests/consumer_link/test_consumer_link.cpp`.
+
 ### Symbol Visibility / Exported ABI
 
 The `livekit` shared library is built with hidden symbol visibility on all

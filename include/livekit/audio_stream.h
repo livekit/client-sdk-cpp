@@ -24,11 +24,11 @@
 #include <optional>
 #include <string>
 
-#include "audio_frame.h"
-#include "ffi_handle.h"
-#include "participant.h"
-#include "track.h"
-#include "visibility.h"
+#include "livekit/audio_frame.h"
+#include "livekit/ffi_handle.h"
+#include "livekit/participant.h"
+#include "livekit/track.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 

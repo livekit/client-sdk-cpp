@@ -19,10 +19,10 @@
 #include <memory>
 #include <string>
 
-#include "audio_frame.h"
-#include "local_track_publication.h"
-#include "track.h"
-#include "visibility.h"
+#include "livekit/audio_frame.h"
+#include "livekit/local_track_publication.h"
+#include "livekit/track.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
