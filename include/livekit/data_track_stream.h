@@ -23,6 +23,7 @@
 #include <mutex>
 #include <optional>
 
+#include "livekit/data_track_error.h"
 #include "livekit/data_track_frame.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/visibility.h"
@@ -81,6 +82,15 @@ public:
   bool read(DataTrackFrame& out);
 
   /**
+   * Returns the terminal subscription error reported by the FFI stream.
+   *
+   * This is set when read() returns false because subscription establishment
+   * failed before any frames were emitted. It remains empty for normal EOS or
+   * when close() ends the stream locally.
+   */
+  std::optional<SubscribeDataTrackError> terminalError() const;
+
+  /**
    * End the stream early.
    *
    * Releases the FFI handle (which unsubscribes from the remote track),
@@ -90,6 +100,9 @@ public:
 
 private:
   friend class RemoteDataTrack;
+#ifdef LIVEKIT_TEST_ACCESS
+  friend class DataTrackStreamTest;
+#endif
 
   DataTrackStream() = default;
   /// Internal init helper, called by RemoteDataTrack.
@@ -102,7 +115,7 @@ private:
   void pushFrame(DataTrackFrame&& frame);
 
   /// Push an end-of-stream signal (EOS).
-  void pushEos();
+  void pushEos(std::optional<SubscribeDataTrackError> error = std::nullopt);
 
   /** Protects all mutable state below. */
   mutable std::mutex mutex_;
@@ -122,6 +135,9 @@ private:
 
   /** True after close() has been called by the consumer. */
   bool closed_{false};
+
+  /** Typed terminal error reported with EOS, if subscription setup failed. */
+  std::optional<SubscribeDataTrackError> terminal_error_;
 
   /** RAII handle for the Rust-owned subscription resource. */
   FfiHandle subscription_handle_;

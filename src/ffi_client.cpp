@@ -46,6 +46,12 @@ inline void logAndThrow(const std::string& error_msg) {
   throw std::runtime_error(error_msg);
 }
 
+Result<proto::OwnedDataTrackStream, SubscribeDataTrackError> subscribeDataTrackFailure(SubscribeDataTrackErrorCode code,
+                                                                                       const std::string& message) {
+  LK_LOG_WARN("Subscribe data track failed: code={} message={}", static_cast<std::uint32_t>(code), message);
+  return Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>::failure(SubscribeDataTrackError{code, message});
+}
+
 std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
   using E = proto::FfiEvent;
   switch (event.message_case()) {
@@ -651,18 +657,17 @@ Result<proto::OwnedDataTrackStream, SubscribeDataTrackError> FfiClient::subscrib
   try {
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_subscribe_data_track()) {
-      return Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>::failure(SubscribeDataTrackError{
-          SubscribeDataTrackErrorCode::PROTOCOL_ERROR, "FfiResponse missing subscribe_data_track"});
+      return subscribeDataTrackFailure(SubscribeDataTrackErrorCode::PROTOCOL_ERROR,
+                                       "FfiResponse missing subscribe_data_track");
     }
     if (!resp.subscribe_data_track().has_stream()) {
-      return Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>::failure(SubscribeDataTrackError{
-          SubscribeDataTrackErrorCode::PROTOCOL_ERROR, "FfiResponse subscribe_data_track missing stream"});
+      return subscribeDataTrackFailure(SubscribeDataTrackErrorCode::PROTOCOL_ERROR,
+                                       "FfiResponse subscribe_data_track missing stream");
     }
     proto::OwnedDataTrackStream sub = resp.subscribe_data_track().stream();
     return Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>::success(std::move(sub));
   } catch (const std::exception& e) { // NOLINT(bugprone-empty-catch)
-    return Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>::failure(
-        SubscribeDataTrackError{SubscribeDataTrackErrorCode::INTERNAL, e.what()});
+    return subscribeDataTrackFailure(SubscribeDataTrackErrorCode::INTERNAL, e.what());
   }
 }
 
