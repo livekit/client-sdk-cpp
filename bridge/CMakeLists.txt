@@ -14,7 +14,7 @@ add_library(livekit_bridge SHARED
   src/rpc_controller.h
 )
 
-# Workaround for bridge deprecation: handle visbility differently to avoid
+# Workaround for bridge deprecation: handle visibility differently to avoid
 # major LIVEKIT_API changes across its code, and not affecting the SDK
 if(WIN32)
   set_target_properties(livekit_bridge PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
