@@ -262,10 +262,8 @@ jobs:
 
   # ============================================================================
   # Code Coverage (Linux only)
-  #
-  # Uses the upstream `linux-debug-tests` CMake preset and injects gcov
-  # instrumentation via `--coverage` flag overrides on the configure command,
-  # so we do not need a dedicated coverage preset to maintain in CMakePresets.
+  # Runs a debug build through gcov/lcov and generates an inline action summary
+  # alongside an HTML report of unit test coverage.
   # ============================================================================
   coverage:
     name: Code Coverage
