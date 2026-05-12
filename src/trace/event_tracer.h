@@ -36,8 +36,7 @@
 //
 // Parameters for the above two functions are described in trace_event.h.
 
-#ifndef LIVEKIT_TRACE_EVENT_TRACER_H_
-#define LIVEKIT_TRACE_EVENT_TRACER_H_
+#pragma once
 
 #include "livekit/visibility.h"
 
@@ -76,5 +75,3 @@ using namespace livekit::trace;
 } // namespace webrtc
 
 // NOLINTEND
-
-#endif // LIVEKIT_TRACE_EVENT_TRACER_H_
