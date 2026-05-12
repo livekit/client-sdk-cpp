@@ -65,23 +65,54 @@ if(LIVEKIT_IS_TOPLEVEL)
 endif()
 
 set(FFI_PROTO_DIR ${LIVEKIT_ROOT_DIR}/client-sdk-rust/livekit-ffi/protocol)
-set(FFI_PROTO_FILES
-    ${FFI_PROTO_DIR}/handle.proto
-    ${FFI_PROTO_DIR}/ffi.proto
-    ${FFI_PROTO_DIR}/participant.proto
-    ${FFI_PROTO_DIR}/room.proto
-    ${FFI_PROTO_DIR}/track.proto
-    ${FFI_PROTO_DIR}/video_frame.proto
-    ${FFI_PROTO_DIR}/audio_frame.proto
-    ${FFI_PROTO_DIR}/e2ee.proto
-    ${FFI_PROTO_DIR}/stats.proto
-    ${FFI_PROTO_DIR}/data_stream.proto
-    ${FFI_PROTO_DIR}/data_track.proto
-    ${FFI_PROTO_DIR}/rpc.proto
-    ${FFI_PROTO_DIR}/track_publication.proto
+set(FFI_PROTO_NAMES
+    handle.proto
+    ffi.proto
+    participant.proto
+    room.proto
+    track.proto
+    video_frame.proto
+    audio_frame.proto
+    e2ee.proto
+    stats.proto
+    data_stream.proto
+    data_track.proto
+    rpc.proto
+    track_publication.proto
 )
+set(FFI_PROTO_FILES)
+foreach(_p ${FFI_PROTO_NAMES})
+  list(APPEND FFI_PROTO_FILES "${FFI_PROTO_DIR}/${_p}")
+endforeach()
 set(PROTO_BINARY_DIR ${LIVEKIT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
+
+# Staging area for protobuf-lite-patched copies of the FFI .proto files.
+# We never modify the originals (they're shared with the Rust submodule and
+# other language wrappers); instead we copy them here and append
+# `option optimize_for = LITE_RUNTIME;` so protoc emits MessageLite-based code
+# that links only against libprotobuf-lite.
+set(PROTO_LITE_SRC_DIR ${PROTO_BINARY_DIR}/proto-lite)
+file(MAKE_DIRECTORY ${PROTO_LITE_SRC_DIR})
+
+set(PATCHED_PROTO_FILES)
+foreach(_p ${FFI_PROTO_NAMES})
+  list(APPEND PATCHED_PROTO_FILES "${PROTO_LITE_SRC_DIR}/${_p}")
+endforeach()
+
+add_custom_command(
+  OUTPUT ${PATCHED_PROTO_FILES}
+  COMMAND ${CMAKE_COMMAND}
+          -DIN_DIR=${FFI_PROTO_DIR}
+          -DOUT_DIR=${PROTO_LITE_SRC_DIR}
+          "-DFILES=${FFI_PROTO_NAMES}"
+          -P ${LIVEKIT_ROOT_DIR}/cmake/patch_protos_for_lite.cmake
+  DEPENDS
+          ${FFI_PROTO_FILES}
+          ${LIVEKIT_ROOT_DIR}/cmake/patch_protos_for_lite.cmake
+  COMMENT "Patching .proto files with optimize_for = LITE_RUNTIME (C++ build only)"
+  VERBATIM
+)
 
 # Livekit static protobuf.
 include(protobuf)
@@ -95,7 +126,7 @@ elseif(NOT Protobuf_PROTOC_EXECUTABLE)
 endif()
 message(STATUS "Using protoc: ${Protobuf_PROTOC_EXECUTABLE}")
 
-add_library(livekit_proto OBJECT ${FFI_PROTO_FILES})
+add_library(livekit_proto OBJECT ${PATCHED_PROTO_FILES})
 # livekit_proto is compiled into liblivekit; apply the same hidden visibility
 # policy so generated protobuf code does not leak into the SDK's exported ABI.
 set_target_properties(livekit_proto PROPERTIES
@@ -103,10 +134,16 @@ set_target_properties(livekit_proto PROPERTIES
   C_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON
 )
-if(TARGET protobuf::libprotobuf)
-  set(LIVEKIT_PROTOBUF_TARGET protobuf::libprotobuf)
+# The C++ build links against protobuf-lite only. Generated code uses
+# MessageLite (no Reflection/Descriptor/TextFormat/JSON), and the SDK does
+# not use any of those APIs. See cmake/patch_protos_for_lite.cmake.
+if(TARGET protobuf::libprotobuf-lite)
+  set(LIVEKIT_PROTOBUF_TARGET protobuf::libprotobuf-lite)
 else()
-  message(FATAL_ERROR "No protobuf library target found (expected protobuf::libprotobuf)")
+  message(FATAL_ERROR
+    "protobuf::libprotobuf-lite target not found. The LiveKit C++ SDK requires "
+    "protobuf-lite. On Linux/macOS this comes from the vendored protobuf build; "
+    "on Windows it comes from the vcpkg protobuf port.")
 endif()
 target_include_directories(livekit_proto PRIVATE
   "${PROTO_BINARY_DIR}"
@@ -120,11 +157,13 @@ if(TARGET absl::base)
   endif()
 endif()
 
-# Manually generate protobuf files to avoid path prefix issues
+# Manually generate protobuf files to avoid path prefix issues. The inputs are
+# the patched copies in ${PROTO_LITE_SRC_DIR}, not the originals — see the
+# PATCHED_PROTO_FILES custom command above.
 set(PROTO_SRCS)
 set(PROTO_HDRS)
-foreach(PROTO_FILE ${FFI_PROTO_FILES})
-  get_filename_component(PROTO_NAME ${PROTO_FILE} NAME_WE)
+foreach(_name ${FFI_PROTO_NAMES})
+  get_filename_component(PROTO_NAME "${_name}" NAME_WE)
   list(APPEND PROTO_SRCS "${PROTO_BINARY_DIR}/${PROTO_NAME}.pb.cc")
   list(APPEND PROTO_HDRS "${PROTO_BINARY_DIR}/${PROTO_NAME}.pb.h")
 endforeach()
@@ -132,11 +171,11 @@ endforeach()
 add_custom_command(
   OUTPUT ${PROTO_SRCS} ${PROTO_HDRS}
   COMMAND ${Protobuf_PROTOC_EXECUTABLE}
-    --proto_path=${FFI_PROTO_DIR}
+    --proto_path=${PROTO_LITE_SRC_DIR}
     --cpp_out=${PROTO_BINARY_DIR}
-    ${FFI_PROTO_FILES}
-  DEPENDS ${FFI_PROTO_FILES}
-  COMMENT "Generating C++ protobuf files"
+    ${PATCHED_PROTO_FILES}
+  DEPENDS ${PATCHED_PROTO_FILES}
+  COMMENT "Generating C++ protobuf files (lite runtime)"
   VERBATIM
 )
 
