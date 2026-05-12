@@ -174,14 +174,14 @@ bool FfiClient::initialize(bool capture_logs) {
 
 bool FfiClient::isInitialized() const noexcept { return initialized_.load(std::memory_order_acquire); }
 
-FfiClient::ListenerId FfiClient::AddListener(const FfiClient::Listener& listener) {
+FfiClient::ListenerId FfiClient::addListener(const FfiClient::Listener& listener) {
   const std::scoped_lock<std::mutex> guard(lock_);
   const FfiClient::ListenerId id = next_listener_id++;
   listeners_[id] = listener;
   return id;
 }
 
-void FfiClient::RemoveListener(ListenerId id) {
+void FfiClient::removeListener(ListenerId id) {
   const std::scoped_lock<std::mutex> guard(lock_);
   listeners_.erase(id);
 }

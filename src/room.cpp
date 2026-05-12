@@ -91,7 +91,7 @@ Room::~Room() {
   }
 
   if (listener_to_remove != 0) {
-    FfiClient::instance().RemoveListener(listener_to_remove);
+    FfiClient::instance().removeListener(listener_to_remove);
   }
 
   // local_participant_to_cleanup is destroyed here after listener is removed
@@ -179,7 +179,7 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
     }
 
     // Install listener (Room is fully initialized)
-    auto listenerId = FfiClient::instance().AddListener([this](const proto::FfiEvent& e) { OnEvent(e); });
+    auto listenerId = FfiClient::instance().addListener([this](const proto::FfiEvent& e) { OnEvent(e); });
     {
       const std::scoped_lock<std::mutex> g(lock_);
       listener_id_ = listenerId;
@@ -1136,7 +1136,7 @@ void Room::OnEvent(const FfiEvent& event) {
 
           // Remove listener outside lock
           if (listener_to_remove != 0) {
-            FfiClient::instance().RemoveListener(listener_to_remove);
+            FfiClient::instance().removeListener(listener_to_remove);
           }
 
           // Old state will be destroyed here when going out of scope

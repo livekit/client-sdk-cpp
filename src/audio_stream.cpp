@@ -121,7 +121,7 @@ void AudioStream::close() {
 
   // Remove listener
   if (listener_id_ != 0) {
-    FfiClient::instance().RemoveListener(listener_id_);
+    FfiClient::instance().removeListener(listener_id_);
     listener_id_ = 0;
   }
 
@@ -136,7 +136,7 @@ void AudioStream::initFromTrack(const std::shared_ptr<Track>& track, const Optio
   options_ = options;
 
   // 1) Subscribe to FFI events
-  listener_id_ = FfiClient::instance().AddListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
+  listener_id_ = FfiClient::instance().addListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
 
   // 2) Send FfiRequest to create a new audio stream bound to this track
   FfiRequest req;
@@ -165,7 +165,7 @@ void AudioStream::initFromParticipant(Participant& participant, TrackSource trac
   options_ = options;
 
   // 1) Subscribe to FFI events
-  listener_id_ = FfiClient::instance().AddListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
+  listener_id_ = FfiClient::instance().addListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
 
   // 2) Send FfiRequest to create audio stream from participant + track source
   FfiRequest req;

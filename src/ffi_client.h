@@ -89,8 +89,8 @@ public:
 
   bool isInitialized() const noexcept;
 
-  ListenerId AddListener(const Listener& listener);
-  void RemoveListener(ListenerId id);
+  ListenerId addListener(const Listener& listener);
+  void removeListener(ListenerId id);
 
   // Room APIs
   std::future<proto::ConnectCallback> connectAsync(const std::string& url, const std::string& token,
