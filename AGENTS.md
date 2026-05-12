@@ -186,10 +186,11 @@ Rules for new code:
   `livekit` target.  Use `LIVEKIT_API` to export.
 
 The exported ABI is enforced by `.github/scripts/check_no_private_symbols.py`,
-run from the `tests.yml` "Symbol leak check" CI step. The script fails if
-`nm`/`dumpbin` reports any exported symbol matching a forbidden substring
-(currently `spdlog::`, `fmt::v`, `google::protobuf`, `absl::`). To run it
-locally, point it at the built shared library:
+run from the `make-release.yml` "Symbol leak check" CI step so a leak blocks
+the release build itself (it does not run on regular pushes/PRs). The script
+fails if `nm`/`dumpbin` reports any exported symbol matching a forbidden
+substring (currently `spdlog::`, `fmt::v`, `google::protobuf`, `absl::`). To
+run it locally, point it at the built shared library:
 
 ```bash
 python3 .github/scripts/check_no_private_symbols.py \

@@ -306,3 +306,123 @@ jobs:
             livekit-server.log
           if-no-files-found: ignore
           retention-days: 7
+
+  # ============================================================================
+  # Code Coverage (Linux only)
+  # Runs a debug build through gcov/lcov and generates an inline action summary
+  # alongside an HTML report of unit test coverage.
+  # ============================================================================
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Pull LFS files
+        run: git lfs pull
+
+      # ---------- OS deps ----------
+      - name: Install deps
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            llvm-dev libclang-dev clang \
+            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+            libxrandr-dev libxi-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev \
+            libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libabsl-dev \
+            libwayland-dev libdecor-0-dev
+          pip install --break-system-packages gcovr
+
+      # ---------- Rust toolchain ----------
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
+
+      # ---------- Cache Cargo ----------
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        with:
+          workspaces: client-sdk-rust -> target
+          key: coverage
+
+      # ---------- Build environment setup ----------
+      - name: Set build environment
+        run: |
+          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+          GCC_VER=$(gcc -dumpversion | cut -d. -f1)
+          echo "GCOV_EXECUTABLE=gcov-${GCC_VER}" >> $GITHUB_ENV
+
+      # ---------- Configure with upstream preset + coverage flag overrides ----------
+      - name: Configure (linux-debug-tests preset + coverage flags)
+        run: |
+          cmake --preset linux-debug-tests \
+            -DCMAKE_C_FLAGS="-Wno-deprecated-declarations --coverage" \
+            -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations --coverage" \
+            -DCMAKE_EXE_LINKER_FLAGS="--coverage" \
+            -DCMAKE_SHARED_LINKER_FLAGS="--coverage"
+
+      - name: Build
+        run: cmake --build build-debug --parallel
+
+      # ---------- Run unit tests ----------
+      - name: Run unit tests
+        timeout-minutes: 5
+        run: |
+          build-debug/bin/livekit_unit_tests \
+            --gtest_output=xml:build-debug/unit-test-results.xml
+
+      # ---------- Generate coverage reports ----------
+      - name: Generate coverage reports
+        run: |
+          mkdir -p coverage-html
+          gcovr build-debug \
+            --root . \
+            --gcov-executable "${GCOV_EXECUTABLE}" \
+            --gcov-ignore-parse-errors=all \
+            --filter 'src/' \
+            --exclude 'src/tests/' \
+            --exclude '.*\.pb\.' \
+            --exclude-unreachable-branches \
+            --exclude-throw-branches \
+            --cobertura coverage.xml \
+            --html-details coverage-html/index.html \
+            --txt coverage-summary.txt
+
+      - name: Add coverage summary to job
+        run: |
+          {
+            echo '## Code Coverage Summary'
+            echo ''
+            echo '```'
+            cat coverage-summary.txt
+            echo '```'
+            echo ''
+            echo '*Full HTML report available in the **coverage-report** artifact.*'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ---------- Upload reports ----------
+      - name: Upload coverage HTML report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-report
+          path: coverage-html/
+          retention-days: 14
+
+      - name: Upload coverage to Codecov
+        uses: getsentry/codecov-action@03112cc3b486a3397dc8d17a58680008721fc86f # v0.3.7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

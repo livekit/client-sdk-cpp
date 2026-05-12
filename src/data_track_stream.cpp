@@ -65,6 +65,11 @@ bool DataTrackStream::read(DataTrackFrame& out) {
   return true;
 }
 
+std::optional<SubscribeDataTrackError> DataTrackStream::terminalError() const {
+  const std::scoped_lock<std::mutex> lock(mutex_);
+  return terminal_error_;
+}
+
 void DataTrackStream::close() {
   std::int32_t listener_id = -1;
   {
@@ -73,9 +78,14 @@ void DataTrackStream::close() {
       return;
     }
     closed_ = true;
+    // Preserve errors reported by EOS for post-stream inspection, but do not
+    // treat a local early close as a terminal subscription error.
+    if (!eof_) {
+      terminal_error_.reset();
+    }
     subscription_handle_.reset();
     listener_id = listener_id_;
-    listener_id_ = 0;
+    listener_id_ = -1;
   }
 
   if (listener_id != -1) {
@@ -103,7 +113,12 @@ void DataTrackStream::onFfiEvent(const FfiEvent& event) {
     DataTrackFrame frame = DataTrackFrame::fromOwnedInfo(fr);
     pushFrame(std::move(frame));
   } else if (dts.has_eos()) {
-    pushEos();
+    std::optional<SubscribeDataTrackError> error;
+    const auto& eos = dts.eos();
+    if (eos.has_error()) {
+      error = SubscribeDataTrackError::fromProto(eos.error());
+    }
+    pushEos(std::move(error));
   }
 }
 
@@ -123,13 +138,14 @@ void DataTrackStream::pushFrame(DataTrackFrame&& frame) {
   cv_.notify_one();
 }
 
-void DataTrackStream::pushEos() {
+void DataTrackStream::pushEos(std::optional<SubscribeDataTrackError> error) {
   {
     const std::scoped_lock<std::mutex> lock(mutex_);
     if (eof_) {
       return;
     }
     eof_ = true;
+    terminal_error_ = std::move(error);
   }
   cv_.notify_all();
 }

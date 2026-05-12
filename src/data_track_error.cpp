@@ -17,6 +17,7 @@
 #include "livekit/data_track_error.h"
 
 #include "data_track.pb.h"
+#include "lk_log.h"
 
 namespace livekit {
 
@@ -95,6 +96,8 @@ LocalDataTrackTryPushError LocalDataTrackTryPushError::fromProto(const proto::Lo
 }
 
 SubscribeDataTrackError SubscribeDataTrackError::fromProto(const proto::SubscribeDataTrackError& error) {
+  LK_LOG_WARN("Subscribe data track error from FFI: code={} message={}", static_cast<std::uint32_t>(error.code()),
+              error.message());
   return SubscribeDataTrackError{fromProtoCode(error.code()), error.message()};
 }
 
