@@ -62,6 +62,9 @@ enum class LogSink {
 ///          already initialized.
 LIVEKIT_API bool initialize(const LogLevel& level = LogLevel::Info, const LogSink& log_sink = LogSink::kConsole);
 
+/// Returns true if the LiveKit SDK is initialized, false otherwise.
+LIVEKIT_API bool isInitialized();
+
 /// Shut down the LiveKit SDK.
 ///
 /// After shutdown, you may call initialize() again.

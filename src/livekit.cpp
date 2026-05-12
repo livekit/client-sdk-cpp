@@ -27,6 +27,11 @@ bool initialize(const LogLevel& level, const LogSink& log_sink) {
   return ffi_client.initialize(log_sink == LogSink::kCallback);
 }
 
+bool isInitialized() {
+  auto& ffi_client = FfiClient::instance();
+  return ffi_client.isInitialized();
+}
+
 void shutdown() {
   auto& ffi_client = FfiClient::instance();
   ffi_client.shutdown();

@@ -23,6 +23,7 @@
 #include "ffi_client.h"
 #include "livekit/audio_stream.h"
 #include "livekit/e2ee.h"
+#include "livekit/livekit.h"
 #include "livekit/local_data_track.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
@@ -104,6 +105,11 @@ void Room::setDelegate(RoomDelegate* delegate) {
 
 bool Room::Connect(const std::string& url, const std::string& token, const RoomOptions& options) {
   TRACE_EVENT0("livekit", "Room::Connect");
+
+  if (!livekit::isInitialized()) {
+    LK_LOG_ERROR("Room::Connect failed: LiveKit is not initialized");
+    return false;
+  }
 
   {
     const std::scoped_lock<std::mutex> g(lock_);
