@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_LK_LOG_H
-#define LIVEKIT_LK_LOG_H
+#pragma once
 
 #include <spdlog/spdlog.h>
 
@@ -51,5 +50,3 @@ LIVEKIT_INTERNAL_API void shutdownLogger();
 #define LK_LOG_WARN(...) SPDLOG_LOGGER_WARN(livekit::detail::getLogger(), __VA_ARGS__)
 #define LK_LOG_ERROR(...) SPDLOG_LOGGER_ERROR(livekit::detail::getLogger(), __VA_ARGS__)
 #define LK_LOG_CRITICAL(...) SPDLOG_LOGGER_CRITICAL(livekit::detail::getLogger(), __VA_ARGS__)
-
-#endif /* LIVEKIT_LK_LOG_H */
