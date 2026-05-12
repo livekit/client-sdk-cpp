@@ -83,8 +83,7 @@ TEST(ResultTest, SuccessStringValue) {
 }
 
 TEST(ResultTest, SuccessMoveValueTransfersOwnership) {
-  auto r = Result<std::unique_ptr<int>, SimpleError>::success(
-      std::make_unique<int>(55));
+  auto r = Result<std::unique_ptr<int>, SimpleError>::success(std::make_unique<int>(55));
   auto ptr = std::move(r).value();
   ASSERT_NE(ptr, nullptr);
   EXPECT_EQ(*ptr, 55);
@@ -121,8 +120,7 @@ TEST(ResultTest, FailureConstErrorMatchesInput) {
 }
 
 TEST(ResultTest, FailureMoveErrorTransfersOwnership) {
-  auto r = Result<int, std::unique_ptr<SimpleError>>::failure(
-      std::make_unique<SimpleError>(SimpleError{9, "moved"}));
+  auto r = Result<int, std::unique_ptr<SimpleError>>::failure(std::make_unique<SimpleError>(SimpleError{9, "moved"}));
   auto err = std::move(r).error();
   ASSERT_NE(err, nullptr);
   EXPECT_EQ(err->code, 9);

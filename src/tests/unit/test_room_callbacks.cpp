@@ -239,16 +239,10 @@ TEST_F(RoomCallbackTest, DefaultConnectionStateIsDisconnected) {
 TEST_F(RoomCallbackTest, ConnectionStateRemainsDisconnectedWithoutConnect) {
   // Register callbacks, do other operations — state must stay Disconnected.
   Room room;
-  room.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE,
-                               [](const AudioFrame &) {});
-  room.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA,
-                               [](const VideoFrame &, std::int64_t) {});
-  room.addOnDataFrameCallback(
-      "alice", "track",
-      [](const std::vector<std::uint8_t> &, std::optional<std::uint64_t>) {});
-  room.registerTextStreamHandler("topic",
-                                 [](std::shared_ptr<TextStreamReader>,
-                                    const std::string &) {});
+  room.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE, [](const AudioFrame&) {});
+  room.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA, [](const VideoFrame&, std::int64_t) {});
+  room.addOnDataFrameCallback("alice", "track", [](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {});
+  room.registerTextStreamHandler("topic", [](std::shared_ptr<TextStreamReader>, const std::string&) {});
   EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
 }
 
@@ -271,7 +265,7 @@ TEST_F(RoomCallbackTest, ConnectionStateIsQueryableFromMultipleThreads) {
     });
   }
 
-  for (auto &thread : threads) {
+  for (auto& thread : threads) {
     thread.join();
   }
 
