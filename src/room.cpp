@@ -102,8 +102,8 @@ void Room::setDelegate(RoomDelegate* delegate) {
   delegate_ = delegate;
 }
 
-bool Room::Connect(const std::string& url, const std::string& token, const RoomOptions& options) {
-  TRACE_EVENT0("livekit", "Room::Connect");
+bool Room::connect(const std::string& url, const std::string& token, const RoomOptions& options) {
+  TRACE_EVENT0("livekit", "Room::connect");
 
   {
     const std::scoped_lock<std::mutex> g(lock_);
@@ -189,9 +189,13 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
   } catch (const std::exception& e) {
     // On error, set the connection_state_ to Disconnected
     connection_state_ = ConnectionState::Disconnected;
-    LK_LOG_ERROR("Room::Connect failed: {}", e.what());
+    LK_LOG_ERROR("Room::connect failed: {}", e.what());
     return false;
   }
+}
+
+bool Room::Connect(const std::string& url, const std::string& token, const RoomOptions& options) {
+  return connect(url, token, options);
 }
 
 RoomInfoData Room::room_info() const {

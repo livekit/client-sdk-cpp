@@ -132,7 +132,15 @@ public:
    *   Without auto_subscribe enabled, remote tracks will NOT be subscribed
    *   automatically, and no remote audio/video will ever arrive.
    */
-  bool Connect(const std::string& url, const std::string& token, const RoomOptions& options);
+  bool connect(const std::string& url, const std::string& token, const RoomOptions& options);
+
+  /* Deprecated older style of connect() function name.
+   *
+   * See connect() for more details.
+   */
+  [[deprecated("Room::Connect is deprecated; use Room::connect instead. This may be removed in a future release")]]
+  bool Connect(const std::string& url, const std::string& token, // NOLINT(readability-identifier-naming)
+               const RoomOptions& options);
 
   // Accessors
 
