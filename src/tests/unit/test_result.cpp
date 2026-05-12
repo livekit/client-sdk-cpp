@@ -15,14 +15,12 @@
  */
 
 #include <gtest/gtest.h>
+#include <livekit/result.h>
 
 #include <string>
 #include <utility>
 
-#include <livekit/result.h>
-
 namespace livekit::test {
-
 struct StubError {
   int code = 0;
   std::string message;
@@ -49,6 +47,8 @@ TEST(ResultTest, VoidResultSuccess) {
   ASSERT_TRUE(r.ok());
   EXPECT_FALSE(r.has_error());
   r.value();
+
+  auto& e = r.error();
 }
 
 TEST(ResultTest, VoidResultFailure) {

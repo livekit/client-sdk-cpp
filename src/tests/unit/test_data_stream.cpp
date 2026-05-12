@@ -15,10 +15,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <livekit/data_stream.h>
 
 #include <type_traits>
-
-#include <livekit/data_stream.h>
 
 namespace livekit::test {
 

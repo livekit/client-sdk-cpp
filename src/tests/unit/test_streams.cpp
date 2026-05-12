@@ -15,13 +15,12 @@
  */
 
 #include <gtest/gtest.h>
-
-#include <cstddef>
-
 #include <livekit/audio_stream.h>
 #include <livekit/data_track_stream.h>
 #include <livekit/video_frame.h>
 #include <livekit/video_stream.h>
+
+#include <cstddef>
 
 namespace livekit::test {
 

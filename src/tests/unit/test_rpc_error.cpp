@@ -15,7 +15,6 @@
  */
 
 #include <gtest/gtest.h>
-
 #include <livekit/rpc_error.h>
 
 namespace livekit::test {

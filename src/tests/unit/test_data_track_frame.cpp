@@ -15,11 +15,10 @@
  */
 
 #include <gtest/gtest.h>
+#include <livekit/data_track_frame.h>
 
 #include <cstdint>
 #include <vector>
-
-#include <livekit/data_track_frame.h>
 
 #include "data_track.pb.h"
 

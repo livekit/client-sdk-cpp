@@ -15,10 +15,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <livekit/e2ee.h>
 
 #include <vector>
-
-#include <livekit/e2ee.h>
 
 namespace livekit::test {
 

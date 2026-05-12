@@ -15,15 +15,14 @@
  */
 
 #include <gtest/gtest.h>
-
-#include <memory>
-#include <string>
-#include <type_traits>
-
 #include <livekit/local_audio_track.h>
 #include <livekit/local_data_track.h>
 #include <livekit/local_video_track.h>
 #include <livekit/track.h>
+
+#include <memory>
+#include <string>
+#include <type_traits>
 
 namespace livekit::test {
 

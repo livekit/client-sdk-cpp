@@ -15,7 +15,6 @@
  */
 
 #include <gtest/gtest.h>
-
 #include <livekit/livekit.h>
 #include <livekit/video_source.h>
 

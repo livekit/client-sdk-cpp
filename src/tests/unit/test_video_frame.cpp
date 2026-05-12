@@ -15,11 +15,10 @@
  */
 
 #include <gtest/gtest.h>
+#include <livekit/video_frame.h>
 
 #include <cstdint>
 #include <vector>
-
-#include <livekit/video_frame.h>
 
 namespace livekit::test {
 

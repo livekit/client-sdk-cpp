@@ -15,7 +15,6 @@
  */
 
 #include <gtest/gtest.h>
-
 #include <livekit/audio_source.h>
 #include <livekit/livekit.h>
 

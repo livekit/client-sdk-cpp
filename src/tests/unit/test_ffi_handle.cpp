@@ -15,11 +15,10 @@
  */
 
 #include <gtest/gtest.h>
+#include <livekit/ffi_handle.h>
 
 #include <cstdint>
 #include <utility>
-
-#include <livekit/ffi_handle.h>
 
 namespace livekit::test {
 

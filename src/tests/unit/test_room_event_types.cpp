@@ -15,7 +15,6 @@
  */
 
 #include <gtest/gtest.h>
-
 #include <livekit/room_event_types.h>
 
 namespace livekit::test {

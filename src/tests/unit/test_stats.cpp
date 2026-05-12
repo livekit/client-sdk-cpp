@@ -15,10 +15,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <livekit/stats.h>
 
 #include <vector>
-
-#include <livekit/stats.h>
 
 #include "stats.pb.h"
 

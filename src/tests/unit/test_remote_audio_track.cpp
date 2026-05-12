@@ -15,7 +15,6 @@
  */
 
 #include <gtest/gtest.h>
-
 #include <livekit/remote_audio_track.h>
 
 #include "track.pb.h"

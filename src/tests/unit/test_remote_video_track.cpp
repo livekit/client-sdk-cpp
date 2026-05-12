@@ -15,7 +15,6 @@
  */
 
 #include <gtest/gtest.h>
-
 #include <livekit/remote_video_track.h>
 
 #include "track.pb.h"

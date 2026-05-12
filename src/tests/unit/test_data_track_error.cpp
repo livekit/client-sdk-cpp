@@ -15,7 +15,6 @@
  */
 
 #include <gtest/gtest.h>
-
 #include <livekit/data_track_error.h>
 
 #include "data_track.pb.h"
