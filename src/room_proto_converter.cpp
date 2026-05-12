@@ -17,12 +17,15 @@
 #include "room_proto_converter.h"
 
 #include "livekit/data_stream.h"
-#include "livekit/local_participant.h"
 #include "room.pb.h"
 
 namespace livekit {
 
 namespace {
+
+std::string bytesToString(const std::vector<std::uint8_t>& bytes) {
+  return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
 
 std::vector<proto::PacketTrailerFeature> toProto(const PacketTrailerFeatures& features) {
   std::vector<proto::PacketTrailerFeature> out;
@@ -308,6 +311,25 @@ RoomMovedEvent roomMovedFromProto(const proto::RoomInfo& in) {
 }
 
 // ---------------- Room Options ----------------
+
+proto::KeyProviderOptions toProto(const KeyProviderOptions& in) {
+  proto::KeyProviderOptions out;
+  if (in.shared_key && !in.shared_key->empty()) {
+    out.set_shared_key(bytesToString(*in.shared_key));
+  } else {
+    out.clear_shared_key();
+  }
+  if (!in.ratchet_salt.empty()) {
+    out.set_ratchet_salt(bytesToString(in.ratchet_salt));
+  } else {
+    out.set_ratchet_salt(kDefaultRatchetSalt);
+  }
+  out.set_ratchet_window_size(in.ratchet_window_size);
+  out.set_failure_tolerance(in.failure_tolerance);
+  out.set_key_ring_size(in.key_ring_size);
+  out.set_key_derivation_function(static_cast<proto::KeyDerivationFunction>(in.key_derivation_function));
+  return out;
+}
 
 proto::AudioEncoding toProto(const AudioEncodingOptions& in) {
   proto::AudioEncoding msg;
