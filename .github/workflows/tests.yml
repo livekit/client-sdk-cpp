@@ -392,6 +392,7 @@ jobs:
             --root . \
             --gcov-executable "${GCOV_EXECUTABLE}" \
             --gcov-ignore-parse-errors=all \
+            --filter 'include/livekit/' \
             --filter 'src/' \
             --exclude 'src/tests/' \
             --exclude '.*\.pb\.' \
