@@ -34,10 +34,18 @@ enum class EncryptionType {
   CUSTOM = 2,
 };
 
-/* Defaults (match other SDKs / Python defaults). */
+/* Key derivation algorithm used by the key provider. */
+enum class KeyDerivationFunction {
+  PBKDF2 = 0,
+  HKDF = 1,
+};
+
+/* Defaults (match Rust KeyProviderOptions::default()). */
 inline constexpr const char* kDefaultRatchetSalt = "LKFrameEncryptionKey";
 inline constexpr int kDefaultRatchetWindowSize = 16;
 inline constexpr int kDefaultFailureTolerance = -1;
+inline constexpr int kDefaultKeyRingSize = 16;
+inline constexpr KeyDerivationFunction kDefaultKeyDerivationFunction = KeyDerivationFunction::PBKDF2;
 
 /**
  * Options for configuring the key provider used by E2EE.
@@ -46,8 +54,7 @@ inline constexpr int kDefaultFailureTolerance = -1;
  * - `shared_key` is optional. If omitted, the application may set keys later
  *   (e.g. via KeyProvider::setSharedKey / per-participant keys).
  * - `ratchet_salt` may be empty to indicate "use implementation default".
- * - `ratchet_window_size` and `failure_tolerance` use SDK defaults unless
- * overridden.
+ * - Other key provider fields use SDK defaults unless overridden.
  */
 struct KeyProviderOptions {
   /// Shared static key for "shared-key E2EE" (optional).
@@ -70,6 +77,12 @@ struct KeyProviderOptions {
 
   /// Number of tolerated ratchet failures before reporting encryption errors.
   int failure_tolerance = kDefaultFailureTolerance;
+
+  /// Number of key slots retained by the key provider.
+  int key_ring_size = kDefaultKeyRingSize;
+
+  /// Algorithm used when deriving ratcheted keys.
+  KeyDerivationFunction key_derivation_function = kDefaultKeyDerivationFunction;
 };
 
 /**

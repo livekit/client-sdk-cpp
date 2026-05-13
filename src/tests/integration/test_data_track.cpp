@@ -68,18 +68,31 @@ std::size_t parseTestTrackIndex(const std::string& track_name) {
   return static_cast<std::size_t>(std::stoul(track_name.substr(sizeof(kPrefix) - 1)));
 }
 
-E2EEOptions makeE2EEOptions() {
+E2EEOptions makeE2EEOptions(KeyDerivationFunction key_derivation_function = kDefaultKeyDerivationFunction) {
   E2EEOptions options;
   options.key_provider_options.shared_key = e2eeSharedKey();
+  options.key_provider_options.key_derivation_function = key_derivation_function;
   return options;
 }
 
-std::vector<TestRoomConnectionOptions> encryptedRoomConfigs(RoomDelegate* subscriber_delegate) {
+std::vector<TestRoomConnectionOptions> encryptedRoomConfigs(
+    RoomDelegate* subscriber_delegate, KeyDerivationFunction key_derivation_function = kDefaultKeyDerivationFunction) {
   std::vector<TestRoomConnectionOptions> room_configs(2);
-  room_configs[0].room_options.encryption = makeE2EEOptions();
-  room_configs[1].room_options.encryption = makeE2EEOptions();
+  room_configs[0].room_options.encryption = makeE2EEOptions(key_derivation_function);
+  room_configs[1].room_options.encryption = makeE2EEOptions(key_derivation_function);
   room_configs[1].delegate = subscriber_delegate;
   return room_configs;
+}
+
+std::string keyDerivationFunctionName(KeyDerivationFunction key_derivation_function) {
+  switch (key_derivation_function) {
+    case KeyDerivationFunction::PBKDF2:
+      return "PBKDF2";
+    case KeyDerivationFunction::HKDF:
+      return "HKDF";
+    default:
+      return "Unknown";
+  }
 }
 
 template <typename Predicate>
@@ -181,12 +194,104 @@ DataTrackFrame readFrameWithTimeout(const std::shared_ptr<DataTrackStream>& subs
   return future.get();
 }
 
+void runEncryptedDataTrackRoundTrip(KeyDerivationFunction key_derivation_function, const std::string& suffix) {
+  const auto track_name = makeTrackName(suffix);
+
+  DataTrackPublishedDelegate subscriber_delegate;
+  auto room_configs = encryptedRoomConfigs(&subscriber_delegate, key_derivation_function);
+  auto rooms = testRooms(room_configs);
+  auto& publisher_room = rooms[0];
+  auto& subscriber_room = rooms[1];
+
+  ASSERT_NE(publisher_room->e2eeManager(), nullptr);
+  ASSERT_NE(subscriber_room->e2eeManager(), nullptr);
+  ASSERT_NE(publisher_room->e2eeManager()->keyProvider(), nullptr);
+  ASSERT_NE(subscriber_room->e2eeManager()->keyProvider(), nullptr);
+  EXPECT_EQ(publisher_room->e2eeManager()->keyProvider()->options().key_derivation_function, key_derivation_function);
+  EXPECT_EQ(subscriber_room->e2eeManager()->keyProvider()->options().key_derivation_function, key_derivation_function);
+  publisher_room->e2eeManager()->setEnabled(true);
+  subscriber_room->e2eeManager()->setEnabled(true);
+  EXPECT_EQ(publisher_room->e2eeManager()->keyProvider()->exportSharedKey(), e2eeSharedKey());
+  EXPECT_EQ(subscriber_room->e2eeManager()->keyProvider()->exportSharedKey(), e2eeSharedKey());
+
+  auto publish_result = publisher_room->localParticipant()->publishDataTrack(track_name);
+  if (!publish_result) {
+    FAIL() << describeDataTrackError(publish_result.error());
+  }
+  const auto& local_track = publish_result.value();
+  ASSERT_TRUE(local_track->isPublished());
+  EXPECT_TRUE(local_track->info().uses_e2ee);
+
+  auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
+  ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
+  EXPECT_TRUE(remote_track->isPublished());
+  EXPECT_TRUE(remote_track->info().uses_e2ee);
+  EXPECT_EQ(remote_track->info().name, track_name);
+
+  auto subscribe_result = remote_track->subscribe();
+  if (!subscribe_result) {
+    FAIL() << describeDataTrackError(subscribe_result.error());
+  }
+  const auto& subscription = subscribe_result.value();
+
+  std::promise<DataTrackFrame> frame_promise;
+  auto frame_future = frame_promise.get_future();
+  std::thread reader([&]() {
+    try {
+      DataTrackFrame frame;
+      if (!subscription->read(frame)) {
+        throw std::runtime_error("Subscription ended before an encrypted frame arrived");
+      }
+      frame_promise.set_value(std::move(frame));
+    } catch (...) {
+      frame_promise.set_exception(std::current_exception());
+    }
+  });
+
+  bool pushed = false;
+  for (int index = 0; index < 200; ++index) {
+    std::vector<std::uint8_t> payload(kLargeFramePayloadBytes, static_cast<std::uint8_t>(index + 1));
+    auto push_result = local_track->tryPush(std::move(payload));
+    pushed = static_cast<bool>(push_result) || pushed;
+    if (frame_future.wait_for(25ms) == std::future_status::ready) {
+      break;
+    }
+  }
+
+  const auto frame_status = frame_future.wait_for(5s);
+  if (frame_status != std::future_status::ready) {
+    subscription->close();
+  }
+  reader.join();
+  ASSERT_TRUE(pushed) << "Failed to push encrypted data frames";
+  ASSERT_EQ(frame_status, std::future_status::ready) << "Timed out waiting for encrypted frame delivery";
+
+  DataTrackFrame frame;
+  try {
+    frame = frame_future.get();
+  } catch (const std::exception& e) {
+    FAIL() << e.what();
+  }
+  ASSERT_FALSE(frame.payload.empty());
+  const auto first_byte = frame.payload.front();
+  EXPECT_TRUE(std::all_of(frame.payload.begin(), frame.payload.end(), [first_byte](std::uint8_t byte) {
+    return byte == first_byte;
+  })) << "Encrypted payload is not byte-consistent";
+  EXPECT_FALSE(frame.user_timestamp.has_value()) << "Unexpected user timestamp on encrypted frame";
+
+  subscription->close();
+  local_track->unpublishDataTrack();
+}
+
 } // namespace
 
 class DataTrackE2ETest : public LiveKitTestBase {};
 
 class DataTrackTransportTest : public DataTrackE2ETest,
                                public ::testing::WithParamInterface<std::tuple<double, size_t>> {};
+
+class DataTrackKeyDerivationTest : public DataTrackE2ETest,
+                                   public ::testing::WithParamInterface<KeyDerivationFunction> {};
 
 TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   const auto publish_fps = std::get<0>(GetParam());
@@ -661,90 +766,11 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
 }
 
 TEST_F(DataTrackE2ETest, PublishesAndReceivesEncryptedFramesEndToEnd) {
-  const auto track_name = makeTrackName("e2ee_transport");
+  runEncryptedDataTrackRoundTrip(kDefaultKeyDerivationFunction, "e2ee_transport");
+}
 
-  DataTrackPublishedDelegate subscriber_delegate;
-  auto room_configs = encryptedRoomConfigs(&subscriber_delegate);
-  auto rooms = testRooms(room_configs);
-  auto& publisher_room = rooms[0];
-  auto& subscriber_room = rooms[1];
-
-  ASSERT_NE(publisher_room->e2eeManager(), nullptr);
-  ASSERT_NE(subscriber_room->e2eeManager(), nullptr);
-  ASSERT_NE(publisher_room->e2eeManager()->keyProvider(), nullptr);
-  ASSERT_NE(subscriber_room->e2eeManager()->keyProvider(), nullptr);
-  publisher_room->e2eeManager()->setEnabled(true);
-  subscriber_room->e2eeManager()->setEnabled(true);
-  EXPECT_EQ(publisher_room->e2eeManager()->keyProvider()->exportSharedKey(), e2eeSharedKey());
-  EXPECT_EQ(subscriber_room->e2eeManager()->keyProvider()->exportSharedKey(), e2eeSharedKey());
-
-  auto publish_result = publisher_room->localParticipant()->publishDataTrack(track_name);
-  if (!publish_result) {
-    FAIL() << describeDataTrackError(publish_result.error());
-  }
-  auto local_track = publish_result.value();
-  ASSERT_TRUE(local_track->isPublished());
-  EXPECT_TRUE(local_track->info().uses_e2ee);
-
-  auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
-  ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
-  EXPECT_TRUE(remote_track->isPublished());
-  EXPECT_TRUE(remote_track->info().uses_e2ee);
-  EXPECT_EQ(remote_track->info().name, track_name);
-
-  auto subscribe_result = remote_track->subscribe();
-  if (!subscribe_result) {
-    FAIL() << describeDataTrackError(subscribe_result.error());
-  }
-  auto subscription = subscribe_result.value();
-
-  std::promise<DataTrackFrame> frame_promise;
-  auto frame_future = frame_promise.get_future();
-  std::thread reader([&]() {
-    try {
-      DataTrackFrame frame;
-      if (!subscription->read(frame)) {
-        throw std::runtime_error("Subscription ended before an encrypted frame arrived");
-      }
-      frame_promise.set_value(std::move(frame));
-    } catch (...) {
-      frame_promise.set_exception(std::current_exception());
-    }
-  });
-
-  bool pushed = false;
-  for (int index = 0; index < 200; ++index) {
-    std::vector<std::uint8_t> payload(kLargeFramePayloadBytes, static_cast<std::uint8_t>(index + 1));
-    auto push_result = local_track->tryPush(std::move(payload));
-    pushed = static_cast<bool>(push_result) || pushed;
-    if (frame_future.wait_for(25ms) == std::future_status::ready) {
-      break;
-    }
-  }
-
-  const auto frame_status = frame_future.wait_for(5s);
-  if (frame_status != std::future_status::ready) {
-    subscription->close();
-  }
-  reader.join();
-  ASSERT_TRUE(pushed) << "Failed to push encrypted data frames";
-  ASSERT_EQ(frame_status, std::future_status::ready) << "Timed out waiting for encrypted frame delivery";
-
-  DataTrackFrame frame;
-  try {
-    frame = frame_future.get();
-  } catch (const std::exception& e) {
-    FAIL() << e.what();
-  }
-  ASSERT_FALSE(frame.payload.empty());
-  const auto first_byte = frame.payload.front();
-  EXPECT_TRUE(std::all_of(frame.payload.begin(), frame.payload.end(), [first_byte](std::uint8_t byte) {
-    return byte == first_byte;
-  })) << "Encrypted payload is not byte-consistent";
-  EXPECT_FALSE(frame.user_timestamp.has_value()) << "Unexpected user timestamp on encrypted frame";
-
-  subscription->close();
-  local_track->unpublishDataTrack();
+TEST_P(DataTrackKeyDerivationTest, PublishesAndReceivesEncryptedFramesEndToEnd) {
+  runEncryptedDataTrackRoundTrip(GetParam(), "e2ee_" + keyDerivationFunctionName(GetParam()));
 }
 
 TEST_F(DataTrackE2ETest, PreservesUserTimestampOnEncryptedDataTrack) {
@@ -834,8 +860,16 @@ std::string dataTrackParamName(const ::testing::TestParamInfo<std::tuple<double,
   return "LowFpsMultiPacket";
 }
 
+std::string keyDerivationParamName(const ::testing::TestParamInfo<KeyDerivationFunction>& info) {
+  return keyDerivationFunctionName(info.param);
+}
+
 INSTANTIATE_TEST_SUITE_P(DataTrackScenarios, DataTrackTransportTest,
                          ::testing::Values(std::make_tuple(120.0, size_t{8192}), std::make_tuple(10.0, size_t{196608})),
                          dataTrackParamName);
+
+INSTANTIATE_TEST_SUITE_P(KeyDerivationFunctions, DataTrackKeyDerivationTest,
+                         ::testing::Values(KeyDerivationFunction::PBKDF2, KeyDerivationFunction::HKDF),
+                         keyDerivationParamName);
 
 } // namespace livekit::test

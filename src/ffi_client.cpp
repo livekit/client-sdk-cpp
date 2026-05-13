@@ -27,7 +27,6 @@
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"
-#include "livekit/track.h"
 #include "livekit_ffi.h"
 #include "lk_log.h"
 #include "room.pb.h"
@@ -36,10 +35,6 @@
 namespace livekit {
 
 namespace {
-
-std::string bytesToString(const std::vector<std::uint8_t>& b) {
-  return std::string(reinterpret_cast<const char*>(b.data()), b.size());
-}
 
 inline void logAndThrow(const std::string& error_msg) {
   LK_LOG_ERROR("LiveKit SDK Error: {}", error_msg);
@@ -168,7 +163,7 @@ bool FfiClient::initialize(bool capture_logs) {
     return false;
   }
   initialized_.store(true, std::memory_order_release);
-  livekit_ffi_initialize(&LivekitFfiCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION_FULL);
+  livekit_ffi_initialize(&LivekitFfiCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION);
   return true;
 }
 
@@ -333,35 +328,7 @@ std::future<proto::ConnectCallback> FfiClient::connectAsync(const std::string& u
 
     auto* enc = opts->mutable_encryption();
     enc->set_encryption_type(static_cast<proto::EncryptionType>(e2ee.encryption_type));
-    auto* kp = enc->mutable_key_provider_options();
-    // shared_key is optional. If not set, leave the field unset/cleared.
-    if (kpo.shared_key && !kpo.shared_key->empty()) {
-      kp->set_shared_key(bytesToString(*kpo.shared_key));
-    } else {
-      kp->clear_shared_key();
-    }
-    // Only set ratchet_salt if caller overrides. Otherwise clear so Rust side
-    // uses default.
-    if (!kpo.ratchet_salt.empty() &&
-        kpo.ratchet_salt !=
-            std::vector<std::uint8_t>(kDefaultRatchetSalt,
-                                      kDefaultRatchetSalt + std::char_traits<char>::length(kDefaultRatchetSalt))) {
-      kp->set_ratchet_salt(bytesToString(kpo.ratchet_salt));
-    } else {
-      kp->clear_ratchet_salt();
-    }
-    // Same idea for window size / tolerance: set only on override; otherwise
-    // clear.
-    if (kpo.ratchet_window_size != kDefaultRatchetWindowSize) {
-      kp->set_ratchet_window_size(kpo.ratchet_window_size);
-    } else {
-      kp->clear_ratchet_window_size();
-    }
-    if (kpo.failure_tolerance != kDefaultFailureTolerance) {
-      kp->set_failure_tolerance(kpo.failure_tolerance);
-    } else {
-      kp->clear_failure_tolerance();
-    }
+    enc->mutable_key_provider_options()->CopyFrom(toProto(kpo));
   }
 
   // --- RTC configuration (optional) ---

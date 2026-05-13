@@ -182,6 +182,27 @@ jobs:
           echo "Bundle contents:"
           find "$bundleDir" -type f | head -120
 
+      - name: Validate bundle version metadata (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}-${version}"
+          header="${bundleDir}/include/livekit/build.h"
+          buildInfo="${bundleDir}/share/livekit/build-info.json"
+
+          test -f "$header"
+          test -f "$buildInfo"
+          grep -F "#define LIVEKIT_BUILD_VERSION \"${version}\"" "$header"
+          if grep -F '#define LIVEKIT_BUILD_VERSION "0.0.0"' "$header"; then
+            echo "ERROR: bundle reports fallback SDK version"
+            exit 1
+          fi
+          grep -F "\"sdk_version\": \"${version}\"" "$buildInfo"
+          grep -Eq '"rust_submodule_commit": "[0-9a-f]{7,}"' "$buildInfo"
+          grep -Eq '"livekit_ffi_version": "[0-9]+\.[0-9]+\.[0-9]+' "$buildInfo"
+
       # ---------- Build + Bundle (Windows) ----------
       - name: Build and Bundle (Windows)
         if: runner.os == 'Windows'
@@ -242,6 +263,39 @@ jobs:
             exit 1
           }
           python .github/scripts/check_no_private_symbols.py "$lib"
+
+      - name: Validate bundle version metadata (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-$version"
+          $header = Join-Path $bundleDir "include/livekit/build.h"
+          $buildInfo = Join-Path $bundleDir "share/livekit/build-info.json"
+
+          if (!(Test-Path $header)) { throw "Missing $header" }
+          if (!(Test-Path $buildInfo)) { throw "Missing $buildInfo" }
+
+          $headerText = Get-Content -Raw $header
+          $expectedHeaderVersion = "#define LIVEKIT_BUILD_VERSION `"$version`""
+          if (!$headerText.Contains($expectedHeaderVersion)) {
+            throw "Header does not report expected SDK version $version"
+          }
+          if ($headerText.Contains('#define LIVEKIT_BUILD_VERSION "0.0.0"')) {
+            throw "Bundle reports fallback SDK version"
+          }
+
+          $buildInfoText = Get-Content -Raw $buildInfo
+          $expectedBuildInfoVersion = "`"sdk_version`": `"$version`""
+          if (!$buildInfoText.Contains($expectedBuildInfoVersion)) {
+            throw "Build info does not report expected SDK version $version"
+          }
+          if ($buildInfoText -match '"rust_submodule_commit": "unknown"') {
+            throw "Build info is missing Rust submodule commit"
+          }
+          if ($buildInfoText -match '"livekit_ffi_version": "unknown"') {
+            throw "Build info is missing livekit-ffi version"
+          }
 
       # ---------- Upload artifact (raw directory, no pre-compression) ----------
       - name: Upload build artifact

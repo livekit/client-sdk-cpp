@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_TRACE_EVENT_TRACER_INTERNAL_H_
-#define LIVEKIT_TRACE_EVENT_TRACER_INTERNAL_H_
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -52,5 +51,3 @@ void StopTracing();
 bool IsTracingEnabled();
 
 } // namespace livekit::trace::internal
-
-#endif // LIVEKIT_TRACE_EVENT_TRACER_INTERNAL_H_
