@@ -74,10 +74,13 @@ public:
   FfiClient(FfiClient&&) = delete;
   FfiClient& operator=(FfiClient&&) = delete;
 
-  static FfiClient& instance() noexcept {
-    static FfiClient instance;
-    return instance;
-  }
+  // Defined out-of-line in ffi_client.cpp so the process has exactly one
+  // FfiClient. An inline definition would, under the SDK's hidden inline
+  // visibility, produce a separate function-local static in every TU that
+  // includes this header (notably: in-tree test executables), giving each
+  // binary its own "singleton" and silently desynchronizing the dylib-side
+  // and test-exe-side initialization flags.
+  static FfiClient& instance() noexcept;
 
   // Must be called before any other FFI usage
   bool initialize(bool capture_logs);
