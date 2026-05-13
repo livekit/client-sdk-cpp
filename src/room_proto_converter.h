@@ -18,6 +18,8 @@
 
 #include <string>
 
+#include "e2ee.pb.h"
+#include "livekit/e2ee.h"
 #include "livekit/room_event_types.h"
 #include "livekit/visibility.h"
 #include "room.pb.h"
@@ -68,6 +70,8 @@ LIVEKIT_INTERNAL_API RoomUpdatedEvent roomUpdatedFromProto(const proto::RoomInfo
 LIVEKIT_INTERNAL_API RoomMovedEvent roomMovedFromProto(const proto::RoomInfo& in);     // moved
 
 // --------- room options conversions ---------
+
+LIVEKIT_INTERNAL_API proto::KeyProviderOptions toProto(const KeyProviderOptions& in);
 
 LIVEKIT_INTERNAL_API proto::AudioEncoding toProto(const AudioEncodingOptions& in);
 LIVEKIT_INTERNAL_API AudioEncodingOptions fromProto(const proto::AudioEncoding& in);

@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_FFI_CLIENT_H
-#define LIVEKIT_FFI_CLIENT_H
+#pragma once
 
 #include <atomic>
 #include <cstdint>
@@ -196,5 +195,3 @@ private:
   std::atomic<bool> initialized_{false};
 };
 } // namespace livekit
-
-#endif /* LIVEKIT_FFI_CLIENT_H */

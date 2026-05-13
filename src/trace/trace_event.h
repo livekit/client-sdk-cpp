@@ -21,8 +21,7 @@
 // NOLINTBEGIN
 // External code: this header is derived from Chromium's trace_event.h
 
-#ifndef LIVEKIT_TRACE_TRACE_EVENT_H_
-#define LIVEKIT_TRACE_TRACE_EVENT_H_
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -712,5 +711,3 @@ private:
 } // namespace webrtc
 
 // NOLINTEND
-
-#endif // LIVEKIT_TRACE_TRACE_EVENT_H_

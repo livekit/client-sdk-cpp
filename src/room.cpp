@@ -226,6 +226,11 @@ std::vector<std::shared_ptr<RemoteParticipant>> Room::remoteParticipants() const
   return out;
 }
 
+ConnectionState Room::connectionState() const {
+  const std::scoped_lock<std::mutex> g(lock_);
+  return connection_state_;
+}
+
 E2EEManager* Room::e2eeManager() const {
   const std::scoped_lock<std::mutex> g(lock_);
   return e2ee_manager_.get();
