@@ -134,13 +134,11 @@ public:
    */
   bool connect(const std::string& url, const std::string& token, const RoomOptions& options);
 
-  /* Deprecated older style of connect() function name.
-   *
-   * See connect() for more details.
-   */
-  [[deprecated("Room::Connect is deprecated; use Room::connect instead. This may be removed in a future release")]]
-  bool Connect(const std::string& url, const std::string& token, // NOLINT(readability-identifier-naming)
-               const RoomOptions& options);
+  // Deprecated - see connect()
+  // NOLINTBEGIN(readability-identifier-naming)
+  [[deprecated("Room::Connect is deprecated; use Room::connect instead")]]
+  bool Connect(const std::string& url, const std::string& token, const RoomOptions& options);
+  // NOLINTEND(readability-identifier-naming)
 
   // Accessors
 
@@ -152,7 +150,13 @@ public:
    *   - participant counts
    *   - creation timestamp
    */
+  RoomInfoData roomInfo() const;
+
+  // Deprecated - see roomInfo()
+  // NOLINTBEGIN(readability-identifier-naming)
+  [[deprecated("Room::room_info is deprecated; use Room::roomInfo instead")]]
   RoomInfoData room_info() const;
+  // NOLINTEND(readability-identifier-naming)
 
   /* Get the local participant.
    *
@@ -329,7 +333,7 @@ private:
   // FfiClient listener ID (0 means no listener registered)
   int listener_id_{0};
 
-  void OnEvent(const proto::FfiEvent& event);
+  void onEvent(const proto::FfiEvent& event);
 };
 } // namespace livekit
 

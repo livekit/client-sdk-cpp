@@ -191,7 +191,7 @@ private:
   mutable std::unordered_map<AsyncId, std::unique_ptr<PendingBase>> pending_by_id_;
   std::atomic<AsyncId> next_async_id_{1};
 
-  void PushEvent(const proto::FfiEvent& event) const;
+  void pushEvent(const proto::FfiEvent& event) const;
   friend void LivekitFfiCallback(const uint8_t* buf, size_t len);
   std::atomic<bool> initialized_{false};
 };

@@ -51,7 +51,13 @@ public:
 
   /// Returns a concise, human-readable string summarizing the track,
   /// including its SID and name. Useful for debugging and logging.
+  std::string toString() const;
+
+  // Deprecated - see toString()
+  // NOLINTBEGIN(readability-identifier-naming)
+  [[deprecated("RemoteAudioTrack::to_string is deprecated; use RemoteAudioTrack::toString instead")]]
   std::string to_string() const;
+  // NOLINTEND(readability-identifier-naming)
 };
 
 } // namespace livekit

@@ -212,7 +212,7 @@ proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) cons
   return response;
 }
 
-void FfiClient::PushEvent(const proto::FfiEvent& event) const {
+void FfiClient::pushEvent(const proto::FfiEvent& event) const {
   std::unique_ptr<PendingBase> to_complete;
   std::vector<Listener> listeners_copy;
   {
@@ -249,7 +249,7 @@ void LivekitFfiCallback(const uint8_t* buf, size_t len) {
   event.ParseFromArray(buf,
                        static_cast<int>(len)); // TODO: this fixes for now, what if len exceeds int?
 
-  FfiClient::instance().PushEvent(event);
+  FfiClient::instance().pushEvent(event);
 }
 
 FfiClient::AsyncId FfiClient::generateAsyncId() { return next_async_id_.fetch_add(1, std::memory_order_relaxed); }

@@ -247,8 +247,8 @@ TEST_F(LatencyMeasurementTest, ConnectionTime) {
     auto room = std::make_unique<Room>();
 
     auto start = std::chrono::high_resolution_clock::now();
-    // Room::Connect() has built-in TRACE_EVENT0 for automatic timing
-    bool connected = room->Connect(config_.url, config_.token_a, options);
+    // Room::connect() has built-in TRACE_EVENT0 for automatic timing
+    bool connected = room->connect(config_.url, config_.token_a, options);
     auto end = std::chrono::high_resolution_clock::now();
 
     if (connected) {
@@ -257,7 +257,7 @@ TEST_F(LatencyMeasurementTest, ConnectionTime) {
       stats.addMeasurement(latency_ms);
 
       // Get room and participant session IDs for debugging
-      auto room_info = room->room_info();
+      auto room_info = room->roomInfo();
       std::string room_sid = room_info.sid.has_value() ? room_info.sid.value() : "unknown";
       std::string participant_sid = room->localParticipant() ? room->localParticipant()->sid() : "unknown";
 
@@ -273,7 +273,7 @@ TEST_F(LatencyMeasurementTest, ConnectionTime) {
   }
 
   // Tracing is automatically handled by LiveKitTestBase
-  // Stats for Room::Connect will be printed in TearDown()
+  // Stats for Room::connect will be printed in TearDown()
 
   EXPECT_GT(successful_connections, 0) << "At least one connection should succeed";
 }
@@ -334,7 +334,7 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -342,7 +342,7 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
 
   // Create sender room (using token_a)
   auto sender_room = std::make_unique<Room>();
-  bool sender_connected = sender_room->Connect(config_.url, config_.token_a, options);
+  bool sender_connected = sender_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(sender_connected) << "Sender failed to connect";
 
   std::string sender_identity = sender_room->localParticipant()->identity();
@@ -521,8 +521,8 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  ASSERT_TRUE(room_a->Connect(config_.url, config_.token_a, options)) << "Participant A failed to connect";
-  ASSERT_TRUE(room_b->Connect(config_.url, config_.token_b, options)) << "Participant B failed to connect";
+  ASSERT_TRUE(room_a->connect(config_.url, config_.token_a, options)) << "Participant A failed to connect";
+  ASSERT_TRUE(room_b->connect(config_.url, config_.token_b, options)) << "Participant B failed to connect";
 
   std::string id_a = room_a->localParticipant()->identity();
   std::string id_b = room_b->localParticipant()->identity();

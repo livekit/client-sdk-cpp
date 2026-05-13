@@ -141,7 +141,7 @@ void AudioStream::initFromTrack(const std::shared_ptr<Track>& track, const Optio
   // 2) Send FfiRequest to create a new audio stream bound to this track
   FfiRequest req;
   auto* new_audio_stream = req.mutable_new_audio_stream();
-  new_audio_stream->set_track_handle(static_cast<uint64_t>(track->ffi_handle_id()));
+  new_audio_stream->set_track_handle(static_cast<uint64_t>(track->ffiHandleId()));
   // TODO, sample_rate and num_channels are not useful in AudioStream, remove it
   // from FFI.
   //  new_audio_stream->set_sample_rate(options_.sample_rate);

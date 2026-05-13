@@ -224,7 +224,7 @@ inline std::vector<std::unique_ptr<Room>> testRooms(const std::vector<TestRoomCo
       room->setDelegate(room_configs[i].delegate);
     }
 
-    if (!room->Connect(kLocalTestLiveKitUrl, tokens[i], room_configs[i].room_options)) {
+    if (!room->connect(kLocalTestLiveKitUrl, tokens[i], room_configs[i].room_options)) {
       throw std::runtime_error("Failed to connect test room " + std::to_string(i));
     }
 

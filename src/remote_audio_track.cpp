@@ -27,8 +27,10 @@ RemoteAudioTrack::RemoteAudioTrack(const proto::OwnedTrack& track)
     : Track(FfiHandle{static_cast<uintptr_t>(track.handle().id())}, track.info().sid(), track.info().name(),
             fromProto(track.info().kind()), fromProto(track.info().stream_state()), track.info().muted(), true) {}
 
-std::string RemoteAudioTrack::to_string() const {
+std::string RemoteAudioTrack::toString() const {
   return "rtc.RemoteAudioTrack(sid=" + sid() + ", name=" + name() + ")";
 }
+
+std::string RemoteAudioTrack::to_string() const { return toString(); }
 
 } // namespace livekit

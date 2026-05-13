@@ -183,7 +183,7 @@ void LocalParticipant::publishTrack(const std::shared_ptr<Track>& track, const T
     throw std::runtime_error("LocalParticipant::publishTrack: invalid participant FFI handle");
   }
 
-  auto track_handle = track->ffi_handle_id();
+  auto track_handle = track->ffiHandleId();
   if (track_handle == 0) {
     throw std::runtime_error("LocalParticipant::publishTrack: invalid track FFI handle");
   }

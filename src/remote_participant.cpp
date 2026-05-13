@@ -31,14 +31,16 @@ RemoteParticipant::RemoteParticipant(FfiHandle handle, std::string sid, std::str
                   std::move(attributes), kind, reason),
       track_publications_() {}
 
-std::string RemoteParticipant::to_string() const {
+std::string RemoteParticipant::toString() const {
   std::ostringstream oss;
   oss << "rtc.RemoteParticipant(sid=" << sid() << ", identity=" << identity() << ", name=" << name() << ")";
   return oss.str();
 }
 
+std::string RemoteParticipant::to_string() const { return toString(); }
+
 std::ostream& operator<<(std::ostream& os, const RemoteParticipant& participant) {
-  os << participant.to_string();
+  os << participant.toString();
   return os;
 }
 

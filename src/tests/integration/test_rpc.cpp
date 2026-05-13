@@ -123,7 +123,7 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
   RoomOptions receiver_options;
   receiver_options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, receiver_options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, receiver_options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -146,7 +146,7 @@ TEST_F(RpcIntegrationTest, BasicRpcRoundTrip) {
   RoomOptions caller_options;
   caller_options.auto_subscribe = true;
 
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, caller_options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, caller_options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   // Wait for receiver to be visible to caller
@@ -183,7 +183,7 @@ TEST_F(RpcIntegrationTest, MaxPayloadSize) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -194,7 +194,7 @@ TEST_F(RpcIntegrationTest, MaxPayloadSize) {
       [](const RpcInvocationData& data) -> std::optional<std::string> { return std::to_string(data.payload.size()); });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
@@ -222,7 +222,7 @@ TEST_F(RpcIntegrationTest, RpcTimeout) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -235,7 +235,7 @@ TEST_F(RpcIntegrationTest, RpcTimeout) {
                                                        });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
@@ -259,13 +259,13 @@ TEST_F(RpcIntegrationTest, UnsupportedMethod) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
@@ -293,7 +293,7 @@ TEST_F(RpcIntegrationTest, ApplicationError) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -304,7 +304,7 @@ TEST_F(RpcIntegrationTest, ApplicationError) {
       [](const RpcInvocationData&) -> std::optional<std::string> { throw std::runtime_error("intentional error"); });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
@@ -332,7 +332,7 @@ TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -347,7 +347,7 @@ TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
       });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
@@ -394,7 +394,7 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -410,7 +410,7 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
       });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);

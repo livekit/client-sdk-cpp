@@ -17,7 +17,7 @@ bool initializeLivekit(const std::string& url, const std::string& token) {
   livekit::RoomOptions options;
   options.auto_subscribe = true;
   options.dynacast = false;
-  if (!room_->Connect(url, token, options)) {
+  if (!room_->connect(url, token, options)) {
     std::cerr << "Failed to connect\n";
     livekit::shutdown();
     return false;

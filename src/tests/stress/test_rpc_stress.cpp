@@ -159,10 +159,10 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
-  auto receiver_info = receiver_room->room_info();
+  auto receiver_info = receiver_room->roomInfo();
   std::cout << "Receiver connected - Room: " << receiver_info.name << " (SID: " << receiver_info.sid.value_or("unknown")
             << ")" << std::endl;
 
@@ -180,10 +180,10 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
 
   // Create caller room
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
-  auto caller_info = caller_room->room_info();
+  auto caller_info = caller_room->roomInfo();
   std::cout << "Caller connected - Room: " << caller_info.name << " (SID: " << caller_info.sid.value_or("unknown")
             << ")" << std::endl;
 
@@ -337,10 +337,10 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
-  auto receiver_info = receiver_room->room_info();
+  auto receiver_info = receiver_room->roomInfo();
   std::cout << "Receiver connected - Room: " << receiver_info.name << " (SID: " << receiver_info.sid.value_or("unknown")
             << ")" << std::endl;
 
@@ -357,10 +357,10 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
 
   // Create caller room
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
-  auto caller_info = caller_room->room_info();
+  auto caller_info = caller_room->roomInfo();
   std::cout << "Caller connected - Room: " << caller_info.name << " (SID: " << caller_info.sid.value_or("unknown")
             << ")" << std::endl;
 
@@ -502,10 +502,10 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool a_connected = room_a->Connect(config_.url, config_.token_a, options);
+  bool a_connected = room_a->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(a_connected) << "Room A failed to connect";
 
-  bool b_connected = room_b->Connect(config_.url, config_.token_b, options);
+  bool b_connected = room_b->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(b_connected) << "Room B failed to connect";
 
   std::string identity_a = room_a->localParticipant()->identity();
@@ -694,7 +694,7 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
   std::string receiver_identity = receiver_room->localParticipant()->identity();
@@ -709,7 +709,7 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
       });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);

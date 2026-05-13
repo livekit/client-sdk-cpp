@@ -57,9 +57,17 @@ public:
   /// True when the result contains a success value.
   bool ok() const noexcept { return storage_.index() == 0; }
   /// True when the result contains an error.
-  bool has_error() const noexcept { return !ok(); }
+  bool hasError() const noexcept { return !ok(); }
   /// Allows `if (result)` style success checks.
   explicit operator bool() const noexcept { return ok(); }
+
+  // Deprecated - see hasError()
+  // NOLINTBEGIN(readability-identifier-naming)
+  [[deprecated("Result::has_error is deprecated; use Result::hasError instead")]]
+  bool has_error() const noexcept {
+    return hasError();
+  }
+  // NOLINTEND(readability-identifier-naming)
 
   // TODO (AEG): clang-tidy flagged these accessors because the signatures are
   // marked noexcept, but std::get can throw a std::bad_variant_access exception
@@ -94,31 +102,31 @@ public:
     return std::get<0>(std::move(storage_));
   }
 
-  /// Access the error value. Requires `has_error() == true`.
+  /// Access the error value. Requires `hasError() == true`.
   // NOLINTNEXTLINE(bugprone-exception-escape)
   E& error() & noexcept {
-    assert(has_error());
+    assert(hasError());
     return std::get<1>(storage_);
   }
 
-  /// Access the error value. Requires `has_error() == true`.
+  /// Access the error value. Requires `hasError() == true`.
   // NOLINTNEXTLINE(bugprone-exception-escape)
   const E& error() const& noexcept {
-    assert(has_error());
+    assert(hasError());
     return std::get<1>(storage_);
   }
 
-  /// Move the error value out. Requires `has_error() == true`.
+  /// Move the error value out. Requires `hasError() == true`.
   // NOLINTNEXTLINE(bugprone-exception-escape)
   E&& error() && noexcept {
-    assert(has_error());
+    assert(hasError());
     return std::get<1>(std::move(storage_));
   }
 
-  /// Move the error value out. Requires `has_error() == true`.
+  /// Move the error value out. Requires `hasError() == true`.
   // NOLINTNEXTLINE(bugprone-exception-escape)
   const E&& error() const&& noexcept {
-    assert(has_error());
+    assert(hasError());
     return std::get<1>(std::move(storage_));
   }
 
@@ -149,34 +157,42 @@ public:
   /// True when the operation succeeded.
   bool ok() const noexcept { return !error_.has_value(); }
   /// True when the operation failed.
-  bool has_error() const noexcept { return error_.has_value(); }
+  bool hasError() const noexcept { return error_.has_value(); }
   /// Allows `if (result)` style success checks.
   explicit operator bool() const noexcept { return ok(); }
+
+  // Deprecated - see hasError()
+  // NOLINTBEGIN(readability-identifier-naming)
+  [[deprecated("Result::has_error is deprecated; use Result::hasError instead")]]
+  bool has_error() const noexcept {
+    return hasError();
+  }
+  // NOLINTEND(readability-identifier-naming)
 
   /// Validates success in debug builds. Mirrors the `value()` API shape.
   void value() const noexcept { assert(ok()); }
 
-  /// Access the error value. Requires `has_error() == true`.
+  /// Access the error value. Requires `hasError() == true`.
   E& error() & noexcept {
-    assert(has_error());
+    assert(hasError());
     return *error_;
   }
 
-  /// Access the error value. Requires `has_error() == true`.
+  /// Access the error value. Requires `hasError() == true`.
   const E& error() const& noexcept {
-    assert(has_error());
+    assert(hasError());
     return *error_;
   }
 
-  /// Move the error value out. Requires `has_error() == true`.
+  /// Move the error value out. Requires `hasError() == true`.
   E&& error() && noexcept {
-    assert(has_error());
+    assert(hasError());
     return std::move(*error_);
   }
 
-  /// Move the error value out. Requires `has_error() == true`.
+  /// Move the error value out. Requires `hasError() == true`.
   const E&& error() const&& noexcept {
-    assert(has_error());
+    assert(hasError());
     return std::move(*error_);
   }
 

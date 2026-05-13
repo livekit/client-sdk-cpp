@@ -33,7 +33,7 @@ std::shared_ptr<LocalVideoTrack> LocalVideoTrack::createLocalVideoTrack(const st
   proto::FfiRequest req;
   auto* msg = req.mutable_create_video_track();
   msg->set_name(name);
-  msg->set_source_handle(static_cast<uint64_t>(source->ffi_handle_id()));
+  msg->set_source_handle(static_cast<uint64_t>(source->ffiHandleId()));
 
   const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   const proto::OwnedTrack& owned = resp.create_video_track().track();
@@ -42,14 +42,14 @@ std::shared_ptr<LocalVideoTrack> LocalVideoTrack::createLocalVideoTrack(const st
 }
 
 void LocalVideoTrack::mute() {
-  if (!has_handle()) {
+  if (!hasHandle()) {
     setMuted(true);
     return;
   }
 
   proto::FfiRequest req;
   auto* msg = req.mutable_local_track_mute();
-  msg->set_track_handle(static_cast<uint64_t>(ffi_handle_id()));
+  msg->set_track_handle(static_cast<uint64_t>(ffiHandleId()));
   msg->set_mute(true);
 
   (void)FfiClient::instance().sendRequest(req);
@@ -57,20 +57,22 @@ void LocalVideoTrack::mute() {
 }
 
 void LocalVideoTrack::unmute() {
-  if (!has_handle()) {
+  if (!hasHandle()) {
     setMuted(false);
     return;
   }
 
   proto::FfiRequest req;
   auto* msg = req.mutable_local_track_mute();
-  msg->set_track_handle(static_cast<uint64_t>(ffi_handle_id()));
+  msg->set_track_handle(static_cast<uint64_t>(ffiHandleId()));
   msg->set_mute(false);
 
   (void)FfiClient::instance().sendRequest(req);
   setMuted(false);
 }
 
-std::string LocalVideoTrack::to_string() const { return "rtc.LocalVideoTrack(sid=" + sid() + ", name=" + name() + ")"; }
+std::string LocalVideoTrack::toString() const { return "rtc.LocalVideoTrack(sid=" + sid() + ", name=" + name() + ")"; }
+
+std::string LocalVideoTrack::to_string() const { return toString(); }
 
 } // namespace livekit

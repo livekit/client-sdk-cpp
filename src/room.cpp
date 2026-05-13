@@ -179,7 +179,7 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
     }
 
     // Install listener (Room is fully initialized)
-    auto listenerId = FfiClient::instance().addListener([this](const proto::FfiEvent& e) { OnEvent(e); });
+    auto listenerId = FfiClient::instance().addListener([this](const proto::FfiEvent& e) { onEvent(e); });
     {
       const std::scoped_lock<std::mutex> g(lock_);
       listener_id_ = listenerId;
@@ -198,10 +198,12 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
   return connect(url, token, options);
 }
 
-RoomInfoData Room::room_info() const {
+RoomInfoData Room::roomInfo() const {
   const std::scoped_lock<std::mutex> g(lock_);
   return room_info_;
 }
+
+RoomInfoData Room::room_info() const { return roomInfo(); }
 
 LocalParticipant* Room::localParticipant() const {
   const std::scoped_lock<std::mutex> g(lock_);
@@ -336,7 +338,7 @@ void Room::removeOnDataFrameCallback(DataFrameCallbackId id) {
   }
 }
 
-void Room::OnEvent(const FfiEvent& event) {
+void Room::onEvent(const FfiEvent& event) {
   // Take a snapshot of the delegate under lock, but do NOT call it under the
   // lock.
   RoomDelegate* delegate_snapshot = nullptr;
@@ -867,7 +869,7 @@ void Room::OnEvent(const FfiEvent& event) {
               break;
             }
             const std::string old_metadata = participant->metadata();
-            participant->set_metadata(pm.metadata());
+            participant->setMetadata(pm.metadata());
             ev.participant = participant;
             ev.old_metadata = old_metadata;
             ev.new_metadata = participant->metadata();
@@ -898,7 +900,7 @@ void Room::OnEvent(const FfiEvent& event) {
               break;
             }
             const std::string old_name = participant->name();
-            participant->set_name(pn.name());
+            participant->setName(pn.name());
             ev.participant = participant;
             ev.old_name = old_name;
             ev.new_name = participant->name();
@@ -932,7 +934,7 @@ void Room::OnEvent(const FfiEvent& event) {
             for (const auto& entry : pa.attributes()) {
               attrs.emplace(entry.key(), entry.value());
             }
-            participant->set_attributes(attrs);
+            participant->setAttributes(attrs);
 
             // Build changed_attributes map
             for (const auto& entry : pa.changed_attributes()) {
@@ -1323,17 +1325,17 @@ void Room::OnEvent(const FfiEvent& event) {
                 continue;
               }
 
-              participant->set_name(info.name());
-              participant->set_metadata(info.metadata());
+              participant->setName(info.name());
+              participant->setMetadata(info.metadata());
 
               std::unordered_map<std::string, std::string> attrs;
               attrs.reserve(info.attributes_size());
               for (const auto& kv : info.attributes()) {
                 attrs.emplace(kv.first, kv.second);
               }
-              participant->set_attributes(std::move(attrs));
-              participant->set_kind(fromProto(info.kind()));
-              participant->set_disconnect_reason(toDisconnectReason(info.disconnect_reason()));
+              participant->setAttributes(std::move(attrs));
+              participant->setKind(fromProto(info.kind()));
+              participant->setDisconnectReason(toDisconnectReason(info.disconnect_reason()));
 
               ev.participants.push_back(participant);
             }

@@ -209,7 +209,7 @@ TEST_F(RoomServerStressTest, RepeatedConnectDisconnect) {
     Room room;
     RoomOptions options;
 
-    bool connected = room.Connect(server_url_, token_, options);
+    bool connected = room.connect(server_url_, token_, options);
     if (connected) {
       ASSERT_NE(room.localParticipant(), nullptr);
     }

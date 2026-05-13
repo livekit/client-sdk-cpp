@@ -55,13 +55,59 @@ public:
   uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
 
   // Setters (caller ensures threading)
-  void set_name(std::string name) noexcept { name_ = std::move(name); }
-  void set_metadata(std::string metadata) noexcept { metadata_ = std::move(metadata); }
-  void set_attributes(std::unordered_map<std::string, std::string> attrs) noexcept { attributes_ = std::move(attrs); }
-  void set_attribute(const std::string& key, const std::string& value) { attributes_[key] = value; }
-  void remove_attribute(const std::string& key) { attributes_.erase(key); }
-  void set_kind(ParticipantKind kind) noexcept { kind_ = kind; }
-  void set_disconnect_reason(DisconnectReason reason) noexcept { reason_ = reason; }
+  void setName(std::string name) noexcept { name_ = std::move(name); }
+  void setMetadata(std::string metadata) noexcept { metadata_ = std::move(metadata); }
+  void setAttributes(std::unordered_map<std::string, std::string> attrs) noexcept { attributes_ = std::move(attrs); }
+  void setAttribute(const std::string& key, const std::string& value) { attributes_[key] = value; }
+  void removeAttribute(const std::string& key) { attributes_.erase(key); }
+  void setKind(ParticipantKind kind) noexcept { kind_ = kind; }
+  void setDisconnectReason(DisconnectReason reason) noexcept { reason_ = reason; }
+
+  // NOLINTBEGIN(readability-identifier-naming)
+
+  // Deprecated - see setName()
+  [[deprecated("Participant::set_name is deprecated; use Participant::setName instead")]]
+  void set_name(std::string name) noexcept {
+    setName(std::move(name));
+  }
+
+  // Deprecated - see setMetadata()
+  [[deprecated("Participant::set_metadata is deprecated; use Participant::setMetadata instead")]]
+  void set_metadata(std::string metadata) noexcept {
+    setMetadata(std::move(metadata));
+  }
+
+  // Deprecated - see setAttributes()
+  [[deprecated("Participant::set_attributes is deprecated; use Participant::setAttributes instead")]]
+  void set_attributes(std::unordered_map<std::string, std::string> attrs) noexcept {
+    setAttributes(std::move(attrs));
+  }
+
+  // Deprecated - see setAttribute()
+  [[deprecated("Participant::set_attribute is deprecated; use Participant::setAttribute instead")]]
+  void set_attribute(const std::string& key, const std::string& value) {
+    setAttribute(key, value);
+  }
+
+  // Deprecated - see removeAttribute()
+  [[deprecated("Participant::remove_attribute is deprecated; use Participant::removeAttribute instead")]]
+  void remove_attribute(const std::string& key) {
+    removeAttribute(key);
+  }
+
+  // Deprecated - see setKind()
+  [[deprecated("Participant::set_kind is deprecated; use Participant::setKind instead")]]
+  void set_kind(ParticipantKind kind) noexcept {
+    setKind(kind);
+  }
+
+  // Deprecated - see setDisconnectReason()
+  [[deprecated("Participant::set_disconnect_reason is deprecated; use Participant::setDisconnectReason instead")]]
+  void set_disconnect_reason(DisconnectReason reason) noexcept {
+    setDisconnectReason(reason);
+  }
+
+  // NOLINTEND(readability-identifier-naming)
 
 protected:
   virtual std::shared_ptr<TrackPublication> findTrackPublication(const std::string& sid) const = 0;

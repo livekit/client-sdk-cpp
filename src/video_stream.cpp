@@ -135,7 +135,7 @@ void VideoStream::initFromTrack(const std::shared_ptr<Track>& track, const Optio
   // Send FFI request to create a new video stream bound to this track
   FfiRequest req;
   auto* new_video_stream = req.mutable_new_video_stream();
-  new_video_stream->set_track_handle(static_cast<uint64_t>(track->ffi_handle_id()));
+  new_video_stream->set_track_handle(static_cast<uint64_t>(track->ffiHandleId()));
   new_video_stream->set_type(proto::VideoStreamType::VIDEO_STREAM_NATIVE);
   new_video_stream->set_normalize_stride(true);
   new_video_stream->set_format(toProto(options.format));
