@@ -37,7 +37,7 @@ COPY data /client-sdk-cpp/data
 COPY cmake /client-sdk-cpp/cmake
 COPY CMakeLists.txt /client-sdk-cpp/CMakeLists.txt
 COPY build.h.in /client-sdk-cpp/build.h.in
-COPY build-info.json.in /client-sdk-cpp/build-info.json.in
+COPY .build-info.json.in /client-sdk-cpp/.build-info.json.in
 
 # Configure Rust linker: use full GCC path so liblto_plugin.so is found (not /home/installs/ which has no plugin)
 RUN mkdir -p /client-sdk-cpp/client-sdk-rust/.cargo \

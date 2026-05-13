@@ -14,7 +14,7 @@ on:
       - CMakeLists.txt
       - build.sh
       - build.cmd
-      - build-info.json.in
+      - .build-info.json.in
       - vcpkg.json
       - CMakePresets.json
       - docker/Dockerfile.base
@@ -35,7 +35,7 @@ on:
       - CMakeLists.txt
       - build.sh
       - build.cmd
-      - build-info.json.in
+      - .build-info.json.in
       - vcpkg.json
       - CMakePresets.json
       - docker/Dockerfile.base

@@ -193,7 +193,7 @@ configure_file(
   @ONLY
 )
 configure_file(
-  "${LIVEKIT_ROOT_DIR}/build-info.json.in"
+  "${LIVEKIT_ROOT_DIR}/.build-info.json.in"
   "${GENERATED_BUILD_INFO_JSON}"
   @ONLY
 )
