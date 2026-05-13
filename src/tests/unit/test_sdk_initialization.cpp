@@ -17,6 +17,8 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
+#include <string>
+
 namespace livekit::test {
 
 class SDKInitializationTest : public ::testing::Test {
@@ -63,6 +65,14 @@ TEST_F(SDKInitializationTest, MultipleShutdowns) {
   EXPECT_NO_THROW(livekit::shutdown());
   EXPECT_NO_THROW(livekit::shutdown());
   EXPECT_NO_THROW(livekit::shutdown());
+}
+
+TEST(SDKBuildInfoTest, ServerFacingVersionDoesNotIncludeBuildFlavorSuffix) {
+  const std::string version = LIVEKIT_BUILD_VERSION;
+
+  EXPECT_FALSE(version.empty());
+  EXPECT_EQ(version.find("-debug"), std::string::npos);
+  EXPECT_EQ(version.find("-release"), std::string::npos);
 }
 
 } // namespace livekit::test

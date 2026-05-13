@@ -163,7 +163,7 @@ bool FfiClient::initialize(bool capture_logs) {
     return false;
   }
   initialized_.store(true, std::memory_order_release);
-  livekit_ffi_initialize(&LivekitFfiCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION_FULL);
+  livekit_ffi_initialize(&LivekitFfiCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION);
   return true;
 }
 
