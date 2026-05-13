@@ -112,9 +112,12 @@ public:
   // Metadata APIs (set metadata / name / attributes)
   // -------------------------------------------------------------------------
 
+  // TODO before merge, align on these and whether they should actually shadow
+  // NOLINTBEGIN(bugprone-derived-method-shadowing-base-method)
   void setMetadata(const std::string& metadata);
   void setName(const std::string& name);
   void setAttributes(const std::unordered_map<std::string, std::string>& attributes);
+  // NOLINTEND(bugprone-derived-method-shadowing-base-method)
 
   /**
    * Set track subscription permissions for this participant.
