@@ -14,25 +14,6 @@
  * limitations under the License.
  */
 
-/// @file test_ffi_client.cpp
-/// @brief Unit tests for FfiClient (the internal singleton that bridges the
-///        C++ SDK to the Rust FFI runtime).
-///
-/// Scope:
-///   - Singleton identity
-///   - initialize() / shutdown() / isInitialized() state machine
-///   - AddListener() / RemoveListener() lifecycle and ID uniqueness
-///   - sendRequest() invariants that are reachable without a live FFI
-///     roundtrip (empty-serialization failure path)
-///
-/// Out of scope (covered by integration tests with a live Rust runtime):
-///   - Real sendRequest()/sendRequestAsync() responses
-///   - Listener invocation from the FFI callback thread
-///
-/// DISABLED_ tests in this file are stubs for the "isInitialized() gate"
-/// design proposal (see project notes). Strip the DISABLED_ prefix once
-/// the corresponding gate lands in production.
-
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
@@ -139,7 +120,7 @@ TEST_F(FfiClientTest, AddListenerReturnsUniqueIds) {
 }
 
 TEST_F(FfiClientTest, RemoveListenerWithUnknownIdIsSafe) {
-  EXPECT_NO_THROW(FfiClient::instance().RemoveListener(/*never registered=*/424242));
+  EXPECT_NO_THROW(FfiClient::instance().RemoveListener(424242));
 }
 
 TEST_F(FfiClientTest, RemoveListenerIsIdempotent) {
@@ -160,7 +141,7 @@ TEST_F(FfiClientTest, ListenerRegistrationSurvivesShutdownReinitCycle) {
 }
 
 // ---------------------------------------------------------------------------
-// sendRequest() — invariants reachable without a live FFI
+// These tests ensure FfiClient methods throw in various error conditions
 // ---------------------------------------------------------------------------
 
 TEST_F(FfiClientTest, SendRequestThrowsOnEmptyRequest) {
@@ -171,18 +152,7 @@ TEST_F(FfiClientTest, SendRequestThrowsOnEmptyRequest) {
   EXPECT_THROW(FfiClient::instance().sendRequest(req), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, SendRequestWhenNotInitialized) {
-  ASSERT_FALSE(FfiClient::instance().isInitialized());
-
-  proto::FfiRequest req;
-  // Populate any oneof so we get past the empty-bytes serialization check
-  // and hit the proposed init gate instead.
-  (void)req.mutable_dispose();
-
-  // EXPECT_THROW(FfiClient::instance().sendRequest(req), std::runtime_error);
-}
-
-TEST_F(FfiClientTest, DISABLED_SendRequestThrowsAfterShutdown) {
+TEST_F(FfiClientTest, SendRequestThrowsAfterShutdown) {
   ASSERT_TRUE(FfiClient::instance().initialize(false));
   FfiClient::instance().shutdown();
   ASSERT_FALSE(FfiClient::instance().isInitialized());
@@ -193,146 +163,100 @@ TEST_F(FfiClientTest, DISABLED_SendRequestThrowsAfterShutdown) {
   EXPECT_THROW(FfiClient::instance().sendRequest(req), std::runtime_error);
 }
 
-// ---------------------------------------------------------------------------
-// PROPOSED: *Async helper isInitialized() gates (Tier 1 #3)
-//
-// Each async helper (connectAsync, publishTrackAsync, captureAudioFrameAsync,
-// publishDataAsync, performRpcAsync, publishDataTrackAsync, etc.) should
-// surface "not initialized" through its return channel:
-//   - std::future<T> helpers: the future should resolve with an exception
-//     (fut.get() throws std::runtime_error).
-//   - Result<T, E> helpers (subscribeDataTrack, publishDataTrackAsync's
-//     Result payload): the Result should be a failure with an appropriate
-//     error code.
-//
-// Each stub below pins down the *contract* for one helper. They are kept
-// DISABLED for the same reason as sendRequest above: without the gate, the
-// helper either calls into Rust unsafely or registers a pending waiter that
-// will never complete.
-//
-// As you add each gate, strip the DISABLED_ prefix one test at a time.
-// ---------------------------------------------------------------------------
-
-TEST_F(FfiClientTest, DISABLED_ConnectAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_ConnectAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
 
   RoomOptions options;
-  auto fut = FfiClient::instance().connectAsync("wss://localhost:7880", "fake-token", options);
-  EXPECT_THROW(fut.get(), std::runtime_error);
+  EXPECT_THROW(FfiClient::instance().connectAsync("wss://localhost:7880", "fake-token", options), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, DISABLED_PublishTrackAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_PublishTrackAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
 
-  // Handle values are placeholders — the gate must fail before they are
-  // ever forwarded to Rust.
-  // TrackPublishOptions opts;
-  // auto fut = FfiClient::instance().publishTrackAsync(/*participant=*/1, /*track=*/2, opts);
-  // EXPECT_THROW(fut.get(), std::runtime_error);
-  GTEST_SKIP() << "TODO: enable once publishTrackAsync gate lands";
+  TrackPublishOptions options;
+  EXPECT_THROW(FfiClient::instance().publishTrackAsync(1, 2, options), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, DISABLED_UnpublishTrackAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_UnpublishTrackAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
-  // auto fut = FfiClient::instance().unpublishTrackAsync(/*participant=*/1, "sid", true);
-  // EXPECT_THROW(fut.get(), std::runtime_error);
-  GTEST_SKIP() << "TODO: enable once unpublishTrackAsync gate lands";
+
+  EXPECT_THROW(FfiClient::instance().unpublishTrackAsync(1, "sid", true), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, DISABLED_PublishDataAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_PublishDataAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
-  // const std::uint8_t payload[1] = {0};
-  // auto fut = FfiClient::instance().publishDataAsync(
-  //     /*participant=*/1, payload, 1, /*reliable=*/true, /*destinations=*/{}, /*topic=*/"");
-  // EXPECT_THROW(fut.get(), std::runtime_error);
-  GTEST_SKIP() << "TODO: enable once publishDataAsync gate lands";
+
+  const std::uint8_t payload[1] = {0};
+  EXPECT_THROW(FfiClient::instance().publishDataAsync(1, payload, 1, true, {}, ""), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, DISABLED_PublishSipDtmfAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_PublishSipDtmfAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
-  // auto fut = FfiClient::instance().publishSipDtmfAsync(/*participant=*/1, /*code=*/1, "1", {});
-  // EXPECT_THROW(fut.get(), std::runtime_error);
-  GTEST_SKIP() << "TODO: enable once publishSipDtmfAsync gate lands";
+
+  EXPECT_THROW(FfiClient::instance().publishSipDtmfAsync(1, 1, "1", {}), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, DISABLED_SetLocalMetadataAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_SetLocalMetadataAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
-  // auto fut = FfiClient::instance().setLocalMetadataAsync(/*participant=*/1, "metadata");
-  // EXPECT_THROW(fut.get(), std::runtime_error);
-  GTEST_SKIP() << "TODO: enable once setLocalMetadataAsync gate lands";
+
+  EXPECT_THROW(FfiClient::instance().setLocalMetadataAsync(1, "metadata"), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, DISABLED_CaptureAudioFrameAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_CaptureAudioFrameAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
-  // proto::AudioFrameBufferInfo buf;
-  // auto fut = FfiClient::instance().captureAudioFrameAsync(/*source=*/1, buf);
-  // EXPECT_THROW(fut.get(), std::runtime_error);
-  GTEST_SKIP() << "TODO: enable once captureAudioFrameAsync gate lands";
+
+  proto::AudioFrameBufferInfo buf;
+  EXPECT_THROW(FfiClient::instance().captureAudioFrameAsync(1, buf), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, DISABLED_PerformRpcAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_PerformRpcAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
-  // auto fut = FfiClient::instance().performRpcAsync(
-  //     /*participant=*/1, "dest", "method", "payload", std::nullopt);
-  // EXPECT_THROW(fut.get(), std::runtime_error);
-  GTEST_SKIP() << "TODO: enable once performRpcAsync gate lands";
+
+  EXPECT_THROW(FfiClient::instance().performRpcAsync(1, "dest", "method", "payload", std::nullopt), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, DISABLED_GetTrackStatsAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_GetTrackStatsAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
-  // auto fut = FfiClient::instance().getTrackStatsAsync(/*track=*/1);
-  // EXPECT_THROW(fut.get(), std::runtime_error);
-  GTEST_SKIP() << "TODO: enable once getTrackStatsAsync gate lands";
+
+  EXPECT_THROW(FfiClient::instance().getTrackStatsAsync(1), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, DISABLED_PublishDataTrackAsyncReturnsFailureWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_PublishDataTrackAsyncFails) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
 
-  // publishDataTrackAsync's future yields a Result<..., PublishDataTrackError>,
-  // so the convention here is "failure result" rather than a thrown exception.
-  //
-  // auto fut = FfiClient::instance().publishDataTrackAsync(/*participant=*/1, "name");
-  // auto result = fut.get();
-  // EXPECT_FALSE(result.ok());
-  // EXPECT_EQ(result.error().code, PublishDataTrackErrorCode::INVALID_HANDLE);  // or NOT_INITIALIZED
-  GTEST_SKIP() << "TODO: enable once publishDataTrackAsync gate lands; "
-                  "decide between INVALID_HANDLE and a new NOT_INITIALIZED code";
+  auto fut_result = FfiClient::instance().publishDataTrackAsync(1, "name");
+  auto result = fut_result.get();
+  EXPECT_FALSE(result.ok());
+  EXPECT_EQ(result.error().code, PublishDataTrackErrorCode::INTERNAL);
 }
 
-TEST_F(FfiClientTest, DISABLED_SubscribeDataTrackReturnsFailureWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_SubscribeDataTrackFails) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
 
-  // subscribeDataTrack returns Result<..., SubscribeDataTrackError> directly.
-  //
-  // auto result = FfiClient::instance().subscribeDataTrack(/*track=*/1);
-  // EXPECT_FALSE(result.ok());
-  // EXPECT_EQ(result.error().code, SubscribeDataTrackErrorCode::INVALID_HANDLE);  // or NOT_INITIALIZED
-  GTEST_SKIP() << "TODO: enable once subscribeDataTrack gate lands; "
-                  "decide between INVALID_HANDLE and a new NOT_INITIALIZED code";
+  auto result = FfiClient::instance().subscribeDataTrack(1);
+  EXPECT_FALSE(result.ok());
+  EXPECT_EQ(result.error().code, SubscribeDataTrackErrorCode::INTERNAL);
 }
 
-TEST_F(FfiClientTest, DISABLED_SendStreamHeaderAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_SendStreamHeaderAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
-  // proto::DataStream::Header header;
-  // auto fut = FfiClient::instance().sendStreamHeaderAsync(/*participant=*/1, header, {}, "sender");
-  // EXPECT_THROW(fut.get(), std::runtime_error);
-  GTEST_SKIP() << "TODO: enable once sendStreamHeaderAsync gate lands";
+
+  proto::DataStream::Header header;
+  EXPECT_THROW(FfiClient::instance().sendStreamHeaderAsync(1, header, {}, "sender"), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, DISABLED_SendStreamChunkAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_SendStreamChunkAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
-  // proto::DataStream::Chunk chunk;
-  // auto fut = FfiClient::instance().sendStreamChunkAsync(/*participant=*/1, chunk, {}, "sender");
-  // EXPECT_THROW(fut.get(), std::runtime_error);
-  GTEST_SKIP() << "TODO: enable once sendStreamChunkAsync gate lands";
+
+  proto::DataStream::Chunk chunk;
+  EXPECT_THROW(FfiClient::instance().sendStreamChunkAsync(1, chunk, {}, "sender"), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, DISABLED_SendStreamTrailerAsyncFailsWhenNotInitialized) {
+TEST_F(FfiClientTest, NotInitialized_SendStreamTrailerAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
-  // proto::DataStream::Trailer trailer;
-  // auto fut = FfiClient::instance().sendStreamTrailerAsync(/*participant=*/1, trailer, "sender");
-  // EXPECT_THROW(fut.get(), std::runtime_error);
-  GTEST_SKIP() << "TODO: enable once sendStreamTrailerAsync gate lands";
+
+  proto::DataStream::Trailer trailer;
+  EXPECT_THROW(FfiClient::instance().sendStreamTrailerAsync(1, trailer, "sender"), std::runtime_error);
 }
 
 } // namespace livekit::test
