@@ -16,6 +16,9 @@
 
 #pragma once
 
+// TODO (AEG) This include (cassert) leaked into downstream cpp examples, removing it here breaks builds.
+// Remove it once examples include it themselves
+#include <cassert>
 #include <optional>
 #include <stdexcept>
 #include <type_traits>
