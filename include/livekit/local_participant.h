@@ -112,12 +112,47 @@ public:
   // Metadata APIs (set metadata / name / attributes)
   // -------------------------------------------------------------------------
 
-  // TODO before merge, align on these and whether they should actually shadow
-  // NOLINTBEGIN(bugprone-derived-method-shadowing-base-method)
+  /**
+   * Update this participant's metadata on the server.
+   *
+   * Sends an FFI request to the LiveKit server to change the metadata
+   * associated with the local participant. Other participants will be
+   * notified via \c onParticipantMetadataChanged.
+   */
+  void updateMetadata(const std::string& metadata);
+
+  /**
+   * Update this participant's display name on the server.
+   *
+   * Sends an FFI request to the LiveKit server to change the name
+   * associated with the local participant. Other participants will be
+   * notified via \c onParticipantNameChanged.
+   */
+  void updateName(const std::string& name);
+
+  /**
+   * Update this participant's attributes on the server.
+   *
+   * Sends an FFI request to the LiveKit server to replace the attribute
+   * map for the local participant. Other participants will be notified
+   * via \c onParticipantAttributesChanged.
+   */
+  void updateAttributes(const std::unordered_map<std::string, std::string>& attributes);
+
+  // The following are deprecated to avoid shadowing the in-memory setters on the base \c Participant class
+  // NOLINTBEGIN(readability-identifier-naming, bugprone-derived-method-shadowing-base-method)
+  // Deprecated - see updateMetadata
+  [[deprecated("LocalParticipant::setMetadata is deprecated; use LocalParticipant::updateMetadata instead")]]
   void setMetadata(const std::string& metadata);
+
+  // Deprecated - see updateName
+  [[deprecated("LocalParticipant::setName is deprecated; use LocalParticipant::updateName instead")]]
   void setName(const std::string& name);
+
+  // Deprecated - see updateAttributes
+  [[deprecated("LocalParticipant::setAttributes is deprecated; use LocalParticipant::updateAttributes instead")]]
   void setAttributes(const std::unordered_map<std::string, std::string>& attributes);
-  // NOLINTEND(bugprone-derived-method-shadowing-base-method)
+  // NOLINTEND(readability-identifier-naming, bugprone-derived-method-shadowing-base-method)
 
   /**
    * Set track subscription permissions for this participant.
