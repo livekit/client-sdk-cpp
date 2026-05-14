@@ -96,20 +96,20 @@ void LocalParticipant::publishDtmf(int code, const std::string& digit) {
   fut.get();
 }
 
-void LocalParticipant::updateMetadata(const std::string& metadata) {
+void LocalParticipant::setMetadata(const std::string& metadata) {
   auto handle_id = ffiHandleId();
   if (handle_id == 0) {
-    throw std::runtime_error("LocalParticipant::updateMetadata: invalid FFI handle");
+    throw std::runtime_error("LocalParticipant::setMetadata: invalid FFI handle");
   }
   auto fut = FfiClient::instance().setLocalMetadataAsync(static_cast<std::uint64_t>(handle_id), metadata);
 
   fut.get();
 }
 
-void LocalParticipant::updateName(const std::string& name) {
+void LocalParticipant::setName(const std::string& name) {
   auto handle_id = ffiHandleId();
   if (handle_id == 0) {
-    throw std::runtime_error("LocalParticipant::updateName: invalid FFI handle");
+    throw std::runtime_error("LocalParticipant::setName: invalid FFI handle");
   }
 
   // No async helper defined for SetLocalName in FfiClient yet, so keep using
@@ -122,10 +122,10 @@ void LocalParticipant::updateName(const std::string& name) {
   (void)FfiClient::instance().sendRequest(req);
 }
 
-void LocalParticipant::updateAttributes(const std::unordered_map<std::string, std::string>& attributes) {
+void LocalParticipant::setAttributes(const std::unordered_map<std::string, std::string>& attributes) {
   auto handle_id = ffiHandleId();
   if (handle_id == 0) {
-    throw std::runtime_error("LocalParticipant::updateAttributes: invalid FFI handle");
+    throw std::runtime_error("LocalParticipant::setAttributes: invalid FFI handle");
   }
 
   // No async helper defined for SetLocalAttributes in FfiClient yet.
@@ -140,14 +140,6 @@ void LocalParticipant::updateAttributes(const std::unordered_map<std::string, st
   }
 
   (void)FfiClient::instance().sendRequest(req);
-}
-
-void LocalParticipant::setMetadata(const std::string& metadata) { updateMetadata(metadata); }
-
-void LocalParticipant::setName(const std::string& name) { updateName(name); }
-
-void LocalParticipant::setAttributes(const std::unordered_map<std::string, std::string>& attributes) {
-  updateAttributes(attributes);
 }
 
 // ----------------------------------------------------------------------------
