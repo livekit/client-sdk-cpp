@@ -35,9 +35,8 @@ namespace livekit {
  * - an error value of type `E`
  *
  * Accessors validate their preconditions before returning. Calling `value()`
- * on an error result, or `error()` on a success result, throws
- * `std::runtime_error`. Always check `ok()` / `has_error()` (or the `bool`
- * conversion) before calling `value()` or `error()`.
+ * on an error result, or `error()` on a success result, throws `std::logic_error`.
+ * Avoid this by checking `ok()` / `has_error()` / if (result) before calling `value()` or `error()`.
  */
 template <typename T, typename E>
 class [[nodiscard]] Result {
@@ -63,80 +62,80 @@ public:
 
   /// Access the success value.
   ///
-  /// @throws std::runtime_error if `ok() == false`.
+  /// @throws std::logic_error if `ok() == false`.
   T& value() & {
     if (!ok()) {
-      throw std::runtime_error("Result::value() called on an error result");
+      throw std::logic_error("Result::value() called on an error result");
     }
     return std::get<0>(storage_);
   }
 
   /// Access the success value.
   ///
-  /// @throws std::runtime_error if `ok() == false`.
+  /// @throws std::logic_error if `ok() == false`.
   const T& value() const& {
     if (!ok()) {
-      throw std::runtime_error("Result::value() called on an error result");
+      throw std::logic_error("Result::value() called on an error result");
     }
     return std::get<0>(storage_);
   }
 
   /// Move the success value out.
   ///
-  /// @throws std::runtime_error if `ok() == false`.
+  /// @throws std::logic_error if `ok() == false`.
   T&& value() && {
     if (!ok()) {
-      throw std::runtime_error("Result::value() called on an error result");
+      throw std::logic_error("Result::value() called on an error result");
     }
     return std::get<0>(std::move(storage_));
   }
 
   /// Move the success value out.
   ///
-  /// @throws std::runtime_error if `ok() == false`.
+  /// @throws std::logic_error if `ok() == false`.
   const T&& value() const&& {
     if (!ok()) {
-      throw std::runtime_error("Result::value() called on an error result");
+      throw std::logic_error("Result::value() called on an error result");
     }
     return std::get<0>(std::move(storage_));
   }
 
   /// Access the error value.
   ///
-  /// @throws std::runtime_error if `has_error() == false`.
+  /// @throws std::logic_error if `has_error() == false`.
   E& error() & {
     if (!has_error()) {
-      throw std::runtime_error("Result::error() called on a success result");
+      throw std::logic_error("Result::error() called on a success result");
     }
     return std::get<1>(storage_);
   }
 
   /// Access the error value.
   ///
-  /// @throws std::runtime_error if `has_error() == false`.
+  /// @throws std::logic_error if `has_error() == false`.
   const E& error() const& {
     if (!has_error()) {
-      throw std::runtime_error("Result::error() called on a success result");
+      throw std::logic_error("Result::error() called on a success result");
     }
     return std::get<1>(storage_);
   }
 
   /// Move the error value out.
   ///
-  /// @throws std::runtime_error if `has_error() == false`.
+  /// @throws std::logic_error if `has_error() == false`.
   E&& error() && {
     if (!has_error()) {
-      throw std::runtime_error("Result::error() called on a success result");
+      throw std::logic_error("Result::error() called on a success result");
     }
     return std::get<1>(std::move(storage_));
   }
 
   /// Move the error value out.
   ///
-  /// @throws std::runtime_error if `has_error() == false`.
+  /// @throws std::logic_error if `has_error() == false`.
   const E&& error() const&& {
     if (!has_error()) {
-      throw std::runtime_error("Result::error() called on a success result");
+      throw std::logic_error("Result::error() called on a success result");
     }
     return std::get<1>(std::move(storage_));
   }
@@ -175,49 +174,49 @@ public:
   /// Validates success. Mirrors the `value()` API shape on the primary
   /// template so generic code can use the same form for both.
   ///
-  /// @throws std::runtime_error if `ok() == false`.
+  /// @throws std::logic_error if `ok() == false`.
   void value() const {
     if (!ok()) {
-      throw std::runtime_error("Result::value() called on an error result");
+      throw std::logic_error("Result::value() called on an error result");
     }
   }
 
   /// Access the error value.
   ///
-  /// @throws std::runtime_error if `has_error() == false`.
+  /// @throws std::logic_error if `has_error() == false`.
   E& error() & {
     if (!error_.has_value()) {
-      throw std::runtime_error("Result::error() called on a success result");
+      throw std::logic_error("Result::error() called on a success result");
     }
     return *error_;
   }
 
   /// Access the error value.
   ///
-  /// @throws std::runtime_error if `has_error() == false`.
+  /// @throws std::logic_error if `has_error() == false`.
   const E& error() const& {
     if (!error_.has_value()) {
-      throw std::runtime_error("Result::error() called on a success result");
+      throw std::logic_error("Result::error() called on a success result");
     }
     return *error_;
   }
 
   /// Move the error value out.
   ///
-  /// @throws std::runtime_error if `has_error() == false`.
+  /// @throws std::logic_error if `has_error() == false`.
   E&& error() && {
     if (!error_.has_value()) {
-      throw std::runtime_error("Result::error() called on a success result");
+      throw std::logic_error("Result::error() called on a success result");
     }
     return std::move(*error_);
   }
 
   /// Move the error value out.
   ///
-  /// @throws std::runtime_error if `has_error() == false`.
+  /// @throws std::logic_error if `has_error() == false`.
   const E&& error() const&& {
     if (!error_.has_value()) {
-      throw std::runtime_error("Result::error() called on a success result");
+      throw std::logic_error("Result::error() called on a success result");
     }
     return std::move(*error_);
   }

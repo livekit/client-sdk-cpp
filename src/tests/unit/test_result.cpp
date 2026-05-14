@@ -133,37 +133,37 @@ TEST(ResultTest, FailureStringError) {
 }
 
 // ---------------------------------------------------------------------------
-// Result<T, E> — precondition violations throw std::runtime_error
+// Result<T, E> — precondition violations throw std::logic_error
 // ---------------------------------------------------------------------------
 
-TEST(ResultTest, ValueOnFailureThrowsRuntimeError) {
+TEST(ResultTest, ValueOnFailureThrowsLogicError) {
   auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
-  EXPECT_THROW(static_cast<void>(r.value()), std::runtime_error);
+  EXPECT_THROW(static_cast<void>(r.value()), std::logic_error);
 }
 
-TEST(ResultTest, ConstValueOnFailureThrowsRuntimeError) {
+TEST(ResultTest, ConstValueOnFailureThrowsLogicError) {
   const auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
-  EXPECT_THROW(static_cast<void>(r.value()), std::runtime_error);
+  EXPECT_THROW(static_cast<void>(r.value()), std::logic_error);
 }
 
-TEST(ResultTest, MoveValueOnFailureThrowsRuntimeError) {
+TEST(ResultTest, MoveValueOnFailureThrowsLogicError) {
   auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
-  EXPECT_THROW(static_cast<void>(std::move(r).value()), std::runtime_error);
+  EXPECT_THROW(static_cast<void>(std::move(r).value()), std::logic_error);
 }
 
-TEST(ResultTest, ErrorOnSuccessThrowsRuntimeError) {
+TEST(ResultTest, ErrorOnSuccessThrowsLogicError) {
   auto r = Result<int, SimpleError>::success(42);
-  EXPECT_THROW(static_cast<void>(r.error()), std::runtime_error);
+  EXPECT_THROW(static_cast<void>(r.error()), std::logic_error);
 }
 
-TEST(ResultTest, ConstErrorOnSuccessThrowsRuntimeError) {
+TEST(ResultTest, ConstErrorOnSuccessThrowsLogicError) {
   const auto r = Result<int, SimpleError>::success(42);
-  EXPECT_THROW(static_cast<void>(r.error()), std::runtime_error);
+  EXPECT_THROW(static_cast<void>(r.error()), std::logic_error);
 }
 
-TEST(ResultTest, MoveErrorOnSuccessThrowsRuntimeError) {
+TEST(ResultTest, MoveErrorOnSuccessThrowsLogicError) {
   auto r = Result<int, SimpleError>::success(42);
-  EXPECT_THROW(static_cast<void>(std::move(r).error()), std::runtime_error);
+  EXPECT_THROW(static_cast<void>(std::move(r).error()), std::logic_error);
 }
 
 // ---------------------------------------------------------------------------
@@ -222,22 +222,22 @@ TEST(ResultVoidTest, FailureMoveError) {
 }
 
 // ---------------------------------------------------------------------------
-// Result<void, E> — precondition violations throw std::runtime_error
+// Result<void, E> — precondition violations throw std::logic_error
 // ---------------------------------------------------------------------------
 
-TEST(ResultVoidTest, ValueOnFailureThrowsRuntimeError) {
+TEST(ResultVoidTest, ValueOnFailureThrowsLogicError) {
   auto r = Result<void, SimpleError>::failure(SimpleError{1, "oops"});
-  EXPECT_THROW(r.value(), std::runtime_error);
+  EXPECT_THROW(r.value(), std::logic_error);
 }
 
-TEST(ResultVoidTest, ErrorOnSuccessThrowsRuntimeError) {
+TEST(ResultVoidTest, ErrorOnSuccessThrowsLogicError) {
   auto r = Result<void, SimpleError>::success();
-  EXPECT_THROW(static_cast<void>(r.error()), std::runtime_error);
+  EXPECT_THROW(static_cast<void>(r.error()), std::logic_error);
 }
 
-TEST(ResultVoidTest, MoveErrorOnSuccessThrowsRuntimeError) {
+TEST(ResultVoidTest, MoveErrorOnSuccessThrowsLogicError) {
   auto r = Result<void, SimpleError>::success();
-  EXPECT_THROW(static_cast<void>(std::move(r).error()), std::runtime_error);
+  EXPECT_THROW(static_cast<void>(std::move(r).error()), std::logic_error);
 }
 
 // ---------------------------------------------------------------------------
