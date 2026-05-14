@@ -20,7 +20,8 @@
 //
 // On Unix, the SDK is built with -fvisibility=hidden / -fvisibility-inlines-hidden,
 // so every symbol defaults to hidden. LIVEKIT_API re-exposes the symbol with
-// default visibility. Consumers see no annotation (just a normal declaration).
+// default visibility. Consumers also need default visibility so public RTTI
+// stays unique across shared-library boundaries.
 //
 // On Windows, the SDK is built without WINDOWS_EXPORT_ALL_SYMBOLS, so symbols
 // must be explicitly tagged with __declspec(dllexport) when building the SDK
@@ -34,11 +35,7 @@
 #define LIVEKIT_API __declspec(dllimport)
 #endif
 #else
-#if defined(LIVEKIT_BUILDING_SDK)
 #define LIVEKIT_API __attribute__((visibility("default")))
-#else
-#define LIVEKIT_API
-#endif
 #endif
 
 // LIVEKIT_INTERNAL_API marks a symbol that is NOT part of the public ABI but
