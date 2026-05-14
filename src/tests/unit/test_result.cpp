@@ -28,6 +28,7 @@
 #include <livekit/result.h>
 
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -132,6 +133,40 @@ TEST(ResultTest, FailureStringError) {
 }
 
 // ---------------------------------------------------------------------------
+// Result<T, E> — precondition violations throw std::runtime_error
+// ---------------------------------------------------------------------------
+
+TEST(ResultTest, ValueOnFailureThrowsRuntimeError) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(static_cast<void>(r.value()), std::runtime_error);
+}
+
+TEST(ResultTest, ConstValueOnFailureThrowsRuntimeError) {
+  const auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(static_cast<void>(r.value()), std::runtime_error);
+}
+
+TEST(ResultTest, MoveValueOnFailureThrowsRuntimeError) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(static_cast<void>(std::move(r).value()), std::runtime_error);
+}
+
+TEST(ResultTest, ErrorOnSuccessThrowsRuntimeError) {
+  auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(static_cast<void>(r.error()), std::runtime_error);
+}
+
+TEST(ResultTest, ConstErrorOnSuccessThrowsRuntimeError) {
+  const auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(static_cast<void>(r.error()), std::runtime_error);
+}
+
+TEST(ResultTest, MoveErrorOnSuccessThrowsRuntimeError) {
+  auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(static_cast<void>(std::move(r).error()), std::runtime_error);
+}
+
+// ---------------------------------------------------------------------------
 // Result<void, E> — success path
 // ---------------------------------------------------------------------------
 
@@ -184,6 +219,25 @@ TEST(ResultVoidTest, FailureMoveError) {
   auto r = Result<void, std::string>::failure("void error");
   auto msg = std::move(r).error();
   EXPECT_EQ(msg, "void error");
+}
+
+// ---------------------------------------------------------------------------
+// Result<void, E> — precondition violations throw std::runtime_error
+// ---------------------------------------------------------------------------
+
+TEST(ResultVoidTest, ValueOnFailureThrowsRuntimeError) {
+  auto r = Result<void, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(r.value(), std::runtime_error);
+}
+
+TEST(ResultVoidTest, ErrorOnSuccessThrowsRuntimeError) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_THROW(static_cast<void>(r.error()), std::runtime_error);
+}
+
+TEST(ResultVoidTest, MoveErrorOnSuccessThrowsRuntimeError) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_THROW(static_cast<void>(std::move(r).error()), std::runtime_error);
 }
 
 // ---------------------------------------------------------------------------
