@@ -59,7 +59,7 @@ TEST(ResultTest, SuccessHasErrorIsFalse) {
 
 TEST(ResultTest, SuccessBoolConversionIsTrue) {
   auto r = Result<int, SimpleError>::success(42);
-  EXPECT_TRUE(static_cast<bool>(r));
+  EXPECT_TRUE(r);
 }
 
 TEST(ResultTest, SuccessValueMatchesInput) {
@@ -106,7 +106,7 @@ TEST(ResultTest, FailureHasErrorIsTrue) {
 
 TEST(ResultTest, FailureBoolConversionIsFalse) {
   auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
-  EXPECT_FALSE(static_cast<bool>(r));
+  EXPECT_FALSE(r);
 }
 
 TEST(ResultTest, FailureErrorCodeMatchesInput) {
@@ -138,32 +138,32 @@ TEST(ResultTest, FailureStringError) {
 
 TEST(ResultTest, ValueOnFailureThrowsLogicError) {
   auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
-  EXPECT_THROW(static_cast<void>(r.value()), std::logic_error);
+  EXPECT_THROW(r.value(), std::logic_error);
 }
 
 TEST(ResultTest, ConstValueOnFailureThrowsLogicError) {
   const auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
-  EXPECT_THROW(static_cast<void>(r.value()), std::logic_error);
+  EXPECT_THROW(r.value(), std::logic_error);
 }
 
 TEST(ResultTest, MoveValueOnFailureThrowsLogicError) {
   auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
-  EXPECT_THROW(static_cast<void>(std::move(r).value()), std::logic_error);
+  EXPECT_THROW(std::move(r).value(), std::logic_error);
 }
 
 TEST(ResultTest, ErrorOnSuccessThrowsLogicError) {
   auto r = Result<int, SimpleError>::success(42);
-  EXPECT_THROW(static_cast<void>(r.error()), std::logic_error);
+  EXPECT_THROW(r.error(), std::logic_error);
 }
 
 TEST(ResultTest, ConstErrorOnSuccessThrowsLogicError) {
   const auto r = Result<int, SimpleError>::success(42);
-  EXPECT_THROW(static_cast<void>(r.error()), std::logic_error);
+  EXPECT_THROW(r.error(), std::logic_error);
 }
 
 TEST(ResultTest, MoveErrorOnSuccessThrowsLogicError) {
   auto r = Result<int, SimpleError>::success(42);
-  EXPECT_THROW(static_cast<void>(std::move(r).error()), std::logic_error);
+  EXPECT_THROW(std::move(r).error(), std::logic_error);
 }
 
 // ---------------------------------------------------------------------------
@@ -182,7 +182,7 @@ TEST(ResultVoidTest, SuccessHasErrorIsFalse) {
 
 TEST(ResultVoidTest, SuccessBoolConversionIsTrue) {
   auto r = Result<void, SimpleError>::success();
-  EXPECT_TRUE(static_cast<bool>(r));
+  EXPECT_TRUE(r);
 }
 
 TEST(ResultVoidTest, SuccessValueIsCallable) {
@@ -206,7 +206,7 @@ TEST(ResultVoidTest, FailureHasErrorIsTrue) {
 
 TEST(ResultVoidTest, FailureBoolConversionIsFalse) {
   auto r = Result<void, SimpleError>::failure(SimpleError{5, "void fail"});
-  EXPECT_FALSE(static_cast<bool>(r));
+  EXPECT_FALSE(r);
 }
 
 TEST(ResultVoidTest, FailureErrorMatchesInput) {
@@ -232,12 +232,12 @@ TEST(ResultVoidTest, ValueOnFailureThrowsLogicError) {
 
 TEST(ResultVoidTest, ErrorOnSuccessThrowsLogicError) {
   auto r = Result<void, SimpleError>::success();
-  EXPECT_THROW(static_cast<void>(r.error()), std::logic_error);
+  EXPECT_THROW(r.error(), std::logic_error);
 }
 
 TEST(ResultVoidTest, MoveErrorOnSuccessThrowsLogicError) {
   auto r = Result<void, SimpleError>::success();
-  EXPECT_THROW(static_cast<void>(std::move(r).error()), std::logic_error);
+  EXPECT_THROW(std::move(r).error(), std::logic_error);
 }
 
 // ---------------------------------------------------------------------------
