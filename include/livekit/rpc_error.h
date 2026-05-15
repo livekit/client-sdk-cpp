@@ -77,6 +77,7 @@ public:
    * @param data     Optional extra data, e.g. JSON. Empty string means no data.
    */
   RpcError(ErrorCode code, std::string message, std::string data = {});
+  ~RpcError() override;
 
   /**
    * Numeric error code.
