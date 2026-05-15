@@ -880,7 +880,7 @@ void Room::onEvent(const FfiEvent& event) {
               break;
             }
             const std::string old_metadata = participant->metadata();
-            participant->setMetadataInternal(pm.metadata());
+            participant->metadata_ = pm.metadata();
             ev.participant = participant;
             ev.old_metadata = old_metadata;
             ev.new_metadata = participant->metadata();
@@ -911,7 +911,7 @@ void Room::onEvent(const FfiEvent& event) {
               break;
             }
             const std::string old_name = participant->name();
-            participant->setNameInternal(pn.name());
+            participant->name_ = pn.name();
             ev.participant = participant;
             ev.old_name = old_name;
             ev.new_name = participant->name();
@@ -945,7 +945,7 @@ void Room::onEvent(const FfiEvent& event) {
             for (const auto& entry : pa.attributes()) {
               attrs.emplace(entry.key(), entry.value());
             }
-            participant->setAttributesInternal(attrs);
+            participant->attributes_ = std::move(attrs);
 
             // Build changed_attributes map
             for (const auto& entry : pa.changed_attributes()) {
@@ -1336,17 +1336,17 @@ void Room::onEvent(const FfiEvent& event) {
                 continue;
               }
 
-              participant->setNameInternal(info.name());
-              participant->setMetadataInternal(info.metadata());
+              participant->name_ = info.name();
+              participant->metadata_ = info.metadata();
 
               std::unordered_map<std::string, std::string> attrs;
               attrs.reserve(info.attributes_size());
               for (const auto& kv : info.attributes()) {
                 attrs.emplace(kv.first, kv.second);
               }
-              participant->setAttributesInternal(std::move(attrs));
-              participant->setKindInternal(fromProto(info.kind()));
-              participant->setDisconnectReasonInternal(toDisconnectReason(info.disconnect_reason()));
+              participant->attributes_ = std::move(attrs);
+              participant->kind_ = fromProto(info.kind());
+              participant->reason_ = toDisconnectReason(info.disconnect_reason());
 
               ev.participants.push_back(participant);
             }
