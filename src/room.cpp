@@ -107,7 +107,7 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
   TRACE_EVENT0("livekit", "Room::connect");
 
   if (!FfiClient::instance().isInitialized()) {
-    LK_LOG_ERROR("Room::Connect failed: LiveKit is not initialized");
+    LK_LOG_ERROR("Room::connect failed: LiveKit is not initialized");
     return false;
   }
 
