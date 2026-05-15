@@ -254,7 +254,11 @@ public:
 
   /**
    * @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
+   *
+   * @deprecated Prefer the track-name overload below. This TrackSource-keyed
+   * overload is scheduled for removal on 06/01/2026.
    */
+  [[deprecated("Room::setOnAudioFrameCallback(TrackSource) is deprecated; use the track-name overload instead")]]
   void setOnAudioFrameCallback(const std::string& participant_identity, TrackSource source, AudioFrameCallback callback,
                                const AudioStream::Options& opts = {});
 
@@ -266,7 +270,11 @@ public:
 
   /**
    * @brief Sets the video frame callback via SubscriptionThreadDispatcher.
+   *
+   * @deprecated Prefer the track-name overload below. This TrackSource-keyed
+   * overload is scheduled for removal on 06/01/2026.
    */
+  [[deprecated("Room::setOnVideoFrameCallback(TrackSource) is deprecated; use the track-name overload instead")]]
   void setOnVideoFrameCallback(const std::string& participant_identity, TrackSource source, VideoFrameCallback callback,
                                const VideoStream::Options& opts = {});
 
@@ -285,7 +293,11 @@ public:
 
   /**
    * @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
+   *
+   * @deprecated Prefer the track-name overload below. This TrackSource-keyed
+   * overload is scheduled for removal on 06/01/2026.
    */
+  [[deprecated("Room::clearOnAudioFrameCallback(TrackSource) is deprecated; use the track-name overload instead")]]
   void clearOnAudioFrameCallback(const std::string& participant_identity, TrackSource source);
   /**
    * @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
@@ -294,7 +306,11 @@ public:
 
   /**
    * @brief Clears the video frame callback via SubscriptionThreadDispatcher.
+   *
+   * @deprecated Prefer the track-name overload below. This TrackSource-keyed
+   * overload is scheduled for removal on 06/01/2026.
    */
+  [[deprecated("Room::clearOnVideoFrameCallback(TrackSource) is deprecated; use the track-name overload instead")]]
   void clearOnVideoFrameCallback(const std::string& participant_identity, TrackSource source);
 
   /**

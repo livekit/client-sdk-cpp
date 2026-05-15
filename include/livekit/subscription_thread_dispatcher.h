@@ -103,7 +103,13 @@ public:
    * @param callback             Function invoked for each decoded audio frame.
    * @param opts                 Options used when creating the backing
    *                             \ref AudioStream.
+   *
+   * @deprecated Prefer the track-name overload below. This TrackSource-keyed
+   * overload is scheduled for removal on 06/01/2026.
    */
+  [[deprecated(
+      "SubscriptionThreadDispatcher::setOnAudioFrameCallback(TrackSource) is deprecated; use the track-name overload "
+      "instead")]]
   void setOnAudioFrameCallback(const std::string& participant_identity, TrackSource source, AudioFrameCallback callback,
                                const AudioStream::Options& opts = {});
 
@@ -135,7 +141,13 @@ public:
    * @param callback             Function invoked for each decoded video frame.
    * @param opts                 Options used when creating the backing
    *                             \ref VideoStream.
+   *
+   * @deprecated Prefer the track-name overload below. This TrackSource-keyed
+   * overload is scheduled for removal on 06/01/2026.
    */
+  [[deprecated(
+      "SubscriptionThreadDispatcher::setOnVideoFrameCallback(TrackSource) is deprecated; use the track-name overload "
+      "instead")]]
   void setOnVideoFrameCallback(const std::string& participant_identity, TrackSource source, VideoFrameCallback callback,
                                const VideoStream::Options& opts = {});
 
@@ -181,7 +193,13 @@ public:
    *
    * @param participant_identity Identity of the remote participant.
    * @param source               Track source to clear.
+   *
+   * @deprecated Prefer the track-name overload below. This TrackSource-keyed
+   * overload is scheduled for removal on 06/01/2026.
    */
+  [[deprecated(
+      "SubscriptionThreadDispatcher::clearOnAudioFrameCallback(TrackSource) is deprecated; use the track-name overload "
+      "instead")]]
   void clearOnAudioFrameCallback(const std::string& participant_identity, TrackSource source);
 
   /**
@@ -203,7 +221,13 @@ public:
    *
    * @param participant_identity Identity of the remote participant.
    * @param source               Track source to clear.
+   *
+   * @deprecated Prefer the track-name overload below. This TrackSource-keyed
+   * overload is scheduled for removal on 06/01/2026.
    */
+  [[deprecated(
+      "SubscriptionThreadDispatcher::clearOnVideoFrameCallback(TrackSource) is deprecated; use the track-name overload "
+      "instead")]]
   void clearOnVideoFrameCallback(const std::string& participant_identity, TrackSource source);
 
   /**
