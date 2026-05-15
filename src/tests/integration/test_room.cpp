@@ -46,7 +46,7 @@ TEST_F(RoomTest, ConnectToServer) {
   Room room;
   RoomOptions options;
 
-  bool connected = room.Connect(server_url_, token_, options);
+  bool connected = room.connect(server_url_, token_, options);
   EXPECT_TRUE(connected) << "Should connect to server successfully";
 
   if (connected) {
@@ -58,7 +58,7 @@ TEST_F(RoomTest, ConnectWithInvalidToken) {
   Room room;
   RoomOptions options;
 
-  bool connected = room.Connect(server_url_, "invalid_token", options);
+  bool connected = room.connect(server_url_, "invalid_token", options);
   EXPECT_FALSE(connected) << "Should fail to connect with invalid token";
 }
 
@@ -66,7 +66,7 @@ TEST_F(RoomTest, ConnectWithInvalidUrl) {
   Room room;
   RoomOptions options;
 
-  bool connected = room.Connect("wss://invalid.example.com", "token", options);
+  bool connected = room.connect("wss://invalid.example.com", "token", options);
   EXPECT_FALSE(connected) << "Should fail to connect to invalid URL";
 }
 

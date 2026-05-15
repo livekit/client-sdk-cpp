@@ -54,17 +54,63 @@ public:
 
   uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
 
-  // Setters (caller ensures threading)
-  void set_name(std::string name) noexcept { name_ = std::move(name); }
-  void set_metadata(std::string metadata) noexcept { metadata_ = std::move(metadata); }
-  void set_attributes(std::unordered_map<std::string, std::string> attrs) noexcept { attributes_ = std::move(attrs); }
-  void set_attribute(const std::string& key, const std::string& value) { attributes_[key] = value; }
-  void remove_attribute(const std::string& key) { attributes_.erase(key); }
-  void set_kind(ParticipantKind kind) noexcept { kind_ = kind; }
-  void set_disconnect_reason(DisconnectReason reason) noexcept { reason_ = reason; }
+  // ---------------------------------------------------------------------------
+  // Deprecated public mutators
+  // ---------------------------------------------------------------------------
+
+  // NOLINTBEGIN(readability-identifier-naming)
+
+  // Deprecated - see setName() (also deprecated; see notes above).
+  [[deprecated("Participant::set_name is deprecated; use LocalParticipant::setName instead")]]
+  void set_name(std::string name) noexcept {
+    name_ = std::move(name);
+  }
+
+  // Deprecated - see setMetadata() (also deprecated; see notes above).
+  [[deprecated("Participant::set_metadata is deprecated; use LocalParticipant::setMetadata instead")]]
+  void set_metadata(std::string metadata) noexcept {
+    metadata_ = std::move(metadata);
+  }
+
+  // Deprecated - see setAttributes() (also deprecated; see notes above).
+  [[deprecated("Participant::set_attributes is deprecated; use LocalParticipant::setAttributes instead")]]
+  void set_attributes(std::unordered_map<std::string, std::string> attrs) noexcept {
+    attributes_ = std::move(attrs);
+  }
+
+  // Deprecated - see setAttribute() (also deprecated; see notes above).
+  [[deprecated("Participant::set_attribute is deprecated; use LocalParticipant::setAttributes instead")]]
+  void set_attribute(const std::string& key, const std::string& value) {
+    attributes_[key] = value;
+  }
+
+  // Deprecated - see removeAttribute() (also deprecated; see notes above).
+  [[deprecated("Participant::remove_attribute is deprecated; use LocalParticipant::setAttributes instead")]]
+  void remove_attribute(const std::string& key) {
+    attributes_.erase(key);
+  }
+
+  // Deprecated - see setKind() (also deprecated; see notes above).
+  [[deprecated("Participant::set_kind is deprecated; Kind is server-determined and not user-settable")]]
+  void set_kind(ParticipantKind kind) noexcept {
+    kind_ = kind;
+  }
+
+  // Deprecated - see setDisconnectReason() (also deprecated; see notes above).
+  [[deprecated(
+      "Participant::set_disconnect_reason is deprecated; DisconnectReason is server-determined and not "
+      "user-settable")]]
+  void set_disconnect_reason(DisconnectReason reason) noexcept {
+    reason_ = reason;
+  }
+
+  // NOLINTEND(readability-identifier-naming)
 
 protected:
   virtual std::shared_ptr<TrackPublication> findTrackPublication(const std::string& sid) const = 0;
+
+  /// Room class is a friend to set the internal state of the participant
+  /// Avoids awkward additional setter methods
   friend class Room;
 
 private:

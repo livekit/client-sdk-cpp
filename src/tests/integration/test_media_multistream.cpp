@@ -96,10 +96,10 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(bool s
 
   auto receiver_room = std::make_unique<Room>();
   receiver_room->setDelegate(&receiver_delegate);
-  ASSERT_TRUE(receiver_room->Connect(config_.url, config_.token_b, options)) << "Receiver failed to connect";
+  ASSERT_TRUE(receiver_room->connect(config_.url, config_.token_b, options)) << "Receiver failed to connect";
 
   auto sender_room = std::make_unique<Room>();
-  ASSERT_TRUE(sender_room->Connect(config_.url, config_.token_a, options)) << "Sender failed to connect";
+  ASSERT_TRUE(sender_room->connect(config_.url, config_.token_a, options)) << "Sender failed to connect";
 
   const std::string receiver_identity = receiver_room->localParticipant()->identity();
   const std::string sender_identity = sender_room->localParticipant()->identity();

@@ -36,8 +36,8 @@ TEST_F(VideoFrameMetadataServerTest, UserTimestampRoundTripsToReceiverEventCallb
   Room receiver_room;
   RoomOptions options;
 
-  ASSERT_TRUE(receiver_room.Connect(config_.url, config_.token_b, options));
-  ASSERT_TRUE(sender_room.Connect(config_.url, config_.token_a, options));
+  ASSERT_TRUE(receiver_room.connect(config_.url, config_.token_b, options));
+  ASSERT_TRUE(sender_room.connect(config_.url, config_.token_a, options));
   ASSERT_NE(sender_room.localParticipant(), nullptr);
   ASSERT_NE(receiver_room.localParticipant(), nullptr);
 

@@ -30,7 +30,7 @@ TEST_F(VideoSourceTest, ConstructAndQueryProperties) {
   VideoSource source(640, 480);
   EXPECT_EQ(source.width(), 640);
   EXPECT_EQ(source.height(), 480);
-  EXPECT_NE(source.ffi_handle_id(), 0u);
+  EXPECT_NE(source.ffiHandleId(), 0u);
 }
 
 TEST_F(VideoSourceTest, VideoCaptureOptionsDefaults) {

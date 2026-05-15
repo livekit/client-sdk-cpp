@@ -31,29 +31,29 @@ TEST_F(AudioFrameTest, CreateWithValidData) {
   std::vector<std::int16_t> data(960, 0); // 10ms at 48kHz mono
   AudioFrame frame(data, 48000, 1, 960);
 
-  EXPECT_EQ(frame.sample_rate(), 48000);
-  EXPECT_EQ(frame.num_channels(), 1);
-  EXPECT_EQ(frame.samples_per_channel(), 960);
-  EXPECT_EQ(frame.total_samples(), 960);
+  EXPECT_EQ(frame.sampleRate(), 48000);
+  EXPECT_EQ(frame.numChannels(), 1);
+  EXPECT_EQ(frame.samplesPerChannel(), 960);
+  EXPECT_EQ(frame.totalSamples(), 960);
 }
 
 TEST_F(AudioFrameTest, CreateStereoFrame) {
   std::vector<std::int16_t> data(1920, 0); // 10ms at 48kHz stereo
   AudioFrame frame(data, 48000, 2, 960);
 
-  EXPECT_EQ(frame.sample_rate(), 48000);
-  EXPECT_EQ(frame.num_channels(), 2);
-  EXPECT_EQ(frame.samples_per_channel(), 960);
-  EXPECT_EQ(frame.total_samples(), 1920);
+  EXPECT_EQ(frame.sampleRate(), 48000);
+  EXPECT_EQ(frame.numChannels(), 2);
+  EXPECT_EQ(frame.samplesPerChannel(), 960);
+  EXPECT_EQ(frame.totalSamples(), 1920);
 }
 
 TEST_F(AudioFrameTest, CreateUsingStaticMethod) {
   AudioFrame frame = AudioFrame::create(48000, 2, 960);
 
-  EXPECT_EQ(frame.sample_rate(), 48000);
-  EXPECT_EQ(frame.num_channels(), 2);
-  EXPECT_EQ(frame.samples_per_channel(), 960);
-  EXPECT_EQ(frame.total_samples(), 1920);
+  EXPECT_EQ(frame.sampleRate(), 48000);
+  EXPECT_EQ(frame.numChannels(), 2);
+  EXPECT_EQ(frame.samplesPerChannel(), 960);
+  EXPECT_EQ(frame.totalSamples(), 1920);
 
   // Created frame should be zero-initialized
   const auto& samples = frame.data();
@@ -110,7 +110,7 @@ TEST_F(AudioFrameTest, DataAccessConst) {
 
 TEST_F(AudioFrameTest, ToString) {
   AudioFrame frame = AudioFrame::create(48000, 2, 960);
-  std::string desc = frame.to_string();
+  std::string desc = frame.toString();
 
   // Should contain relevant info
   EXPECT_FALSE(desc.empty());
@@ -121,9 +121,9 @@ TEST_F(AudioFrameTest, DefaultConstructor) {
   AudioFrame frame;
 
   // Default constructed frame should have zero values
-  EXPECT_EQ(frame.sample_rate(), 0);
-  EXPECT_EQ(frame.num_channels(), 0);
-  EXPECT_EQ(frame.samples_per_channel(), 0);
+  EXPECT_EQ(frame.sampleRate(), 0);
+  EXPECT_EQ(frame.numChannels(), 0);
+  EXPECT_EQ(frame.samplesPerChannel(), 0);
   EXPECT_TRUE(frame.data().empty());
 }
 
@@ -133,9 +133,9 @@ TEST_F(AudioFrameTest, CopySemantics) {
 
   AudioFrame copy = original;
 
-  EXPECT_EQ(copy.sample_rate(), original.sample_rate());
-  EXPECT_EQ(copy.num_channels(), original.num_channels());
-  EXPECT_EQ(copy.samples_per_channel(), original.samples_per_channel());
+  EXPECT_EQ(copy.sampleRate(), original.sampleRate());
+  EXPECT_EQ(copy.numChannels(), original.numChannels());
+  EXPECT_EQ(copy.samplesPerChannel(), original.samplesPerChannel());
   EXPECT_EQ(copy.data(), original.data());
 
   // Modifying copy should not affect original
@@ -150,9 +150,9 @@ TEST_F(AudioFrameTest, MoveSemantics) {
 
   AudioFrame moved = std::move(original);
 
-  EXPECT_EQ(moved.sample_rate(), 48000);
-  EXPECT_EQ(moved.num_channels(), 1);
-  EXPECT_EQ(moved.samples_per_channel(), 4);
+  EXPECT_EQ(moved.sampleRate(), 48000);
+  EXPECT_EQ(moved.numChannels(), 1);
+  EXPECT_EQ(moved.samplesPerChannel(), 4);
   EXPECT_EQ(moved.data().size(), 4);
 }
 

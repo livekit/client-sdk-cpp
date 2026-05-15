@@ -41,7 +41,13 @@ public:
   // Optional: non-const access if you want to mutate in-place.
   PublicationMap& mutableTrackPublications() noexcept { return track_publications_; }
 
+  std::string toString() const;
+
+  // Deprecated - see toString()
+  // NOLINTBEGIN(readability-identifier-naming)
+  [[deprecated("RemoteParticipant::to_string is deprecated; use RemoteParticipant::toString instead")]]
   std::string to_string() const;
+  // NOLINTEND(readability-identifier-naming)
 
 protected:
   // Called by Room events like kTrackMuted. This is internal plumbing and not

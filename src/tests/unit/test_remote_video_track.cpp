@@ -28,9 +28,9 @@ TEST(RemoteVideoTrackTest, ConstructFromEmptyOwnedTrack) {
   EXPECT_TRUE(track.sid().empty());
   EXPECT_TRUE(track.name().empty());
   EXPECT_TRUE(track.remote());
-  EXPECT_FALSE(track.has_handle());
+  EXPECT_FALSE(track.hasHandle());
 
-  const std::string description = track.to_string();
+  const std::string description = track.toString();
   EXPECT_FALSE(description.empty());
 }
 

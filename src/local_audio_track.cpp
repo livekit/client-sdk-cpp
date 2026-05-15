@@ -33,7 +33,7 @@ std::shared_ptr<LocalAudioTrack> LocalAudioTrack::createLocalAudioTrack(const st
   proto::FfiRequest req;
   auto* msg = req.mutable_create_audio_track();
   msg->set_name(name);
-  msg->set_source_handle(static_cast<uint64_t>(source->ffi_handle_id()));
+  msg->set_source_handle(static_cast<uint64_t>(source->ffiHandleId()));
 
   const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   const proto::OwnedTrack& owned = resp.create_audio_track().track();
@@ -42,14 +42,14 @@ std::shared_ptr<LocalAudioTrack> LocalAudioTrack::createLocalAudioTrack(const st
 }
 
 void LocalAudioTrack::mute() {
-  if (!has_handle()) {
+  if (!hasHandle()) {
     setMuted(true);
     return;
   }
 
   proto::FfiRequest req;
   auto* msg = req.mutable_local_track_mute();
-  msg->set_track_handle(static_cast<uint64_t>(ffi_handle_id()));
+  msg->set_track_handle(static_cast<uint64_t>(ffiHandleId()));
   msg->set_mute(true);
 
   (void)FfiClient::instance().sendRequest(req);
@@ -57,20 +57,22 @@ void LocalAudioTrack::mute() {
 }
 
 void LocalAudioTrack::unmute() {
-  if (!has_handle()) {
+  if (!hasHandle()) {
     setMuted(false);
     return;
   }
 
   proto::FfiRequest req;
   auto* msg = req.mutable_local_track_mute();
-  msg->set_track_handle(static_cast<uint64_t>(ffi_handle_id()));
+  msg->set_track_handle(static_cast<uint64_t>(ffiHandleId()));
   msg->set_mute(false);
 
   (void)FfiClient::instance().sendRequest(req);
   setMuted(false);
 }
 
-std::string LocalAudioTrack::to_string() const { return "rtc.LocalAudioTrack(sid=" + sid() + ", name=" + name() + ")"; }
+std::string LocalAudioTrack::toString() const { return "rtc.LocalAudioTrack(sid=" + sid() + ", name=" + name() + ")"; }
+
+std::string LocalAudioTrack::to_string() const { return toString(); }
 
 } // namespace livekit

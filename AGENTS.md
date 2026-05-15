@@ -40,15 +40,15 @@ When making larger scale changes, check with the developer before committing to 
 
 The SDK has three categories of threads:
 
-**FFI callback thread** — The Rust FFI layer calls `LivekitFfiCallback` from a Rust-managed thread (typically a Tokio runtime thread). This single entry point deserializes the `FfiEvent` and calls `FfiClient::PushEvent`, which:
+**FFI callback thread** — The Rust FFI layer calls `LivekitFfiCallback` from a Rust-managed thread (typically a Tokio runtime thread). This single entry point deserializes the `FfiEvent` and calls `FfiClient::pushEvent`, which:
 1. Completes any pending async `std::promise` matched by `async_id`.
-2. Invokes all registered `FfiClient` listeners (including `Room::OnEvent`).
+2. Invokes all registered `FfiClient` listeners (including `Room::onEvent`).
 
 All `RoomDelegate` callbacks and stream handler callbacks (e.g., `registerTextStreamHandler`) are invoked on this FFI callback thread. **Handlers must not block**; spawn a background thread if synchronous work is needed.
 
 **Per-subscription reader threads** — `SubscriptionThreadDispatcher` creates a dedicated `std::thread` for each active audio, video, or data track subscription. These threads block on `AudioStream::read()`, `VideoStream::read()`, or `DataTrackStream::read()` and invoke the registered `AudioFrameCallback`, `VideoFrameCallback`, or `DataFrameCallback` on that reader thread — not on the FFI callback thread. A hard limit of 20 concurrent reader threads is enforced.
 
-**Application threads** — The calling thread for public API methods such as `Room::Connect`, `LocalParticipant::publishTrack`, `AudioSource::captureFrame`, etc. These may block while waiting for FFI responses or future completion.
+**Application threads** — The calling thread for public API methods such as `Room::connect`, `LocalParticipant::publishTrack`, `AudioSource::captureFrame`, etc. These may block while waiting for FFI responses or future completion.
 
 #### Thread-safety guarantees
 

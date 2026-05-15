@@ -43,9 +43,9 @@ TEST_F(AudioFrameStressTest, RapidFrameCreation) {
 
   for (int i = 0; i < num_iterations; ++i) {
     AudioFrame frame = AudioFrame::create(sample_rate, num_channels, samples_per_channel);
-    ASSERT_EQ(frame.sample_rate(), sample_rate);
-    ASSERT_EQ(frame.num_channels(), num_channels);
-    ASSERT_EQ(frame.samples_per_channel(), samples_per_channel);
+    ASSERT_EQ(frame.sampleRate(), sample_rate);
+    ASSERT_EQ(frame.numChannels(), num_channels);
+    ASSERT_EQ(frame.samplesPerChannel(), samples_per_channel);
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -65,7 +65,7 @@ TEST_F(AudioFrameStressTest, LargeBufferAllocation) {
 
   for (int i = 0; i < 100; ++i) {
     AudioFrame frame = AudioFrame::create(sample_rate, num_channels, samples_per_channel);
-    ASSERT_EQ(frame.total_samples(), static_cast<size_t>(num_channels * samples_per_channel));
+    ASSERT_EQ(frame.totalSamples(), static_cast<size_t>(num_channels * samples_per_channel));
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -87,7 +87,7 @@ TEST_F(AudioFrameStressTest, ConcurrentFrameCreation) {
     threads.emplace_back([&total_frames, frames_per_thread]() {
       for (int i = 0; i < frames_per_thread; ++i) {
         AudioFrame frame = AudioFrame::create(48000, 2, 960);
-        if (frame.sample_rate() == 48000) {
+        if (frame.sampleRate() == 48000) {
           total_frames.fetch_add(1, std::memory_order_relaxed);
         }
       }
@@ -122,9 +122,9 @@ TEST_F(AudioFrameStressTest, MemoryPressure) {
 
   // Verify all frames are valid
   for (const auto& frame : frames) {
-    ASSERT_EQ(frame.sample_rate(), 48000);
-    ASSERT_EQ(frame.num_channels(), 2);
-    ASSERT_EQ(frame.samples_per_channel(), 960);
+    ASSERT_EQ(frame.sampleRate(), 48000);
+    ASSERT_EQ(frame.numChannels(), 2);
+    ASSERT_EQ(frame.samplesPerChannel(), 960);
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -204,7 +204,7 @@ TEST_F(AudioFrameStressTest, MoveOperationsStress) {
     frame = std::move(moved);
   }
 
-  ASSERT_EQ(frame.sample_rate(), 48000);
+  ASSERT_EQ(frame.sampleRate(), 48000);
 
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);

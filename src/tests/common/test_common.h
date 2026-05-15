@@ -224,7 +224,7 @@ inline std::vector<std::unique_ptr<Room>> testRooms(const std::vector<TestRoomCo
       room->setDelegate(room_configs[i].delegate);
     }
 
-    if (!room->Connect(kLocalTestLiveKitUrl, tokens[i], room_configs[i].room_options)) {
+    if (!room->connect(kLocalTestLiveKitUrl, tokens[i], room_configs[i].room_options)) {
       throw std::runtime_error("Failed to connect test room " + std::to_string(i));
     }
 
@@ -424,7 +424,7 @@ private:
  * The SDK uses two types of trace events:
  *
  * 1. Scoped events (TRACE_EVENT0): Automatically record begin/end within a
- *    scope. Used for synchronous operations like Room::Connect().
+ *    scope. Used for synchronous operations like Room::connect().
  *    - Phase 'B' = begin, Phase 'E' = end
  *    - Events are matched by thread ID
  *
@@ -448,7 +448,7 @@ private:
  * ## Default Events Analyzed
  *
  * The following events are automatically analyzed if present:
- *   - Room::Connect - Time to establish room connection
+ *   - Room::connect - Time to establish room connection
  *   - FfiClient::initialize - SDK initialization time
  *
  * Tests can add custom events to analyze via addTraceEventToAnalyze().
@@ -499,7 +499,7 @@ protected:
   /**
    * Register a custom trace event to analyze in TearDown().
    *
-   * In addition to the default events (Room::Connect, FfiClient::initialize),
+   * In addition to the default events (Room::connect, FfiClient::initialize),
    * tests can register their own events to get statistics printed.
    *
    * Example:
@@ -522,7 +522,7 @@ private:
    */
   void analyzeTraceFile() {
     // Build list of events to analyze
-    std::vector<std::string> events_to_analyze = {"Room::Connect", "FfiClient::initialize"};
+    std::vector<std::string> events_to_analyze = {"Room::connect", "FfiClient::initialize"};
 
     // Add custom events
     for (const auto& name : custom_trace_events_) {

@@ -98,7 +98,7 @@ private:
 
   explicit LocalDataTrack(const proto::OwnedLocalDataTrack& owned);
 
-  uintptr_t ffi_handle_id() const noexcept { return handle_.get(); }
+  uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
 
   /** RAII wrapper for the Rust-owned FFI resource. */
   FfiHandle handle_;

@@ -160,7 +160,7 @@ private:
   bool valid() const noexcept { return handle_.valid(); }
 
   /// Get the underlying FFI handle ID (used internally).
-  std::uint64_t ffi_handle_id() const noexcept { return static_cast<std::uint64_t>(handle_.get()); }
+  std::uint64_t ffiHandleId() const noexcept { return static_cast<std::uint64_t>(handle_.get()); }
 
   FfiHandle handle_;
 };

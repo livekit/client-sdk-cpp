@@ -92,7 +92,7 @@ Room::~Room() {
   }
 
   if (listener_to_remove != 0) {
-    FfiClient::instance().RemoveListener(listener_to_remove);
+    FfiClient::instance().removeListener(listener_to_remove);
   }
 
   // local_participant_to_cleanup is destroyed here after listener is removed
@@ -103,11 +103,11 @@ void Room::setDelegate(RoomDelegate* delegate) {
   delegate_ = delegate;
 }
 
-bool Room::Connect(const std::string& url, const std::string& token, const RoomOptions& options) {
-  TRACE_EVENT0("livekit", "Room::Connect");
+bool Room::connect(const std::string& url, const std::string& token, const RoomOptions& options) {
+  TRACE_EVENT0("livekit", "Room::connect");
 
   if (!FfiClient::instance().isInitialized()) {
-    LK_LOG_ERROR("Room::Connect failed: LiveKit is not initialized");
+    LK_LOG_ERROR("Room::connect failed: LiveKit is not initialized");
     return false;
   }
 
@@ -185,7 +185,7 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
     }
 
     // Install listener (Room is fully initialized)
-    auto listenerId = FfiClient::instance().AddListener([this](const proto::FfiEvent& e) { OnEvent(e); });
+    auto listenerId = FfiClient::instance().addListener([this](const proto::FfiEvent& e) { onEvent(e); });
     {
       const std::scoped_lock<std::mutex> g(lock_);
       listener_id_ = listenerId;
@@ -195,15 +195,21 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
   } catch (const std::exception& e) {
     // On error, set the connection_state_ to Disconnected
     connection_state_ = ConnectionState::Disconnected;
-    LK_LOG_ERROR("Room::Connect failed: {}", e.what());
+    LK_LOG_ERROR("Room::connect failed: {}", e.what());
     return false;
   }
 }
 
-RoomInfoData Room::room_info() const {
+bool Room::Connect(const std::string& url, const std::string& token, const RoomOptions& options) {
+  return connect(url, token, options);
+}
+
+RoomInfoData Room::roomInfo() const {
   const std::scoped_lock<std::mutex> g(lock_);
   return room_info_;
 }
+
+RoomInfoData Room::room_info() const { return roomInfo(); }
 
 LocalParticipant* Room::localParticipant() const {
   const std::scoped_lock<std::mutex> g(lock_);
@@ -343,7 +349,7 @@ void Room::removeOnDataFrameCallback(DataFrameCallbackId id) {
   }
 }
 
-void Room::OnEvent(const FfiEvent& event) {
+void Room::onEvent(const FfiEvent& event) {
   // Take a snapshot of the delegate under lock, but do NOT call it under the
   // lock.
   RoomDelegate* delegate_snapshot = nullptr;
@@ -874,7 +880,7 @@ void Room::OnEvent(const FfiEvent& event) {
               break;
             }
             const std::string old_metadata = participant->metadata();
-            participant->set_metadata(pm.metadata());
+            participant->metadata_ = pm.metadata();
             ev.participant = participant;
             ev.old_metadata = old_metadata;
             ev.new_metadata = participant->metadata();
@@ -905,7 +911,7 @@ void Room::OnEvent(const FfiEvent& event) {
               break;
             }
             const std::string old_name = participant->name();
-            participant->set_name(pn.name());
+            participant->name_ = pn.name();
             ev.participant = participant;
             ev.old_name = old_name;
             ev.new_name = participant->name();
@@ -939,7 +945,7 @@ void Room::OnEvent(const FfiEvent& event) {
             for (const auto& entry : pa.attributes()) {
               attrs.emplace(entry.key(), entry.value());
             }
-            participant->set_attributes(attrs);
+            participant->attributes_ = std::move(attrs);
 
             // Build changed_attributes map
             for (const auto& entry : pa.changed_attributes()) {
@@ -1147,7 +1153,7 @@ void Room::OnEvent(const FfiEvent& event) {
 
           // Remove listener outside lock
           if (listener_to_remove != 0) {
-            FfiClient::instance().RemoveListener(listener_to_remove);
+            FfiClient::instance().removeListener(listener_to_remove);
           }
 
           // Old state will be destroyed here when going out of scope
@@ -1330,17 +1336,17 @@ void Room::OnEvent(const FfiEvent& event) {
                 continue;
               }
 
-              participant->set_name(info.name());
-              participant->set_metadata(info.metadata());
+              participant->name_ = info.name();
+              participant->metadata_ = info.metadata();
 
               std::unordered_map<std::string, std::string> attrs;
               attrs.reserve(info.attributes_size());
               for (const auto& kv : info.attributes()) {
                 attrs.emplace(kv.first, kv.second);
               }
-              participant->set_attributes(std::move(attrs));
-              participant->set_kind(fromProto(info.kind()));
-              participant->set_disconnect_reason(toDisconnectReason(info.disconnect_reason()));
+              participant->attributes_ = std::move(attrs);
+              participant->kind_ = fromProto(info.kind());
+              participant->reason_ = toDisconnectReason(info.disconnect_reason());
 
               ev.participants.push_back(participant);
             }
