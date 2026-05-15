@@ -240,10 +240,36 @@ Adhere to clang-tidy checks configured in `.clang-tidy`. Run `./scripts/clang-ti
 
 | Dependency | Scope | Notes |
 |------------|-------|-------|
-| protobuf | Private (built-in) | Vendored via FetchContent (Unix) or vcpkg (Windows) |
+| protobuf-lite | Private (built-in) | Vendored via FetchContent (Unix) or vcpkg (Windows). The SDK links **only** against `protobuf::libprotobuf-lite`; the generated FFI code uses `MessageLite`. See "Protobuf runtime" below. |
 | spdlog | **Private** | FetchContent or system package; must NOT leak into public API |
 | client-sdk-rust | Build-time | Git submodule, built via cargo during CMake build |
 | Google Test | Test only | FetchContent in `src/tests/CMakeLists.txt` |
+
+### Protobuf runtime
+
+The C++ SDK uses the **protobuf-lite** runtime, not the full protobuf runtime.
+The FFI `.proto` files in `client-sdk-rust/livekit-ffi/protocol/` do not opt
+into lite themselves (they are shared with the Rust and Node FFI generators).
+Instead, the C++ build copies them into the build tree and appends
+`option optimize_for = LITE_RUNTIME;` before running `protoc`. See
+`cmake/patch_protos_for_lite.cmake` and the `PATCHED_PROTO_FILES` custom
+command in the top-level `CMakeLists.txt`. The original `.proto` files in the
+submodule are never modified.
+
+Consequences for code in `src/`:
+
+- The generated `proto::*` classes extend `google::protobuf::MessageLite`, not
+  `Message`. Only the lite subset of the protobuf API is available.
+- Allowed: `set_*` / `mutable_*` / `add_*` / `has_*` / `clear_*` / `*_size()` /
+  oneof `_case()` accessors, `SerializeToString`, `ParseFromArray`, `CopyFrom`,
+  assignment, `google::protobuf::RepeatedField`/`RepeatedPtrField`.
+- **Not available**: `DebugString` / `ShortDebugString` / `Utf8DebugString`,
+  `TextFormat`, `JsonStringToMessage` / `MessageToJsonString`, `GetReflection`,
+  `GetDescriptor`, `DescriptorPool`, `MessageFactory`, Well-Known Types
+  (`Any` / `Timestamp` / `Duration` / `Struct` / `FieldMask` / `Empty`),
+  reflection-based copy/merge utilities. Do not introduce code that needs them.
+- If you ever need a human-readable dump of a proto message for logging, build
+  a hand-written formatter — do not reach for `DebugString()`.
 
 When adding a new private/vendored dependency to this table, also add a
 forbidden symbol pattern for it to

@@ -183,13 +183,18 @@ else()
   message(FATAL_ERROR "Vendored protobuf did not create a protoc target")
 endif()
 
-# Prefer protobuf-lite (optional; keep libprotobuf around too)
+# protobuf-lite is REQUIRED. The LiveKit C++ SDK builds its generated FFI
+# protobuf code with `option optimize_for = LITE_RUNTIME` (see
+# cmake/patch_protos_for_lite.cmake) and links only against libprotobuf-lite.
 if(TARGET protobuf::libprotobuf-lite)
   # ok
 elseif(TARGET libprotobuf-lite)
   add_library(protobuf::libprotobuf-lite ALIAS libprotobuf-lite)
 else()
-  message(WARNING "Vendored protobuf did not create protobuf-lite target; continuing with libprotobuf only")
+  message(FATAL_ERROR
+    "Vendored protobuf did not create a libprotobuf-lite target. "
+    "The LiveKit C++ SDK requires protobuf-lite (LITE_RUNTIME). "
+    "Check LIVEKIT_PROTOBUF_VERSION='${LIVEKIT_PROTOBUF_VERSION}'.")
 endif()
 
 # Include dirs: prefer target usage; keep this var for your existing CMakeLists.
