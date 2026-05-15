@@ -106,7 +106,7 @@ void Room::setDelegate(RoomDelegate* delegate) {
 bool Room::Connect(const std::string& url, const std::string& token, const RoomOptions& options) {
   TRACE_EVENT0("livekit", "Room::Connect");
 
-  if (!livekit::isInitialized()) {
+  if (!FfiClient::instance().isInitialized()) {
     LK_LOG_ERROR("Room::Connect failed: LiveKit is not initialized");
     return false;
   }
