@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <cassert>
 #include <optional>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -34,9 +34,9 @@ namespace livekit {
  * - a success value of type `T`, or
  * - an error value of type `E`
  *
- * Accessors are intentionally non-throwing. Calling `value()` on an error
- * result, or `error()` on a success result, is a programmer error and will
- * trip the debug assertion.
+ * Accessors validate their preconditions before returning. Calling `value()`
+ * on an error result, or `error()` on a success result, throws `std::logic_error`.
+ * Avoid this by checking `ok()` / `has_error()` / if (result) before calling `value()` or `error()`.
  */
 template <typename T, typename E>
 class [[nodiscard]] Result {
@@ -60,72 +60,83 @@ public:
   /// Allows `if (result)` style success checks.
   explicit operator bool() const noexcept { return ok(); }
 
-  // Deprecated - see hasError()
-  // NOLINTBEGIN(readability-identifier-naming)
-  [[deprecated("Result::has_error is deprecated; use Result::hasError instead")]]
-  bool has_error() const noexcept {
-    return hasError();
-  }
-  // NOLINTEND(readability-identifier-naming)
-
-  // TODO (AEG): clang-tidy flagged these accessors because the signatures are
-  // marked noexcept, but std::get can throw a std::bad_variant_access exception
-  // on std::variant specifically. Investigate if this is actually a concern or
-  // if the types are safe within this class (unit test ideal).
-
-  /// Access the success value. Requires `ok() == true`.
-  // NOLINTNEXTLINE(bugprone-exception-escape)
-  T& value() & noexcept {
-    assert(ok());
+  /// Access the success value.
+  ///
+  /// @throws std::logic_error if `ok() == false`.
+  T& value() & {
+    if (!ok()) {
+      throw std::logic_error("Result::value() called on an error result");
+    }
     return std::get<0>(storage_);
   }
 
-  /// Access the success value. Requires `ok() == true`.
-  // NOLINTNEXTLINE(bugprone-exception-escape)
-  const T& value() const& noexcept {
-    assert(ok());
+  /// Access the success value.
+  ///
+  /// @throws std::logic_error if `ok() == false`.
+  const T& value() const& {
+    if (!ok()) {
+      throw std::logic_error("Result::value() called on an error result");
+    }
     return std::get<0>(storage_);
   }
 
-  /// Move the success value out. Requires `ok() == true`.
-  // NOLINTNEXTLINE(bugprone-exception-escape)
-  T&& value() && noexcept {
-    assert(ok());
+  /// Move the success value out.
+  ///
+  /// @throws std::logic_error if `ok() == false`.
+  T&& value() && {
+    if (!ok()) {
+      throw std::logic_error("Result::value() called on an error result");
+    }
     return std::get<0>(std::move(storage_));
   }
 
-  /// Move the success value out. Requires `ok() == true`.
-  // NOLINTNEXTLINE(bugprone-exception-escape)
-  const T&& value() const&& noexcept {
-    assert(ok());
+  /// Move the success value out.
+  ///
+  /// @throws std::logic_error if `ok() == false`.
+  const T&& value() const&& {
+    if (!ok()) {
+      throw std::logic_error("Result::value() called on an error result");
+    }
     return std::get<0>(std::move(storage_));
   }
 
-  /// Access the error value. Requires `hasError() == true`.
-  // NOLINTNEXTLINE(bugprone-exception-escape)
-  E& error() & noexcept {
-    assert(hasError());
+  /// Access the error value.
+  ///
+  /// @throws std::logic_error if `has_error() == false`.
+  E& error() & {
+    if (!has_error()) {
+      throw std::logic_error("Result::error() called on a success result");
+    }
     return std::get<1>(storage_);
   }
 
-  /// Access the error value. Requires `hasError() == true`.
-  // NOLINTNEXTLINE(bugprone-exception-escape)
-  const E& error() const& noexcept {
-    assert(hasError());
+  /// Access the error value.
+  ///
+  /// @throws std::logic_error if `has_error() == false`.
+  const E& error() const& {
+    if (!has_error()) {
+      throw std::logic_error("Result::error() called on a success result");
+    }
     return std::get<1>(storage_);
   }
 
-  /// Move the error value out. Requires `hasError() == true`.
-  // NOLINTNEXTLINE(bugprone-exception-escape)
-  E&& error() && noexcept {
-    assert(hasError());
+  /// Move the error value out.
+  ///
+  /// @throws std::logic_error if `has_error() == false`.
+  E&& error() && {
+    if (!has_error()) {
+      throw std::logic_error("Result::error() called on a success result");
+    }
     return std::get<1>(std::move(storage_));
   }
 
-  /// Move the error value out. Requires `hasError() == true`.
-  // NOLINTNEXTLINE(bugprone-exception-escape)
-  const E&& error() const&& noexcept {
-    assert(hasError());
+  /// Move the error value out.
+  ///
+  /// @throws std::logic_error if `has_error() == false`.
+  const E&& error() const&& {
+    if (!has_error()) {
+      throw std::logic_error("Result::error() called on a success result");
+    }
     return std::get<1>(std::move(storage_));
   }
 
@@ -160,38 +171,53 @@ public:
   /// Allows `if (result)` style success checks.
   explicit operator bool() const noexcept { return ok(); }
 
-  // Deprecated - see hasError()
-  // NOLINTBEGIN(readability-identifier-naming)
-  [[deprecated("Result::has_error is deprecated; use Result::hasError instead")]]
-  bool has_error() const noexcept {
-    return hasError();
+  /// Validates success. Mirrors the `value()` API shape on the primary
+  /// template so generic code can use the same form for both.
+  ///
+  /// @throws std::logic_error if `ok() == false`.
+  void value() const {
+    if (!ok()) {
+      throw std::logic_error("Result::value() called on an error result");
+    }
   }
-  // NOLINTEND(readability-identifier-naming)
 
-  /// Validates success in debug builds. Mirrors the `value()` API shape.
-  void value() const noexcept { assert(ok()); }
-
-  /// Access the error value. Requires `hasError() == true`.
-  E& error() & noexcept {
-    assert(hasError());
+  /// Access the error value.
+  ///
+  /// @throws std::logic_error if `has_error() == false`.
+  E& error() & {
+    if (!error_.has_value()) {
+      throw std::logic_error("Result::error() called on a success result");
+    }
     return *error_;
   }
 
-  /// Access the error value. Requires `hasError() == true`.
-  const E& error() const& noexcept {
-    assert(hasError());
+  /// Access the error value.
+  ///
+  /// @throws std::logic_error if `has_error() == false`.
+  const E& error() const& {
+    if (!error_.has_value()) {
+      throw std::logic_error("Result::error() called on a success result");
+    }
     return *error_;
   }
 
-  /// Move the error value out. Requires `hasError() == true`.
-  E&& error() && noexcept {
-    assert(hasError());
+  /// Move the error value out.
+  ///
+  /// @throws std::logic_error if `has_error() == false`.
+  E&& error() && {
+    if (!error_.has_value()) {
+      throw std::logic_error("Result::error() called on a success result");
+    }
     return std::move(*error_);
   }
 
-  /// Move the error value out. Requires `hasError() == true`.
-  const E&& error() const&& noexcept {
-    assert(hasError());
+  /// Move the error value out.
+  ///
+  /// @throws std::logic_error if `has_error() == false`.
+  const E&& error() const&& {
+    if (!error_.has_value()) {
+      throw std::logic_error("Result::error() called on a success result");
+    }
     return std::move(*error_);
   }
 

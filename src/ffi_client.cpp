@@ -141,6 +141,11 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
 
 } // namespace
 
+FfiClient& FfiClient::instance() noexcept {
+  static FfiClient instance;
+  return instance;
+}
+
 // clang-tidy flags this as a trivial destructor in release mode
 // due to the assert being pre-processed out
 // NOLINTNEXTLINE(modernize-use-equals-default)
@@ -182,6 +187,13 @@ void FfiClient::removeListener(ListenerId id) {
 }
 
 proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) const {
+  // The Rust FFI will lazily initialize the FFI client when the first request is sent,
+  // but if not initialized none of the async operations will work. Guarding against that here.
+  // Improvement ticket added to the Rust SDK to discuss this
+  if (!isInitialized()) {
+    throw std::runtime_error("FfiClient::sendRequest failed: LiveKit is not initialized");
+  }
+
   std::string bytes;
   if (!request.SerializeToString(&bytes) || bytes.empty()) {
     throw std::runtime_error("failed to serialize FfiRequest");

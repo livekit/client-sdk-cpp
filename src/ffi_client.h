@@ -74,10 +74,9 @@ public:
   FfiClient(FfiClient&&) = delete;
   FfiClient& operator=(FfiClient&&) = delete;
 
-  static FfiClient& instance() noexcept {
-    static FfiClient instance;
-    return instance;
-  }
+  // Access the singleton instance of the FfiClient
+  // Note: lazily created, not thread safe
+  static FfiClient& instance() noexcept;
 
   // Must be called before any other FFI usage
   bool initialize(bool capture_logs);

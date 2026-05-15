@@ -28,6 +28,7 @@
 #include <livekit/result.h>
 
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -46,43 +47,43 @@ struct SimpleError {
 // Result<T, E> — success path
 // ---------------------------------------------------------------------------
 
-TEST(ResultTest, SuccessOkIsTrue) {
+TEST(ResultTest, Int_SuccessOkIsTrue) {
   auto r = Result<int, SimpleError>::success(42);
   EXPECT_TRUE(r.ok());
 }
 
-TEST(ResultTest, SuccessHasErrorIsFalse) {
+TEST(ResultTest, Int_SuccessHasErrorIsFalse) {
   auto r = Result<int, SimpleError>::success(42);
   EXPECT_FALSE(r.has_error());
 }
 
-TEST(ResultTest, SuccessBoolConversionIsTrue) {
+TEST(ResultTest, Int_SuccessBoolConversionIsTrue) {
   auto r = Result<int, SimpleError>::success(42);
-  EXPECT_TRUE(static_cast<bool>(r));
+  EXPECT_TRUE(r);
 }
 
-TEST(ResultTest, SuccessValueMatchesInput) {
+TEST(ResultTest, Int_SuccessValueMatchesInput) {
   auto r = Result<int, SimpleError>::success(99);
   EXPECT_EQ(r.value(), 99);
 }
 
-TEST(ResultTest, SuccessConstValueMatchesInput) {
+TEST(ResultTest, Int_SuccessConstValueMatchesInput) {
   const auto r = Result<int, SimpleError>::success(7);
   EXPECT_EQ(r.value(), 7);
 }
 
-TEST(ResultTest, SuccessValueCanBeMutated) {
+TEST(ResultTest, Int_SuccessValueCanBeMutated) {
   auto r = Result<int, SimpleError>::success(1);
   r.value() = 100;
   EXPECT_EQ(r.value(), 100);
 }
 
-TEST(ResultTest, SuccessStringValue) {
+TEST(ResultTest, Int_SuccessStringValue) {
   auto r = Result<std::string, SimpleError>::success("hello");
   EXPECT_EQ(r.value(), "hello");
 }
 
-TEST(ResultTest, SuccessMoveValueTransfersOwnership) {
+TEST(ResultTest, Int_SuccessMoveValueTransfersOwnership) {
   auto r = Result<std::unique_ptr<int>, SimpleError>::success(std::make_unique<int>(55));
   auto ptr = std::move(r).value();
   ASSERT_NE(ptr, nullptr);
@@ -93,64 +94,98 @@ TEST(ResultTest, SuccessMoveValueTransfersOwnership) {
 // Result<T, E> — failure path
 // ---------------------------------------------------------------------------
 
-TEST(ResultTest, FailureOkIsFalse) {
+TEST(ResultTest, Int_FailureOkIsFalse) {
   auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
   EXPECT_FALSE(r.ok());
 }
 
-TEST(ResultTest, FailureHasErrorIsTrue) {
+TEST(ResultTest, Int_FailureHasErrorIsTrue) {
   auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
   EXPECT_TRUE(r.has_error());
 }
 
-TEST(ResultTest, FailureBoolConversionIsFalse) {
+TEST(ResultTest, Int_FailureBoolConversionIsFalse) {
   auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
-  EXPECT_FALSE(static_cast<bool>(r));
+  EXPECT_FALSE(r);
 }
 
-TEST(ResultTest, FailureErrorCodeMatchesInput) {
+TEST(ResultTest, Int_FailureErrorCodeMatchesInput) {
   auto r = Result<int, SimpleError>::failure(SimpleError{42, "bad"});
   EXPECT_EQ(r.error().code, 42);
   EXPECT_EQ(r.error().message, "bad");
 }
 
-TEST(ResultTest, FailureConstErrorMatchesInput) {
+TEST(ResultTest, Int_FailureConstErrorMatchesInput) {
   const auto r = Result<int, SimpleError>::failure(SimpleError{3, "err"});
   EXPECT_EQ(r.error().code, 3);
 }
 
-TEST(ResultTest, FailureMoveErrorTransfersOwnership) {
+TEST(ResultTest, Int_FailureMoveErrorTransfersOwnership) {
   auto r = Result<int, std::unique_ptr<SimpleError>>::failure(std::make_unique<SimpleError>(SimpleError{9, "moved"}));
   auto err = std::move(r).error();
   ASSERT_NE(err, nullptr);
   EXPECT_EQ(err->code, 9);
 }
 
-TEST(ResultTest, FailureStringError) {
+TEST(ResultTest, Int_FailureStringError) {
   auto r = Result<int, std::string>::failure("something went wrong");
   EXPECT_EQ(r.error(), "something went wrong");
+}
+
+// ---------------------------------------------------------------------------
+// Result<T, E> — precondition violations throw std::logic_error
+// ---------------------------------------------------------------------------
+
+TEST(ResultTest, ValueOnFailureThrowsLogicError) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(r.value(), std::logic_error);
+}
+
+TEST(ResultTest, ConstValueOnFailureThrowsLogicError) {
+  const auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(r.value(), std::logic_error);
+}
+
+TEST(ResultTest, MoveValueOnFailureThrowsLogicError) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(std::move(r).value(), std::logic_error);
+}
+
+TEST(ResultTest, ErrorOnSuccessThrowsLogicError) {
+  auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(r.error(), std::logic_error);
+}
+
+TEST(ResultTest, ConstErrorOnSuccessThrowsLogicError) {
+  const auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(r.error(), std::logic_error);
+}
+
+TEST(ResultTest, MoveErrorOnSuccessThrowsLogicError) {
+  auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(std::move(r).error(), std::logic_error);
 }
 
 // ---------------------------------------------------------------------------
 // Result<void, E> — success path
 // ---------------------------------------------------------------------------
 
-TEST(ResultVoidTest, SuccessOkIsTrue) {
+TEST(ResultTest, Void_SuccessOkIsTrue) {
   auto r = Result<void, SimpleError>::success();
   EXPECT_TRUE(r.ok());
 }
 
-TEST(ResultVoidTest, SuccessHasErrorIsFalse) {
+TEST(ResultTest, Void_SuccessHasErrorIsFalse) {
   auto r = Result<void, SimpleError>::success();
   EXPECT_FALSE(r.has_error());
 }
 
-TEST(ResultVoidTest, SuccessBoolConversionIsTrue) {
+TEST(ResultTest, Void_SuccessBoolConversionIsTrue) {
   auto r = Result<void, SimpleError>::success();
-  EXPECT_TRUE(static_cast<bool>(r));
+  EXPECT_TRUE(r);
 }
 
-TEST(ResultVoidTest, SuccessValueIsCallable) {
+TEST(ResultTest, Void_SuccessValueIsCallable) {
   auto r = Result<void, SimpleError>::success();
   EXPECT_NO_THROW(r.value());
 }
@@ -159,31 +194,50 @@ TEST(ResultVoidTest, SuccessValueIsCallable) {
 // Result<void, E> — failure path
 // ---------------------------------------------------------------------------
 
-TEST(ResultVoidTest, FailureOkIsFalse) {
+TEST(ResultTest, Void_FailureOkIsFalse) {
   auto r = Result<void, SimpleError>::failure(SimpleError{5, "void fail"});
   EXPECT_FALSE(r.ok());
 }
 
-TEST(ResultVoidTest, FailureHasErrorIsTrue) {
+TEST(ResultTest, Void_FailureHasErrorIsTrue) {
   auto r = Result<void, SimpleError>::failure(SimpleError{5, "void fail"});
   EXPECT_TRUE(r.has_error());
 }
 
-TEST(ResultVoidTest, FailureBoolConversionIsFalse) {
+TEST(ResultTest, Void_FailureBoolConversionIsFalse) {
   auto r = Result<void, SimpleError>::failure(SimpleError{5, "void fail"});
-  EXPECT_FALSE(static_cast<bool>(r));
+  EXPECT_FALSE(r);
 }
 
-TEST(ResultVoidTest, FailureErrorMatchesInput) {
+TEST(ResultTest, Void_FailureErrorMatchesInput) {
   auto r = Result<void, SimpleError>::failure(SimpleError{7, "nope"});
   EXPECT_EQ(r.error().code, 7);
   EXPECT_EQ(r.error().message, "nope");
 }
 
-TEST(ResultVoidTest, FailureMoveError) {
+TEST(ResultTest, Void_FailureMoveError) {
   auto r = Result<void, std::string>::failure("void error");
   auto msg = std::move(r).error();
   EXPECT_EQ(msg, "void error");
+}
+
+// ---------------------------------------------------------------------------
+// Result<void, E> — precondition violations throw std::logic_error
+// ---------------------------------------------------------------------------
+
+TEST(ResultVoidTest, ValueOnFailureThrowsLogicError) {
+  auto r = Result<void, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(r.value(), std::logic_error);
+}
+
+TEST(ResultVoidTest, ErrorOnSuccessThrowsLogicError) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_THROW(r.error(), std::logic_error);
+}
+
+TEST(ResultVoidTest, MoveErrorOnSuccessThrowsLogicError) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_THROW(std::move(r).error(), std::logic_error);
 }
 
 // ---------------------------------------------------------------------------
