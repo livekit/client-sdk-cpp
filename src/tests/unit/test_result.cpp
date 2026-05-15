@@ -28,6 +28,7 @@
 #include <livekit/result.h>
 
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -58,7 +59,7 @@ TEST(ResultTest, Int_SuccessHasErrorIsFalse) {
 
 TEST(ResultTest, Int_SuccessBoolConversionIsTrue) {
   auto r = Result<int, SimpleError>::success(42);
-  EXPECT_TRUE(static_cast<bool>(r));
+  EXPECT_TRUE(r);
 }
 
 TEST(ResultTest, Int_SuccessValueMatchesInput) {
@@ -105,7 +106,7 @@ TEST(ResultTest, Int_FailureHasErrorIsTrue) {
 
 TEST(ResultTest, Int_FailureBoolConversionIsFalse) {
   auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
-  EXPECT_FALSE(static_cast<bool>(r));
+  EXPECT_FALSE(r);
 }
 
 TEST(ResultTest, Int_FailureErrorCodeMatchesInput) {
@@ -132,6 +133,40 @@ TEST(ResultTest, Int_FailureStringError) {
 }
 
 // ---------------------------------------------------------------------------
+// Result<T, E> — precondition violations throw std::logic_error
+// ---------------------------------------------------------------------------
+
+TEST(ResultTest, ValueOnFailureThrowsLogicError) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(r.value(), std::logic_error);
+}
+
+TEST(ResultTest, ConstValueOnFailureThrowsLogicError) {
+  const auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(r.value(), std::logic_error);
+}
+
+TEST(ResultTest, MoveValueOnFailureThrowsLogicError) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(std::move(r).value(), std::logic_error);
+}
+
+TEST(ResultTest, ErrorOnSuccessThrowsLogicError) {
+  auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(r.error(), std::logic_error);
+}
+
+TEST(ResultTest, ConstErrorOnSuccessThrowsLogicError) {
+  const auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(r.error(), std::logic_error);
+}
+
+TEST(ResultTest, MoveErrorOnSuccessThrowsLogicError) {
+  auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(std::move(r).error(), std::logic_error);
+}
+
+// ---------------------------------------------------------------------------
 // Result<void, E> — success path
 // ---------------------------------------------------------------------------
 
@@ -147,7 +182,7 @@ TEST(ResultTest, Void_SuccessHasErrorIsFalse) {
 
 TEST(ResultTest, Void_SuccessBoolConversionIsTrue) {
   auto r = Result<void, SimpleError>::success();
-  EXPECT_TRUE(static_cast<bool>(r));
+  EXPECT_TRUE(r);
 }
 
 TEST(ResultTest, Void_SuccessValueIsCallable) {
@@ -171,7 +206,7 @@ TEST(ResultTest, Void_FailureHasErrorIsTrue) {
 
 TEST(ResultTest, Void_FailureBoolConversionIsFalse) {
   auto r = Result<void, SimpleError>::failure(SimpleError{5, "void fail"});
-  EXPECT_FALSE(static_cast<bool>(r));
+  EXPECT_FALSE(r);
 }
 
 TEST(ResultTest, Void_FailureErrorMatchesInput) {
@@ -184,6 +219,25 @@ TEST(ResultTest, Void_FailureMoveError) {
   auto r = Result<void, std::string>::failure("void error");
   auto msg = std::move(r).error();
   EXPECT_EQ(msg, "void error");
+}
+
+// ---------------------------------------------------------------------------
+// Result<void, E> — precondition violations throw std::logic_error
+// ---------------------------------------------------------------------------
+
+TEST(ResultVoidTest, ValueOnFailureThrowsLogicError) {
+  auto r = Result<void, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(r.value(), std::logic_error);
+}
+
+TEST(ResultVoidTest, ErrorOnSuccessThrowsLogicError) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_THROW(r.error(), std::logic_error);
+}
+
+TEST(ResultVoidTest, MoveErrorOnSuccessThrowsLogicError) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_THROW(std::move(r).error(), std::logic_error);
 }
 
 // ---------------------------------------------------------------------------
