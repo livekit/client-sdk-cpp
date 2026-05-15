@@ -31,7 +31,7 @@ TEST_F(RoomTest, ConnectWithoutInitialize) {
   livekit::shutdown();
 
   Room room;
-  bool result = room.Connect("wss://localhost:7880", "test", livekit::RoomOptions());
+  bool result = room.connect("wss://localhost:7880", "test", livekit::RoomOptions());
   EXPECT_FALSE(result) << "Connecting without initializing should return false";
 }
 
