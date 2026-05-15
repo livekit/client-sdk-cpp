@@ -18,6 +18,8 @@
 #include <livekit/livekit.h>
 
 #include <atomic>
+#include <chrono>
+#include <iostream>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -238,6 +240,124 @@ TEST_F(LoggingTest, ConcurrentSetLogLevelDoesNotCrash) {
   for (auto& th : threads) {
     th.join();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Rust FFI -> C++ log forwarding
+// ---------------------------------------------------------------------------
+
+namespace {
+
+const char* logLevelName(LogLevel level) {
+  switch (level) {
+    case LogLevel::Trace:
+      return "TRACE";
+    case LogLevel::Debug:
+      return "DEBUG";
+    case LogLevel::Info:
+      return "INFO";
+    case LogLevel::Warn:
+      return "WARN";
+    case LogLevel::Error:
+      return "ERROR";
+    case LogLevel::Critical:
+      return "CRITICAL";
+    case LogLevel::Off:
+      return "OFF";
+  }
+  return "?";
+}
+
+} // namespace
+
+// Verifies that records emitted from the Rust FFI core surface through the
+// user-installed `setLogCallback` when the SDK is initialised with
+// `LogSink::kCallback`.  Without this wiring, log forwarding would silently
+// drop on the C++ side even though Rust is shipping `LogBatch` events over
+// the FFI bridge.
+//
+// This test does NOT use the `LoggingTest` fixture because that fixture
+// pre-initialises the SDK with `LogSink::kConsole` (i.e. `capture_logs=false`
+// on the Rust side).  Toggling capture_logs requires a fresh
+// `livekit::initialize()` call, so we manage the SDK lifecycle inline.
+TEST(FfiLoggingTest, RustLogsReachUserCallback) {
+  // Defensive: ensure the SDK is in a clean state in case this test runs
+  // after another test that left it initialised.  shutdown() is a no-op
+  // when not initialised.
+  livekit::shutdown();
+
+  struct Captured {
+    LogLevel level;
+    std::string logger_name;
+    std::string message;
+  };
+
+  std::mutex mtx;
+  std::vector<Captured> captured;
+
+  // Install the callback BEFORE initialize() so that the very first records
+  // emitted by Rust during FFI server setup (e.g. "initializing ffi server
+  // v...") are observed.  Each record is also echoed to std::cout for ad
+  // hoc inspection of what the Rust side is forwarding.
+  livekit::setLogCallback([&](LogLevel level, const std::string& logger_name, const std::string& message) {
+    const std::scoped_lock<std::mutex> lock(mtx);
+    std::cout << "[ffi-log] [" << logLevelName(level) << "] [" << logger_name << "] " << message << std::endl;
+    captured.push_back({level, logger_name, message});
+  });
+  livekit::setLogLevel(LogLevel::Trace);
+
+  ASSERT_TRUE(livekit::initialize(LogLevel::Trace, LogSink::kCallback));
+
+  // The Rust FFI logger batches records and flushes on the next iteration
+  // of its forwarding task.  Poll up to 5s for the well-known startup log
+  // to surface; this is generous to keep CI stable but typically resolves
+  // in well under a second.
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  bool found_rust_log = false;
+  while (std::chrono::steady_clock::now() < deadline) {
+    {
+      const std::scoped_lock<std::mutex> lock(mtx);
+      for (const auto& entry : captured) {
+        if (entry.message.find("initializing ffi server") != std::string::npos) {
+          found_rust_log = true;
+          break;
+        }
+      }
+    }
+    if (found_rust_log) {
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+
+  EXPECT_TRUE(found_rust_log) << "Expected the Rust 'initializing ffi server' log record to reach the C++ "
+                                 "setLogCallback via the FFI LogBatch bridge";
+
+  // Sanity-check that the forwarded record carries the Rust target as the
+  // logger name (i.e. NOT the C++-side "livekit" logger), proving that the
+  // bridge preserves provenance instead of collapsing every record into the
+  // SDK logger.
+  bool saw_non_livekit_logger = false;
+  {
+    const std::scoped_lock<std::mutex> lock(mtx);
+    for (const auto& entry : captured) {
+      if (entry.message.find("initializing ffi server") != std::string::npos) {
+        // Rust's `log::info!` in `livekit-ffi` reports a target rooted at
+        // `livekit_ffi::...`; we only require that *some* target was
+        // surfaced (any non-empty string), since the exact target string
+        // is owned by the Rust side and may evolve.
+        EXPECT_FALSE(entry.logger_name.empty()) << "FFI-forwarded log record should carry a target name";
+      }
+      if (!entry.logger_name.empty() && entry.logger_name != "livekit") {
+        saw_non_livekit_logger = true;
+      }
+    }
+  }
+  EXPECT_TRUE(saw_non_livekit_logger)
+      << "Expected at least one forwarded record to carry a Rust-side target distinct from the C++ 'livekit' logger";
+
+  livekit::setLogCallback(nullptr);
+  livekit::shutdown();
 }
 
 TEST_F(LoggingTest, ConcurrentLogEmissionDoesNotCrash) {

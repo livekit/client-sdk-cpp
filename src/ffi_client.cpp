@@ -207,7 +207,36 @@ proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) cons
   return response;
 }
 
+LogLevel fromProtoLogLevel(proto::LogLevel level) {
+  switch (level) {
+    case proto::LOG_ERROR:
+      return LogLevel::Error;
+    case proto::LOG_WARN:
+      return LogLevel::Warn;
+    case proto::LOG_INFO:
+      return LogLevel::Info;
+    case proto::LOG_DEBUG:
+      return LogLevel::Debug;
+    case proto::LOG_TRACE:
+      return LogLevel::Trace;
+    default:
+      return LogLevel::Info;
+  }
+}
+
+void forwardFfiLogBatch(const proto::LogBatch& batch) {
+  for (int i = 0; i < batch.records_size(); ++i) {
+    const auto& rec = batch.records(i);
+    detail::forwardFfiLog(fromProtoLogLevel(rec.level()), rec.target(), rec.message());
+  }
+}
+
 void FfiClient::PushEvent(const proto::FfiEvent& event) const {
+  // Forward any FFI logs to the SDK logger
+  if (event.has_logs()) {
+    forwardFfiLogBatch(event.logs());
+  }
+
   std::unique_ptr<PendingBase> to_complete;
   std::vector<Listener> listeners_copy;
   {

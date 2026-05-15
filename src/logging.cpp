@@ -111,6 +111,27 @@ void shutdownLogger() {
   }
 }
 
+void forwardFfiLog(LogLevel level, const std::string& target, const std::string& message) {
+  // Snapshot the current logger via shared_ptr so that a concurrent
+  // setLogCallback() / shutdownLogger() cannot race with our sink iteration.
+  auto logger = getLogger();
+  const auto spd_level = toSpdlogLevel(level);
+  if (!logger->should_log(spd_level)) {
+    return;
+  }
+
+  // Construct a log_msg directly so the Rust target survives as
+  // `logger_name`, instead of being collapsed into the single "livekit"
+  // logger name that spdlog would otherwise apply.
+  const spdlog::details::log_msg msg(spdlog::source_loc{}, spdlog::string_view_t{target.data(), target.size()},
+                                     spd_level, spdlog::string_view_t{message.data(), message.size()});
+  for (auto& sink : logger->sinks()) {
+    if (sink->should_log(spd_level)) {
+      sink->log(msg);
+    }
+  }
+}
+
 } // namespace detail
 
 void setLogLevel(LogLevel level) { detail::getLogger()->set_level(toSpdlogLevel(level)); }

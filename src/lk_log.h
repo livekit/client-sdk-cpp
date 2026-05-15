@@ -19,7 +19,9 @@
 #include <spdlog/spdlog.h>
 
 #include <memory>
+#include <string>
 
+#include "livekit/logging.h"
 #include "livekit/visibility.h"
 
 namespace livekit::detail {
@@ -31,6 +33,15 @@ LIVEKIT_INTERNAL_API std::shared_ptr<spdlog::logger> getLogger();
 
 /// Tears down the spdlog logger. Called by livekit::shutdown().
 LIVEKIT_INTERNAL_API void shutdownLogger();
+
+/// Forward a single record received from the Rust FFI log bridge into the
+/// SDK's spdlog sinks.  The supplied @p target is preserved as the
+/// `logger_name` exposed to any user-installed `setLogCallback`, allowing
+/// callers to distinguish between e.g. "livekit", "libwebrtc",
+/// "tokio-tungstenite", etc.
+///
+/// Filtering uses the same level set via `livekit::setLogLevel`.
+LIVEKIT_INTERNAL_API void forwardFfiLog(LogLevel level, const std::string& target, const std::string& message);
 
 } // namespace livekit::detail
 
