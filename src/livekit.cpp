@@ -24,7 +24,7 @@ namespace livekit {
 bool initialize(const LogLevel& level, const LogSink& log_sink) {
   setLogLevel(level);
   auto& ffi_client = FfiClient::instance();
-  return ffi_client.initialize(log_sink == LogSink::kCallback);
+  return ffi_client.initialize(true);
 }
 
 void shutdown() {

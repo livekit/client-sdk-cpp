@@ -15,11 +15,14 @@
  */
 
 #include <gtest/gtest.h>
+#include <livekit/audio_source.h>
 #include <livekit/livekit.h>
+#include <livekit/local_audio_track.h>
 
 #include <atomic>
 #include <chrono>
 #include <iostream>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -301,7 +304,7 @@ TEST(FfiLoggingTest, RustLogsReachUserCallback) {
   // hoc inspection of what the Rust side is forwarding.
   livekit::setLogCallback([&](LogLevel level, const std::string& logger_name, const std::string& message) {
     const std::scoped_lock<std::mutex> lock(mtx);
-    std::cout << "[ffi-log] [" << logLevelName(level) << "] [" << logger_name << "] " << message << std::endl;
+    std::cout << "[ffi-log] [" << logLevelName(level) << "] [" << logger_name << "] " << message << '\n';
     captured.push_back({level, logger_name, message});
   });
   livekit::setLogLevel(LogLevel::Trace);
@@ -358,6 +361,154 @@ TEST(FfiLoggingTest, RustLogsReachUserCallback) {
 
   livekit::setLogCallback(nullptr);
   livekit::shutdown();
+}
+
+TEST_F(LoggingTest, DummyRustTest) {
+  livekit::shutdown();
+  ASSERT_TRUE(livekit::initialize(LogLevel::Info));
+  LK_LOG_INFO("Hello from C++ SDK");
+
+  // The single FFI call here -- CreateAudioTrack -- is what crosses the FFI
+  // boundary into the `livekit` crate and triggers `LkRuntime::instance()`.
+  // The AudioSource ctor on its own does NOT instantiate LkRuntime; the
+  // track creation does.
+  {
+    auto audio_source = std::make_shared<AudioSource>(48000, 1);
+    auto track = LocalAudioTrack::createLocalAudioTrack("ffi-log-probe", audio_source);
+    ASSERT_NE(track, nullptr);
+    // Hold the handles briefly so any synchronous Rust-side debug logs land
+    // before the strong refs drop. The FFI logger flushes on a 1s interval,
+    // so this sleep does not gate observability -- it just keeps things tidy.
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+}
+
+// Verifies that internal Rust logs originating BELOW the FFI layer (i.e. in
+// the `livekit` crate or in libwebrtc itself, not in `livekit-ffi`) propagate
+// through the FFI bridge into the user-installed `setLogCallback`.
+//
+// The sibling `RustLogsReachUserCallback` test only proves that the FFI layer
+// itself can forward its own startup log (`"initializing ffi server"`,
+// emitted from inside `livekit_ffi::server::FfiServer::setup`). That alone
+// does not prove that records emitted by deeper Rust crates -- which is what
+// shows up under `RUST_LOG=debug` as `[DEBUG libwebrtc] (...)` or as logs
+// targeted at `livekit::rtc_engine::*` -- also reach the user callback.
+//
+// Trigger path used here (fully in-process, no network):
+//
+//   C++  LocalAudioTrack::createLocalAudioTrack
+//     -> FFI request CreateAudioTrack
+//       -> Rust on_create_audio_track                     (livekit_ffi crate)
+//         -> LocalAudioTrack::create_audio_track          (livekit crate)
+//           -> LkRuntime::instance()
+//                -> log::debug!("LkRuntime::new()")
+//                   target = "livekit::rtc_engine::lk_runtime"
+//           -> PeerConnectionFactory::default()           (libwebrtc-rs)
+//                -> installs the libwebrtc LogSink that forwards every
+//                   internal libwebrtc message as `log::debug!(target:
+//                   "libwebrtc", ...)`.
+//
+// The libwebrtc-internal logs (e.g. the `text_pcap_packet_observer.cc` lines
+// the user sees under `RUST_LOG=debug`) generally fire only during real
+// signaling / ICE / SDP work, which requires a live LiveKit server and so
+// belong in integration tests. The deepest deterministic signal we can
+// trigger from a unit test is `LkRuntime::new()` -- which is still below the
+// FFI layer (it lives in the `livekit` Rust crate), so capturing it proves
+// the cross-crate forwarding works.
+//
+// Note about std::cout: the test installs a `setLogCallback`, which causes
+// the C++ logging layer to swap its spdlog sink set entirely for a callback
+// sink. While the callback is installed, no SDK log output reaches stderr or
+// stdout, so this test does NOT pollute GTest's console output (the only
+// echoes are the deliberate ad-hoc `[ffi-log]` prints below).
+TEST(FfiLoggingTest, LogsFromBelowFfiLayerReachUserCallback) {
+  // Defensive: start from a clean slate in case another test left the SDK
+  // initialised. shutdown() is a no-op when not initialised.
+  livekit::shutdown();
+
+  struct Captured {
+    LogLevel level;
+    std::string logger_name;
+    std::string message;
+  };
+
+  std::mutex mtx;
+  std::vector<Captured> captured;
+
+  // Install BEFORE initialize() so any startup records are observed too.
+  // livekit::setLogCallback([&](LogLevel level, const std::string& logger_name, const std::string& message) {
+  //   const std::scoped_lock<std::mutex> lock(mtx);
+  //   std::cout << "[ffi-log] [" << logLevelName(level) << "] [" << logger_name << "] " << message << '\n';
+  //   captured.push_back({level, logger_name, message});
+  // });
+
+  // Trace level so the FFI logger forwards everything
+  ASSERT_TRUE(livekit::initialize(LogLevel::Trace, LogSink::kCallback));
+
+  // The single FFI call here -- CreateAudioTrack -- is what crosses the FFI
+  // boundary into the `livekit` crate and triggers `LkRuntime::instance()`.
+  // The AudioSource ctor on its own does NOT instantiate LkRuntime; the
+  // track creation does.
+  {
+    auto audio_source = std::make_shared<AudioSource>(48000, 1);
+    auto track = LocalAudioTrack::createLocalAudioTrack("ffi-log-probe", audio_source);
+    ASSERT_NE(track, nullptr);
+    // Hold the handles briefly so any synchronous Rust-side debug logs land
+    // before the strong refs drop. The FFI logger flushes on a 1s interval,
+    // so this sleep does not gate observability -- it just keeps things tidy.
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+
+  // The Rust FfiLogger batches log records and flushes on a 1-second tick
+  // (see livekit-ffi/src/server/logger.rs FLUSH_INTERVAL). Allow generous
+  // headroom for slow CI machines without making the test wall-time-heavy.
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  bool found_below_ffi_log = false;
+  std::string matched_target;
+  std::string matched_message;
+  while (std::chrono::steady_clock::now() < deadline) {
+    {
+      const std::scoped_lock<std::mutex> lock(mtx);
+      for (const auto& entry : captured) {
+        // Targets demonstrably emitted from a layer BELOW livekit-ffi:
+        //   * "livekit::..."   -> livekit Rust crate (e.g. LkRuntime)
+        //   * "libwebrtc"      -> libwebrtc-rs LogSink shim
+        //   * "webrtc"/"webrtc::..." -> direct libwebrtc-rs targets, future-proofing
+        // We deliberately do NOT match "livekit_ffi" here -- that's the FFI
+        // layer itself and would not prove cross-crate propagation.
+        const auto& t = entry.logger_name;
+        const bool is_livekit_crate = t.rfind("livekit::", 0) == 0;
+        const bool is_libwebrtc = (t == "libwebrtc");
+        const bool is_webrtc_crate = (t == "webrtc") || t.rfind("webrtc::", 0) == 0;
+        if (is_livekit_crate || is_libwebrtc || is_webrtc_crate) {
+          found_below_ffi_log = true;
+          matched_target = t;
+          matched_message = entry.message;
+          break;
+        }
+      }
+    }
+    if (found_below_ffi_log) {
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+
+  EXPECT_TRUE(found_below_ffi_log) << "Expected at least one log record from below the FFI layer "
+                                      "(target starting with 'livekit::', 'libwebrtc', or 'webrtc') to "
+                                      "reach the C++ setLogCallback. This validates the "
+                                      "C++ -> FFI -> livekit-rust -> log -> FFI -> C++ chain. If this "
+                                      "fires, it likely means either capture_logs=true is not being "
+                                      "honoured by the Rust FfiLogger, or the LkRuntime weak-ref is "
+                                      "still upgrading from a previous test (in which case run this "
+                                      "test in isolation: --gtest_filter=FfiLoggingTest.LogsFromBelowFfiLayer*).";
+
+  if (found_below_ffi_log) {
+    // Ad hoc breadcrumb so test logs make it obvious WHICH below-FFI record
+    // was the one that satisfied the assertion.
+    std::cout << "[ffi-log] matched below-FFI target='" << matched_target << "' message='" << matched_message << "'"
+              << '\n';
+  }
 }
 
 TEST_F(LoggingTest, ConcurrentLogEmissionDoesNotCrash) {
