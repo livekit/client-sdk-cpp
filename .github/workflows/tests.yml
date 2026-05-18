@@ -206,7 +206,6 @@ jobs:
 
       - name: Run unit tests (Windows)
         if: runner.os == 'Windows'
-        continue-on-error: true
         timeout-minutes: 1
         shell: pwsh
         run: |
@@ -215,7 +214,7 @@ jobs:
 
       # ---------- Install + start livekit-server for integration tests ----------
       - name: Install livekit-server and lk CLI
-        if: matrix.e2e-testing && !cancelled()
+        if: matrix.e2e-testing
         shell: bash
         run: |
           set -euxo pipefail
@@ -232,7 +231,7 @@ jobs:
           lk --version
 
       - name: Start livekit-server
-        if: matrix.e2e-testing && !cancelled()
+        if: matrix.e2e-testing
         shell: bash
         env:
           LIVEKIT_CONFIG: "enable_data_tracks: true"
@@ -256,7 +255,7 @@ jobs:
           exit 1
 
       - name: Run integration tests
-        if: matrix.e2e-testing && !cancelled()
+        if: matrix.e2e-testing
         timeout-minutes: 5
         shell: bash
         env:
