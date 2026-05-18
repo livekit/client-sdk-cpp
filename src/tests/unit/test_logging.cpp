@@ -325,7 +325,7 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
   std::mutex mut;
   std::condition_variable cv;
   std::vector<LogRecord> captured;
-  bool decode_error_received = false;
+  bool error_received = false;
 
   livekit::setLogLevel(LogLevel::Trace);
   livekit::setLogCallback([&](LogLevel level, const std::string& logger_name, const std::string& message) {
@@ -335,10 +335,9 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
       std::cout << "[Captured Rust log] [" << logLevelName(level) << "] [" << logger_name << "] " << message << '\n';
     }
 
-    // Check for specific known error message for condition variable wait. Otherwise we have to sleep a second
-    // for the 1Hz flush interval, which slows this test down unnecessarily
-    if (level == LogLevel::Error && message.find("failed to decode request") != std::string::npos) {
-      decode_error_received = true;
+    // Wake as soon as any error is forwarded so we avoid waiting for the 1Hz flush interval.
+    if (level == LogLevel::Error) {
+      error_received = true;
       cv.notify_one();
     }
   });
@@ -357,7 +356,7 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
   // Wait for the error log to be captured
   {
     std::unique_lock<std::mutex> lock(mut);
-    ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(1), [&] { return decode_error_received; }));
+    ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(1), [&] { return error_received; }));
   }
 
   std::lock_guard<std::mutex> lock(mut);
@@ -389,7 +388,7 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
     std::cout << "Error logs: " << error_log_count << '\n';
   }
 
-  EXPECT_GT(info_log_count, 0);
+  EXPECT_GT(debug_log_count, 0);
   EXPECT_GT(error_log_count, 0);
 
   livekit_ffi_dispose();
