@@ -41,6 +41,34 @@ namespace {
 // reach setLogCallback() the same way they do in production.
 extern "C" void testFfiCallback(const uint8_t* buf, size_t len) { LivekitFfiCallback(buf, len); }
 
+// Utility function to convert LogLevel to a string for debug printing
+const char* logLevelName(LogLevel level) {
+  switch (level) {
+    case LogLevel::Trace:
+      return "TRACE";
+    case LogLevel::Debug:
+      return "DEBUG";
+    case LogLevel::Info:
+      return "INFO";
+    case LogLevel::Warn:
+      return "WARN";
+    case LogLevel::Error:
+      return "ERROR";
+    case LogLevel::Critical:
+      return "CRITICAL";
+    case LogLevel::Off:
+      return "OFF";
+  }
+  return "?";
+}
+
+// Used to capture log records and verify them in tests
+struct LogRecord {
+  LogLevel level;
+  std::string logger_name;
+  std::string message;
+};
+
 } // namespace
 
 class LoggingTest : public ::testing::Test {
@@ -288,38 +316,6 @@ TEST_F(LoggingTest, ConcurrentLogEmissionDoesNotCrash) {
 // Rust FFI -> C++ log forwarding
 // ---------------------------------------------------------------------------
 
-namespace {
-
-// Utility function to convert LogLevel to a string for debug printing
-const char* logLevelName(LogLevel level) {
-  switch (level) {
-    case LogLevel::Trace:
-      return "TRACE";
-    case LogLevel::Debug:
-      return "DEBUG";
-    case LogLevel::Info:
-      return "INFO";
-    case LogLevel::Warn:
-      return "WARN";
-    case LogLevel::Error:
-      return "ERROR";
-    case LogLevel::Critical:
-      return "CRITICAL";
-    case LogLevel::Off:
-      return "OFF";
-  }
-  return "?";
-}
-
-} // namespace
-
-// Used by multiple tests
-struct Captured {
-  LogLevel level;
-  std::string logger_name;
-  std::string message;
-};
-
 TEST_F(LoggingTest, RustLogsAreForwarded) {
   // User toggle for debugging this unit test
   bool print_logs = true;
@@ -328,7 +324,7 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
   livekit::shutdown();
   std::mutex mut;
   std::condition_variable cv;
-  std::vector<Captured> captured;
+  std::vector<LogRecord> captured;
   bool decode_error_received = false;
 
   livekit::setLogLevel(LogLevel::Trace);
