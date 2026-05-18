@@ -62,6 +62,7 @@ if(UNIT_TEST_SOURCES)
   target_link_libraries(livekit_unit_tests
     PRIVATE
       livekit
+      livekit_ffi
       spdlog::spdlog
       ${LIVEKIT_PROTOBUF_TARGET}
       GTest::gtest_main
