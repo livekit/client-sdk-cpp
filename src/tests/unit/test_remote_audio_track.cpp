@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 LiveKit
+ * Copyright 2026 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,24 @@
  * limitations under the License.
  */
 
-#include "livekit/livekit.h"
+#include <gtest/gtest.h>
+#include <livekit/remote_audio_track.h>
 
-#include "ffi_client.h"
-#include "lk_log.h"
+#include "track.pb.h"
 
-namespace livekit {
+namespace livekit::test {
 
-bool initialize(const LogLevel& level, const LogSink& log_sink) {
-  // Initializes logger if singleton instance is not already initialized
-  setLogLevel(level);
-  auto& ffi_client = FfiClient::instance();
-  return ffi_client.initialize(true);
+TEST(RemoteAudioTrackTest, ConstructFromEmptyOwnedTrack) {
+  proto::OwnedTrack owned;
+  RemoteAudioTrack track(owned);
+
+  EXPECT_TRUE(track.sid().empty());
+  EXPECT_TRUE(track.name().empty());
+  EXPECT_TRUE(track.remote());
+  EXPECT_FALSE(track.has_handle());
+
+  const std::string description = track.to_string();
+  EXPECT_FALSE(description.empty());
 }
 
-bool isInitialized() { return FfiClient::instance().isInitialized(); }
-
-void shutdown() {
-  FfiClient::instance().shutdown();
-  detail::shutdownLogger();
-}
-
-} // namespace livekit
+} // namespace livekit::test

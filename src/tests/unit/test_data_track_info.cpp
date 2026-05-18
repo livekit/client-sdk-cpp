@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 LiveKit
+ * Copyright 2026 LiveKit
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,23 @@
  * limitations under the License.
  */
 
-#include "livekit/livekit.h"
+#include <gtest/gtest.h>
+#include <livekit/data_track_info.h>
 
-#include "ffi_client.h"
-#include "lk_log.h"
+namespace livekit::test {
 
-namespace livekit {
-
-bool initialize(const LogLevel& level, const LogSink& log_sink) {
-  // Initializes logger if singleton instance is not already initialized
-  setLogLevel(level);
-  auto& ffi_client = FfiClient::instance();
-  return ffi_client.initialize(true);
+TEST(DataTrackInfoTest, DefaultConstructed) {
+  DataTrackInfo info;
+  EXPECT_TRUE(info.name.empty());
+  EXPECT_TRUE(info.sid.empty());
+  EXPECT_FALSE(info.uses_e2ee);
 }
 
-bool isInitialized() { return FfiClient::instance().isInitialized(); }
-
-void shutdown() {
-  FfiClient::instance().shutdown();
-  detail::shutdownLogger();
+TEST(DataTrackInfoTest, AggregateInitialization) {
+  DataTrackInfo info{"name", "sid", true};
+  EXPECT_EQ(info.name, "name");
+  EXPECT_EQ(info.sid, "sid");
+  EXPECT_TRUE(info.uses_e2ee);
 }
 
-} // namespace livekit
+} // namespace livekit::test
