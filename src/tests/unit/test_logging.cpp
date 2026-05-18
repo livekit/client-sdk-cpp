@@ -29,17 +29,14 @@
 #include <thread>
 #include <vector>
 
+#include "ffi.pb.h"
 #include "ffi_client.h"
-#include "livekit_ffi.h"
+#include "livekit/ffi_handle.h"
 #include "lk_log.h"
 
 namespace livekit::test {
 
 namespace {
-
-// FFI event entry point for tests. Forwards to the SDK handler so log batches
-// reach setLogCallback() the same way they do in production.
-extern "C" void testFfiCallback(const uint8_t* buf, size_t len) { LivekitFfiCallback(buf, len); }
 
 // Utility function to convert LogLevel to a string for debug printing
 const char* logLevelName(LogLevel level) {
@@ -318,7 +315,8 @@ TEST_F(LoggingTest, ConcurrentLogEmissionDoesNotCrash) {
 
 TEST_F(LoggingTest, RustLogsAreForwarded) {
   // User toggle for debugging this unit test
-  bool print_logs = true;
+  // Prints all the forwarded logs to the console
+  bool print_logs = false;
 
   // Start from clean slate
   livekit::shutdown();
@@ -334,8 +332,8 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
   std::size_t debug_log_count = 0;
   std::size_t error_log_count = 0;
 
-  const auto required_rust_logs_received = [&] {
-    return debug_log_count > 0 && warn_log_count > 0 && error_log_count > 0;
+  const auto all_rust_logs_received = [&] {
+    return info_log_count > 0 && debug_log_count > 0 && warn_log_count > 0 && error_log_count > 0;
   };
 
   livekit::setLogLevel(LogLevel::Trace);
@@ -363,34 +361,34 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
         break;
     }
 
-    // Wake once init (debug), invalid handle (warn), and bad request (error) have all been forwarded.
-    if (required_rust_logs_received()) {
+    if (all_rust_logs_received()) {
       cv.notify_one();
     }
   });
 
-  // Induce a Rust-side debug level log
-  // Via FFI initialization messages
-  ASSERT_NO_THROW(livekit_ffi_initialize(testFfiCallback, true, "cpp-test", "1.0.0"));
+  // Induce a Rust-side debug level log via FFI initialization.
+  ASSERT_TRUE(FfiClient::instance().initialize(true));
 
-  // Induce a Rust-wise warning level log
-  // Via dropping an invalid handle
-  livekit_ffi_drop_handle(12345);
+  // Induce Rust-side info level log
+  // Starts an async room connect so livekit-api logs at INFO ("connecting to ...") before the
+  // attempt fails
+  proto::FfiRequest req;
+  auto* connect = req.mutable_connect();
+  connect->set_url("ws://127.0.0.1:7880");
+  // JWT-shaped token (format only); connection is expected to fail.
+  connect->set_token("eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjB9.x");
+  connect->mutable_options()->set_connect_timeout_ms(500);
+  ASSERT_NO_THROW(FfiClient::instance().sendRequest(req));
 
-  // Induce a Rust-side error level log
-  // Via an invalid protobuf payload
+  // Induce a Rust-side warning via dropping an invalid handle.
   {
-    std::vector<uint8_t> data(100);
-    const uint8_t* res_ptr = nullptr;
-    size_t res_len = 0;
-    const auto handle = livekit_ffi_request(data.data(), data.size(), &res_ptr, &res_len);
-    EXPECT_EQ(handle, INVALID_HANDLE);
+    const FfiHandle invalid_handle(12345);
+    (void)invalid_handle;
   }
 
-  // Wait for the required logs to be forwarded
   {
     std::unique_lock<std::mutex> lock(mut);
-    ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(1), required_rust_logs_received));
+    ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(2), all_rust_logs_received));
   }
 
   if (print_logs) {
@@ -400,11 +398,12 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
     std::cout << "Error logs: " << error_log_count << '\n';
   }
 
-  EXPECT_GT(warn_log_count, 0);
   EXPECT_GT(debug_log_count, 0);
+  EXPECT_GT(info_log_count, 0);
+  EXPECT_GT(warn_log_count, 0);
   EXPECT_GT(error_log_count, 0);
 
-  livekit_ffi_dispose();
+  FfiClient::instance().shutdown();
 }
 
 TEST_F(LoggingTest, DummyRustTest) {
