@@ -322,29 +322,63 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
 
   // Start from clean slate
   livekit::shutdown();
+
   std::mutex mut;
-  std::condition_variable cv;
   std::vector<LogRecord> captured;
-  bool error_received = false;
+  std::condition_variable cv;
+
+  // Used to track how many logs of each level have been forwarded,
+  // and used by the condition variable to immedtiate unblock once the buffered logs are consumed
+  std::size_t info_log_count = 0;
+  std::size_t warn_log_count = 0;
+  std::size_t debug_log_count = 0;
+  std::size_t error_log_count = 0;
+
+  const auto required_rust_logs_received = [&] {
+    return debug_log_count > 0 && warn_log_count > 0 && error_log_count > 0;
+  };
 
   livekit::setLogLevel(LogLevel::Trace);
   livekit::setLogCallback([&](LogLevel level, const std::string& logger_name, const std::string& message) {
     const std::scoped_lock<std::mutex> lock(mut);
     captured.push_back({level, logger_name, message});
     if (print_logs) {
-      std::cout << "[Captured Rust log] [" << logLevelName(level) << "] [" << logger_name << "] " << message << '\n';
+      std::cout << "[Forwarded Rust log] [" << logLevelName(level) << "] [" << logger_name << "] " << message << '\n';
     }
 
-    // Wake as soon as any error is forwarded so we avoid waiting for the 1Hz flush interval.
-    if (level == LogLevel::Error) {
-      error_received = true;
+    switch (level) {
+      case LogLevel::Info:
+        ++info_log_count;
+        break;
+      case LogLevel::Warn:
+        ++warn_log_count;
+        break;
+      case LogLevel::Debug:
+        ++debug_log_count;
+        break;
+      case LogLevel::Error:
+        ++error_log_count;
+        break;
+      default:
+        break;
+    }
+
+    // Wake once init (debug), invalid handle (warn), and bad request (error) have all been forwarded.
+    if (required_rust_logs_received()) {
       cv.notify_one();
     }
   });
 
+  // Induce a Rust-side debug level log
+  // Via FFI initialization messages
   ASSERT_NO_THROW(livekit_ffi_initialize(testFfiCallback, true, "cpp-test", "1.0.0"));
 
-  // Induce a Rust-side error log via an invalid protobuf payload
+  // Induce a Rust-wise warning level log
+  // Via dropping an invalid handle
+  livekit_ffi_drop_handle(12345);
+
+  // Induce a Rust-side error level log
+  // Via an invalid protobuf payload
   {
     std::vector<uint8_t> data(100);
     const uint8_t* res_ptr = nullptr;
@@ -353,41 +387,20 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
     EXPECT_EQ(handle, INVALID_HANDLE);
   }
 
-  // Wait for the error log to be captured
+  // Wait for the required logs to be forwarded
   {
     std::unique_lock<std::mutex> lock(mut);
-    ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(1), [&] { return error_received; }));
+    ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(1), required_rust_logs_received));
   }
 
-  std::lock_guard<std::mutex> lock(mut);
-  // Ensure we got some logs -- not a specific value because that could change
-  ASSERT_GE(captured.size(), 1u);
-
-  std::size_t info_log_count = 0;
-  std::size_t warn_log_count = 0;
-  std::size_t debug_log_count = 0;
-  std::size_t error_log_count = 0;
-
-  bool found = false;
-  for (const auto& entry : captured) {
-    if (entry.level == LogLevel::Info) {
-      info_log_count++;
-    } else if (entry.level == LogLevel::Warn) {
-      warn_log_count++;
-    } else if (entry.level == LogLevel::Debug) {
-      debug_log_count++;
-    } else if (entry.level == LogLevel::Error) {
-      error_log_count++;
-    }
-  }
-
-  if (true) {
+  if (print_logs) {
     std::cout << "Info logs: " << info_log_count << '\n';
     std::cout << "Warn logs: " << warn_log_count << '\n';
     std::cout << "Debug logs: " << debug_log_count << '\n';
     std::cout << "Error logs: " << error_log_count << '\n';
   }
 
+  EXPECT_GT(warn_log_count, 0);
   EXPECT_GT(debug_log_count, 0);
   EXPECT_GT(error_log_count, 0);
 
