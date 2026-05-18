@@ -197,9 +197,7 @@ jobs:
 
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
-        id: unit_tests
         if: runner.os != 'Windows'
-        continue-on-error: true
         timeout-minutes: 1
         shell: bash
         run: |
@@ -207,7 +205,6 @@ jobs:
             --gtest_output=xml:build-release/unit-test-results.xml
 
       - name: Run unit tests (Windows)
-        id: unit_tests
         if: runner.os == 'Windows'
         continue-on-error: true
         timeout-minutes: 1
@@ -283,12 +280,6 @@ jobs:
         if: failure() && matrix.e2e-testing
         shell: bash
         run: tail -n 500 livekit-server.log || true
-
-      - name: Check unit test result
-        if: always() && !cancelled() && steps.unit_tests.outcome == 'failure'
-        run: |
-          echo "::error::Unit tests failed"
-          exit 1
 
       # ---------- Upload results ----------
       - name: Upload test results
