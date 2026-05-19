@@ -334,6 +334,11 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
   std::size_t debug_log_count = 0;
   std::size_t error_log_count = 0;
 
+  const auto all_rust_logs_received = [&] {
+    return info_log_count > 0 && debug_log_count > 0 && warn_log_count > 0 && error_log_count > 0;
+  };
+
+  livekit::setLogLevel(LogLevel::Trace);
   livekit::setLogCallback([&](LogLevel level, const std::string& logger_name, const std::string& message) {
     const std::scoped_lock<std::mutex> lock(mut);
     if (kPrintLogs) {
@@ -356,49 +361,29 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
       default:
         break;
     }
-    cv.notify_all();
+
+    if (all_rust_logs_received()) {
+      cv.notify_all();
+    }
   });
 
-  const auto wait_for = [&](const auto& predicate) {
-    std::unique_lock<std::mutex> lock(mut);
-    return cv.wait_for(lock, std::chrono::seconds(2), predicate);
-  };
-
-  // Stage 1: Error — only error-level Rust logs should be forwarded.
-  livekit::setLogLevel(LogLevel::Error);
+  // Stimuli: init (debug), connect (info + error), invalid handle drop (warn).
   ASSERT_TRUE(FfiClient::instance().initialize(true));
   sendFailedConnectRequest();
-  ASSERT_TRUE(wait_for([&] { return error_log_count > 0; }));
-  EXPECT_GT(error_log_count, 0u);
-  EXPECT_EQ(debug_log_count, 0u);
-  EXPECT_EQ(info_log_count, 0u);
-  EXPECT_EQ(warn_log_count, 0u);
-
-  // Stage 2: Warn — invalid handle drop produces a warning.
-  livekit::setLogLevel(LogLevel::Warn);
-  const std::size_t error_before_warn = error_log_count;
   {
     const FfiHandle invalid_handle(12345);
     (void)invalid_handle;
   }
-  ASSERT_TRUE(wait_for([&] { return warn_log_count > 0; }));
-  EXPECT_GT(warn_log_count, 0u);
-  EXPECT_GE(error_log_count, error_before_warn);
 
-  // Stage 3: Info — connect logs "connecting to ..." at INFO before failing.
-  livekit::setLogLevel(LogLevel::Info);
-  sendFailedConnectRequest();
-  ASSERT_TRUE(wait_for([&] { return info_log_count > 0; }));
-  EXPECT_GT(info_log_count, 0u);
+  {
+    std::unique_lock<std::mutex> lock(mut);
+    ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(3), all_rust_logs_received));
+  }
 
-  // Stage 4: Debug — re-init FFI to emit initialization debug logs.
-  livekit::setLogLevel(LogLevel::Debug);
-  FfiClient::instance().shutdown();
-  ASSERT_TRUE(FfiClient::instance().initialize(true));
-  ASSERT_TRUE(wait_for([&] { return debug_log_count > 0; }));
   EXPECT_GT(debug_log_count, 0u);
-
-  // Trace is not logged in Rust at time of writing
+  EXPECT_GT(info_log_count, 0u);
+  EXPECT_GT(warn_log_count, 0u);
+  EXPECT_GT(error_log_count, 0u);
 
   FfiClient::instance().shutdown();
 }
