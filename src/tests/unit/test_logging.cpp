@@ -101,14 +101,8 @@ TEST_F(LoggingTest, DefaultLogLevelIsInfo) { EXPECT_EQ(livekit::getLogLevel(), L
 // ---------------------------------------------------------------------------
 
 TEST_F(LoggingTest, CallbackReceivesLogMessages) {
-  struct Captured {
-    LogLevel level;
-    std::string logger_name;
-    std::string message;
-  };
-
   std::mutex mtx;
-  std::vector<Captured> captured;
+  std::vector<LogRecord> captured;
 
   livekit::setLogCallback([&](LogLevel level, const std::string& logger_name, const std::string& message) {
     std::lock_guard<std::mutex> lock(mtx);
@@ -313,34 +307,33 @@ TEST_F(LoggingTest, ConcurrentLogEmissionDoesNotCrash) {
 // Rust FFI -> C++ log forwarding
 // ---------------------------------------------------------------------------
 
-TEST_F(LoggingTest, RustLogsAreForwarded) {
-  // User toggle for debugging this unit test
-  // Prints all the forwarded logs to the console
-  bool print_logs = false;
+// Starts an async room connect; livekit-api logs INFO ("connecting to ...") and the attempt
+// eventually fails with ERROR.
+void sendFailedConnectRequest() {
+  proto::FfiRequest req;
+  auto* connect = req.mutable_connect();
+  connect->set_url("ws://127.0.0.1:7880");
+  // JWT-shaped token (format only); connection is expected to fail.
+  connect->set_token("eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjB9.x");
+  connect->mutable_options()->set_connect_timeout_ms(500);
+  FfiClient::instance().sendRequest(req);
+}
 
-  // Start from clean slate
+TEST_F(LoggingTest, RustLogsAreForwarded) {
+  constexpr bool kPrintLogs = false;
+
   livekit::shutdown();
 
   std::mutex mut;
-  std::vector<LogRecord> captured;
   std::condition_variable cv;
-
-  // Used to track how many logs of each level have been forwarded,
-  // and used by the condition variable to immedtiate unblock once the buffered logs are consumed
   std::size_t info_log_count = 0;
   std::size_t warn_log_count = 0;
   std::size_t debug_log_count = 0;
   std::size_t error_log_count = 0;
 
-  const auto all_rust_logs_received = [&] {
-    return info_log_count > 0 && debug_log_count > 0 && warn_log_count > 0 && error_log_count > 0;
-  };
-
-  livekit::setLogLevel(LogLevel::Trace);
   livekit::setLogCallback([&](LogLevel level, const std::string& logger_name, const std::string& message) {
     const std::scoped_lock<std::mutex> lock(mut);
-    captured.push_back({level, logger_name, message});
-    if (print_logs) {
+    if (kPrintLogs) {
       std::cout << "[Forwarded Rust log] [" << logLevelName(level) << "] [" << logger_name << "] " << message << '\n';
     }
 
@@ -360,70 +353,51 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
       default:
         break;
     }
-
-    if (all_rust_logs_received()) {
-      cv.notify_one();
-    }
+    cv.notify_all();
   });
 
-  // Induce a Rust-side debug level log via FFI initialization.
+  const auto wait_for = [&](const auto& predicate) {
+    std::unique_lock<std::mutex> lock(mut);
+    return cv.wait_for(lock, std::chrono::seconds(2), predicate);
+  };
+
+  // Stage 1: Error — only error-level Rust logs should be forwarded.
+  livekit::setLogLevel(LogLevel::Error);
   ASSERT_TRUE(FfiClient::instance().initialize(true));
+  sendFailedConnectRequest();
+  ASSERT_TRUE(wait_for([&] { return error_log_count > 0; }));
+  EXPECT_GT(error_log_count, 0u);
+  EXPECT_EQ(debug_log_count, 0u);
+  EXPECT_EQ(info_log_count, 0u);
+  EXPECT_EQ(warn_log_count, 0u);
 
-  // Induce Rust-side info level log
-  // Starts an async room connect so livekit-api logs at INFO ("connecting to ...") before the
-  // attempt fails
-  proto::FfiRequest req;
-  auto* connect = req.mutable_connect();
-  connect->set_url("ws://127.0.0.1:7880");
-  // JWT-shaped token (format only); connection is expected to fail.
-  connect->set_token("eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjB9.x");
-  connect->mutable_options()->set_connect_timeout_ms(500);
-  ASSERT_NO_THROW(FfiClient::instance().sendRequest(req));
-
-  // Induce a Rust-side warning via dropping an invalid handle.
+  // Stage 2: Warn — invalid handle drop produces a warning.
+  livekit::setLogLevel(LogLevel::Warn);
+  const std::size_t error_before_warn = error_log_count;
   {
     const FfiHandle invalid_handle(12345);
     (void)invalid_handle;
   }
+  ASSERT_TRUE(wait_for([&] { return warn_log_count > 0; }));
+  EXPECT_GT(warn_log_count, 0u);
+  EXPECT_GE(error_log_count, error_before_warn);
 
-  {
-    std::unique_lock<std::mutex> lock(mut);
-    ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(2), all_rust_logs_received));
-  }
+  // Stage 3: Info — connect logs "connecting to ..." at INFO before failing.
+  livekit::setLogLevel(LogLevel::Info);
+  sendFailedConnectRequest();
+  ASSERT_TRUE(wait_for([&] { return info_log_count > 0; }));
+  EXPECT_GT(info_log_count, 0u);
 
-  if (print_logs) {
-    std::cout << "Info logs: " << info_log_count << '\n';
-    std::cout << "Warn logs: " << warn_log_count << '\n';
-    std::cout << "Debug logs: " << debug_log_count << '\n';
-    std::cout << "Error logs: " << error_log_count << '\n';
-  }
+  // Stage 4: Debug — re-init FFI to emit initialization debug logs.
+  livekit::setLogLevel(LogLevel::Debug);
+  FfiClient::instance().shutdown();
+  ASSERT_TRUE(FfiClient::instance().initialize(true));
+  ASSERT_TRUE(wait_for([&] { return debug_log_count > 0; }));
+  EXPECT_GT(debug_log_count, 0u);
 
-  EXPECT_GT(debug_log_count, 0);
-  EXPECT_GT(info_log_count, 0);
-  EXPECT_GT(warn_log_count, 0);
-  EXPECT_GT(error_log_count, 0);
+  // Trace is not logged in Rust at time of writing
 
   FfiClient::instance().shutdown();
-}
-
-TEST_F(LoggingTest, DummyRustTest) {
-  livekit::shutdown();
-  ASSERT_TRUE(livekit::initialize(LogLevel::Info));
-  LK_LOG_INFO("Hello from C++ SDK");
-
-  // The single FFI call here -- CreateAudioTrack -- is what crosses the FFI
-  // boundary into the `livekit` crate and triggers `LkRuntime::instance()`.
-  // The AudioSource ctor on its own does NOT instantiate LkRuntime;] the
-  // track creation does.
-  {
-    auto audio_source = std::make_shared<AudioSource>(48000, 1);
-    auto track = LocalAudioTrack::createLocalAudioTrack("ffi-log-probe", audio_source);
-    ASSERT_NE(track, nullptr);
-    // Hold the handles briefly so any synchronous Rust-side debug logs land
-    // before the strong refs drop. The FFI logger flushes on a 1s interval,
-    // so this sleep does not gate observability -- it just keeps things tidy.
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-  }
 }
 
 } // namespace livekit::test
