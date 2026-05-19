@@ -310,8 +310,7 @@ TEST_F(LoggingTest, ConcurrentLogEmissionDoesNotCrash) {
 // Rust FFI -> C++ log forwarding
 // ---------------------------------------------------------------------------
 
-// Starts an async room connect; livekit-api logs INFO ("connecting to ...") and the attempt
-// eventually fails with ERROR.
+// Starts an async room connect so livekit-api logs INFO ("connecting to ...").
 void sendFailedConnectRequest() {
   proto::FfiRequest req;
   auto* connect = req.mutable_connect();
@@ -320,6 +319,14 @@ void sendFailedConnectRequest() {
   connect->set_token("eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjB9.x");
   connect->mutable_options()->set_connect_timeout_ms(500);
   FfiClient::instance().sendRequest(req);
+}
+
+void sendInvalidFfiRequest() {
+  proto::FfiRequest req;
+  auto* set_subscribed = req.mutable_set_subscribed();
+  set_subscribed->set_subscribe(true);
+  set_subscribed->set_publication_handle(12345);
+  (void)FfiClient::instance().sendRequest(req);
 }
 
 TEST_F(LoggingTest, RustLogsAreForwarded) {
@@ -367,9 +374,10 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
     }
   });
 
-  // Stimuli: init (debug), connect (info + error), invalid handle drop (warn).
+  // Stimuli: init (debug), connect (info), invalid request (error), invalid handle drop (warn).
   ASSERT_TRUE(FfiClient::instance().initialize(true));
   sendFailedConnectRequest();
+  ASSERT_THROW(sendInvalidFfiRequest(), std::runtime_error);
   {
     const FfiHandle invalid_handle(12345);
     (void)invalid_handle;
