@@ -17,6 +17,7 @@
 #include "ffi_client.h"
 
 #include <cassert>
+#include <csignal>
 
 #include "data_track.pb.h"
 #include "e2ee.pb.h"
@@ -219,6 +220,23 @@ proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) cons
   return response;
 }
 
+LogLevel toSpdlogLevel(proto::LogLevel level) {
+  switch (level) {
+    case proto::LOG_ERROR:
+      return LogLevel::Error;
+    case proto::LOG_WARN:
+      return LogLevel::Warn;
+    case proto::LOG_INFO:
+      return LogLevel::Info;
+    case proto::LOG_DEBUG:
+      return LogLevel::Debug;
+    case proto::LOG_TRACE:
+      return LogLevel::Trace;
+    default:
+      return LogLevel::Info;
+  }
+}
+
 void FfiClient::PushEvent(const proto::FfiEvent& event) const {
   std::unique_ptr<PendingBase> to_complete;
   std::vector<Listener> listeners_copy;
@@ -251,10 +269,28 @@ void FfiClient::PushEvent(const proto::FfiEvent& event) const {
   }
 }
 
-void LivekitFfiCallback(const uint8_t* buf, size_t len) {
+extern "C" LIVEKIT_INTERNAL_API void LivekitFfiCallback(const uint8_t* buf, size_t len) {
   proto::FfiEvent event;
   event.ParseFromArray(buf,
                        static_cast<int>(len)); // TODO: this fixes for now, what if len exceeds int?
+
+  // Forward any FFI logs to the SDK logger
+  if (event.has_logs()) {
+    // Note: explicitly acquiring the logger here to avoid mutex acquires per-message
+    auto logger = detail::getLogger();
+    for (const auto& rec : event.logs().records()) {
+      detail::forwardFfiLog(logger, toSpdlogLevel(rec.level()), rec.target(), rec.message());
+    }
+    return; // No need to queue the log event from here
+  }
+
+  // We are in a unrecoverable state, terminate the process
+  // This is what Python does, may not make sense for C++
+  if (event.has_panic()) {
+    std::cerr << "FFI Panic: " << event.panic().message() << '\n';
+    std::raise(SIGTERM);
+    return;
+  }
 
   FfiClient::instance().PushEvent(event);
 }

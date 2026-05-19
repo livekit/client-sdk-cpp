@@ -22,13 +22,16 @@
 namespace livekit {
 
 bool initialize(const LogLevel& level, const LogSink& log_sink) {
+  (void)log_sink;
+  return initialize(level);
+}
+
+bool initialize(const LogLevel& level) {
   // Initializes logger if singleton instance is not already initialized
   setLogLevel(level);
   auto& ffi_client = FfiClient::instance();
-  return ffi_client.initialize(log_sink == LogSink::kCallback);
+  return ffi_client.initialize(true);
 }
-
-bool isInitialized() { return FfiClient::instance().isInitialized(); }
 
 void shutdown() {
   FfiClient::instance().shutdown();

@@ -15,24 +15,67 @@
  */
 
 #include <gtest/gtest.h>
+#include <livekit/audio_source.h>
 #include <livekit/livekit.h>
+#include <livekit/local_audio_track.h>
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <iostream>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include "ffi.pb.h"
+#include "ffi_client.h"
+#include "livekit/ffi_handle.h"
 #include "lk_log.h"
 
 namespace livekit::test {
 
+namespace {
+
+// Utility function to convert LogLevel to a string for debug printing
+const char* logLevelName(LogLevel level) {
+  switch (level) {
+    case LogLevel::Trace:
+      return "TRACE";
+    case LogLevel::Debug:
+      return "DEBUG";
+    case LogLevel::Info:
+      return "INFO";
+    case LogLevel::Warn:
+      return "WARN";
+    case LogLevel::Error:
+      return "ERROR";
+    case LogLevel::Critical:
+      return "CRITICAL";
+    case LogLevel::Off:
+      return "OFF";
+  }
+  return "?";
+}
+
+// Used to capture log records and verify them in tests
+struct LogRecord {
+  LogLevel level;
+  std::string logger_name;
+  std::string message;
+};
+
+} // namespace
+
 class LoggingTest : public ::testing::Test {
 protected:
-  void SetUp() override { livekit::initialize(); }
+  void SetUp() override { livekit::setLogLevel(LogLevel::Info); }
 
   void TearDown() override {
     livekit::setLogCallback(nullptr);
+    if (FfiClient::instance().isInitialized()) {
+      FfiClient::instance().shutdown();
+    }
     livekit::shutdown();
   }
 };
@@ -60,14 +103,8 @@ TEST_F(LoggingTest, DefaultLogLevelIsInfo) { EXPECT_EQ(livekit::getLogLevel(), L
 // ---------------------------------------------------------------------------
 
 TEST_F(LoggingTest, CallbackReceivesLogMessages) {
-  struct Captured {
-    LogLevel level;
-    std::string logger_name;
-    std::string message;
-  };
-
   std::mutex mtx;
-  std::vector<Captured> captured;
+  std::vector<LogRecord> captured;
 
   livekit::setLogCallback([&](LogLevel level, const std::string& logger_name, const std::string& message) {
     std::lock_guard<std::mutex> lock(mtx);
@@ -266,6 +303,133 @@ TEST_F(LoggingTest, ConcurrentLogEmissionDoesNotCrash) {
   }
 
   EXPECT_GE(call_count.load(), kThreads * kIterations);
+}
+
+// ---------------------------------------------------------------------------
+// Rust FFI -> C++ log forwarding
+// ---------------------------------------------------------------------------
+
+// Starts an async room connect so livekit-api logs INFO ("connecting to ...").
+void sendFailedConnectRequest() {
+  proto::FfiRequest req;
+  auto* connect = req.mutable_connect();
+  connect->set_url("ws://127.0.0.1:7880");
+  // JWT-shaped token (format only); connection is expected to fail.
+  connect->set_token("eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjB9.x");
+  connect->mutable_options()->set_connect_timeout_ms(500);
+  FfiClient::instance().sendRequest(req);
+}
+
+void sendInvalidFfiRequest() {
+  proto::FfiRequest req;
+  auto* set_subscribed = req.mutable_set_subscribed();
+  set_subscribed->set_subscribe(true);
+  set_subscribed->set_publication_handle(12345);
+  (void)FfiClient::instance().sendRequest(req);
+}
+
+TEST_F(LoggingTest, RustLogsAreForwarded) {
+  constexpr bool kPrintLogs = false;
+
+  livekit::shutdown();
+
+  std::mutex mut;
+  std::condition_variable cv;
+  std::size_t info_log_count = 0;
+  std::size_t warn_log_count = 0;
+  std::size_t debug_log_count = 0;
+  std::size_t error_log_count = 0;
+
+  const auto all_rust_logs_received = [&] {
+    return info_log_count > 0 && debug_log_count > 0 && warn_log_count > 0 && error_log_count > 0;
+  };
+
+  livekit::setLogLevel(LogLevel::Trace);
+  livekit::setLogCallback([&](LogLevel level, const std::string& logger_name, const std::string& message) {
+    const std::scoped_lock<std::mutex> lock(mut);
+    if (kPrintLogs) {
+      std::cout << "[Forwarded Rust log] [" << logLevelName(level) << "] [" << logger_name << "] " << message << '\n';
+    }
+
+    switch (level) {
+      case LogLevel::Info:
+        ++info_log_count;
+        break;
+      case LogLevel::Warn:
+        ++warn_log_count;
+        break;
+      case LogLevel::Debug:
+        ++debug_log_count;
+        break;
+      case LogLevel::Error:
+        ++error_log_count;
+        break;
+      default:
+        break;
+    }
+
+    if (all_rust_logs_received()) {
+      cv.notify_all();
+    }
+  });
+
+  // Stimuli: init (debug), connect (info), invalid request (error), invalid handle drop (warn).
+  ASSERT_TRUE(FfiClient::instance().initialize(true));
+  sendFailedConnectRequest();
+  ASSERT_THROW(sendInvalidFfiRequest(), std::runtime_error);
+  {
+    const FfiHandle invalid_handle(12345);
+    (void)invalid_handle;
+  }
+
+  {
+    std::unique_lock<std::mutex> lock(mut);
+    ASSERT_TRUE(cv.wait_for(lock, std::chrono::seconds(3), all_rust_logs_received));
+  }
+
+  EXPECT_GT(debug_log_count, 0u);
+  EXPECT_GT(info_log_count, 0u);
+  EXPECT_GT(warn_log_count, 0u);
+  EXPECT_GT(error_log_count, 0u);
+
+  FfiClient::instance().shutdown();
+}
+
+TEST_F(LoggingTest, RustLogsAreSuppressedWhenOff) {
+  livekit::shutdown();
+
+  std::mutex mut;
+  std::condition_variable cv;
+  std::size_t log_count = 0;
+
+  livekit::setLogLevel(LogLevel::Off);
+  livekit::setLogCallback([&](LogLevel, const std::string&, const std::string&) {
+    const std::scoped_lock<std::mutex> lock(mut);
+    ++log_count;
+    cv.notify_all();
+  });
+
+  // Throw in a local SDK log for good measure
+  LK_LOG_INFO("Should not log");
+
+  // Same Rust-side stimuli as RustLogsAreForwarded, but the C++ logger should filter them all.
+  ASSERT_TRUE(FfiClient::instance().initialize(true));
+  sendFailedConnectRequest();
+  ASSERT_THROW(sendInvalidFfiRequest(), std::runtime_error);
+  {
+    const FfiHandle invalid_handle(12345);
+    (void)invalid_handle;
+  }
+
+  {
+    std::unique_lock<std::mutex> lock(mut);
+    // Until Rust FFI supports log flushing, we need a timeout like this to ensure no logs are
+    // forwarded within the 1Hz threshold
+    EXPECT_FALSE(cv.wait_for(lock, std::chrono::seconds(2), [&] { return log_count > 0; }));
+    EXPECT_EQ(log_count, 0u);
+  }
+
+  FfiClient::instance().shutdown();
 }
 
 } // namespace livekit::test
