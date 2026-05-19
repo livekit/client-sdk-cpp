@@ -72,18 +72,9 @@ if(UNIT_TEST_SOURCES)
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
       ${LIVEKIT_ROOT_DIR}/src/trace
-      ${LIVEKIT_BINARY_DIR}/generated
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
-      ${Protobuf_INCLUDE_DIRS}
   )
-  if(TARGET absl::base)
-    get_target_property(_livekit_unit_test_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
-    if(_livekit_unit_test_absl_inc)
-      target_include_directories(livekit_unit_tests PRIVATE
-        ${_livekit_unit_test_absl_inc}
-      )
-    endif()
-  endif()
+  livekit_add_system_include_dirs(livekit_unit_tests ${LIVEKIT_EXTERNAL_SYSTEM_INCLUDE_DIRS})
 
   target_compile_definitions(livekit_unit_tests
     PRIVATE
@@ -170,18 +161,9 @@ if(INTEGRATION_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
-      ${LIVEKIT_BINARY_DIR}/generated
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
-      ${Protobuf_INCLUDE_DIRS}
   )
-  if(TARGET absl::base)
-    get_target_property(_livekit_test_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
-    if(_livekit_test_absl_inc)
-      target_include_directories(livekit_integration_tests PRIVATE
-        ${_livekit_test_absl_inc}
-      )
-    endif()
-  endif()
+  livekit_add_system_include_dirs(livekit_integration_tests ${LIVEKIT_EXTERNAL_SYSTEM_INCLUDE_DIRS})
 
   target_compile_definitions(livekit_integration_tests
     PRIVATE
@@ -258,9 +240,8 @@ if(STRESS_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
-      ${LIVEKIT_BINARY_DIR}/generated
-      ${Protobuf_INCLUDE_DIRS}
   )
+  livekit_add_system_include_dirs(livekit_stress_tests ${LIVEKIT_EXTERNAL_SYSTEM_INCLUDE_DIRS})
 
   target_compile_definitions(livekit_stress_tests
     PRIVATE
