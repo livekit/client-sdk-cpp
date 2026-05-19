@@ -104,7 +104,7 @@ TEST_F(AudioSourceTest, DISABLED_CaptureFramePublishPathLeakReproducer) {
   const int num_channels = envInt("LIVEKIT_AUDIO_LEAK_CHANNELS", 2);
   const int queue_size_ms = envInt("LIVEKIT_AUDIO_LEAK_QUEUE_SIZE_MS", 0);
   const int capture_timeout_ms = envInt("LIVEKIT_AUDIO_LEAK_TIMEOUT_MS", 20);
-  const int capture_rate_hz = envInt("LIVEKIT_AUDIO_LEAK_CAPTURE_RATE_HZ", 500);
+  const int capture_rate_hz = envInt("LIVEKIT_AUDIO_LEAK_CAPTURE_RATE_HZ", 50);
   const int frame_bytes = envInt("LIVEKIT_AUDIO_LEAK_FRAME_BYTES", tenMillisecondFrameBytes(sample_rate, num_channels));
   const bool publish_track = envInt("LIVEKIT_AUDIO_LEAK_PUBLISH_TRACK", 1) != 0;
 
