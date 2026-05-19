@@ -23,7 +23,6 @@
 #include <chrono>
 #include <condition_variable>
 #include <iostream>
-#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -392,6 +391,43 @@ TEST_F(LoggingTest, RustLogsAreForwarded) {
   EXPECT_GT(info_log_count, 0u);
   EXPECT_GT(warn_log_count, 0u);
   EXPECT_GT(error_log_count, 0u);
+
+  FfiClient::instance().shutdown();
+}
+
+TEST_F(LoggingTest, RustLogsAreSuppressedWhenOff) {
+  livekit::shutdown();
+
+  std::mutex mut;
+  std::condition_variable cv;
+  std::size_t log_count = 0;
+
+  livekit::setLogLevel(LogLevel::Off);
+  livekit::setLogCallback([&](LogLevel, const std::string&, const std::string&) {
+    const std::scoped_lock<std::mutex> lock(mut);
+    ++log_count;
+    cv.notify_all();
+  });
+
+  // Throw in a local SDK log for good measure
+  LK_LOG_INFO("Should not log");
+
+  // Same Rust-side stimuli as RustLogsAreForwarded, but the C++ logger should filter them all.
+  ASSERT_TRUE(FfiClient::instance().initialize(true));
+  sendFailedConnectRequest();
+  ASSERT_THROW(sendInvalidFfiRequest(), std::runtime_error);
+  {
+    const FfiHandle invalid_handle(12345);
+    (void)invalid_handle;
+  }
+
+  {
+    std::unique_lock<std::mutex> lock(mut);
+    // Until Rust FFI supports log flushing, we need a timeout like this to ensure no logs are
+    // forwarded within the 1Hz threshold
+    EXPECT_FALSE(cv.wait_for(lock, std::chrono::seconds(2), [&] { return log_count > 0; }));
+    EXPECT_EQ(log_count, 0u);
+  }
 
   FfiClient::instance().shutdown();
 }
