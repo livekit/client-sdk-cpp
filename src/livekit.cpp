@@ -28,8 +28,6 @@ bool initialize(const LogLevel& level, const LogSink& log_sink) {
   return ffi_client.initialize(true);
 }
 
-bool isInitialized() { return FfiClient::instance().isInitialized(); }
-
 void shutdown() {
   FfiClient::instance().shutdown();
   detail::shutdownLogger();

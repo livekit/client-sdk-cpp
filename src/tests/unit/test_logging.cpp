@@ -70,10 +70,13 @@ struct LogRecord {
 
 class LoggingTest : public ::testing::Test {
 protected:
-  void SetUp() override { livekit::initialize(); }
+  void SetUp() override { livekit::setLogLevel(LogLevel::Info); }
 
   void TearDown() override {
     livekit::setLogCallback(nullptr);
+    if (FfiClient::instance().isInitialized()) {
+      FfiClient::instance().shutdown();
+    }
     livekit::shutdown();
   }
 };
