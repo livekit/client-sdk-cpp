@@ -276,10 +276,12 @@ extern "C" LIVEKIT_INTERNAL_API void LivekitFfiCallback(const uint8_t* buf, size
 
   // Forward any FFI logs to the SDK logger
   if (event.has_logs()) {
+    // Note: explicitly acquiring the logger here to avoid mutex acquires per-message
+    auto logger = detail::getLogger();
     for (const auto& rec : event.logs().records()) {
-      detail::forwardFfiLog(toSpdlogLevel(rec.level()), rec.target(), rec.message());
+      detail::forwardFfiLog(logger, toSpdlogLevel(rec.level()), rec.target(), rec.message());
     }
-    return; // No need to queue the logs
+    return; // No need to queue the log event from here
   }
 
   // We are in a unrecoverable state, terminate the process

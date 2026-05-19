@@ -111,10 +111,8 @@ void shutdownLogger() {
   }
 }
 
-void forwardFfiLog(LogLevel level, const std::string& target, const std::string& message) {
-  // Snapshot the current logger via shared_ptr so that a concurrent
-  // setLogCallback() / shutdownLogger() cannot race with our sink iteration.
-  auto logger = getLogger();
+void forwardFfiLog(const std::shared_ptr<spdlog::logger>& logger, LogLevel level, const std::string& target,
+                   const std::string& message) {
   const auto spd_level = toSpdlogLevel(level);
   if (!logger->should_log(spd_level)) {
     return;
