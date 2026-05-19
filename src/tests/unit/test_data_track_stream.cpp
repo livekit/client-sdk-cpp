@@ -37,6 +37,8 @@ protected:
     stream.handleReadResponse(response);
   }
 
+  static void failProtocolError(DataTrackStream& stream, const char* message) { stream.failProtocolError(message); }
+
   static proto::FfiEvent makeEosEvent(std::optional<proto::SubscribeDataTrackErrorCode> code = std::nullopt,
                                       const std::string& message = {}) {
     proto::FfiEvent event;
@@ -118,6 +120,16 @@ TEST_F(DataTrackStreamTest, ReadResponseSubscribeFailureEosStoresTerminalError) 
   DataTrackFrame frame;
   EXPECT_FALSE(stream->read(frame));
   expectTerminalError(*stream, SubscribeDataTrackErrorCode::UNPUBLISHED, "track unpublished before read completed");
+}
+
+TEST_F(DataTrackStreamTest, ProtocolErrorClosesStreamAndStoresTerminalError) {
+  auto stream = makeStream();
+
+  EXPECT_NO_THROW(failProtocolError(*stream, "malformed FFI response"));
+
+  DataTrackFrame frame;
+  EXPECT_FALSE(stream->read(frame));
+  expectTerminalError(*stream, SubscribeDataTrackErrorCode::PROTOCOL_ERROR, "malformed FFI response");
 }
 
 TEST_F(DataTrackStreamTest, CloseBeforeEosSuppressesLaterTerminalError) {

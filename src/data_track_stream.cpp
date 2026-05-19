@@ -30,6 +30,8 @@ using proto::FfiEvent;
 
 namespace {
 
+constexpr char kMissingReadResponseError[] = "DataTrackStream::read: FFI response missing data_track_stream_read";
+
 std::optional<SubscribeDataTrackError> terminalErrorFromEos(const proto::DataTrackStreamEOS& eos) {
   if (!eos.has_error()) {
     return std::nullopt;
@@ -49,6 +51,7 @@ void DataTrackStream::init(FfiHandle subscription_handle) {
 
 bool DataTrackStream::read(DataTrackFrame& out) {
   proto::DataTrackStreamReadResponse read_response;
+  bool missing_read_response = false;
 
   {
     const std::scoped_lock<std::mutex> lock(mutex_);
@@ -66,12 +69,14 @@ bool DataTrackStream::read(DataTrackFrame& out) {
     msg->set_stream_handle(subscription_handle);
     const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
     if (!resp.has_data_track_stream_read()) {
-      // should we throw here? This would mean the proto is mismatched
-      LK_LOG_ERROR("DataTrackStream::read: FFI response missing data_track_stream_read");
-      return false;
+      missing_read_response = true;
+    } else {
+      read_response = resp.data_track_stream_read();
     }
+  }
 
-    read_response = resp.data_track_stream_read();
+  if (missing_read_response) {
+    failProtocolError(kMissingReadResponseError);
   }
 
   handleReadResponse(read_response);
@@ -145,6 +150,12 @@ void DataTrackStream::handleReadResponse(const proto::DataTrackStreamReadRespons
     return;
   }
   pushEos(terminalErrorFromEos(response.eos_event()));
+}
+
+void DataTrackStream::failProtocolError(const char* message) {
+  LK_LOG_ERROR("{}", message);
+  pushEos(SubscribeDataTrackError{SubscribeDataTrackErrorCode::PROTOCOL_ERROR, message});
+  close();
 }
 
 void DataTrackStream::pushFrame(DataTrackFrame&& frame) {
