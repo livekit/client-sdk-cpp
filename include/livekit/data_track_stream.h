@@ -18,8 +18,6 @@
 
 #include <condition_variable>
 #include <cstdint>
-#include <deque>
-#include <memory>
 #include <mutex>
 #include <optional>
 
@@ -32,7 +30,8 @@ namespace livekit {
 
 namespace proto {
 class FfiEvent;
-}
+class DataTrackStreamReadResponse;
+} // namespace proto
 
 /**
  * Represents a pull-based stream of frames from a remote data track.
@@ -110,6 +109,12 @@ private:
 
   /// FFI event handler, called by FfiClient.
   void onFfiEvent(const proto::FfiEvent& event);
+
+  /// Handle the immediate response returned by a read request.
+  void handleReadResponse(const proto::DataTrackStreamReadResponse& response);
+
+  /// Mark the stream failed due to an invalid FFI protocol response.
+  [[noreturn]] void failProtocolError(const char* message);
 
   /// Push a received DataTrackFrame to the internal storage.
   void pushFrame(DataTrackFrame&& frame);
