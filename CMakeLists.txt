@@ -52,6 +52,26 @@ else()
   set(LIVEKIT_IS_TOPLEVEL FALSE)
 endif()
 
+function(livekit_enable_strict_compile_warnings target_name)
+  if(MSVC)
+    target_compile_options(${target_name} PRIVATE /permissive- /Zc:__cplusplus /W4 /WX)
+  else()
+    target_compile_options(${target_name} PRIVATE
+      -Wall
+      -Wextra
+      -Wpedantic
+      -Werror
+      $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-Wno-gnu-zero-variadic-macro-arguments>
+    )
+  endif()
+endfunction()
+
+function(livekit_add_system_include_dirs target_name)
+  if(ARGN)
+    target_include_directories(${target_name} SYSTEM PRIVATE ${ARGN})
+  endif()
+endfunction()
+
 if(LIVEKIT_IS_TOPLEVEL)
   # Since we use separate build directories (build-debug/build-release),
   # we don't need additional platform/config subdirectories
@@ -113,6 +133,27 @@ if(TARGET protobuf::libprotobuf)
 else()
   message(FATAL_ERROR "No protobuf library target found (expected protobuf::libprotobuf)")
 endif()
+
+set(LIVEKIT_EXTERNAL_SYSTEM_INCLUDE_DIRS
+  "${PROTO_BINARY_DIR}"
+  ${Protobuf_INCLUDE_DIRS}
+)
+foreach(_livekit_system_include_target
+    protobuf::libprotobuf
+    absl::base
+    spdlog::spdlog
+    spdlog)
+  if(TARGET ${_livekit_system_include_target})
+    get_target_property(_livekit_system_includes
+      ${_livekit_system_include_target}
+      INTERFACE_INCLUDE_DIRECTORIES)
+    if(_livekit_system_includes)
+      list(APPEND LIVEKIT_EXTERNAL_SYSTEM_INCLUDE_DIRS ${_livekit_system_includes})
+    endif()
+  endif()
+endforeach()
+list(REMOVE_DUPLICATES LIVEKIT_EXTERNAL_SYSTEM_INCLUDE_DIRS)
+
 target_include_directories(livekit_proto PRIVATE
   "${PROTO_BINARY_DIR}"
   ${Protobuf_INCLUDE_DIRS}
@@ -433,8 +474,8 @@ target_include_directories(livekit
     ${LIVEKIT_ROOT_DIR}/src
     ${LIVEKIT_ROOT_DIR}/src/trace
     ${RUST_ROOT}/livekit-ffi/include
-    ${PROTO_BINARY_DIR}
 )
+livekit_add_system_include_dirs(livekit ${LIVEKIT_EXTERNAL_SYSTEM_INCLUDE_DIRS})
 
 target_link_libraries(livekit
   PRIVATE
@@ -600,11 +641,7 @@ if(UNIX AND NOT APPLE)
   target_link_libraries(livekit PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 endif()
 
-if(MSVC)
-  target_compile_options(livekit PRIVATE /permissive- /Zc:__cplusplus /W4)
-else()
-  target_compile_options(livekit PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+livekit_enable_strict_compile_warnings(livekit)
 
 # -------------------- Install / Package (SDK bundle) --------------------
 include(GNUInstallDirs)
