@@ -16,28 +16,7 @@
 
 #pragma once
 
-#include "livekit/audio_frame.h"
-#include "livekit/audio_processing_module.h"
-#include "livekit/audio_source.h"
-#include "livekit/audio_stream.h"
-#include "livekit/build.h"
-#include "livekit/e2ee.h"
-#include "livekit/local_audio_track.h"
-#include "livekit/local_participant.h"
-#include "livekit/local_track_publication.h"
-#include "livekit/local_video_track.h"
 #include "livekit/logging.h"
-#include "livekit/participant.h"
-#include "livekit/remote_participant.h"
-#include "livekit/remote_track_publication.h"
-#include "livekit/room.h"
-#include "livekit/room_delegate.h"
-#include "livekit/room_event_types.h"
-#include "livekit/tracing.h"
-#include "livekit/track_publication.h"
-#include "livekit/video_frame.h"
-#include "livekit/video_source.h"
-#include "livekit/video_stream.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
