@@ -40,15 +40,15 @@ When making larger scale changes, check with the developer before committing to 
 
 The SDK has three categories of threads:
 
-**FFI callback thread** — The Rust FFI layer calls `LivekitFfiCallback` from a Rust-managed thread (typically a Tokio runtime thread). This single entry point deserializes the `FfiEvent` and calls `FfiClient::PushEvent`, which:
+**FFI callback thread** — The Rust FFI layer calls `LivekitFfiCallback` from a Rust-managed thread (typically a Tokio runtime thread). This single entry point deserializes the `FfiEvent` and calls `FfiClient::pushEvent`, which:
 1. Completes any pending async `std::promise` matched by `async_id`.
-2. Invokes all registered `FfiClient` listeners (including `Room::OnEvent`).
+2. Invokes all registered `FfiClient` listeners (including `Room::onEvent`).
 
 All `RoomDelegate` callbacks and stream handler callbacks (e.g., `registerTextStreamHandler`) are invoked on this FFI callback thread. **Handlers must not block**; spawn a background thread if synchronous work is needed.
 
 **Per-subscription reader threads** — `SubscriptionThreadDispatcher` creates a dedicated `std::thread` for each active audio, video, or data track subscription. These threads block on `AudioStream::read()`, `VideoStream::read()`, or `DataTrackStream::read()` and invoke the registered `AudioFrameCallback`, `VideoFrameCallback`, or `DataFrameCallback` on that reader thread — not on the FFI callback thread. A hard limit of 20 concurrent reader threads is enforced.
 
-**Application threads** — The calling thread for public API methods such as `Room::Connect`, `LocalParticipant::publishTrack`, `AudioSource::captureFrame`, etc. These may block while waiting for FFI responses or future completion.
+**Application threads** — The calling thread for public API methods such as `Room::connect`, `LocalParticipant::publishTrack`, `AudioSource::captureFrame`, etc. These may block while waiting for FFI responses or future completion.
 
 #### Thread-safety guarantees
 
@@ -145,6 +145,32 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 - Never introduce backwards compatibility breaking changes to the public API.
 - `lk_log.h` lives under `src/` (internal). The public-facing logging API is `include/livekit/logging.h`.
 - spdlog must not appear in any public header or installed header.
+
+#### Deprecating a public API
+
+When superseding a public API (renaming, replacing, or removing in a future major
+version), every retained back-compat shim must carry **both** annotations:
+
+1. The C++11 `[[deprecated("...")]]` attribute so the compiler warns at every
+   call site. The message should name the replacement (e.g.
+   `"AudioFrame::sample_rate is deprecated; use AudioFrame::sampleRate instead"`).
+2. A Doxygen `/// @deprecated Use <newName>() instead.` line immediately above
+   the attribute so the generated docs render a deprecation callout and add the
+   symbol to Doxygen's auto-generated *Deprecated List* page. Doxygen does not
+   read the C++ attribute, so this line is required even though it duplicates
+   information.
+
+Example:
+
+```cpp
+/// @deprecated Use sampleRate() instead.
+[[deprecated("AudioFrame::sample_rate is deprecated; use AudioFrame::sampleRate instead")]]
+int sample_rate() const noexcept { return sampleRate(); }
+```
+
+Keep the prose consistent: `Use <newName>() instead.` Per-symbol deprecations
+must use `///` (not `//`); only section-level asides (e.g. "Deprecated public
+mutators" group headers) may stay as plain `//` comments.
 
 ### Include Conventions
 

@@ -77,7 +77,13 @@ public:
 
   /// Returns a human-readable string representation of the track,
   /// including its SID and name. Useful for debugging and logging.
+  std::string toString() const;
+
+  /// @deprecated Use toString() instead.
+  // NOLINTBEGIN(readability-identifier-naming)
+  [[deprecated("LocalAudioTrack::to_string is deprecated; use LocalAudioTrack::toString instead")]]
   std::string to_string() const;
+  // NOLINTEND(readability-identifier-naming)
 
   /// Returns the publication that owns this track, or nullptr if the track is
   /// not published.

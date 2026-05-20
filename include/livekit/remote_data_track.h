@@ -69,7 +69,7 @@ public:
 
 #ifdef LIVEKIT_TEST_ACCESS
   /// Test-only accessor for exercising lower-level FFI subscription paths.
-  uintptr_t testFfiHandleId() const noexcept { return ffi_handle_id(); }
+  uintptr_t testFfiHandleId() const noexcept { return ffiHandleId(); }
 #endif
 
   /**
@@ -86,7 +86,7 @@ private:
 
   explicit RemoteDataTrack(const proto::OwnedRemoteDataTrack& owned);
 
-  uintptr_t ffi_handle_id() const noexcept { return handle_.get(); }
+  uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
   /** RAII wrapper for the Rust-owned FFI resource. */
   FfiHandle handle_;
 

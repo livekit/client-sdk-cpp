@@ -6,6 +6,7 @@ Checks: >
   modernize-*,
   readability-misleading-indentation,
   readability-redundant-smartptr-get,
+  readability-identifier-naming,
   -bugprone-easily-swappable-parameters,
   -modernize-use-trailing-return-type,
   -modernize-avoid-c-arrays,
@@ -38,3 +39,7 @@ FormatStyle: file
 CheckOptions:
   - key: modernize-use-nullptr.NullMacros
     value: 'NULL'
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
+  - key: readability-identifier-naming.MethodCase
+    value: camelBack

@@ -108,12 +108,37 @@ public:
    */
   void publishDtmf(int code, const std::string& digit);
 
-  // -------------------------------------------------------------------------
-  // Metadata APIs (set metadata / name / attributes)
-  // -------------------------------------------------------------------------
-
+  /**
+   * Update this participant's metadata on the server.
+   *
+   * Sends an FFI request to the LiveKit server to change the metadata
+   * associated with the local participant. Other participants will be
+   * notified via \c onParticipantMetadataChanged.
+   *
+   * Note: this requires \c canUpdateOwnMetadata permission.
+   */
   void setMetadata(const std::string& metadata);
+
+  /**
+   * Update this participant's display name on the server.
+   *
+   * Sends an FFI request to the LiveKit server to change the name
+   * associated with the local participant. Other participants will be
+   * notified via \c onParticipantNameChanged.
+   *
+   * Note: this requires \c canUpdateOwnMetadata permission.
+   */
   void setName(const std::string& name);
+
+  /**
+   * Update this participant's attributes on the server.
+   *
+   * Sends an FFI request to the LiveKit server to replace the attribute
+   * map for the local participant. Other participants will be notified
+   * via \c onParticipantAttributesChanged.
+   *
+   * Note: this requires \c canUpdateOwnMetadata permission.
+   */
   void setAttributes(const std::unordered_map<std::string, std::string>& attributes);
 
   /**

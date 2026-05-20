@@ -36,7 +36,7 @@ namespace livekit {
  *
  * Accessors validate their preconditions before returning. Calling `value()`
  * on an error result, or `error()` on a success result, throws `std::logic_error`.
- * Avoid this by checking `ok()` / `has_error()` / if (result) before calling `value()` or `error()`.
+ * Avoid this by checking `ok()` / `hasError()` / if (result) before calling `value()` or `error()`.
  */
 template <typename T, typename E>
 class [[nodiscard]] Result {
@@ -56,9 +56,17 @@ public:
   /// True when the result contains a success value.
   bool ok() const noexcept { return storage_.index() == 0; }
   /// True when the result contains an error.
-  bool has_error() const noexcept { return !ok(); }
+  bool hasError() const noexcept { return !ok(); }
   /// Allows `if (result)` style success checks.
   explicit operator bool() const noexcept { return ok(); }
+
+  /// @deprecated Use hasError() instead.
+  // NOLINTBEGIN(readability-identifier-naming)
+  [[deprecated("Result::has_error is deprecated; use Result::hasError instead")]]
+  bool has_error() const noexcept {
+    return hasError();
+  }
+  // NOLINTEND(readability-identifier-naming)
 
   /// Access the success value.
   ///
@@ -102,9 +110,9 @@ public:
 
   /// Access the error value.
   ///
-  /// @throws std::logic_error if `has_error() == false`.
+  /// @throws std::logic_error if `hasError() == false`.
   E& error() & {
-    if (!has_error()) {
+    if (!hasError()) {
       throw std::logic_error("Result::error() called on a success result");
     }
     return std::get<1>(storage_);
@@ -112,9 +120,9 @@ public:
 
   /// Access the error value.
   ///
-  /// @throws std::logic_error if `has_error() == false`.
+  /// @throws std::logic_error if `hasError() == false`.
   const E& error() const& {
-    if (!has_error()) {
+    if (!hasError()) {
       throw std::logic_error("Result::error() called on a success result");
     }
     return std::get<1>(storage_);
@@ -122,9 +130,9 @@ public:
 
   /// Move the error value out.
   ///
-  /// @throws std::logic_error if `has_error() == false`.
+  /// @throws std::logic_error if `hasError() == false`.
   E&& error() && {
-    if (!has_error()) {
+    if (!hasError()) {
       throw std::logic_error("Result::error() called on a success result");
     }
     return std::get<1>(std::move(storage_));
@@ -132,9 +140,9 @@ public:
 
   /// Move the error value out.
   ///
-  /// @throws std::logic_error if `has_error() == false`.
+  /// @throws std::logic_error if `hasError() == false`.
   const E&& error() const&& {
-    if (!has_error()) {
+    if (!hasError()) {
       throw std::logic_error("Result::error() called on a success result");
     }
     return std::get<1>(std::move(storage_));
@@ -167,7 +175,7 @@ public:
   /// True when the operation succeeded.
   bool ok() const noexcept { return !error_.has_value(); }
   /// True when the operation failed.
-  bool has_error() const noexcept { return error_.has_value(); }
+  bool hasError() const noexcept { return error_.has_value(); }
   /// Allows `if (result)` style success checks.
   explicit operator bool() const noexcept { return ok(); }
 
@@ -183,7 +191,7 @@ public:
 
   /// Access the error value.
   ///
-  /// @throws std::logic_error if `has_error() == false`.
+  /// @throws std::logic_error if `hasError() == false`.
   E& error() & {
     if (!error_.has_value()) {
       throw std::logic_error("Result::error() called on a success result");
@@ -193,7 +201,7 @@ public:
 
   /// Access the error value.
   ///
-  /// @throws std::logic_error if `has_error() == false`.
+  /// @throws std::logic_error if `hasError() == false`.
   const E& error() const& {
     if (!error_.has_value()) {
       throw std::logic_error("Result::error() called on a success result");
@@ -203,7 +211,7 @@ public:
 
   /// Move the error value out.
   ///
-  /// @throws std::logic_error if `has_error() == false`.
+  /// @throws std::logic_error if `hasError() == false`.
   E&& error() && {
     if (!error_.has_value()) {
       throw std::logic_error("Result::error() called on a success result");
@@ -213,7 +221,7 @@ public:
 
   /// Move the error value out.
   ///
-  /// @throws std::logic_error if `has_error() == false`.
+  /// @throws std::logic_error if `hasError() == false`.
   const E&& error() const&& {
     if (!error_.has_value()) {
       throw std::logic_error("Result::error() called on a success result");

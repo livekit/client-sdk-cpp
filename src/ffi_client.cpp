@@ -173,14 +173,14 @@ bool FfiClient::initialize(bool capture_logs) {
 
 bool FfiClient::isInitialized() const noexcept { return initialized_.load(std::memory_order_acquire); }
 
-FfiClient::ListenerId FfiClient::AddListener(const FfiClient::Listener& listener) {
+FfiClient::ListenerId FfiClient::addListener(const FfiClient::Listener& listener) {
   const std::scoped_lock<std::mutex> guard(lock_);
   const FfiClient::ListenerId id = next_listener_id++;
   listeners_[id] = listener;
   return id;
 }
 
-void FfiClient::RemoveListener(ListenerId id) {
+void FfiClient::removeListener(ListenerId id) {
   const std::scoped_lock<std::mutex> guard(lock_);
   listeners_.erase(id);
 }
@@ -218,7 +218,7 @@ proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) cons
   return response;
 }
 
-void FfiClient::PushEvent(const proto::FfiEvent& event) const {
+void FfiClient::pushEvent(const proto::FfiEvent& event) const {
   std::unique_ptr<PendingBase> to_complete;
   std::vector<Listener> listeners_copy;
   {
@@ -255,7 +255,7 @@ void LivekitFfiCallback(const uint8_t* buf, size_t len) {
   event.ParseFromArray(buf,
                        static_cast<int>(len)); // TODO: this fixes for now, what if len exceeds int?
 
-  FfiClient::instance().PushEvent(event);
+  FfiClient::instance().pushEvent(event);
 }
 
 FfiClient::AsyncId FfiClient::generateAsyncId() { return next_async_id_.fetch_add(1, std::memory_order_relaxed); }

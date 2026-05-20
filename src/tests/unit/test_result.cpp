@@ -18,7 +18,7 @@
 /// @brief Unit tests for the Result<T, E> and Result<void, E> types.
 ///
 /// Covers the invariants documented in result.h:
-///   - ok() / has_error() / bool conversion correctness
+///   - ok() / hasError() / bool conversion correctness
 ///   - value() and error() accessor semantics for lvalue, rvalue, and const
 ///     overloads
 ///   - Move construction and forwarding behaviour
@@ -54,7 +54,7 @@ TEST(ResultTest, Int_SuccessOkIsTrue) {
 
 TEST(ResultTest, Int_SuccessHasErrorIsFalse) {
   auto r = Result<int, SimpleError>::success(42);
-  EXPECT_FALSE(r.has_error());
+  EXPECT_FALSE(r.hasError());
 }
 
 TEST(ResultTest, Int_SuccessBoolConversionIsTrue) {
@@ -101,7 +101,7 @@ TEST(ResultTest, Int_FailureOkIsFalse) {
 
 TEST(ResultTest, Int_FailureHasErrorIsTrue) {
   auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
-  EXPECT_TRUE(r.has_error());
+  EXPECT_TRUE(r.hasError());
 }
 
 TEST(ResultTest, Int_FailureBoolConversionIsFalse) {
@@ -177,7 +177,7 @@ TEST(ResultTest, Void_SuccessOkIsTrue) {
 
 TEST(ResultTest, Void_SuccessHasErrorIsFalse) {
   auto r = Result<void, SimpleError>::success();
-  EXPECT_FALSE(r.has_error());
+  EXPECT_FALSE(r.hasError());
 }
 
 TEST(ResultTest, Void_SuccessBoolConversionIsTrue) {
@@ -201,7 +201,7 @@ TEST(ResultTest, Void_FailureOkIsFalse) {
 
 TEST(ResultTest, Void_FailureHasErrorIsTrue) {
   auto r = Result<void, SimpleError>::failure(SimpleError{5, "void fail"});
-  EXPECT_TRUE(r.has_error());
+  EXPECT_TRUE(r.hasError());
 }
 
 TEST(ResultTest, Void_FailureBoolConversionIsFalse) {

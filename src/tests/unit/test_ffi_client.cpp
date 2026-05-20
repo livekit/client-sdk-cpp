@@ -97,13 +97,13 @@ TEST_F(FfiClientTest, ReinitializeAfterShutdown) {
 }
 
 // ---------------------------------------------------------------------------
-// AddListener / RemoveListener
+// addListener / removeListener
 // ---------------------------------------------------------------------------
 
 TEST_F(FfiClientTest, AddListenerReturnsNonZeroId) {
-  const auto id = FfiClient::instance().AddListener([](const proto::FfiEvent&) {});
+  const auto id = FfiClient::instance().addListener([](const proto::FfiEvent&) {});
   EXPECT_NE(id, 0);
-  FfiClient::instance().RemoveListener(id);
+  FfiClient::instance().removeListener(id);
 }
 
 TEST_F(FfiClientTest, AddListenerReturnsUniqueIds) {
@@ -111,33 +111,33 @@ TEST_F(FfiClientTest, AddListenerReturnsUniqueIds) {
   std::unordered_set<FfiClient::ListenerId> ids;
   ids.reserve(kCount);
   for (int i = 0; i < kCount; ++i) {
-    const auto id = FfiClient::instance().AddListener([](const proto::FfiEvent&) {});
+    const auto id = FfiClient::instance().addListener([](const proto::FfiEvent&) {});
     EXPECT_TRUE(ids.insert(id).second) << "duplicate listener id: " << id;
   }
   for (auto id : ids) {
-    FfiClient::instance().RemoveListener(id);
+    FfiClient::instance().removeListener(id);
   }
 }
 
 TEST_F(FfiClientTest, RemoveListenerWithUnknownIdIsSafe) {
-  EXPECT_NO_THROW(FfiClient::instance().RemoveListener(424242));
+  EXPECT_NO_THROW(FfiClient::instance().removeListener(424242));
 }
 
 TEST_F(FfiClientTest, RemoveListenerIsIdempotent) {
-  const auto id = FfiClient::instance().AddListener([](const proto::FfiEvent&) {});
-  EXPECT_NO_THROW(FfiClient::instance().RemoveListener(id));
-  EXPECT_NO_THROW(FfiClient::instance().RemoveListener(id));
+  const auto id = FfiClient::instance().addListener([](const proto::FfiEvent&) {});
+  EXPECT_NO_THROW(FfiClient::instance().removeListener(id));
+  EXPECT_NO_THROW(FfiClient::instance().removeListener(id));
 }
 
 TEST_F(FfiClientTest, ListenerRegistrationSurvivesShutdownReinitCycle) {
   FfiClient::instance().initialize(false);
-  const auto id = FfiClient::instance().AddListener([](const proto::FfiEvent&) {});
+  const auto id = FfiClient::instance().addListener([](const proto::FfiEvent&) {});
   EXPECT_NE(id, 0);
 
   // shutdown() does not clear the C++-side listener map today; document that
   // contract here so a future refactor that changes it is a deliberate choice.
   FfiClient::instance().shutdown();
-  EXPECT_NO_THROW(FfiClient::instance().RemoveListener(id));
+  EXPECT_NO_THROW(FfiClient::instance().removeListener(id));
 }
 
 // ---------------------------------------------------------------------------

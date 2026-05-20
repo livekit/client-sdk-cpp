@@ -28,9 +28,9 @@ protected:
 
 TEST_F(AudioSourceTest, ConstructAndQueryProperties) {
   AudioSource source(48000, 1);
-  EXPECT_EQ(source.sample_rate(), 48000);
-  EXPECT_EQ(source.num_channels(), 1);
-  EXPECT_NE(source.ffi_handle_id(), 0u);
+  EXPECT_EQ(source.sampleRate(), 48000);
+  EXPECT_EQ(source.numChannels(), 1);
+  EXPECT_NE(source.ffiHandleId(), 0u);
   EXPECT_DOUBLE_EQ(source.queuedDuration(), 0.0);
 }
 

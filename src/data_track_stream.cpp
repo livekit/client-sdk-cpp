@@ -32,7 +32,7 @@ DataTrackStream::~DataTrackStream() { close(); }
 void DataTrackStream::init(FfiHandle subscription_handle) {
   subscription_handle_ = std::move(subscription_handle);
 
-  listener_id_ = FfiClient::instance().AddListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
+  listener_id_ = FfiClient::instance().addListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
 }
 
 bool DataTrackStream::read(DataTrackFrame& out) {
@@ -89,7 +89,7 @@ void DataTrackStream::close() {
   }
 
   if (listener_id != -1) {
-    FfiClient::instance().RemoveListener(listener_id);
+    FfiClient::instance().removeListener(listener_id);
   }
 
   cv_.notify_all();

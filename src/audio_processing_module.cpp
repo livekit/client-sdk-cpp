@@ -62,8 +62,8 @@ void AudioProcessingModule::processStream(AudioFrame& frame) {
   msg->set_apm_handle(static_cast<std::uint64_t>(handle_.get()));
   msg->set_data_ptr(reinterpret_cast<std::uint64_t>(frame.data().data()));
   msg->set_size(static_cast<std::uint32_t>(frame.data().size() * sizeof(std::int16_t)));
-  msg->set_sample_rate(static_cast<std::uint32_t>(frame.sample_rate()));
-  msg->set_num_channels(static_cast<std::uint32_t>(frame.num_channels()));
+  msg->set_sample_rate(static_cast<std::uint32_t>(frame.sampleRate()));
+  msg->set_num_channels(static_cast<std::uint32_t>(frame.numChannels()));
 
   const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
 
@@ -91,8 +91,8 @@ void AudioProcessingModule::processReverseStream(AudioFrame& frame) {
   msg->set_apm_handle(static_cast<std::uint64_t>(handle_.get()));
   msg->set_data_ptr(reinterpret_cast<std::uint64_t>(frame.data().data()));
   msg->set_size(static_cast<std::uint32_t>(frame.data().size() * sizeof(std::int16_t)));
-  msg->set_sample_rate(static_cast<std::uint32_t>(frame.sample_rate()));
-  msg->set_num_channels(static_cast<std::uint32_t>(frame.num_channels()));
+  msg->set_sample_rate(static_cast<std::uint32_t>(frame.sampleRate()));
+  msg->set_num_channels(static_cast<std::uint32_t>(frame.numChannels()));
 
   const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
 

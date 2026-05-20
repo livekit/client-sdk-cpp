@@ -27,8 +27,10 @@ RemoteVideoTrack::RemoteVideoTrack(const proto::OwnedTrack& track)
     : Track(FfiHandle{static_cast<uintptr_t>(track.handle().id())}, track.info().sid(), track.info().name(),
             fromProto(track.info().kind()), fromProto(track.info().stream_state()), track.info().muted(), true) {}
 
-std::string RemoteVideoTrack::to_string() const {
+std::string RemoteVideoTrack::toString() const {
   return "rtc.RemoteVideoTrack(sid=" + sid() + ", name=" + name() + ")";
 }
+
+std::string RemoteVideoTrack::to_string() const { return toString(); }
 
 } // namespace livekit
