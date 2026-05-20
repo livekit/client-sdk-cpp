@@ -99,26 +99,26 @@ public:
 
   // NOLINTBEGIN(readability-identifier-naming)
 
-  // Deprecated - see streamState()
+  /// @deprecated Use streamState() instead.
   [[deprecated("Track::stream_state is deprecated; use Track::streamState instead")]]
   StreamState stream_state() const noexcept {
     return streamState();
   }
 
-  // Deprecated - see mimeType()
+  /// @deprecated Use mimeType() instead.
   // NOLINTNEXTLINE(bugprone-exception-escape)
   [[deprecated("Track::mime_type is deprecated; use Track::mimeType instead")]]
   std::optional<std::string> mime_type() const noexcept {
     return mimeType();
   }
 
-  // Deprecated - see hasHandle()
+  /// @deprecated Use hasHandle() instead.
   [[deprecated("Track::has_handle is deprecated; use Track::hasHandle instead")]]
   bool has_handle() const noexcept {
     return hasHandle();
   }
 
-  // Deprecated - see ffiHandleId()
+  /// @deprecated Use ffiHandleId() instead.
   [[deprecated("Track::ffi_handle_id is deprecated; use Track::ffiHandleId instead")]]
   uintptr_t ffi_handle_id() const noexcept {
     return ffiHandleId();

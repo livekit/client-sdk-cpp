@@ -79,7 +79,7 @@ public:
   /// including its SID and name. Useful for debugging and logging.
   std::string toString() const;
 
-  // Deprecated - see toString()
+  /// @deprecated Use toString() instead.
   // NOLINTBEGIN(readability-identifier-naming)
   [[deprecated("LocalAudioTrack::to_string is deprecated; use LocalAudioTrack::toString instead")]]
   std::string to_string() const;

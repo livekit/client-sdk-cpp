@@ -89,7 +89,7 @@ public:
   /// Underlying FFI handle ID (0 if invalid).
   std::uint64_t ffiHandleId() const noexcept { return handle_.get(); }
 
-  // Deprecated - see ffiHandleId()
+  /// @deprecated Use ffiHandleId() instead.
   [[deprecated("VideoSource::ffi_handle_id is deprecated; use VideoSource::ffiHandleId instead")]]
   std::uint64_t ffi_handle_id() const noexcept { // NOLINT(readability-identifier-naming)
     return ffiHandleId();

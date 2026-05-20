@@ -133,7 +133,7 @@ public:
    */
   bool connect(const std::string& url, const std::string& token, const RoomOptions& options);
 
-  // Deprecated - see connect()
+  /// @deprecated Use connect() instead.
   // NOLINTBEGIN(readability-identifier-naming)
   [[deprecated("Room::Connect is deprecated; use Room::connect instead")]]
   bool Connect(const std::string& url, const std::string& token, const RoomOptions& options);
@@ -151,7 +151,7 @@ public:
    */
   RoomInfoData roomInfo() const;
 
-  // Deprecated - see roomInfo()
+  /// @deprecated Use roomInfo() instead.
   // NOLINTBEGIN(readability-identifier-naming)
   [[deprecated("Room::room_info is deprecated; use Room::roomInfo instead")]]
   RoomInfoData room_info() const;

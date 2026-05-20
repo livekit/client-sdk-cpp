@@ -60,43 +60,43 @@ public:
 
   // NOLINTBEGIN(readability-identifier-naming)
 
-  // Deprecated - see setName() (also deprecated; see notes above).
+  /// @deprecated Use setName() instead.
   [[deprecated("Participant::set_name is deprecated; use LocalParticipant::setName instead")]]
   void set_name(std::string name) noexcept {
     name_ = std::move(name);
   }
 
-  // Deprecated - see setMetadata() (also deprecated; see notes above).
+  /// @deprecated Use setMetadata() instead.
   [[deprecated("Participant::set_metadata is deprecated; use LocalParticipant::setMetadata instead")]]
   void set_metadata(std::string metadata) noexcept {
     metadata_ = std::move(metadata);
   }
 
-  // Deprecated - see setAttributes() (also deprecated; see notes above).
+  /// @deprecated Use setAttributes() instead.
   [[deprecated("Participant::set_attributes is deprecated; use LocalParticipant::setAttributes instead")]]
   void set_attributes(std::unordered_map<std::string, std::string> attrs) noexcept {
     attributes_ = std::move(attrs);
   }
 
-  // Deprecated - see setAttribute() (also deprecated; see notes above).
+  /// @deprecated Use setAttribute() instead.
   [[deprecated("Participant::set_attribute is deprecated; use LocalParticipant::setAttributes instead")]]
   void set_attribute(const std::string& key, const std::string& value) {
     attributes_[key] = value;
   }
 
-  // Deprecated - see removeAttribute() (also deprecated; see notes above).
+  /// @deprecated Use removeAttribute() instead.
   [[deprecated("Participant::remove_attribute is deprecated; use LocalParticipant::setAttributes instead")]]
   void remove_attribute(const std::string& key) {
     attributes_.erase(key);
   }
 
-  // Deprecated - see setKind() (also deprecated; see notes above).
+  /// @deprecated Kind is server-determined and not user-settable; this mutator will be removed.
   [[deprecated("Participant::set_kind is deprecated; Kind is server-determined and not user-settable")]]
   void set_kind(ParticipantKind kind) noexcept {
     kind_ = kind;
   }
 
-  // Deprecated - see setDisconnectReason() (also deprecated; see notes above).
+  /// @deprecated DisconnectReason is server-determined and not user-settable; this mutator will be removed.
   [[deprecated(
       "Participant::set_disconnect_reason is deprecated; DisconnectReason is server-determined and not "
       "user-settable")]]

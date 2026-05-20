@@ -86,19 +86,19 @@ public:
   /// Underlying FFI handle ID used in FFI requests.
   std::uint64_t ffiHandleId() const noexcept { return static_cast<std::uint64_t>(handle_.get()); }
 
-  // Deprecated - see sampleRate()
+  /// @deprecated Use sampleRate() instead.
   [[deprecated("AudioSource::sample_rate is deprecated; use AudioSource::sampleRate instead")]]
   int sample_rate() const noexcept { // NOLINT(readability-identifier-naming)
     return sampleRate();
   }
 
-  // Deprecated - see numChannels()
+  /// @deprecated Use numChannels() instead.
   [[deprecated("AudioSource::num_channels is deprecated; use AudioSource::numChannels instead")]]
   int num_channels() const noexcept { // NOLINT(readability-identifier-naming)
     return numChannels();
   }
 
-  // Deprecated - see ffiHandleId()
+  /// @deprecated Use ffiHandleId() instead.
   [[deprecated("AudioSource::ffi_handle_id is deprecated; use AudioSource::ffiHandleId instead")]]
   std::uint64_t ffi_handle_id() const noexcept { // NOLINT(readability-identifier-naming)
     return ffiHandleId();

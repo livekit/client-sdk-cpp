@@ -86,31 +86,31 @@ public:
   /// A human-readable description.
   std::string toString() const;
 
-  // Deprecated - see totalSamples()
+  /// @deprecated Use totalSamples() instead.
   [[deprecated("AudioFrame::total_samples is deprecated; use AudioFrame::totalSamples instead")]]
   std::size_t total_samples() const noexcept { // NOLINT(readability-identifier-naming)
     return totalSamples();
   }
 
-  // Deprecated - see sampleRate()
+  /// @deprecated Use sampleRate() instead.
   [[deprecated("AudioFrame::sample_rate is deprecated; use AudioFrame::sampleRate instead")]]
   int sample_rate() const noexcept { // NOLINT(readability-identifier-naming)
     return sampleRate();
   }
 
-  // Deprecated - see numChannels()
+  /// @deprecated Use numChannels() instead.
   [[deprecated("AudioFrame::num_channels is deprecated; use AudioFrame::numChannels instead")]]
   int num_channels() const noexcept { // NOLINT(readability-identifier-naming)
     return numChannels();
   }
 
-  // Deprecated - see samplesPerChannel()
+  /// @deprecated Use samplesPerChannel() instead.
   [[deprecated("AudioFrame::samples_per_channel is deprecated; use AudioFrame::samplesPerChannel instead")]]
   int samples_per_channel() const noexcept { // NOLINT(readability-identifier-naming)
     return samplesPerChannel();
   }
 
-  // Deprecated - see toString()
+  /// @deprecated Use toString() instead.
   [[deprecated("AudioFrame::to_string is deprecated; use AudioFrame::toString instead")]]
   std::string to_string() const; // NOLINT(readability-identifier-naming)
 

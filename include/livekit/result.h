@@ -60,7 +60,7 @@ public:
   /// Allows `if (result)` style success checks.
   explicit operator bool() const noexcept { return ok(); }
 
-  // Deprecated - see hasError()
+  /// @deprecated Use hasError() instead.
   // NOLINTBEGIN(readability-identifier-naming)
   [[deprecated("Result::has_error is deprecated; use Result::hasError instead")]]
   bool has_error() const noexcept {
