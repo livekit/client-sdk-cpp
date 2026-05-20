@@ -35,7 +35,6 @@
 namespace livekit {
 
 namespace {
-
 inline void logAndThrow(const std::string& error_msg) {
   LK_LOG_ERROR("LiveKit SDK Error: {}", error_msg);
   throw std::runtime_error(error_msg);

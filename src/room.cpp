@@ -18,15 +18,11 @@
 
 #include <functional>
 
-#include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit/audio_stream.h"
 #include "livekit/e2ee.h"
-#include "livekit/livekit.h"
-#include "livekit/local_data_track.h"
 #include "livekit/local_participant.h"
-#include "livekit/local_track_publication.h"
 #include "livekit/remote_audio_track.h"
 #include "livekit/remote_data_track.h"
 #include "livekit/remote_participant.h"
@@ -64,6 +60,16 @@ std::shared_ptr<livekit::RemoteParticipant> createRemoteParticipant(const proto:
   livekit::FfiHandle handle(static_cast<uintptr_t>(owned.handle().id()));
   return std::make_shared<livekit::RemoteParticipant>(std::move(handle), pinfo.sid(), pinfo.name(), pinfo.identity(),
                                                       pinfo.metadata(), std::move(attrs), kind, reason);
+}
+
+void readyForRoomEvent(std::uint64_t room_handle) {
+  FfiRequest req;
+  req.mutable_ready_for_room_event()->set_room_handle(room_handle);
+
+  const auto resp = FfiClient::instance().sendRequest(req);
+  if (!resp.has_ready_for_room_event()) {
+    throw std::runtime_error("FfiResponse missing ready_for_room_event");
+  }
 }
 
 } // namespace
@@ -118,12 +124,21 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
     }
     connection_state_ = ConnectionState::Reconnecting;
   }
-  auto fut = FfiClient::instance().connectAsync(url, token, options);
+
+  FfiClient::ListenerId listenerId = 0;
   try {
+    listenerId = FfiClient::instance().addListener([this](const proto::FfiEvent& e) { OnEvent(e); });
+    {
+      const std::scoped_lock<std::mutex> g(lock_);
+      listener_id_ = listenerId;
+    }
+
+    auto fut = FfiClient::instance().connectAsync(url, token, options);
     auto connectCb = fut.get(); // fut will throw if it fails to connect to the room
 
     const auto& owned_room = connectCb.result().room();
     auto new_room_handle = std::make_shared<FfiHandle>(owned_room.handle().id());
+    const auto room_handle_id = static_cast<std::uint64_t>(new_room_handle->get());
     auto new_room_info = fromProto(owned_room.info());
 
     // Setup local particpant
@@ -147,6 +162,7 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
           std::make_unique<LocalParticipant>(std::move(participant_handle), pinfo.sid(), pinfo.name(), pinfo.identity(),
                                              pinfo.metadata(), std::move(attrs), kind, reason);
     }
+
     // Setup remote participants
     std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> new_remote_participants;
     {
@@ -184,18 +200,32 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
       connection_state_ = ConnectionState::Connected;
     }
 
-    // Install listener (Room is fully initialized)
-    auto listenerId = FfiClient::instance().addListener([this](const proto::FfiEvent& e) { onEvent(e); });
-    {
-      const std::scoped_lock<std::mutex> g(lock_);
-      listener_id_ = listenerId;
-    }
-
+    readyForRoomEvent(room_handle_id);
     return true;
   } catch (const std::exception& e) {
-    // On error, set the connection_state_ to Disconnected
-    connection_state_ = ConnectionState::Disconnected;
-    LK_LOG_ERROR("Room::connect failed: {}", e.what());
+    int listener_to_remove = 0;
+    std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
+    {
+      const std::scoped_lock<std::mutex> g(lock_);
+      connection_state_ = ConnectionState::Disconnected;
+      if (listener_id_ == listenerId) {
+        listener_to_remove = listener_id_;
+        listener_id_ = 0;
+      }
+      local_participant_to_cleanup = std::move(local_participant_);
+      remote_participants_.clear();
+      room_handle_.reset();
+      e2ee_manager_.reset();
+      text_stream_readers_.clear();
+      byte_stream_readers_.clear();
+    }
+    if (local_participant_to_cleanup) {
+      local_participant_to_cleanup->shutdown();
+    }
+    if (listener_to_remove != 0) {
+      FfiClient::instance().removeListener(listener_to_remove);
+    }
+    LK_LOG_ERROR("Room::Connect failed: {}", e.what());
     return false;
   }
 }
