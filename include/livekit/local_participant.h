@@ -141,21 +141,6 @@ public:
    */
   void setAttributes(const std::unordered_map<std::string, std::string>& attributes);
 
-  [[deprecated("LocalParticipant::updateMetadata is deprecated; use LocalParticipant::setMetadata instead")]]
-  void updateMetadata(const std::string& metadata) {
-    setMetadata(metadata);
-  }
-
-  [[deprecated("LocalParticipant::updateName is deprecated; use LocalParticipant::setName instead")]]
-  void updateName(const std::string& name) {
-    setName(name);
-  }
-
-  [[deprecated("LocalParticipant::updateAttributes is deprecated; use LocalParticipant::setAttributes instead")]]
-  void updateAttributes(const std::unordered_map<std::string, std::string>& attributes) {
-    setAttributes(attributes);
-  }
-
   /**
    * Set track subscription permissions for this participant.
    *
