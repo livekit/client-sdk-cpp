@@ -27,6 +27,8 @@
 #include <thread>
 #include <vector>
 
+#include "../common/test_common.h"
+
 namespace livekit::test {
 
 using namespace std::chrono_literals;
@@ -86,18 +88,6 @@ std::string generateRandomPayload(size_t size) {
   }
 
   return result.substr(0, size);
-}
-
-// Wait for a remote participant to appear
-bool waitForParticipant(Room* room, const std::string& identity, std::chrono::milliseconds timeout) {
-  auto start = std::chrono::steady_clock::now();
-  while (std::chrono::steady_clock::now() - start < timeout) {
-    if (room->remoteParticipant(identity) != nullptr) {
-      return true;
-    }
-    std::this_thread::sleep_for(100ms);
-  }
-  return false;
 }
 
 class RpcIntegrationTest : public ::testing::Test {

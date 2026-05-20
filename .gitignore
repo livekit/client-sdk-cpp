@@ -34,3 +34,4 @@ lib/
 web/
 *trace.json
 compile_commands.json
+user_stories
