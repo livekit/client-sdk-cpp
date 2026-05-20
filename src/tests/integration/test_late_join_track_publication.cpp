@@ -349,6 +349,7 @@ std::string makeTrackName(const std::string& prefix, int index) {
 class LateJoinTrackPublicationIntegrationTest : public LiveKitTestBase, public ::testing::WithParamInterface<bool> {
 protected:
   void SetUp() override {
+    LiveKitTestBase::SetUp();
     if (!config_.available) {
       throw std::runtime_error("LateJoinTrackPublicationIntegrationTest: test configuration not set up");
     }
