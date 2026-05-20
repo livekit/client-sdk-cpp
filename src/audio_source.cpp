@@ -123,8 +123,8 @@ void AudioSource::captureFrame(const AudioFrame &frame, int timeout_ms) {
       status == std::future_status::deferred) {
     fut.get();
   } else { // std::future_status::timeout
-    std::cerr << "captureAudioFrameAsync timed out after " << timeout_ms
-              << " ms\n";
+    // std::cerr << "captureAudioFrameAsync timed out after " << timeout_ms
+    //           << " ms\n";
   }
 }
 

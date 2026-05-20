@@ -27,6 +27,10 @@ import sys
 import time
 
 
+def kib_to_mib(kib: int) -> float:
+    return kib / 1024.0
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Sample RSS memory for one process matching an executable name."
@@ -122,29 +126,43 @@ def main() -> int:
         return 1
 
     pid, start_rss_kib, command = selected
+    last_rss_kib = start_rss_kib
     started_at = time.monotonic()
     print(f"tracking process_name={args.process_name!r} pid={pid} command={command!r}")
 
-    while True:
-        rss_kib = process_rss(pid)
-        if rss_kib is None:
-            print(f"process pid={pid} exited", file=sys.stderr)
-            return 0
+    try:
+        while True:
+            rss_kib = process_rss(pid)
+            if rss_kib is None:
+                print(f"process pid={pid} exited", file=sys.stderr)
+                return 0
 
-        timestamp = dt.datetime.now(dt.timezone.utc).isoformat()
+            last_rss_kib = rss_kib
+            timestamp = dt.datetime.now(dt.timezone.utc).isoformat()
+            elapsed_s = time.monotonic() - started_at
+            if start_rss_kib == 0:
+                change_pct = 0.0
+            else:
+                change_pct = ((rss_kib - start_rss_kib) / start_rss_kib) * 100.0
+
+            print(
+                f"{timestamp} elapsed={elapsed_s:.1f}s pid={pid} "
+                f"Memory: {kib_to_mib(rss_kib):.2f} MB Percent change: {change_pct:+.2f}%"
+            )
+
+            sys.stdout.flush()
+            time.sleep(args.interval)
+    except KeyboardInterrupt:
+        print("interrupted by user", file=sys.stderr)
+        return 130
+    finally:
+        delta_kib = last_rss_kib - start_rss_kib
         elapsed_s = time.monotonic() - started_at
-        if start_rss_kib == 0:
-            change_pct = 0.0
-        else:
-            change_pct = ((rss_kib - start_rss_kib) / start_rss_kib) * 100.0
-
         print(
-            f"{timestamp} elapsed={elapsed_s:.1f}s pid={pid} "
-            f"Memory: {rss_kib} KB Percent change: {change_pct:+.2f}%"
+            f"memory delta on exit: {kib_to_mib(delta_kib):+.2f} MB "
+            f"(start={kib_to_mib(start_rss_kib):.2f} MB, "
+            f"last={kib_to_mib(last_rss_kib):.2f} MB, elapsed={elapsed_s:.1f}s)"
         )
-
-        sys.stdout.flush()
-        time.sleep(args.interval)
 
 
 if __name__ == "__main__":
