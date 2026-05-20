@@ -267,6 +267,21 @@ ConnectionState Room::connectionState() const {
   return connection_state_;
 }
 
+std::future<Result<SessionStats, GetSessionStatsError>> Room::getSessionStats() const {
+  std::shared_ptr<FfiHandle> handle;
+  {
+    const std::scoped_lock<std::mutex> g(lock_);
+    handle = room_handle_;
+  }
+  if (!handle) {
+    std::promise<Result<SessionStats, GetSessionStatsError>> pr;
+    pr.set_value(Result<SessionStats, GetSessionStatsError>::failure(
+        GetSessionStatsError{GetSessionStatsErrorCode::NOT_CONNECTED, "Room is not connected"}));
+    return pr.get_future();
+  }
+  return FfiClient::instance().getSessionStatsAsync(handle->get());
+}
+
 E2EEManager* Room::e2eeManager() const {
   const std::scoped_lock<std::mutex> g(lock_);
   return e2ee_manager_.get();

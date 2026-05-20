@@ -30,6 +30,7 @@
 #include "data_track.pb.h"
 #include "livekit/data_track_error.h"
 #include "livekit/result.h"
+#include "livekit/session_stats_error.h"
 #include "livekit/stats.h"
 #include "livekit/visibility.h"
 #include "lk_log.h"
@@ -96,6 +97,9 @@ public:
 
   // Track APIs
   std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);
+
+  // Room APIs (stats)
+  std::future<Result<SessionStats, GetSessionStatsError>> getSessionStatsAsync(uintptr_t room_handle);
 
   // Participant APIs
   std::future<proto::OwnedTrackPublication> publishTrackAsync(std::uint64_t local_participant_handle,

@@ -428,6 +428,73 @@ std::future<std::vector<RtcStats>> FfiClient::getTrackStatsAsync(uintptr_t track
   return fut;
 }
 
+namespace {
+
+std::future<Result<SessionStats, GetSessionStatsError>> readySessionStatsFailure(GetSessionStatsErrorCode code,
+                                                                                 std::string message) {
+  std::promise<Result<SessionStats, GetSessionStatsError>> pr;
+  pr.set_value(Result<SessionStats, GetSessionStatsError>::failure(GetSessionStatsError{code, std::move(message)}));
+  return pr.get_future();
+}
+
+} // namespace
+
+std::future<Result<SessionStats, GetSessionStatsError>> FfiClient::getSessionStatsAsync(uintptr_t room_handle) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<Result<SessionStats, GetSessionStatsError>>(
+      async_id,
+      // match
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_get_session_stats() && event.get_session_stats().async_id() == async_id;
+      },
+      // handler
+      [](const proto::FfiEvent& event, std::promise<Result<SessionStats, GetSessionStatsError>>& pr) {
+        const auto& cb = event.get_session_stats();
+        if (cb.has_error()) {
+          pr.set_value(Result<SessionStats, GetSessionStatsError>::failure(
+              GetSessionStatsError{GetSessionStatsErrorCode::INTERNAL, cb.error()}));
+          return;
+        }
+        if (!cb.has_result()) {
+          pr.set_value(Result<SessionStats, GetSessionStatsError>::failure(GetSessionStatsError{
+              GetSessionStatsErrorCode::PROTOCOL_ERROR, "GetSessionStatsCallback missing result and error"}));
+          return;
+        }
+
+        const auto& result = cb.result();
+        SessionStats stats;
+        stats.publisher_stats.reserve(result.publisher_stats_size());
+        for (const auto& ps : result.publisher_stats()) {
+          stats.publisher_stats.push_back(fromProto(ps));
+        }
+        stats.subscriber_stats.reserve(result.subscriber_stats_size());
+        for (const auto& ps : result.subscriber_stats()) {
+          stats.subscriber_stats.push_back(fromProto(ps));
+        }
+        pr.set_value(Result<SessionStats, GetSessionStatsError>::success(std::move(stats)));
+      });
+
+  proto::FfiRequest req;
+  auto* get_session_stats_req = req.mutable_get_session_stats();
+  get_session_stats_req->set_room_handle(room_handle);
+  get_session_stats_req->set_request_async_id(async_id);
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_get_session_stats()) {
+      cancelPendingByAsyncId(async_id);
+      return readySessionStatsFailure(GetSessionStatsErrorCode::PROTOCOL_ERROR,
+                                      "FfiResponse missing get_session_stats");
+    }
+  } catch (const std::exception& e) {
+    cancelPendingByAsyncId(async_id);
+    return readySessionStatsFailure(GetSessionStatsErrorCode::INTERNAL, e.what());
+  }
+
+  return fut;
+}
+
 // Participant APIs Implementation
 std::future<proto::OwnedTrackPublication> FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
                                                                        std::uint64_t track_handle,

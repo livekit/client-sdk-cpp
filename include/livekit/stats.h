@@ -501,6 +501,21 @@ struct RtcStats {
   RtcStatsVariant stats;
 };
 
+/// Aggregated WebRTC stats for a connected room session.
+///
+/// Mirrors the FFI `GetSessionStatsCallback.Result` payload: stats are split
+/// between the publisher peer connection (outbound media flowing from the
+/// local participant to the SFU) and the subscriber peer connection (inbound
+/// media flowing from the SFU back to the local participant). When the SDK is
+/// operating in single-peer-connection mode the publisher list carries the
+/// combined stats and the subscriber list is empty.
+struct SessionStats {
+  /// Stats from the publisher peer connection (outbound media).
+  std::vector<RtcStats> publisher_stats;
+  /// Stats from the subscriber peer connection (inbound media).
+  std::vector<RtcStats> subscriber_stats;
+};
+
 // ----------------------
 // fromProto declarations
 // ----------------------

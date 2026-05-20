@@ -17,13 +17,17 @@
 #pragma once
 
 #include <cstdint>
+#include <future>
 #include <memory>
 #include <mutex>
 
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
+#include "livekit/result.h"
 #include "livekit/room_event_types.h"
+#include "livekit/session_stats_error.h"
+#include "livekit/stats.h"
 #include "livekit/subscription_thread_dispatcher.h"
 #include "livekit/visibility.h"
 
@@ -186,6 +190,21 @@ public:
 
   /// Returns the current connection state of the room.
   ConnectionState connectionState() const;
+
+  /// Retrieve aggregated WebRTC stats for this room session.
+  ///
+  /// Behavior:
+  /// - If the room is not currently connected (no live FFI handle), resolves
+  ///   immediately with a `GetSessionStatsErrorCode::NOT_CONNECTED` failure.
+  /// - Otherwise dispatches an async `get_session_stats` request to the Rust
+  ///   FFI; the future resolves once the corresponding callback arrives.
+  /// - The future never throws — failures are surfaced as a typed
+  ///   `GetSessionStatsError`. Inspect `Result::ok()` / `Result::error().code`
+  ///   to branch on outcome.
+  ///
+  /// @return Future resolving with publisher + subscriber stats on success,
+  ///         or a typed error code + message on failure.
+  std::future<Result<SessionStats, GetSessionStatsError>> getSessionStats() const;
 
   /* Register a handler for incoming text streams on a specific topic.
    *
