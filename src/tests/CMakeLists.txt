@@ -68,6 +68,10 @@ if(UNIT_TEST_SOURCES)
   )
 
   target_include_directories(livekit_unit_tests
+    BEFORE PRIVATE
+      ${LIVEKIT_PROTO_INCLUDE_DIRS}
+  )
+  target_include_directories(livekit_unit_tests
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
@@ -158,6 +162,10 @@ if(INTEGRATION_TEST_SOURCES)
   )
 
   target_include_directories(livekit_integration_tests
+    BEFORE PRIVATE
+      ${LIVEKIT_PROTO_INCLUDE_DIRS}
+  )
+  target_include_directories(livekit_integration_tests
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
@@ -236,6 +244,10 @@ if(STRESS_TEST_SOURCES)
       GTest::gtest_main
   )
 
+  target_include_directories(livekit_stress_tests
+    BEFORE PRIVATE
+      ${LIVEKIT_PROTO_INCLUDE_DIRS}
+  )
   target_include_directories(livekit_stress_tests
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
