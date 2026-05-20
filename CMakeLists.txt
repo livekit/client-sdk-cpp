@@ -54,7 +54,7 @@ endif()
 
 function(livekit_enable_strict_compile_warnings target_name)
   if(MSVC)
-    target_compile_options(${target_name} PRIVATE /permissive- /Zc:__cplusplus /W4 /WX /wd4251)
+    target_compile_options(${target_name} PRIVATE /permissive- /Zc:__cplusplus /W4 /WX /wd4251 /wd4267)
   else()
     target_compile_options(${target_name} PRIVATE
       -Wall
@@ -138,6 +138,9 @@ set(LIVEKIT_PROTO_INCLUDE_DIRS
   "${PROTO_BINARY_DIR}"
   ${Protobuf_INCLUDE_DIRS}
 )
+if(DEFINED livekit_abseil_SOURCE_DIR)
+  list(APPEND LIVEKIT_PROTO_INCLUDE_DIRS "${livekit_abseil_SOURCE_DIR}")
+endif()
 set(LIVEKIT_EXTERNAL_SYSTEM_INCLUDE_DIRS)
 foreach(_livekit_system_include_target
     absl::base
