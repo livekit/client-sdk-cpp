@@ -70,8 +70,8 @@ void expectSingleParticipantConnectedCallback(ParticipantConnectedCounter& count
   ASSERT_TRUE(counter.waitForCount(identity, 1, kListenerCleanupTimeout))
       << "Expected one onParticipantConnected callback for " << identity;
 
-  std::this_thread::sleep_for(kDuplicateListenerGracePeriod);
-  EXPECT_EQ(counter.countFor(identity), 1) << "Duplicate listener delivered multiple participant callbacks";
+  EXPECT_FALSE(counter.waitForCount(identity, 2, kDuplicateListenerGracePeriod))
+      << "Duplicate listener delivered multiple participant callbacks";
 }
 
 void expectFailedConnectDoesNotDuplicateParticipantCallbacks(const TestConfig& config, const std::string& failed_url,
