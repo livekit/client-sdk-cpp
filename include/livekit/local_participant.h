@@ -108,24 +108,6 @@ public:
    */
   void publishDtmf(int code, const std::string& digit);
 
-  // -------------------------------------------------------------------------
-  // Metadata APIs (set metadata / name / attributes)
-  //
-  // These methods send an FFI request to the LiveKit server and are the
-  // canonical way for an SDK consumer to update the local participant's
-  // server-visible state. They match the naming used by the Python and other
-  // LiveKit SDKs (e.g. `LocalParticipant.set_name`).
-  //
-  // They intentionally shadow the deprecated in-memory cache mutators on the
-  // base \c Participant class. The shadowing is suppressed via NOLINT because
-  // it is the desired behavior: callers using a \c LocalParticipant pointer
-  // get the server-syncing implementation, while the deprecated base mutators
-  // remain only for source-compat with the (internal) call sites that have
-  // not yet migrated.
-  // -------------------------------------------------------------------------
-
-  // NOLINTBEGIN(bugprone-derived-method-shadowing-base-method)
-
   /**
    * Update this participant's metadata on the server.
    *
@@ -158,19 +140,6 @@ public:
    * Note: this requires \c canUpdateOwnMetadata permission.
    */
   void setAttributes(const std::unordered_map<std::string, std::string>& attributes);
-
-  // NOLINTEND(bugprone-derived-method-shadowing-base-method)
-
-  // -------------------------------------------------------------------------
-  // Deprecated transitional aliases.
-  //
-  // The update* names were briefly introduced (commit c271f9d) as a
-  // workaround for the shadowing produced by the previous round of
-  // deprecation work. They are retained as forwarders so anyone who pulled
-  // from main during that window gets a clear migration warning rather than
-  // a hard build break. Prefer the canonical setName / setMetadata /
-  // setAttributes above, which match the Python and other LiveKit SDKs.
-  // -------------------------------------------------------------------------
 
   [[deprecated("LocalParticipant::updateMetadata is deprecated; use LocalParticipant::setMetadata instead")]]
   void updateMetadata(const std::string& metadata) {
