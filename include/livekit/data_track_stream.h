@@ -114,7 +114,7 @@ private:
   void handleReadResponse(const proto::DataTrackStreamReadResponse& response);
 
   /// Mark the stream failed due to an invalid FFI protocol response.
-  [[noreturn]] void failProtocolError(const char* message);
+  void failProtocolError(const char* message);
 
   /// Push a received DataTrackFrame to the internal storage.
   void pushFrame(DataTrackFrame&& frame);
