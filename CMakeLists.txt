@@ -268,10 +268,6 @@ execute_process(
 if(rv)
   message(FATAL_ERROR \"cargo build failed with code: \${rv}\")
 endif()
-
-if(DEFINED EXPECTED_OUTPUT AND NOT EXPECTED_OUTPUT STREQUAL \"\" AND NOT EXISTS \"\${EXPECTED_OUTPUT}\")
-  message(FATAL_ERROR \"cargo build completed but did not produce expected Rust FFI artifact: \${EXPECTED_OUTPUT}\")
-endif()
 ")
 
 # Use SHARED library (DLL) on Windows to isolate /MT CRT from consuming /MD apps
@@ -339,7 +335,7 @@ file(GLOB_RECURSE RUST_SOURCES
 )
 
 add_custom_command(
-  OUTPUT "${LIVEKIT_BINARY_DIR}/rust_ffi_$<CONFIG>.stamp"
+  OUTPUT "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
   COMMAND "${CMAKE_COMMAND}"
           -DCFG=$<CONFIG>
           -DRUST_ROOT=${RUST_ROOT}
@@ -347,9 +343,7 @@ add_custom_command(
           -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
           -DRUST_TARGET=${RUST_TARGET_TRIPLE}
           -DGCC_LIB_DIR=${GCC_LIB_DIR}
-          -DEXPECTED_OUTPUT=$<IF:$<CONFIG:Debug>,${RUST_LIB_DEBUG},${RUST_LIB_RELEASE}>
           -P "${RUN_CARGO_SCRIPT}"
-  COMMAND "${CMAKE_COMMAND}" -E touch "${LIVEKIT_BINARY_DIR}/rust_ffi_$<CONFIG>.stamp"
   WORKING_DIRECTORY "${RUST_ROOT}"
   DEPENDS ${RUST_SOURCES}
   COMMENT "Building Rust FFI via cargo"
@@ -357,7 +351,7 @@ add_custom_command(
 )
 
 add_custom_target(build_rust_ffi
-  DEPENDS "${LIVEKIT_BINARY_DIR}/rust_ffi_$<CONFIG>.stamp"
+  DEPENDS "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
 )
 
 # Note: protozero_plugin.o removal is no longer needed since we use dynamic libraries on Unix
