@@ -77,6 +77,7 @@ bool DataTrackStream::read(DataTrackFrame& out) {
 
   if (missing_read_response) {
     failProtocolError(kMissingReadResponseError);
+    return false;
   }
 
   handleReadResponse(read_response);
