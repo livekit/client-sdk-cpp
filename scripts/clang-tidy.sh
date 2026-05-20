@@ -206,7 +206,9 @@ fi
 # SDK and we forward it to every clang-tidy invocation via --extra-arg. Linux
 # CI doesn't need this -- the system clang-tidy already finds libstdc++/libc++
 # through its built-in resource dir.
-extra_args=()
+# Match the Clang build's variadic macro diagnostic suppression when clang-tidy
+# is driven from GCC compile commands in Linux CI.
+extra_args=(-extra-arg=-Wno-gnu-zero-variadic-macro-arguments)
 if [[ "$(uname)" == "Darwin" ]]; then
   sdk_path="$(xcrun --show-sdk-path 2>/dev/null || true)"
   if [[ -n "${sdk_path}" ]]; then

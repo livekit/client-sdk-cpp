@@ -54,7 +54,7 @@ endif()
 
 function(livekit_enable_strict_compile_warnings target_name)
   if(MSVC)
-    target_compile_options(${target_name} PRIVATE /permissive- /Zc:__cplusplus /W4 /WX)
+    target_compile_options(${target_name} PRIVATE /permissive- /Zc:__cplusplus /W4 /WX /wd4251)
   else()
     target_compile_options(${target_name} PRIVATE
       -Wall
@@ -134,12 +134,12 @@ else()
   message(FATAL_ERROR "No protobuf library target found (expected protobuf::libprotobuf)")
 endif()
 
-set(LIVEKIT_EXTERNAL_SYSTEM_INCLUDE_DIRS
+set(LIVEKIT_PROTO_INCLUDE_DIRS
   "${PROTO_BINARY_DIR}"
   ${Protobuf_INCLUDE_DIRS}
 )
+set(LIVEKIT_EXTERNAL_SYSTEM_INCLUDE_DIRS)
 foreach(_livekit_system_include_target
-    protobuf::libprotobuf
     absl::base
     spdlog::spdlog
     spdlog)
@@ -154,10 +154,7 @@ foreach(_livekit_system_include_target
 endforeach()
 list(REMOVE_DUPLICATES LIVEKIT_EXTERNAL_SYSTEM_INCLUDE_DIRS)
 
-target_include_directories(livekit_proto PRIVATE
-  "${PROTO_BINARY_DIR}"
-  ${Protobuf_INCLUDE_DIRS}
-)
+target_include_directories(livekit_proto PRIVATE ${LIVEKIT_PROTO_INCLUDE_DIRS})
 target_link_libraries(livekit_proto PRIVATE ${LIVEKIT_PROTOBUF_TARGET})
 if(TARGET absl::base)
   get_target_property(_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
@@ -444,6 +441,10 @@ add_library(livekit SHARED
   src/trace/trace_event.h
   src/trace/tracing.cpp
 )
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  set_source_files_properties(src/trace/event_tracer.cpp
+    PROPERTIES COMPILE_OPTIONS "-Wno-error=type-limits")
+endif()
 # Symbol visibility: keep liblivekit's exported ABI restricted to the public
 # LiveKit API. By default everything is hidden unless marked by the LIVEKIT_API
 # macro in code
@@ -466,6 +467,10 @@ endif()
 
 target_sources(livekit PRIVATE $<TARGET_OBJECTS:livekit_proto>)
 
+target_include_directories(livekit
+  BEFORE PRIVATE
+    ${LIVEKIT_PROTO_INCLUDE_DIRS}
+)
 target_include_directories(livekit
   PUBLIC
     $<BUILD_INTERFACE:${LIVEKIT_ROOT_DIR}/include>
