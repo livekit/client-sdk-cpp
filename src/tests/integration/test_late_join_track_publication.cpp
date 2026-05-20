@@ -346,7 +346,14 @@ std::string makeTrackName(const std::string& prefix, int index) {
 
 } // namespace
 
-class LateJoinTrackPublicationIntegrationTest : public LiveKitTestBase, public ::testing::WithParamInterface<bool> {};
+class LateJoinTrackPublicationIntegrationTest : public LiveKitTestBase, public ::testing::WithParamInterface<bool> {
+protected:
+  void SetUp() override {
+    if (!config_.available) {
+      throw std::runtime_error("LateJoinTrackPublicationIntegrationTest: test configuration not set up");
+    }
+  }
+};
 
 TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublishedAudioTrackEvents) {
   const bool single_peer_connection = GetParam();
