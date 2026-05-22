@@ -267,7 +267,7 @@ ConnectionState Room::connectionState() const {
   return connection_state_;
 }
 
-std::future<Result<SessionStats, GetSessionStatsError>> Room::getSessionStats() const {
+std::future<Result<SessionStats, GetSessionStatsError>> Room::getStats() const {
   std::shared_ptr<FfiHandle> handle;
   {
     const std::scoped_lock<std::mutex> g(lock_);

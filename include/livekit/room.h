@@ -204,7 +204,7 @@ public:
   ///
   /// @return Future resolving with publisher + subscriber stats on success,
   ///         or a typed error code + message on failure.
-  std::future<Result<SessionStats, GetSessionStatsError>> getSessionStats() const;
+  std::future<Result<SessionStats, GetSessionStatsError>> getStats() const;
 
   /* Register a handler for incoming text streams on a specific topic.
    *

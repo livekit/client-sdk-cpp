@@ -171,8 +171,8 @@ TEST_F(SessionStatsIntegrationTest, PublishAudioThenFetchSessionStats) {
 
   std::this_thread::sleep_for(kStatsWarmup);
 
-  auto sender_fut = sender_room->getSessionStats();
-  auto receiver_fut = receiver_room->getSessionStats();
+  auto sender_fut = sender_room->getStats();
+  auto receiver_fut = receiver_room->getStats();
 
   auto sender_result = sender_fut.get();
   auto receiver_result = receiver_fut.get();
@@ -185,10 +185,9 @@ TEST_F(SessionStatsIntegrationTest, PublishAudioThenFetchSessionStats) {
     sender_room->localParticipant()->unpublishTrack(track->publication()->sid());
   }
 
-  ASSERT_TRUE(sender_result.ok()) << "Sender getSessionStats failed: code="
-                                  << static_cast<int>(sender_result.error().code)
+  ASSERT_TRUE(sender_result.ok()) << "Sender getStats failed: code=" << static_cast<int>(sender_result.error().code)
                                   << " msg=" << sender_result.error().message;
-  ASSERT_TRUE(receiver_result.ok()) << "Receiver getSessionStats failed: code="
+  ASSERT_TRUE(receiver_result.ok()) << "Receiver getStats failed: code="
                                     << static_cast<int>(receiver_result.error().code)
                                     << " msg=" << receiver_result.error().message;
 
@@ -201,7 +200,7 @@ TEST_F(SessionStatsIntegrationTest, PublishAudioThenFetchSessionStats) {
 
 TEST_F(SessionStatsIntegrationTest, NotConnectedReturnsNotConnected) {
   Room room;
-  auto fut = room.getSessionStats();
+  auto fut = room.getStats();
   auto result = fut.get();
   EXPECT_FALSE(result.ok());
   EXPECT_EQ(result.error().code, GetSessionStatsErrorCode::NOT_CONNECTED);

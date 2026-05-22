@@ -21,7 +21,7 @@
 
 namespace livekit {
 
-/// Categorical reason code for a failed `Room::getSessionStats()` call.
+/// Categorical reason code for a failed `Room::getStats()` call.
 enum class GetSessionStatsErrorCode : std::uint32_t {
   /// Catch-all: the FFI returned an error message that does not map to a more
   /// specific code.
@@ -37,7 +37,7 @@ enum class GetSessionStatsErrorCode : std::uint32_t {
   INTERNAL = 3,
 };
 
-/// Typed error returned by `Room::getSessionStats()`.
+/// Typed error returned by `Room::getStats()`.
 ///
 /// Surfaces the error reason as a `GetSessionStatsErrorCode` plus an
 /// implementation-defined message for diagnostics/logging.
