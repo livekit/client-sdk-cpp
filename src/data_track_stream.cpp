@@ -16,6 +16,7 @@
 
 #include "livekit/data_track_stream.h"
 
+#include <optional>
 #include <utility>
 
 #include "data_track.pb.h"
@@ -27,6 +28,19 @@ namespace livekit {
 
 using proto::FfiEvent;
 
+namespace {
+
+constexpr char kMissingReadResponseError[] = "DataTrackStream::read: FFI response missing data_track_stream_read";
+
+std::optional<SubscribeDataTrackError> terminalErrorFromEos(const proto::DataTrackStreamEOS& eos) {
+  if (!eos.has_error()) {
+    return std::nullopt;
+  }
+  return SubscribeDataTrackError::fromProto(eos.error());
+}
+
+} // namespace
+
 DataTrackStream::~DataTrackStream() { close(); }
 
 void DataTrackStream::init(FfiHandle subscription_handle) {
@@ -36,6 +50,9 @@ void DataTrackStream::init(FfiHandle subscription_handle) {
 }
 
 bool DataTrackStream::read(DataTrackFrame& out) {
+  proto::DataTrackStreamReadResponse read_response;
+  bool missing_read_response = false;
+
   {
     const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_ || eof_) {
@@ -50,8 +67,20 @@ bool DataTrackStream::read(DataTrackFrame& out) {
     proto::FfiRequest req;
     auto* msg = req.mutable_data_track_stream_read();
     msg->set_stream_handle(subscription_handle);
-    FfiClient::instance().sendRequest(req);
+    const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+    if (!resp.has_data_track_stream_read()) {
+      missing_read_response = true;
+    } else {
+      read_response = resp.data_track_stream_read();
+    }
   }
+
+  if (missing_read_response) {
+    failProtocolError(kMissingReadResponseError);
+    return false;
+  }
+
+  handleReadResponse(read_response);
 
   std::unique_lock<std::mutex> lock(mutex_);
   cv_.wait(lock, [this] { return frame_.has_value() || eof_ || closed_; });
@@ -113,13 +142,21 @@ void DataTrackStream::onFfiEvent(const FfiEvent& event) {
     DataTrackFrame frame = DataTrackFrame::fromOwnedInfo(fr);
     pushFrame(std::move(frame));
   } else if (dts.has_eos()) {
-    std::optional<SubscribeDataTrackError> error;
-    const auto& eos = dts.eos();
-    if (eos.has_error()) {
-      error = SubscribeDataTrackError::fromProto(eos.error());
-    }
-    pushEos(std::move(error));
+    pushEos(terminalErrorFromEos(dts.eos()));
   }
+}
+
+void DataTrackStream::handleReadResponse(const proto::DataTrackStreamReadResponse& response) {
+  if (!response.has_eos_event()) {
+    return;
+  }
+  pushEos(terminalErrorFromEos(response.eos_event()));
+}
+
+void DataTrackStream::failProtocolError(const char* message) {
+  LK_LOG_ERROR("{}", message);
+  pushEos(SubscribeDataTrackError{SubscribeDataTrackErrorCode::PROTOCOL_ERROR, message});
+  close();
 }
 
 void DataTrackStream::pushFrame(DataTrackFrame&& frame) {
@@ -141,7 +178,7 @@ void DataTrackStream::pushFrame(DataTrackFrame&& frame) {
 void DataTrackStream::pushEos(std::optional<SubscribeDataTrackError> error) {
   {
     const std::scoped_lock<std::mutex> lock(mutex_);
-    if (eof_) {
+    if (closed_ || eof_) {
       return;
     }
     eof_ = true;

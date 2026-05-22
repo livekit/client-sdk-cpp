@@ -33,6 +33,12 @@ protected:
 
   static void pushEvent(DataTrackStream& stream, const proto::FfiEvent& event) { stream.onFfiEvent(event); }
 
+  static void handleReadResponse(DataTrackStream& stream, const proto::DataTrackStreamReadResponse& response) {
+    stream.handleReadResponse(response);
+  }
+
+  static void failProtocolError(DataTrackStream& stream, const char* message) { stream.failProtocolError(message); }
+
   static proto::FfiEvent makeEosEvent(std::optional<proto::SubscribeDataTrackErrorCode> code = std::nullopt,
                                       const std::string& message = {}) {
     proto::FfiEvent event;
@@ -45,6 +51,18 @@ protected:
       error->set_message(message);
     }
     return event;
+  }
+
+  static proto::DataTrackStreamReadResponse makeEosReadResponse(
+      std::optional<proto::SubscribeDataTrackErrorCode> code = std::nullopt, const std::string& message = {}) {
+    proto::DataTrackStreamReadResponse response;
+    auto* eos = response.mutable_eos_event();
+    if (code.has_value()) {
+      auto* error = eos->mutable_error();
+      error->set_code(code.value());
+      error->set_message(message);
+    }
+    return response;
   }
 
   static proto::FfiEvent makeAudioStreamEvent() {
@@ -71,6 +89,15 @@ TEST_F(DataTrackStreamTest, TerminalErrorEmptyForNormalEos) {
   EXPECT_FALSE(stream->terminalError().has_value());
 }
 
+TEST_F(DataTrackStreamTest, ReadResponseNormalEosEndsStreamWithoutTerminalError) {
+  auto stream = makeStream();
+  handleReadResponse(*stream, makeEosReadResponse());
+
+  DataTrackFrame frame;
+  EXPECT_FALSE(stream->read(frame));
+  EXPECT_FALSE(stream->terminalError().has_value());
+}
+
 TEST_F(DataTrackStreamTest, TerminalErrorStoredForSubscribeFailureEos) {
   auto stream = makeStream();
   pushEvent(*stream, makeEosEvent(proto::SUBSCRIBE_DATA_TRACK_ERROR_CODE_UNPUBLISHED,
@@ -83,6 +110,26 @@ TEST_F(DataTrackStreamTest, TerminalErrorStoredForSubscribeFailureEos) {
   ASSERT_TRUE(error.has_value());
   EXPECT_EQ(error->code, SubscribeDataTrackErrorCode::UNPUBLISHED);
   EXPECT_EQ(error->message, "track unpublished before subscription completed");
+}
+
+TEST_F(DataTrackStreamTest, ReadResponseSubscribeFailureEosStoresTerminalError) {
+  auto stream = makeStream();
+  handleReadResponse(*stream, makeEosReadResponse(proto::SUBSCRIBE_DATA_TRACK_ERROR_CODE_UNPUBLISHED,
+                                                  "track unpublished before read completed"));
+
+  DataTrackFrame frame;
+  EXPECT_FALSE(stream->read(frame));
+  expectTerminalError(*stream, SubscribeDataTrackErrorCode::UNPUBLISHED, "track unpublished before read completed");
+}
+
+TEST_F(DataTrackStreamTest, ProtocolErrorClosesStreamAndStoresTerminalError) {
+  auto stream = makeStream();
+
+  EXPECT_NO_THROW(failProtocolError(*stream, "malformed FFI response"));
+
+  DataTrackFrame frame;
+  EXPECT_FALSE(stream->read(frame));
+  expectTerminalError(*stream, SubscribeDataTrackErrorCode::PROTOCOL_ERROR, "malformed FFI response");
 }
 
 TEST_F(DataTrackStreamTest, CloseBeforeEosSuppressesLaterTerminalError) {
