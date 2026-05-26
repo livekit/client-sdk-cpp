@@ -326,17 +326,12 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   auto subscription = subscribe_result.value();
 
   std::atomic<bool> keep_publishing{true};
-  std::exception_ptr publish_error;
-  std::thread publisher([&]() {
-    try {
-      DataTrackFrame frame;
-      frame.payload.assign(payload_len, kTransportPayloadValue);
-      while (keep_publishing.load()) {
-        requirePushSuccess(local_track->tryPush(frame), "Failed to push data frame");
-        std::this_thread::sleep_for(50ms);
-      }
-    } catch (...) {
-      publish_error = std::current_exception();
+  auto publisher = std::async(std::launch::async, [&]() {
+    DataTrackFrame frame;
+    frame.payload.assign(payload_len, kTransportPayloadValue);
+    while (keep_publishing.load()) {
+      requirePushSuccess(local_track->tryPush(frame), "Failed to push data frame");
+      std::this_thread::sleep_for(50ms);
     }
   });
 
@@ -350,13 +345,10 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
 
   const bool remote_track_published_after_read = remote_track->isPublished();
   keep_publishing.store(false);
-  publisher.join();
   subscription->close();
   local_track->unpublishDataTrack();
 
-  if (publish_error) {
-    std::rethrow_exception(publish_error);
-  }
+  publisher.get();
   if (read_error) {
     std::rethrow_exception(read_error);
   }
