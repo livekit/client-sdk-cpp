@@ -26,11 +26,9 @@ namespace livekit {
 
 class VideoFrame;
 
-/**
- * Rotation of a video frame.
- *
- * Mirrors proto_video.VideoRotation but kept as a public SDK enum.
- */
+/// Rotation of a video frame.
+///
+/// Mirrors proto_video.VideoRotation but kept as a public SDK enum.
 enum class VideoRotation {
   VIDEO_ROTATION_0 = 0,
   VIDEO_ROTATION_90 = 90,
@@ -38,42 +36,34 @@ enum class VideoRotation {
   VIDEO_ROTATION_270 = 270,
 };
 
-/**
- * Optional packet-trailer metadata carried alongside a video frame.
- *
- * Each field is independently optional because the corresponding transport
- * feature can be negotiated separately.
- */
+/// Optional packet-trailer metadata carried alongside a video frame.
+///
+/// Each field is independently optional because the corresponding transport
+/// feature can be negotiated separately.
 struct VideoFrameMetadata {
   std::optional<std::uint64_t> user_timestamp_us;
   std::optional<std::uint32_t> frame_id;
 };
 
-/**
- * Capture options for a single outbound video frame.
- */
+/// Capture options for a single outbound video frame.
 struct VideoCaptureOptions {
   std::int64_t timestamp_us = 0;
   VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0;
-  // Populate meta data when you want to send user timestamps or frame IDs.
+  /// Populate meta data when you want to send user timestamps or frame IDs.
   std::optional<VideoFrameMetadata> metadata;
 };
 
-/**
- * Represents a real-time video source that can accept frames from the
- * application and feed them into the LiveKit core.
- */
+/// Represents a real-time video source that can accept frames from the
+/// application and feed them into the LiveKit core.
 class LIVEKIT_API VideoSource {
 public:
-  /**
-   * Create a new native video source with a fixed resolution.
-   *
-   * @param width   Width in pixels.
-   * @param height  Height in pixels.
-   *
-   * Throws std::runtime_error if the FFI call fails or the response
-   * does not contain the expected new_video_source field.
-   */
+  /// Create a new native video source with a fixed resolution.
+  ///
+  /// @param width   Width in pixels.
+  /// @param height  Height in pixels.
+  ///
+  /// @throws std::runtime_error if the FFI call fails or the response
+  ///         does not contain the expected new_video_source field.
   VideoSource(int width, int height);
   virtual ~VideoSource() = default;
 
@@ -95,17 +85,13 @@ public:
     return ffiHandleId();
   }
 
-  /**
-   * Push a VideoFrame into the FFI video source.
-   *
-   * @param frame    Video frame to send.
-   * @param options  Timestamp, rotation, and optional metadata for this frame.
-   */
+  /// Push a VideoFrame into the FFI video source.
+  ///
+  /// @param frame    Video frame to send.
+  /// @param options  Timestamp, rotation, and optional metadata for this frame.
   void captureFrame(const VideoFrame& frame, const VideoCaptureOptions& options);
 
-  /**
-   * Backward-compatible convenience overload for timestamp + rotation only.
-   */
+  /// Backward-compatible convenience overload for timestamp + rotation only.
   void captureFrame(const VideoFrame& frame, std::int64_t timestamp_us = 0,
                     VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0);
 

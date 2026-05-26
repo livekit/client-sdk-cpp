@@ -35,10 +35,10 @@ public:
                     std::unordered_map<std::string, std::string> attributes, ParticipantKind kind,
                     DisconnectReason reason);
 
-  // A dictionary of track publications associated with the participant.
+  /// A dictionary of track publications associated with the participant.
   const PublicationMap& trackPublications() const noexcept { return track_publications_; }
 
-  // Optional: non-const access if you want to mutate in-place.
+  /// Optional: non-const access if you want to mutate in-place.
   PublicationMap& mutableTrackPublications() noexcept { return track_publications_; }
 
   std::string toString() const;
@@ -50,8 +50,8 @@ public:
   // NOLINTEND(readability-identifier-naming)
 
 protected:
-  // Called by Room events like kTrackMuted. This is internal plumbing and not
-  // intended to be called directly by SDK users.
+  /// Called by Room events like kTrackMuted. This is internal plumbing and not
+  /// intended to be called directly by SDK users.
   std::shared_ptr<TrackPublication> findTrackPublication(const std::string& sid) const override;
   friend class Room;
 
@@ -59,7 +59,7 @@ private:
   PublicationMap track_publications_;
 };
 
-// Convenience for logging / streaming
+/// Convenience for logging / streaming
 LIVEKIT_API std::ostream& operator<<(std::ostream& os, const RemoteParticipant& participant);
 
 } // namespace livekit

@@ -33,13 +33,13 @@
 
 namespace livekit {
 
-// A single video frame event delivered by VideoStream::read().
+/// A single video frame event delivered by VideoStream::read().
 struct VideoFrameEvent {
   VideoFrame frame;
-  // WebRTC frame timestamp in microseconds.
-  // This may be translated onto WebRTC's internal capture-time timeline and
-  // should not be expected to match application-provided metadata such as
-  // VideoFrameMetadata::user_timestamp_us exactly.
+  /// WebRTC frame timestamp in microseconds.
+  /// This may be translated onto WebRTC's internal capture-time timeline and
+  /// should not be expected to match application-provided metadata such as
+  /// VideoFrameMetadata::user_timestamp_us exactly.
   std::int64_t timestamp_us;
   VideoRotation rotation;
   std::optional<VideoFrameMetadata> metadata;
@@ -49,40 +49,39 @@ namespace proto {
 class FfiEvent;
 }
 
-// Represents a pull-based stream of decoded video frames coming from
-// a remote (or local) LiveKit track. Similar to AudioStream, but for video.
-//
-// Typical usage:
-//
-//   VideoStream::Options opts;
-//   auto stream = VideoStream::fromTrack(remoteVideoTrack, opts);
-//
-//   VideoFrameEvent ev;
-//   while (stream->read(ev)) {
-//     // ev.frame contains the decoded video buffer
-//   }
-//
-//   stream->close();  // optional, called automatically in destructor
-//
+/// Represents a pull-based stream of decoded video frames coming from
+/// a remote (or local) LiveKit track. Similar to AudioStream, but for video.
+///
+/// Typical usage:
+///
+///   VideoStream::Options opts;
+///   auto stream = VideoStream::fromTrack(remoteVideoTrack, opts);
+///
+///   VideoFrameEvent ev;
+///   while (stream->read(ev)) {
+///     // ev.frame contains the decoded video buffer
+///   }
+///
+///   stream->close();  // optional, called automatically in destructor
 class LIVEKIT_API VideoStream {
 public:
   struct Options {
-    // Maximum number of VideoFrameEvent items buffered in the internal queue.
-    // 0 means "unbounded" (the queue can grow without limit).
-    //
-    // With a non-zero capacity, the queue behaves like a ring-buffer: if it
-    // is full, the oldest frame is dropped when a new one arrives.
+    /// Maximum number of VideoFrameEvent items buffered in the internal queue.
+    /// 0 means "unbounded" (the queue can grow without limit).
+    ///
+    /// With a non-zero capacity, the queue behaves like a ring-buffer: if it
+    /// is full, the oldest frame is dropped when a new one arrives.
     std::size_t capacity{0};
 
-    // Preferred pixel format for frames delivered by read(). The FFI layer
-    // converts into this format if supported (e.g., RGBA, BGRA, I420, ...).
+    /// Preferred pixel format for frames delivered by read(). The FFI layer
+    /// converts into this format if supported (e.g., RGBA, BGRA, I420, ...).
     VideoBufferType format{VideoBufferType::RGBA};
   };
 
-  // Factory: create a VideoStream bound to a specific Track
+  /// Factory: create a VideoStream bound to a specific Track
   static std::shared_ptr<VideoStream> fromTrack(const std::shared_ptr<Track>& track, const Options& options);
 
-  // Factory: create a VideoStream from a Participant + TrackSource
+  /// Factory: create a VideoStream from a Participant + TrackSource
   static std::shared_ptr<VideoStream> fromParticipant(Participant& participant, TrackSource track_source,
                                                       const Options& options);
 
@@ -96,8 +95,8 @@ public:
   /// Blocking read: waits until a VideoFrameEvent is available in the internal
   /// queue, or the stream reaches EOS / is closed.
   ///
-  /// \param out  On success, filled with the next video frame event.
-  /// \return true if a frame was delivered; false if the stream ended
+  /// @param out  On success, filled with the next video frame event.
+  /// @return true if a frame was delivered; false if the stream ended
   ///         (end-of-stream or close()) and no more data is available.
   bool read(VideoFrameEvent& out);
 

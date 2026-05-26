@@ -30,18 +30,16 @@ class OwnedTrack;
 
 class VideoSource;
 
-/**
- * Represents an video track published by a remote participant and
- * subscribed to by the local participant.
- *
- * `RemoteVideoTrack` instances are created internally when the SDK receives a
- * `kTrackSubscribed` event. Each instance is owned by its associated
- * `RemoteParticipant` and delivered to the application via
- * `TrackSubscribedEvent`.
- *
- * Applications generally interact with `RemoteVideoTrack` through events and
- * `RemoteTrackPublication`, not through direct construction.
- */
+/// Represents an video track published by a remote participant and
+/// subscribed to by the local participant.
+///
+/// `RemoteVideoTrack` instances are created internally when the SDK receives a
+/// `kTrackSubscribed` event. Each instance is owned by its associated
+/// `RemoteParticipant` and delivered to the application via
+/// `TrackSubscribedEvent`.
+///
+/// Applications generally interact with `RemoteVideoTrack` through events and
+/// `RemoteTrackPublication`, not through direct construction.
 class LIVEKIT_API RemoteVideoTrack : public Track {
 public:
   /// Constructs a `RemoteVideoTrack` from an internal protocol-level

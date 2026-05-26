@@ -28,23 +28,19 @@ namespace proto {
 class DataTrackFrame;
 } // namespace proto
 
-/**
- * A single frame of data published or received on a data track.
- *
- * Carries an arbitrary binary payload and an optional user-specified
- * timestamp. The unit is application-defined; the SDK examples use
- * microseconds since the Unix epoch (system_clock).
- */
+/// A single frame of data published or received on a data track.
+///
+/// Carries an arbitrary binary payload and an optional user-specified
+/// timestamp. The unit is application-defined; the SDK examples use
+/// microseconds since the Unix epoch (system_clock).
 struct DataTrackFrame {
-  /** Arbitrary binary payload (the frame contents). */
+  /// Arbitrary binary payload (the frame contents).
   std::vector<std::uint8_t> payload;
 
-  /**
-   * Optional application-defined timestamp.
-   *
-   * The proto field is a bare uint64 with no prescribed unit.
-   * By convention the SDK examples use microseconds since the Unix epoch.
-   */
+  /// Optional application-defined timestamp.
+  ///
+  /// The proto field is a bare uint64 with no prescribed unit.
+  /// By convention the SDK examples use microseconds since the Unix epoch.
   std::optional<std::uint64_t> user_timestamp;
   DataTrackFrame() = default;
   DataTrackFrame(const DataTrackFrame&) = default;
@@ -55,13 +51,11 @@ struct DataTrackFrame {
   explicit DataTrackFrame(std::vector<std::uint8_t>&& p, std::optional<std::uint64_t> ts = std::nullopt) noexcept
       : payload(std::move(p)), user_timestamp(ts) {}
 
-  /**
-   * @brief This is a private method used by the SDK to create a DataTrackFrame
-   * from a proto::DataTrackFrame.
-   *
-   * @param owned The proto::DataTrackFrame to create a DataTrackFrame from.
-   * @return The created DataTrackFrame.
-   */
+  /// @brief This is a private method used by the SDK to create a DataTrackFrame
+  /// from a proto::DataTrackFrame.
+  ///
+  /// @param owned The proto::DataTrackFrame to create a DataTrackFrame from.
+  /// @return The created DataTrackFrame.
   LIVEKIT_API static DataTrackFrame fromOwnedInfo(const proto::DataTrackFrame& owned);
 };
 

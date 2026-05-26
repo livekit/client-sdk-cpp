@@ -129,7 +129,7 @@ public:
   // Async get stats
   std::future<std::vector<RtcStats>> getStats() const;
 
-  /// After publishing a local track, associates the \ref LocalTrackPublication
+  /// After publishing a local track, associates the @ref LocalTrackPublication
   /// with this track. Default implementation is a no-op (e.g. remote tracks).
   virtual void setPublication(const std::shared_ptr<LocalTrackPublication>& publication) noexcept { (void)publication; }
 
