@@ -230,7 +230,7 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
   }
 }
 
-bool Room::connect(const std::string& url, const std::string& token, const RoomOptions& options) {
+bool Room::Connect(const std::string& url, const std::string& token, const RoomOptions& options) {
   return connect(url, token, options);
 }
 
