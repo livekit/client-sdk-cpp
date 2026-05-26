@@ -198,18 +198,20 @@ jobs:
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
         if: runner.os != 'Windows'
-        timeout-minutes: 1
+        timeout-minutes: 15
         shell: bash
         run: |
           build-release/bin/livekit_unit_tests \
+            --gtest_repeat=1000 \
             --gtest_output=xml:build-release/unit-test-results.xml
 
       - name: Run unit tests (Windows)
         if: runner.os == 'Windows'
-        timeout-minutes: 1
+        timeout-minutes: 15
         shell: pwsh
         run: |
           build-release\bin\livekit_unit_tests.exe `
+            --gtest_repeat=1000 `
             --gtest_output="xml:build-release\unit-test-results.xml"
 
       # ---------- Install + start livekit-server for integration tests ----------
