@@ -185,11 +185,8 @@ TEST_F(SessionStatsIntegrationTest, PublishAudioThenFetchSessionStats) {
     sender_room->localParticipant()->unpublishTrack(track->publication()->sid());
   }
 
-  ASSERT_TRUE(sender_result.ok()) << "Sender getStats failed: code=" << static_cast<int>(sender_result.error().code)
-                                  << " msg=" << sender_result.error().message;
-  ASSERT_TRUE(receiver_result.ok()) << "Receiver getStats failed: code="
-                                    << static_cast<int>(receiver_result.error().code)
-                                    << " msg=" << receiver_result.error().message;
+  ASSERT_TRUE(sender_result.ok()) << "Sender getStats failed: " << sender_result.error();
+  ASSERT_TRUE(receiver_result.ok()) << "Receiver getStats failed: " << receiver_result.error();
 
   printSessionStats("sender", sender_result.value());
   printSessionStats("receiver", receiver_result.value());
@@ -198,13 +195,13 @@ TEST_F(SessionStatsIntegrationTest, PublishAudioThenFetchSessionStats) {
   EXPECT_FALSE(receiver_result.value().subscriber_stats.empty()) << "Receiver should have subscriber stats";
 }
 
-TEST_F(SessionStatsIntegrationTest, NotConnectedReturnsNotConnected) {
+TEST_F(SessionStatsIntegrationTest, NotConnectedReturnsError) {
   Room room;
   auto fut = room.getStats();
   auto result = fut.get();
   EXPECT_FALSE(result.ok());
-  EXPECT_EQ(result.error().code, GetSessionStatsErrorCode::NOT_CONNECTED);
-  std::cerr << "[SessionStats] disconnected message: " << result.error().message << std::endl;
+  EXPECT_FALSE(result.error().empty());
+  std::cerr << "[SessionStats] disconnected message: " << result.error() << std::endl;
 }
 
 } // namespace livekit::test

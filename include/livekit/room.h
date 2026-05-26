@@ -26,7 +26,6 @@
 #include "livekit/ffi_handle.h"
 #include "livekit/result.h"
 #include "livekit/room_event_types.h"
-#include "livekit/session_stats_error.h"
 #include "livekit/stats.h"
 #include "livekit/subscription_thread_dispatcher.h"
 #include "livekit/visibility.h"
@@ -196,9 +195,14 @@ public:
   /// Behavior:
   /// - If the room is not currently connected, returns a failed result immediately.
   /// - Otherwise dispatches an async request to the server to get the stats.
-  /// @note Check result.ok() before accessing the stats.
+  ///
+  /// @note Check `result.ok()` before accessing the stats. The error variant
+  /// is a free-form diagnostic string; treat it as opaque (suitable for logs/
+  /// metrics, not for programmatic branching). The Rust FFI does not yet
+  /// surface a typed error code for this operation; see `cb.error()` plumbing
+  /// in `FfiClient::getSessionStatsAsync` for the source.
   /// @return Future result of the room session stats.
-  std::future<Result<SessionStats, GetSessionStatsError>> getStats() const;
+  std::future<Result<SessionStats, std::string>> getStats() const;
 
   /* Register a handler for incoming text streams on a specific topic.
    *

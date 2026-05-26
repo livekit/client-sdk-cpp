@@ -227,7 +227,7 @@ TEST_F(FfiClientTest, NotInitialized_GetSessionStatsAsyncFails) {
   auto fut_result = FfiClient::instance().getSessionStatsAsync(1);
   auto result = fut_result.get();
   EXPECT_FALSE(result.ok());
-  EXPECT_EQ(result.error().code, GetSessionStatsErrorCode::INTERNAL);
+  EXPECT_FALSE(result.error().empty());
 }
 
 TEST_F(FfiClientTest, NotInitialized_PublishDataTrackAsyncFails) {

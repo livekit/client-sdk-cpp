@@ -430,35 +430,32 @@ std::future<std::vector<RtcStats>> FfiClient::getTrackStatsAsync(uintptr_t track
 
 namespace {
 
-std::future<Result<SessionStats, GetSessionStatsError>> readySessionStatsFailure(GetSessionStatsErrorCode code,
-                                                                                 std::string message) {
-  std::promise<Result<SessionStats, GetSessionStatsError>> pr;
-  pr.set_value(Result<SessionStats, GetSessionStatsError>::failure(GetSessionStatsError{code, std::move(message)}));
+std::future<Result<SessionStats, std::string>> readySessionStatsFailure(std::string message) {
+  std::promise<Result<SessionStats, std::string>> pr;
+  pr.set_value(Result<SessionStats, std::string>::failure(std::move(message)));
   return pr.get_future();
 }
 
 } // namespace
 
-std::future<Result<SessionStats, GetSessionStatsError>> FfiClient::getSessionStatsAsync(uintptr_t room_handle) {
+std::future<Result<SessionStats, std::string>> FfiClient::getSessionStatsAsync(uintptr_t room_handle) {
   const AsyncId async_id = generateAsyncId();
 
-  auto fut = registerAsync<Result<SessionStats, GetSessionStatsError>>(
+  auto fut = registerAsync<Result<SessionStats, std::string>>(
       async_id,
       // match
       [async_id](const proto::FfiEvent& event) {
         return event.has_get_session_stats() && event.get_session_stats().async_id() == async_id;
       },
       // handler
-      [](const proto::FfiEvent& event, std::promise<Result<SessionStats, GetSessionStatsError>>& pr) {
+      [](const proto::FfiEvent& event, std::promise<Result<SessionStats, std::string>>& pr) {
         const auto& cb = event.get_session_stats();
         if (cb.has_error()) {
-          pr.set_value(Result<SessionStats, GetSessionStatsError>::failure(
-              GetSessionStatsError{GetSessionStatsErrorCode::INTERNAL, cb.error()}));
+          pr.set_value(Result<SessionStats, std::string>::failure(cb.error()));
           return;
         }
         if (!cb.has_result()) {
-          pr.set_value(Result<SessionStats, GetSessionStatsError>::failure(GetSessionStatsError{
-              GetSessionStatsErrorCode::PROTOCOL_ERROR, "GetSessionStatsCallback missing result and error"}));
+          pr.set_value(Result<SessionStats, std::string>::failure("GetSessionStatsCallback missing result and error"));
           return;
         }
 
@@ -472,7 +469,7 @@ std::future<Result<SessionStats, GetSessionStatsError>> FfiClient::getSessionSta
         for (const auto& ps : result.subscriber_stats()) {
           stats.subscriber_stats.push_back(fromProto(ps));
         }
-        pr.set_value(Result<SessionStats, GetSessionStatsError>::success(std::move(stats)));
+        pr.set_value(Result<SessionStats, std::string>::success(std::move(stats)));
       });
 
   proto::FfiRequest req;
@@ -484,12 +481,11 @@ std::future<Result<SessionStats, GetSessionStatsError>> FfiClient::getSessionSta
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_get_session_stats()) {
       cancelPendingByAsyncId(async_id);
-      return readySessionStatsFailure(GetSessionStatsErrorCode::PROTOCOL_ERROR,
-                                      "FfiResponse missing get_session_stats");
+      return readySessionStatsFailure("FfiResponse missing get_session_stats");
     }
   } catch (const std::exception& e) {
     cancelPendingByAsyncId(async_id);
-    return readySessionStatsFailure(GetSessionStatsErrorCode::INTERNAL, e.what());
+    return readySessionStatsFailure(e.what());
   }
 
   return fut;
