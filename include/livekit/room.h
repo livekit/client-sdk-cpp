@@ -194,16 +194,10 @@ public:
   /// Retrieve aggregated WebRTC stats for this room session.
   ///
   /// Behavior:
-  /// - If the room is not currently connected (no live FFI handle), resolves
-  ///   immediately with a `GetSessionStatsErrorCode::NOT_CONNECTED` failure.
-  /// - Otherwise dispatches an async `get_session_stats` request to the Rust
-  ///   FFI; the future resolves once the corresponding callback arrives.
-  /// - The future never throws — failures are surfaced as a typed
-  ///   `GetSessionStatsError`. Inspect `Result::ok()` / `Result::error().code`
-  ///   to branch on outcome.
-  ///
-  /// @return Future resolving with publisher + subscriber stats on success,
-  ///         or a typed error code + message on failure.
+  /// - If the room is not currently connected, returns a failed result immediately.
+  /// - Otherwise dispatches an async request to the server to get the stats.
+  /// @note Check result.ok() before accessing the stats.
+  /// @return Future result of the room session stats.
   std::future<Result<SessionStats, GetSessionStatsError>> getStats() const;
 
   /* Register a handler for incoming text streams on a specific topic.
