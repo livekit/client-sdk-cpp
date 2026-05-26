@@ -42,9 +42,12 @@ constexpr char kTrackNamePrefix[] = "data_track_e2e";
 constexpr auto kTrackWaitTimeout = 10s;
 constexpr auto kPollingInterval = 10ms;
 constexpr int kResubscribeIterations = 10;
+constexpr std::size_t kSinglePacketPayloadBytes = 8192;
 constexpr int kPublishManyTrackCount = 256;
 constexpr auto kPublishManyTimeout = 5s;
 constexpr std::size_t kLargeFramePayloadBytes = 196608;
+constexpr auto kTransportFrameTimeout = 15s;
+constexpr std::uint8_t kTransportPayloadValue = 0xFA;
 constexpr char kE2EESharedSecret[] = "password";
 constexpr int kE2EEFrameCount = 5;
 constexpr int kTimestampFrameAttempts = 200;
@@ -284,8 +287,86 @@ void runEncryptedDataTrackRoundTrip(KeyDerivationFunction key_derivation_functio
 
 class DataTrackE2ETest : public LiveKitTestBase {};
 
+class DataTrackTransportTest : public DataTrackE2ETest, public ::testing::WithParamInterface<std::size_t> {};
+
 class DataTrackKeyDerivationTest : public DataTrackE2ETest,
                                    public ::testing::WithParamInterface<KeyDerivationFunction> {};
+
+TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
+  const auto payload_len = GetParam();
+  const auto track_name = makeTrackName("transport");
+
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[0].room_options.single_peer_connection = false;
+  room_configs[1].room_options.single_peer_connection = false;
+
+  DataTrackPublishedDelegate subscriber_delegate;
+  room_configs[1].delegate = &subscriber_delegate;
+
+  auto rooms = testRooms(room_configs);
+  auto& publisher_room = rooms[0];
+  const auto publisher_identity = publisher_room->localParticipant()->identity();
+
+  auto local_track = requirePublishedTrack(publisher_room->localParticipant(), track_name);
+  ASSERT_TRUE(local_track->isPublished());
+  EXPECT_FALSE(local_track->info().uses_e2ee);
+  EXPECT_EQ(local_track->info().name, track_name);
+
+  auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
+  ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
+  EXPECT_TRUE(remote_track->isPublished());
+  EXPECT_FALSE(remote_track->info().uses_e2ee);
+  EXPECT_EQ(remote_track->info().name, track_name);
+  EXPECT_EQ(remote_track->publisherIdentity(), publisher_identity);
+
+  auto subscribe_result = remote_track->subscribe();
+  if (!subscribe_result) {
+    FAIL() << describeDataTrackError(subscribe_result.error());
+  }
+  auto subscription = subscribe_result.value();
+
+  std::atomic<bool> keep_publishing{true};
+  std::exception_ptr publish_error;
+  std::thread publisher([&]() {
+    try {
+      DataTrackFrame frame;
+      frame.payload.assign(payload_len, kTransportPayloadValue);
+      while (keep_publishing.load()) {
+        requirePushSuccess(local_track->tryPush(frame), "Failed to push data frame");
+        std::this_thread::sleep_for(50ms);
+      }
+    } catch (...) {
+      publish_error = std::current_exception();
+    }
+  });
+
+  DataTrackFrame frame;
+  std::exception_ptr read_error;
+  try {
+    frame = readFrameWithTimeout(subscription, kTransportFrameTimeout);
+  } catch (...) {
+    read_error = std::current_exception();
+  }
+
+  const bool remote_track_published_after_read = remote_track->isPublished();
+  keep_publishing.store(false);
+  publisher.join();
+  subscription->close();
+  local_track->unpublishDataTrack();
+
+  if (publish_error) {
+    std::rethrow_exception(publish_error);
+  }
+  if (read_error) {
+    std::rethrow_exception(read_error);
+  }
+
+  ASSERT_EQ(frame.payload.size(), payload_len);
+  EXPECT_TRUE(std::all_of(frame.payload.begin(), frame.payload.end(),
+                          [](std::uint8_t byte) { return byte == kTransportPayloadValue; }));
+  EXPECT_FALSE(frame.user_timestamp.has_value());
+  EXPECT_TRUE(remote_track_published_after_read);
+}
 
 TEST_F(DataTrackE2ETest, UnpublishUpdatesPublishedStateEndToEnd) {
   const auto track_name = makeTrackName("published_state");
@@ -724,9 +805,23 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampOnEncryptedDataTrack) {
   local_track->unpublishDataTrack();
 }
 
+std::string dataTrackPayloadParamName(const ::testing::TestParamInfo<std::size_t>& info) {
+  if (info.param == kSinglePacketPayloadBytes) {
+    return "SinglePacket";
+  }
+  if (info.param == kLargeFramePayloadBytes) {
+    return "MultiPacket";
+  }
+  return "Payload" + std::to_string(info.param);
+}
+
 std::string keyDerivationParamName(const ::testing::TestParamInfo<KeyDerivationFunction>& info) {
   return keyDerivationFunctionName(info.param);
 }
+
+INSTANTIATE_TEST_SUITE_P(DataTrackPayloads, DataTrackTransportTest,
+                         ::testing::Values(kSinglePacketPayloadBytes, kLargeFramePayloadBytes),
+                         dataTrackPayloadParamName);
 
 INSTANTIATE_TEST_SUITE_P(KeyDerivationFunctions, DataTrackKeyDerivationTest,
                          ::testing::Values(KeyDerivationFunction::PBKDF2, KeyDerivationFunction::HKDF),
