@@ -63,13 +63,11 @@ jobs:
           - os: macos-26-xlarge
             name: macos-arm64
             build_cmd: ./build.sh release-tests
-            # E2E not possible on GHA Mac runner currently
-            e2e-testing: false
+            e2e-testing: true
           - os: macos-26-large
             name: macos-x64
             build_cmd: ./build.sh release-tests --macos-arch x86_64
-            # E2E not possible on GHA Mac runner currently
-            e2e-testing: false
+            e2e-testing: true
             # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
