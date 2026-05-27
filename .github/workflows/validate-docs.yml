@@ -1,0 +1,148 @@
+name: Validate docs
+
+# Builds the Doxygen docs (and optionally uploads them as a workflow artifact)
+# without publishing. Two roles:
+#
+#   1. Dry-run on every PR that touches C++ code (or other Doxygen inputs) so
+#      docs breakage is caught before merge. No artifact is uploaded.
+#   2. Reusable workflow consumed by publish-docs.yml: builds the docs, prints
+#      the resolved version, and uploads the html/ directory as an artifact for
+#      a downstream publish job to consume. Avoids double-building the docs.
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - include/**
+      - src/**
+      - examples/**
+      - docs/**
+      - README.md
+      - scripts/build-docs.sh
+      - .github/workflows/validate-docs.yml
+      - .github/workflows/publish-docs.yml
+  workflow_call:
+    inputs:
+      version:
+        description: 'Documentation version (for example, 0.1.0 or v0.1.0)'
+        required: false
+        type: string
+      upload_artifact:
+        description: 'Upload the built html/ tree as a workflow artifact'
+        required: false
+        type: boolean
+        default: false
+      artifact_name:
+        description: 'Name to use for the uploaded docs artifact'
+        required: false
+        type: string
+        default: livekit-cpp-docs
+      artifact_retention_days:
+        description: 'Retention (days) for the uploaded docs artifact'
+        required: false
+        type: number
+        default: 7
+    outputs:
+      project_number:
+        description: 'Doxygen PROJECT_NUMBER used for the build (e.g., v1.2.3)'
+        value: ${{ jobs.validate.outputs.project_number }}
+      version:
+        description: 'Bare semantic version with the leading v stripped (e.g., 1.2.3)'
+        value: ${{ jobs.validate.outputs.version }}
+      artifact_name:
+        description: 'Name of the uploaded docs artifact (empty when upload_artifact is false)'
+        value: ${{ jobs.validate.outputs.artifact_name }}
+
+jobs:
+  validate:
+    name: Build & verify docs
+    runs-on: ubuntu-latest
+    outputs:
+      project_number: ${{ steps.build_docs.outputs.project_number }}
+      version: ${{ steps.build_docs.outputs.version }}
+      artifact_name: ${{ steps.artifact_meta.outputs.name }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        # Note: submodules and LFS not needed for docs generation
+        # Doxygen only reads from include/, docs/, README.md, and examples/
+
+      # Doxygen is available on ubuntu-latest, but we install explicitly for stability
+      - name: Install Doxygen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz
+
+      - name: Build Docs (Doxygen)
+        id: build_docs
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version || '' }}
+        run: |
+          set -euo pipefail
+
+          args=()
+          if [[ -n "$INPUT_VERSION" ]]; then
+            args+=(--version "$INPUT_VERSION")
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            args+=(--version "${{ github.ref_name }}")
+          fi
+
+          ./scripts/build-docs.sh "${args[@]}"
+
+      - name: Print docs version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PROJECT_NUMBER="${{ steps.build_docs.outputs.project_number }}"
+          VERSION="${{ steps.build_docs.outputs.version }}"
+
+          if [[ -z "$PROJECT_NUMBER" || -z "$VERSION" ]]; then
+            echo "ERROR: build_docs step did not emit version outputs."
+            exit 1
+          fi
+
+          echo "Docs project number: ${PROJECT_NUMBER}"
+          echo "Docs version:        ${VERSION}"
+
+          {
+            echo "### Docs build"
+            echo ""
+            echo "- Project number: \`${PROJECT_NUMBER}\`"
+            echo "- Version: \`${VERSION}\`"
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              echo "- Mode: dry-run (PR build, not published)"
+            else
+              echo "- Mode: validate (reusable workflow)"
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Verify docs were generated
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f html/index.html ]]; then
+            echo "ERROR: Expected docs at html/index.html but file not found."
+            exit 1
+          fi
+
+      - name: Resolve artifact name
+        id: artifact_meta
+        if: inputs.upload_artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME="${{ inputs.artifact_name }}"
+          if [[ -z "$NAME" ]]; then
+            echo "ERROR: artifact_name input is empty."
+            exit 1
+          fi
+          echo "name=${NAME}" >>"$GITHUB_OUTPUT"
+
+      - name: Upload docs artifact
+        if: inputs.upload_artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: html/
+          retention-days: ${{ inputs.artifact_retention_days }}
+          if-no-files-found: error

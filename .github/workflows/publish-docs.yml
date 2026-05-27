@@ -13,80 +13,33 @@ on:
         description: 'Documentation version (for example, 0.1.0 or v0.1.0)'
         required: false
         type: string
-  # Dry-run on PRs that touch C++ code (or docs sources): build the docs to
-  # ensure they still generate, but skip the S3 upload / CloudFront invalidation.
-  pull_request:
-    branches: ["main"]
-    paths:
-      - include/**
-      - src/**
-      - examples/**
-      - docs/**
-      - README.md
-      - scripts/build-docs.sh
-      - .github/workflows/publish-docs.yml
 
 jobs:
-  docs:
+  # Reuse validate-docs.yml so the publish path runs exactly the same build/print
+  # logic that PR dry-runs run, and we ship the resulting html/ tree to the
+  # publish job below as a workflow artifact (avoids double-building).
+  validate:
+    name: Validate (build docs)
+    uses: ./.github/workflows/validate-docs.yml
+    with:
+      version: ${{ inputs.version || github.event.inputs.version || '' }}
+      upload_artifact: true
+      # Suffix with run_id so concurrent publish runs cannot collide on the
+      # artifact namespace within the same repository.
+      artifact_name: livekit-cpp-docs-${{ github.run_id }}
+
+  publish:
+    name: Publish (S3 + CloudFront)
+    needs: validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        # Note: submodules and LFS not needed for docs generation
-        # Doxygen only reads from include/, docs/, README.md, and examples/
-
-      # Doxygen is available on ubuntu-latest, but we install explicitly for stability
-      - name: Install Doxygen
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y doxygen graphviz
-
-      - name: Build Docs (Doxygen)
-        id: build_docs
-        shell: bash
-        env:
-          INPUT_VERSION: ${{ inputs.version || github.event.inputs.version || '' }}
-        run: |
-          set -euo pipefail
-
-          args=()
-          if [[ -n "$INPUT_VERSION" ]]; then
-            args+=(--version "$INPUT_VERSION")
-          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
-            args+=(--version "${{ github.ref_name }}")
-          fi
-
-          ./scripts/build-docs.sh "${args[@]}"
-
-      - name: Print docs version
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          PROJECT_NUMBER="${{ steps.build_docs.outputs.project_number }}"
-          VERSION="${{ steps.build_docs.outputs.version }}"
-
-          if [[ -z "$PROJECT_NUMBER" || -z "$VERSION" ]]; then
-            echo "ERROR: build_docs step did not emit version outputs."
-            exit 1
-          fi
-
-          echo "Docs project number: ${PROJECT_NUMBER}"
-          echo "Docs version:        ${VERSION}"
-
-          {
-            echo "### Docs build"
-            echo ""
-            echo "- Project number: \`${PROJECT_NUMBER}\`"
-            echo "- Version: \`${VERSION}\`"
-            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-              echo "- Mode: dry-run (PR build, not published)"
-            else
-              echo "- Mode: publish"
-            fi
-          } >>"$GITHUB_STEP_SUMMARY"
+      - name: Download docs artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ needs.validate.outputs.artifact_name }}
+          path: html
 
       - name: S3 Upload
-        if: github.event_name != 'pull_request'
         run: |
           DOCS_DIR="html"
           if [[ ! -d "$DOCS_DIR" ]]; then
@@ -94,7 +47,7 @@ jobs:
             exit 1
           fi
 
-          VERSIONED_PREFIX="s3://livekit-docs/client-sdk-cpp/${{ steps.build_docs.outputs.project_number }}"
+          VERSIONED_PREFIX="s3://livekit-docs/client-sdk-cpp/${{ needs.validate.outputs.project_number }}"
           LATEST_PREFIX="s3://livekit-docs/client-sdk-cpp"
 
           # Upload immutable versioned docs, then refresh rolling latest.
@@ -106,7 +59,6 @@ jobs:
           AWS_DEFAULT_REGION: "us-east-1"
 
       - name: Invalidate cloudfront cache
-        if: github.event_name != 'pull_request'
         run: |
           aws cloudfront create-invalidation --distribution-id EJJ40KLJ3TRY9 --paths "/client-sdk-cpp/*"
         env:
