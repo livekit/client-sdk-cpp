@@ -29,6 +29,7 @@ class LocalDataTrackTryPushError;
 class SubscribeDataTrackError;
 } // namespace proto
 
+/// Error code returned when publishing a local data track fails.
 enum class PublishDataTrackErrorCode : std::uint32_t {
   UNKNOWN = 0,
   INVALID_HANDLE = 1,
@@ -42,6 +43,7 @@ enum class PublishDataTrackErrorCode : std::uint32_t {
   INTERNAL = 9,
 };
 
+/// Error details returned when publishing a local data track fails.
 struct PublishDataTrackError {
   PublishDataTrackErrorCode code{PublishDataTrackErrorCode::UNKNOWN};
   std::string message;
@@ -49,6 +51,7 @@ struct PublishDataTrackError {
   LIVEKIT_API static PublishDataTrackError fromProto(const proto::PublishDataTrackError& error);
 };
 
+/// Error code returned when pushing a frame to a local data track fails.
 enum class LocalDataTrackTryPushErrorCode : std::uint32_t {
   UNKNOWN = 0,
   INVALID_HANDLE = 1,
@@ -57,6 +60,7 @@ enum class LocalDataTrackTryPushErrorCode : std::uint32_t {
   INTERNAL = 4,
 };
 
+/// Error details returned when pushing a frame to a local data track fails.
 struct LocalDataTrackTryPushError {
   LocalDataTrackTryPushErrorCode code{LocalDataTrackTryPushErrorCode::UNKNOWN};
   std::string message;
@@ -64,6 +68,7 @@ struct LocalDataTrackTryPushError {
   LIVEKIT_API static LocalDataTrackTryPushError fromProto(const proto::LocalDataTrackTryPushError& error);
 };
 
+/// Error code returned when subscribing to a remote data track fails.
 enum class SubscribeDataTrackErrorCode : std::uint32_t {
   UNKNOWN = 0,
   INVALID_HANDLE = 1,
@@ -74,6 +79,7 @@ enum class SubscribeDataTrackErrorCode : std::uint32_t {
   INTERNAL = 6,
 };
 
+/// Error details returned when subscribing to a remote data track fails.
 struct SubscribeDataTrackError {
   SubscribeDataTrackErrorCode code{SubscribeDataTrackErrorCode::UNKNOWN};
   std::string message;

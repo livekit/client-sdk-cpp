@@ -43,6 +43,7 @@ class FfiClient;
 class Track;
 class LocalTrackPublication;
 
+/// Data passed to a registered RPC method handler.
 struct RpcInvocationData {
   std::string request_id;
   std::string caller_identity;
@@ -51,8 +52,6 @@ struct RpcInvocationData {
 };
 
 /// Represents the local participant in a room.
-///
-/// LocalParticipant, built on top of the participant.h base class.
 class LIVEKIT_API LocalParticipant : public Participant {
 public:
   using PublicationMap = std::unordered_map<std::string, std::shared_ptr<LocalTrackPublication>>;

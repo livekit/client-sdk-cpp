@@ -51,6 +51,7 @@ class CertificateStats;
 class StreamStats;
 } // namespace proto
 
+/// State of a WebRTC data channel.
 enum class DataChannelState {
   Connecting,
   Open,
@@ -59,6 +60,7 @@ enum class DataChannelState {
   Unknown,
 };
 
+/// Reason outbound media quality is currently limited.
 enum class QualityLimitationReason {
   None,
   Cpu,
@@ -66,12 +68,14 @@ enum class QualityLimitationReason {
   Other,
 };
 
+/// ICE role used by a transport.
 enum class IceRole {
   Unknown,
   Controlling,
   Controlled,
 };
 
+/// DTLS transport state.
 enum class DtlsTransportState {
   New,
   Connecting,
@@ -81,6 +85,7 @@ enum class DtlsTransportState {
   Unknown,
 };
 
+/// ICE transport state.
 enum class IceTransportState {
   New,
   Checking,
@@ -92,12 +97,14 @@ enum class IceTransportState {
   Unknown,
 };
 
+/// DTLS role used by a transport.
 enum class DtlsRole {
   Client,
   Server,
   Unknown,
 };
 
+/// State of an ICE candidate pair.
 enum class IceCandidatePairState {
   Frozen,
   Waiting,
@@ -107,6 +114,7 @@ enum class IceCandidatePairState {
   Unknown,
 };
 
+/// Type of ICE candidate.
 enum class IceCandidateType {
   Host,
   Srflx,
@@ -115,6 +123,7 @@ enum class IceCandidateType {
   Unknown,
 };
 
+/// Transport protocol used by an ICE server.
 enum class IceServerTransportProtocol {
   Udp,
   Tcp,
@@ -122,6 +131,7 @@ enum class IceServerTransportProtocol {
   Unknown,
 };
 
+/// TCP candidate type for an ICE candidate.
 enum class IceTcpCandidateType {
   Active,
   Passive,
@@ -133,11 +143,13 @@ enum class IceTcpCandidateType {
 // Leaf stats types
 // ----------------------
 
+/// Base data shared by RTC stats records.
 struct RtcStatsData {
   std::string id;
   std::int64_t timestamp_ms;
 };
 
+/// Codec statistics for an RTP stream.
 struct CodecStats {
   std::uint32_t payload_type;
   std::string transport_id;
@@ -147,6 +159,7 @@ struct CodecStats {
   std::string sdp_fmtp_line;
 };
 
+/// Base statistics for an RTP stream.
 struct RtpStreamStats {
   std::uint32_t ssrc;
   std::string kind;
@@ -154,12 +167,14 @@ struct RtpStreamStats {
   std::string codec_id;
 };
 
+/// Statistics for received RTP streams.
 struct ReceivedRtpStreamStats {
   std::uint64_t packets_received;
   std::int64_t packets_lost;
   double jitter;
 };
 
+/// Statistics for inbound RTP media.
 struct InboundRtpStreamStats {
   std::string track_identifier;
   std::string mid;
@@ -216,11 +231,13 @@ struct InboundRtpStreamStats {
   std::uint32_t fec_ssrc;
 };
 
+/// Statistics for sent RTP streams.
 struct SentRtpStreamStats {
   std::uint64_t packets_sent;
   std::uint64_t bytes_sent;
 };
 
+/// Statistics for outbound RTP media.
 struct OutboundRtpStreamStats {
   std::string mid;
   std::string media_source_id;
@@ -254,6 +271,7 @@ struct OutboundRtpStreamStats {
   std::string scalability_mode;
 };
 
+/// Statistics reported by a remote receiver for a local outbound RTP stream.
 struct RemoteInboundRtpStreamStats {
   std::string local_id;
   double round_trip_time;
@@ -262,6 +280,7 @@ struct RemoteInboundRtpStreamStats {
   std::uint64_t round_trip_time_measurements;
 };
 
+/// Statistics reported by a remote sender for a local inbound RTP stream.
 struct RemoteOutboundRtpStreamStats {
   std::string local_id;
   double remote_timestamp;
@@ -271,11 +290,13 @@ struct RemoteOutboundRtpStreamStats {
   std::uint64_t round_trip_time_measurements;
 };
 
+/// Common statistics for a local media source.
 struct MediaSourceStats {
   std::string track_identifier;
   std::string kind;
 };
 
+/// Statistics for a local audio source.
 struct AudioSourceStats {
   double audio_level;
   double total_audio_energy;
@@ -288,6 +309,7 @@ struct AudioSourceStats {
   std::uint64_t total_samples_captured;
 };
 
+/// Statistics for a local video source.
 struct VideoSourceStats {
   std::uint32_t width;
   std::uint32_t height;
@@ -310,11 +332,13 @@ struct AudioPlayoutStats {
   std::uint64_t total_samples_count;        ///< Total number of samples played out.
 };
 
+/// Statistics for a peer connection.
 struct PeerConnectionStats {
   std::uint32_t data_channels_opened;
   std::uint32_t data_channels_closed;
 };
 
+/// Statistics for a WebRTC data channel.
 struct DataChannelStats {
   std::string label;
   std::string protocol;
@@ -326,6 +350,7 @@ struct DataChannelStats {
   std::uint64_t bytes_received;
 };
 
+/// Statistics for a WebRTC transport.
 struct TransportStats {
   std::uint64_t packets_sent;
   std::uint64_t packets_received;
@@ -345,6 +370,7 @@ struct TransportStats {
   std::uint32_t selected_candidate_pair_changes;
 };
 
+/// Statistics for a selected or candidate ICE pair.
 struct CandidatePairStats {
   std::string transport_id;
   std::string local_candidate_id;
@@ -370,6 +396,7 @@ struct CandidatePairStats {
   std::uint64_t bytes_discarded_on_send;
 };
 
+/// Statistics for a local or remote ICE candidate.
 struct IceCandidateStats {
   std::string transport_id;
   std::string address;
@@ -386,6 +413,7 @@ struct IceCandidateStats {
   std::optional<IceTcpCandidateType> tcp_type;
 };
 
+/// Statistics for a DTLS certificate.
 struct CertificateStats {
   std::string fingerprint;
   std::string fingerprint_algorithm;
@@ -393,6 +421,7 @@ struct CertificateStats {
   std::string issuer_certificate_id;
 };
 
+/// Statistics for a media stream.
 struct StreamStats {
   std::string id;
   std::string stream_identifier;
@@ -402,11 +431,13 @@ struct StreamStats {
 // High-level RtcStats wrapper
 // ----------------------
 
+/// Typed RTC stats wrapper for codec statistics.
 struct RtcCodecStats {
   RtcStatsData rtc;
   CodecStats codec;
 };
 
+/// Typed RTC stats wrapper for inbound RTP statistics.
 struct RtcInboundRtpStats {
   RtcStatsData rtc;
   RtpStreamStats stream;
@@ -414,6 +445,7 @@ struct RtcInboundRtpStats {
   InboundRtpStreamStats inbound;
 };
 
+/// Typed RTC stats wrapper for outbound RTP statistics.
 struct RtcOutboundRtpStats {
   RtcStatsData rtc;
   RtpStreamStats stream;
@@ -421,6 +453,7 @@ struct RtcOutboundRtpStats {
   OutboundRtpStreamStats outbound;
 };
 
+/// Typed RTC stats wrapper for remote inbound RTP statistics.
 struct RtcRemoteInboundRtpStats {
   RtcStatsData rtc;
   RtpStreamStats stream;
@@ -428,6 +461,7 @@ struct RtcRemoteInboundRtpStats {
   RemoteInboundRtpStreamStats remote_inbound;
 };
 
+/// Typed RTC stats wrapper for remote outbound RTP statistics.
 struct RtcRemoteOutboundRtpStats {
   RtcStatsData rtc;
   RtpStreamStats stream;
@@ -435,6 +469,7 @@ struct RtcRemoteOutboundRtpStats {
   RemoteOutboundRtpStreamStats remote_outbound;
 };
 
+/// Typed RTC stats wrapper for media source statistics.
 struct RtcMediaSourceStats {
   RtcStatsData rtc;
   MediaSourceStats source;
@@ -442,46 +477,55 @@ struct RtcMediaSourceStats {
   VideoSourceStats video;
 };
 
+/// Typed RTC stats wrapper for audio playout statistics.
 struct RtcMediaPlayoutStats {
   RtcStatsData rtc;
   AudioPlayoutStats audio_playout;
 };
 
+/// Typed RTC stats wrapper for peer connection statistics.
 struct RtcPeerConnectionStats {
   RtcStatsData rtc;
   PeerConnectionStats pc;
 };
 
+/// Typed RTC stats wrapper for data channel statistics.
 struct RtcDataChannelStats {
   RtcStatsData rtc;
   DataChannelStats dc;
 };
 
+/// Typed RTC stats wrapper for transport statistics.
 struct RtcTransportStats {
   RtcStatsData rtc;
   TransportStats transport;
 };
 
+/// Typed RTC stats wrapper for ICE candidate pair statistics.
 struct RtcCandidatePairStats {
   RtcStatsData rtc;
   CandidatePairStats candidate_pair;
 };
 
+/// Typed RTC stats wrapper for local ICE candidate statistics.
 struct RtcLocalCandidateStats {
   RtcStatsData rtc;
   IceCandidateStats candidate;
 };
 
+/// Typed RTC stats wrapper for remote ICE candidate statistics.
 struct RtcRemoteCandidateStats {
   RtcStatsData rtc;
   IceCandidateStats candidate;
 };
 
+/// Typed RTC stats wrapper for certificate statistics.
 struct RtcCertificateStats {
   RtcStatsData rtc;
   CertificateStats certificate;
 };
 
+/// Typed RTC stats wrapper for media stream statistics.
 struct RtcStreamStats {
   RtcStatsData rtc;
   StreamStats stream;
@@ -495,6 +539,7 @@ using RtcStatsVariant =
                  RtcDataChannelStats, RtcTransportStats, RtcCandidatePairStats, RtcLocalCandidateStats,
                  RtcRemoteCandidateStats, RtcCertificateStats, RtcStreamStats>;
 
+/// Variant wrapper for typed RTC stats records.
 struct RtcStats {
   RtcStatsVariant stats;
 };

@@ -158,6 +158,7 @@ public:
     KeyProviderOptions options_;
   };
 
+  /// Frame-level cryptor controls for one participant.
   class LIVEKIT_API FrameCryptor {
   public:
     FrameCryptor(std::uint64_t room_handle, std::string participant_identity, int key_index, bool enabled);
