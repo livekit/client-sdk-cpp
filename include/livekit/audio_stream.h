@@ -36,12 +36,10 @@ namespace proto {
 class FfiEvent;
 }
 
-/**
- * @brief Event containing an audio frame received from an AudioStream.
- *
- * This struct wraps an AudioFrame and is used as the output type when
- * reading from an AudioStream.
- */
+/// @brief Event containing an audio frame received from an AudioStream.
+///
+/// This struct wraps an AudioFrame and is used as the output type when
+/// reading from an AudioStream.
 // NOLINTBEGIN(bugprone-exception-escape)
 // AudioFrame can throw in various places monitored by bugprone-exception-escape
 // Suppressing for now, would require significant refactor to fix
@@ -50,22 +48,20 @@ struct AudioFrameEvent {
 };
 // NOLINTEND(bugprone-exception-escape)
 
-/**
- * Represents a pull-based stream of decoded PCM audio frames coming from
- * a remote (or local) LiveKit track. Similar to VideoStream, but for audio.
- *
- * Typical usage:
- *
- *   AudioStream::Options opts;
- *   auto stream = AudioStream::fromTrack(remoteAudioTrack, opts);
- *
- *  AudioFrameEvent ev;
- *    while (stream->read(ev)) {
- *     // ev.frame contains interleaved int16 PCM samples
- *   }
- *
- *   stream->close();  // optional, called automatically in destructor
- */
+/// Represents a pull-based stream of decoded PCM audio frames coming from
+/// a remote (or local) LiveKit track. Similar to VideoStream, but for audio.
+///
+/// Typical usage:
+///
+///   AudioStream::Options opts;
+///   auto stream = AudioStream::fromTrack(remoteAudioTrack, opts);
+///
+///  AudioFrameEvent ev;
+///    while (stream->read(ev)) {
+///     // ev.frame contains interleaved int16 PCM samples
+///   }
+///
+///   stream->close();  // optional, called automatically in destructor
 class LIVEKIT_API AudioStream {
 public:
   /// Configuration options for AudioStream creation.
@@ -105,8 +101,8 @@ public:
   /// Blocking read: waits until there is an AudioFrameEvent available in the
   /// internal queue, or the stream reaches EOS / is closed.
   ///
-  /// \param out_event  On success, filled with the next audio frame.
-  /// \return true if a frame was delivered; false if the stream ended
+  /// @param out_event  On success, filled with the next audio frame.
+  /// @return true if a frame was delivered; false if the stream ended
   ///         (end-of-stream or close()) and no more data is available.
   bool read(AudioFrameEvent& out_event);
 

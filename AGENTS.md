@@ -235,6 +235,71 @@ with the same library loaded elsewhere in the host process.
 - Use `LK_LOG_WARN` for non-fatal unexpected conditions.
 - Use `Result<T, E>` for operations that can fail with typed errors (e.g., data track publish/subscribe).
 
+### Public API Documentation (Doxygen)
+
+The public API (`include/livekit/*.h`) is what consumers read first and is also
+published as a Doxygen site (`docs/Doxyfile`, `.github/workflows/publish-docs.yml`).
+Every doc comment in `include/livekit/` must use the rules below, and PRs that
+add or modify public symbols are gated on these rules during review.
+
+#### Comment style
+
+- Use triple-slash `///` Doxygen comments. Do **not** use `/** ... */` Javadoc
+  blocks or `/* ... */` block comments for documentation.
+- Apache license headers stay as `/* ... */` block comments — they are not
+  documentation.
+- Section organization comments (e.g. `// ---- Accessors ----`,
+  `// Read-only properties`) may stay as `//` since they do not document a
+  specific symbol.
+- Implementation comments inside `.cpp` files (non-Doxygen) may use `//`
+  freely.
+- Use Doxygen `@`-prefixed commands (`@param`, `@return`, `@throws`, `@note`,
+  `@brief`, `@deprecated`, `@ref`, `@p`, `@c`). Do not use the equivalent
+  `\`-prefixed forms in new code.
+
+#### Required tags
+
+- Document parameters using `@param name Description.`
+- Document non-void return values using `@return Description.`
+- Document thrown exceptions using `@throws ExceptionType When/why it's
+  thrown.` Operations that can fail without throwing should return
+  `Result<T, E>` (see Error Handling above) and the variants should be
+  documented in the doc block.
+- Free-text "Parameters:", "Returns:", "Throws:" sections in legacy comments
+  must be converted to the corresponding `@param` / `@return` / `@throws`
+  tags when the comment is touched.
+
+#### Example
+
+```cpp
+/// Publish a local track to the room.
+///
+/// Blocks until the FFI publish response arrives.
+///
+/// @param track   Track to publish. Must be non-null.
+/// @param options Publish options (codec, simulcast, etc.).
+/// @throws std::runtime_error if the FFI reports an error.
+void publishTrack(const std::shared_ptr<Track>& track, const TrackPublishOptions& options);
+```
+
+#### Deprecation comments
+
+When superseding a public API, every retained back-compat shim must carry a
+Doxygen `/// @deprecated Use <newName>() instead.` line so the generated docs
+render a deprecation callout (see "Deprecating a public API" above).
+
+#### Verifying locally
+
+Run Doxygen from the repository root to regenerate the HTML docs:
+
+```bash
+doxygen docs/Doxyfile
+```
+
+The output lands in `docs/html/`. Doxygen warnings about "is not documented"
+indicate undocumented public symbols — adding documentation to them is
+encouraged but not strictly required by these rules.
+
 ### Integer Types
 
 - Prefer fixed-width integer types from `<cstdint>` (`std::int32_t`, `std::uint64_t`, etc.) over raw primitive integer types when size or signedness matters.

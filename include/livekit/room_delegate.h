@@ -23,15 +23,13 @@ namespace livekit {
 
 class Room;
 
-/**
- * Interface for receiving room-level events.
- *
- * Implement this class and pass an instance to Room::setDelegate()
- * to be notified about participants, tracks, data, and connection changes.
- *
- * All methods provide default no-op implementations so you can override
- * only the callbacks you care about.
- */
+/// Interface for receiving room-level events.
+///
+/// Implement this class and pass an instance to Room::setDelegate()
+/// to be notified about participants, tracks, data, and connection changes.
+///
+/// All methods provide default no-op implementations so you can override
+/// only the callbacks you care about.
 class LIVEKIT_API RoomDelegate {
 public:
   virtual ~RoomDelegate() = default;
@@ -40,215 +38,147 @@ public:
   // Participant lifecycle
   // ------------------------------------------------------------------
 
-  /**
-   * Called when a new remote participant joins the room.
-   */
+  /// Called when a new remote participant joins the room.
   virtual void onParticipantConnected(Room&, const ParticipantConnectedEvent&) {}
 
-  /**
-   * Called when a remote participant leaves the room.
-   */
+  /// Called when a remote participant leaves the room.
   virtual void onParticipantDisconnected(Room&, const ParticipantDisconnectedEvent&) {}
 
   // ------------------------------------------------------------------
   // Local track publication events
   // ------------------------------------------------------------------
 
-  /**
-   * Called when a local track is successfully published.
-   */
+  /// Called when a local track is successfully published.
   virtual void onLocalTrackPublished(Room&, const LocalTrackPublishedEvent&) {}
 
-  /**
-   * Called when a local track is unpublished.
-   */
+  /// Called when a local track is unpublished.
   virtual void onLocalTrackUnpublished(Room&, const LocalTrackUnpublishedEvent&) {}
 
-  /**
-   * Called when a local track gains its first subscriber.
-   */
+  /// Called when a local track gains its first subscriber.
   virtual void onLocalTrackSubscribed(Room&, const LocalTrackSubscribedEvent&) {}
 
   // ------------------------------------------------------------------
   // Remote track publication/subscription
   // ------------------------------------------------------------------
 
-  /**
-   * Called when a remote participant publishes a track.
-   */
+  /// Called when a remote participant publishes a track.
   virtual void onTrackPublished(Room&, const TrackPublishedEvent&) {}
 
-  /**
-   * Called when a remote participant unpublishes a track.
-   */
+  /// Called when a remote participant unpublishes a track.
   virtual void onTrackUnpublished(Room&, const TrackUnpublishedEvent&) {}
 
-  /**
-   * Called when a remote track is successfully subscribed.
-   */
+  /// Called when a remote track is successfully subscribed.
   virtual void onTrackSubscribed(Room&, const TrackSubscribedEvent&) {}
 
-  /**
-   * Called when a remote track is unsubscribed.
-   */
+  /// Called when a remote track is unsubscribed.
   virtual void onTrackUnsubscribed(Room&, const TrackUnsubscribedEvent&) {}
 
-  /**
-   * Called when subscribing to a remote track fails.
-   */
+  /// Called when subscribing to a remote track fails.
   virtual void onTrackSubscriptionFailed(Room&, const TrackSubscriptionFailedEvent&) {}
 
-  /**
-   * Called when a track is muted.
-   */
+  /// Called when a track is muted.
   virtual void onTrackMuted(Room&, const TrackMutedEvent&) {}
 
-  /**
-   * Called when a track is unmuted.
-   */
+  /// Called when a track is unmuted.
   virtual void onTrackUnmuted(Room&, const TrackUnmutedEvent&) {}
 
   // ------------------------------------------------------------------
   // Active speakers
   // ------------------------------------------------------------------
 
-  /**
-   * Called when the list of active speakers changes.
-   */
+  /// Called when the list of active speakers changes.
   virtual void onActiveSpeakersChanged(Room&, const ActiveSpeakersChangedEvent&) {}
 
   // ------------------------------------------------------------------
   // Room info / metadata
   // ------------------------------------------------------------------
 
-  /**
-   * Called when the room's metadata changes.
-   */
+  /// Called when the room's metadata changes.
   virtual void onRoomMetadataChanged(Room&, const RoomMetadataChangedEvent&) {}
 
-  /**
-   * Called when the room SID changes (e.g., after migration).
-   */
+  /// Called when the room SID changes (e.g., after migration).
   virtual void onRoomSidChanged(Room&, const RoomSidChangedEvent&) {}
 
-  /**
-   * Called when any room info is updated.
-   */
+  /// Called when any room info is updated.
   virtual void onRoomUpdated(Room&, const RoomUpdatedEvent&) {}
 
-  /**
-   * Called when the participant is moved to another room.
-   */
+  /// Called when the participant is moved to another room.
   virtual void onRoomMoved(Room&, const RoomMovedEvent&) {}
 
   // ------------------------------------------------------------------
   // Participant info changes
   // ------------------------------------------------------------------
 
-  /**
-   * Called when a participant's metadata is updated.
-   */
+  /// Called when a participant's metadata is updated.
   virtual void onParticipantMetadataChanged(Room&, const ParticipantMetadataChangedEvent&) {}
 
-  /**
-   * Called when a participant's name is changed.
-   */
+  /// Called when a participant's name is changed.
   virtual void onParticipantNameChanged(Room&, const ParticipantNameChangedEvent&) {}
 
-  /**
-   * Called when a participant's attributes are updated.
-   */
+  /// Called when a participant's attributes are updated.
   virtual void onParticipantAttributesChanged(Room&, const ParticipantAttributesChangedEvent&) {}
 
-  /**
-   * Called when a participant's encryption status changes.
-   */
+  /// Called when a participant's encryption status changes.
   virtual void onParticipantEncryptionStatusChanged(Room&, const ParticipantEncryptionStatusChangedEvent&) {}
 
   // ------------------------------------------------------------------
   // Connection quality / state
   // ------------------------------------------------------------------
 
-  /**
-   * Called when a participant's connection quality changes.
-   */
+  /// Called when a participant's connection quality changes.
   virtual void onConnectionQualityChanged(Room&, const ConnectionQualityChangedEvent&) {}
 
-  /**
-   * Called when the room's connection state changes.
-   */
+  /// Called when the room's connection state changes.
   virtual void onConnectionStateChanged(Room&, const ConnectionStateChangedEvent&) {}
 
-  /**
-   * Called when the room is disconnected.
-   */
+  /// Called when the room is disconnected.
   virtual void onDisconnected(Room&, const DisconnectedEvent&) {}
 
-  /**
-   * Called before the SDK attempts to reconnect.
-   */
+  /// Called before the SDK attempts to reconnect.
   virtual void onReconnecting(Room&, const ReconnectingEvent&) {}
 
-  /**
-   * Called after the SDK successfully reconnects.
-   */
+  /// Called after the SDK successfully reconnects.
   virtual void onReconnected(Room&, const ReconnectedEvent&) {}
 
   // ------------------------------------------------------------------
   // E2EE
   // ------------------------------------------------------------------
 
-  /**
-   * Called when a participant's end-to-end encryption state changes.
-   */
+  /// Called when a participant's end-to-end encryption state changes.
   virtual void onE2eeStateChanged(Room&, const E2eeStateChangedEvent&) {}
 
   // ------------------------------------------------------------------
   // EOS
   // ------------------------------------------------------------------
 
-  /**
-   * Called when the room reaches end-of-stream and will not emit further
-   * events.
-   */
+  /// Called when the room reaches end-of-stream and will not emit further
+  /// events.
   virtual void onRoomEos(Room&, const RoomEosEvent&) {}
 
   // ------------------------------------------------------------------
   // Data / transcription / chat
   // ------------------------------------------------------------------
 
-  /**
-   * Called when a user data packet (non-SIP) is received.
-   */
+  /// Called when a user data packet (non-SIP) is received.
   virtual void onUserPacketReceived(Room&, const UserDataPacketEvent&) {}
 
-  /**
-   * Called when a SIP DTMF packet is received.
-   */
+  /// Called when a SIP DTMF packet is received.
   virtual void onSipDtmfReceived(Room&, const SipDtmfReceivedEvent&) {}
 
   // ------------------------------------------------------------------
   // Data streams
   // ------------------------------------------------------------------
 
-  /**
-   * Called when a data stream header is received.
-   */
+  /// Called when a data stream header is received.
   virtual void onDataStreamHeaderReceived(Room&, const DataStreamHeaderReceivedEvent&) {}
 
-  /**
-   * Called when a data stream chunk is received.
-   */
+  /// Called when a data stream chunk is received.
   virtual void onDataStreamChunkReceived(Room&, const DataStreamChunkReceivedEvent&) {}
 
-  /**
-   * Called when a data stream trailer is received.
-   */
+  /// Called when a data stream trailer is received.
   virtual void onDataStreamTrailerReceived(Room&, const DataStreamTrailerReceivedEvent&) {}
 
-  /**
-   * Called when a data channel's buffered amount falls below its low threshold.
-   */
+  /// Called when a data channel's buffered amount falls below its low threshold.
   virtual void onDataChannelBufferedAmountLowThresholdChanged(
       Room&, const DataChannelBufferedAmountLowThresholdChangedEvent&) {}
 
@@ -256,40 +186,30 @@ public:
   // High-level byte/text streams
   // ------------------------------------------------------------------
 
-  /**
-   * Called when a high-level byte stream reader is opened.
-   */
+  /// Called when a high-level byte stream reader is opened.
   virtual void onByteStreamOpened(Room&, const ByteStreamOpenedEvent&) {}
 
-  /**
-   * Called when a high-level text stream reader is opened.
-   */
+  /// Called when a high-level text stream reader is opened.
   virtual void onTextStreamOpened(Room&, const TextStreamOpenedEvent&) {}
 
   // ------------------------------------------------------------------
   // Data tracks
   // ------------------------------------------------------------------
 
-  /**
-   * Called when a remote participant publishes a data track.
-   *
-   * Data tracks are independent of the audio/video track hierarchy and
-   * require an explicit subscribe() call to start receiving frames.
-   */
+  /// Called when a remote participant publishes a data track.
+  ///
+  /// Data tracks are independent of the audio/video track hierarchy and
+  /// require an explicit subscribe() call to start receiving frames.
   virtual void onDataTrackPublished(Room&, const DataTrackPublishedEvent&) {}
 
-  /**
-   * Called when a remote participant unpublishes a data track.
-   */
+  /// Called when a remote participant unpublishes a data track.
   virtual void onDataTrackUnpublished(Room&, const DataTrackUnpublishedEvent&) {}
 
   // ------------------------------------------------------------------
   // Participants snapshot
   // ------------------------------------------------------------------
 
-  /**
-   * Called when a snapshot of participants has been updated.
-   */
+  /// Called when a snapshot of participants has been updated.
   virtual void onParticipantsUpdated(Room&, const ParticipantsUpdatedEvent&) {}
 };
 

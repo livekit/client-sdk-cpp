@@ -22,12 +22,10 @@
 
 namespace livekit {
 
-/**
- * @brief RAII wrapper for an FFI handle (uintptr_t) coming from Rust.
- *
- * Ensures that the handle is automatically released via
- * livekit_ffi_drop_handle() when the object goes out of scope.
- */
+/// @brief RAII wrapper for an FFI handle (uintptr_t) coming from Rust.
+///
+/// Ensures that the handle is automatically released via
+/// livekit_ffi_drop_handle() when the object goes out of scope.
 class LIVEKIT_API FfiHandle {
 public:
   explicit FfiHandle(uintptr_t h = 0) noexcept;
@@ -41,19 +39,19 @@ public:
   FfiHandle(FfiHandle&& other) noexcept;
   FfiHandle& operator=(FfiHandle&& other) noexcept;
 
-  // Replace the current handle with a new one, dropping the old if needed
+  /// Replace the current handle with a new one, dropping the old if needed
   void reset(uintptr_t new_handle = 0) noexcept;
 
-  // Release ownership of the handle without dropping it
+  /// Release ownership of the handle without dropping it
   [[nodiscard]] uintptr_t release() noexcept;
 
-  // Whether the handle is valid (non-zero)
+  /// Whether the handle is valid (non-zero)
   [[nodiscard]] bool valid() const noexcept;
 
-  // Get the raw handle value
+  /// Get the raw handle value
   [[nodiscard]] uintptr_t get() const noexcept;
 
-  // Allow `if (handle)` syntax
+  /// Allow `if (handle)` syntax
   explicit operator bool() const noexcept { return valid(); }
 
 private:

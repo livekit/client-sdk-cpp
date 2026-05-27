@@ -32,12 +32,10 @@ class Track;
 class LocalTrack;
 class RemoteTrack;
 
-/**
- * C++ TrackPublication.
- *
- * Wraps the immutable publication info plus an FFI handle, and
- * holds a weak reference to the associated Track (if any).
- */
+/// C++ TrackPublication.
+///
+/// Wraps the immutable publication info plus an FFI handle, and
+/// holds a weak reference to the associated Track (if any).
 class LIVEKIT_API TrackPublication {
 public:
   virtual ~TrackPublication() = default;

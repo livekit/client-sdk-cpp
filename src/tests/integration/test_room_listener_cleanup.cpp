@@ -83,13 +83,13 @@ void expectFailedConnectDoesNotDuplicateParticipantCallbacks(const TestConfig& c
   Room observed_room;
   observed_room.setDelegate(&counter);
 
-  EXPECT_FALSE(observed_room.Connect(failed_url, failed_token, options)) << "Initial failing Connect() should fail";
+  EXPECT_FALSE(observed_room.connect(failed_url, failed_token, options)) << "Initial failing connect() should fail";
 
-  ASSERT_TRUE(observed_room.Connect(config.url, config.token_a, options)) << "Reconnect after failed Connect() failed";
+  ASSERT_TRUE(observed_room.connect(config.url, config.token_a, options)) << "Reconnect after failed connect() failed";
   ASSERT_NE(observed_room.localParticipant(), nullptr);
 
   Room peer_room;
-  ASSERT_TRUE(peer_room.Connect(config.url, config.token_b, options)) << "Peer failed to connect";
+  ASSERT_TRUE(peer_room.connect(config.url, config.token_b, options)) << "Peer failed to connect";
   ASSERT_NE(peer_room.localParticipant(), nullptr);
   const std::string peer_identity = peer_room.localParticipant()->identity();
   ASSERT_FALSE(peer_identity.empty());
@@ -129,13 +129,13 @@ TEST_F(RoomListenerCleanupIntegrationTest, AlreadyConnectedConnectDoesNotReplace
   Room observed_room;
   observed_room.setDelegate(&counter);
 
-  ASSERT_TRUE(observed_room.Connect(config_.url, config_.token_a, options)) << "Initial Connect() failed";
+  ASSERT_TRUE(observed_room.connect(config_.url, config_.token_a, options)) << "Initial connect() failed";
   ASSERT_NE(observed_room.localParticipant(), nullptr);
 
-  EXPECT_THROW((void)observed_room.Connect(config_.url, config_.token_a, options), std::runtime_error);
+  EXPECT_THROW((void)observed_room.connect(config_.url, config_.token_a, options), std::runtime_error);
 
   Room peer_room;
-  ASSERT_TRUE(peer_room.Connect(config_.url, config_.token_b, options)) << "Peer failed to connect";
+  ASSERT_TRUE(peer_room.connect(config_.url, config_.token_b, options)) << "Peer failed to connect";
   ASSERT_NE(peer_room.localParticipant(), nullptr);
   const std::string peer_identity = peer_room.localParticipant()->identity();
   ASSERT_FALSE(peer_identity.empty());

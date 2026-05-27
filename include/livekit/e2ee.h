@@ -26,36 +26,34 @@
 
 namespace livekit {
 
-/* Encryption algorithm type used by the underlying stack.
- * Keep this aligned with your proto enum values. */
+/// Encryption algorithm type used by the underlying stack.
+/// Keep this aligned with your proto enum values.
 enum class EncryptionType {
   NONE = 0,
   GCM = 1,
   CUSTOM = 2,
 };
 
-/* Key derivation algorithm used by the key provider. */
+/// Key derivation algorithm used by the key provider.
 enum class KeyDerivationFunction {
   PBKDF2 = 0,
   HKDF = 1,
 };
 
-/* Defaults (match Rust KeyProviderOptions::default()). */
+/// Defaults (match Rust KeyProviderOptions::default()).
 inline constexpr const char* kDefaultRatchetSalt = "LKFrameEncryptionKey";
 inline constexpr int kDefaultRatchetWindowSize = 16;
 inline constexpr int kDefaultFailureTolerance = -1;
 inline constexpr int kDefaultKeyRingSize = 16;
 inline constexpr KeyDerivationFunction kDefaultKeyDerivationFunction = KeyDerivationFunction::PBKDF2;
 
-/**
- * Options for configuring the key provider used by E2EE.
- *
- * Notes:
- * - `shared_key` is optional. If omitted, the application may set keys later
- *   (e.g. via KeyProvider::setSharedKey / per-participant keys).
- * - `ratchet_salt` may be empty to indicate "use implementation default".
- * - Other key provider fields use SDK defaults unless overridden.
- */
+/// Options for configuring the key provider used by E2EE.
+///
+/// Notes:
+/// - `shared_key` is optional. If omitted, the application may set keys later
+///   (e.g. via KeyProvider::setSharedKey / per-participant keys).
+/// - `ratchet_salt` may be empty to indicate "use implementation default".
+/// - Other key provider fields use SDK defaults unless overridden.
 struct KeyProviderOptions {
   /// Shared static key for "shared-key E2EE" (optional).
   ///
@@ -85,49 +83,44 @@ struct KeyProviderOptions {
   KeyDerivationFunction key_derivation_function = kDefaultKeyDerivationFunction;
 };
 
-/**
- * End-to-end encryption (E2EE) configuration for a room.
- *
- * Provide this in RoomOptions to initialize E2EE support.
- *
- * IMPORTANT:
- * - Providing E2EEOptions means "E2EE support is configured for this room".
- * - Whether encryption is actively applied can still be toggled at runtime via
- *   E2EEManager::setEnabled().
- * - A room can be configured for E2EE even if no shared key is provided yet.
- *   In that case, the app must supply keys later via KeyProvider (shared-key or
- *   per-participant).
- */
+/// End-to-end encryption (E2EE) configuration for a room.
+///
+/// Provide this in RoomOptions to initialize E2EE support.
+///
+/// IMPORTANT:
+/// - Providing E2EEOptions means "E2EE support is configured for this room".
+/// - Whether encryption is actively applied can still be toggled at runtime via
+///   E2EEManager::setEnabled().
+/// - A room can be configured for E2EE even if no shared key is provided yet.
+///   In that case, the app must supply keys later via KeyProvider (shared-key or
+///   per-participant).
 struct E2EEOptions {
   KeyProviderOptions key_provider_options{};
   EncryptionType encryption_type = EncryptionType::GCM; // default & recommended
 };
 
-/**
- * E2EE manager for a connected room.
- *
- * Lifetime:
- * - Owned by Room. Applications must not construct E2EEManager directly.
- *
- * Enablement model:
- * - If the Room was created with `RoomOptions.e2ee` set, the room will expose
- *   a non-null E2EEManager via Room::E2eeManager().
- * - If the Room was created without E2EE options, Room::E2eeManager() may be
- * null.
- *
- * Key model:
- * - Keys are managed via KeyProvider (shared-key or per-participant).
- * - Providing a shared key up-front is convenient for shared-key E2EE, but is
- * not required by the API shape (keys may be supplied later).
- */
+/// E2EE manager for a connected room.
+///
+/// Lifetime:
+/// - Owned by Room. Applications must not construct E2EEManager directly.
+///
+/// Enablement model:
+/// - If the Room was created with `RoomOptions.e2ee` set, the room will expose
+///   a non-null E2EEManager via Room::E2eeManager().
+/// - If the Room was created without E2EE options, Room::E2eeManager() may be
+/// null.
+///
+/// Key model:
+/// - Keys are managed via KeyProvider (shared-key or per-participant).
+/// - Providing a shared key up-front is convenient for shared-key E2EE, but is
+/// not required by the API shape (keys may be supplied later).
 class LIVEKIT_API E2EEManager {
 public:
-  /** If your application requires key rotation during the lifetime of a single
-   * room or unique keys per participant (such as when implementing the MEGOLM
-   * or MLS protocol), you' can do it via key provider and frame cryptor. refer
-   * https://docs.livekit.io/home/client/encryption/#custom-key-provider doe
-   * details
-   *  */
+  /// If your application requires key rotation during the lifetime of a single
+  /// room or unique keys per participant (such as when implementing the MEGOLM
+  /// or MLS protocol), you' can do it via key provider and frame cryptor. refer
+  /// https://docs.livekit.io/home/client/encryption/#custom-key-provider doe
+  /// details
   class LIVEKIT_API KeyProvider {
   public:
     ~KeyProvider() = default;
