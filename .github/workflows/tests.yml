@@ -63,13 +63,11 @@ jobs:
           - os: macos-26-xlarge
             name: macos-arm64
             build_cmd: ./build.sh release-tests
-            # E2E not possible on GHA Mac runner currently
-            e2e-testing: false
+            e2e-testing: true
           - os: macos-26-large
             name: macos-x64
             build_cmd: ./build.sh release-tests --macos-arch x86_64
-            # E2E not possible on GHA Mac runner currently
-            e2e-testing: false
+            e2e-testing: true
             # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
@@ -198,18 +196,22 @@ jobs:
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
         if: runner.os != 'Windows'
-        timeout-minutes: 1
+        timeout-minutes: 10
         shell: bash
         run: |
           build-release/bin/livekit_unit_tests \
+            --gtest_repeat=100 \
+            --gtest_brief=1 \
             --gtest_output=xml:build-release/unit-test-results.xml
 
       - name: Run unit tests (Windows)
         if: runner.os == 'Windows'
-        timeout-minutes: 1
+        timeout-minutes: 10
         shell: pwsh
         run: |
           build-release\bin\livekit_unit_tests.exe `
+            --gtest_repeat=100 `
+            --gtest_brief=1 `
             --gtest_output="xml:build-release\unit-test-results.xml"
 
       # ---------- Install + start livekit-server for integration tests ----------
