@@ -18,7 +18,7 @@ jobs:
           set -euo pipefail
 
           search_dirs=()
-          for dir in src include bridge cpp-example-collection; do
+          for dir in src include cpp-example-collection; do
             if [[ -d "$dir" ]]; then
               search_dirs+=("$dir")
             fi

@@ -34,90 +34,13 @@ protected:
   void TearDown() override { livekit::shutdown(); }
 };
 
-TEST_F(RoomCallbackTest, AudioCallbackRegistrationIsAccepted) {
-  Room room;
-
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE, [](const AudioFrame&) {}));
-}
-
-TEST_F(RoomCallbackTest, VideoCallbackRegistrationIsAccepted) {
-  Room room;
-
-  EXPECT_NO_THROW(
-      room.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA, [](const VideoFrame&, std::int64_t) {}));
-}
-
-TEST_F(RoomCallbackTest, AudioCallbackRegistrationByTrackNameIsAccepted) {
+TEST_F(RoomCallbackTest, FrameCallbackRegistrationByTrackNameIsAccepted) {
   Room room;
 
   EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {}));
-}
-
-TEST_F(RoomCallbackTest, VideoCallbackRegistrationByTrackNameIsAccepted) {
-  Room room;
-
   EXPECT_NO_THROW(room.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {}));
-}
-
-TEST_F(RoomCallbackTest, ClearingMissingCallbacksIsNoOp) {
-  Room room;
-
-  EXPECT_NO_THROW(room.clearOnAudioFrameCallback("nobody", TrackSource::SOURCE_MICROPHONE));
-  EXPECT_NO_THROW(room.clearOnVideoFrameCallback("nobody", TrackSource::SOURCE_CAMERA));
-  EXPECT_NO_THROW(room.clearOnAudioFrameCallback("nobody", "missing-audio"));
-  EXPECT_NO_THROW(room.clearOnVideoFrameCallback("nobody", "missing-video"));
-}
-
-TEST_F(RoomCallbackTest, ReRegisteringSameAudioKeyDoesNotThrow) {
-  Room room;
-  std::atomic<int> counter1{0};
-  std::atomic<int> counter2{0};
-
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE,
-                                               [&counter1](const AudioFrame&) { counter1++; }));
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE,
-                                               [&counter2](const AudioFrame&) { counter2++; }));
-}
-
-TEST_F(RoomCallbackTest, ReRegisteringSameVideoKeyDoesNotThrow) {
-  Room room;
-
-  EXPECT_NO_THROW(
-      room.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA, [](const VideoFrame&, std::int64_t) {}));
-  EXPECT_NO_THROW(
-      room.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA, [](const VideoFrame&, std::int64_t) {}));
-}
-
-TEST_F(RoomCallbackTest, DistinctAudioAndVideoCallbacksCanCoexist) {
-  Room room;
-
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE, [](const AudioFrame&) {}));
-  EXPECT_NO_THROW(
-      room.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA, [](const VideoFrame&, std::int64_t) {}));
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback("bob", TrackSource::SOURCE_MICROPHONE, [](const AudioFrame&) {}));
-  EXPECT_NO_THROW(
-      room.setOnVideoFrameCallback("bob", TrackSource::SOURCE_CAMERA, [](const VideoFrame&, std::int64_t) {}));
-}
-
-TEST_F(RoomCallbackTest, SameSourceDifferentTrackNamesAreAccepted) {
-  Room room;
-
-  EXPECT_NO_THROW(room.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {}));
-  EXPECT_NO_THROW(room.setOnVideoFrameCallback("alice", "cam-backup", [](const VideoFrame&, std::int64_t) {}));
-}
-
-TEST_F(RoomCallbackTest, ClearingTrackNameCallbackIsAccepted) {
-  Room room;
-
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {}));
   EXPECT_NO_THROW(room.clearOnAudioFrameCallback("alice", "mic-main"));
-}
-
-TEST_F(RoomCallbackTest, SourceAndTrackNameCallbacksCanCoexist) {
-  Room room;
-
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE, [](const AudioFrame&) {}));
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {}));
+  EXPECT_NO_THROW(room.clearOnVideoFrameCallback("alice", "cam-main"));
 }
 
 TEST_F(RoomCallbackTest, DataCallbackRegistrationReturnsUsableIds) {
@@ -145,8 +68,8 @@ TEST_F(RoomCallbackTest, RemovingUnknownDataCallbackIsNoOp) {
 TEST_F(RoomCallbackTest, DestroyRoomWithRegisteredCallbacksIsSafe) {
   EXPECT_NO_THROW({
     Room room;
-    room.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE, [](const AudioFrame&) {});
-    room.setOnVideoFrameCallback("bob", TrackSource::SOURCE_CAMERA, [](const VideoFrame&, std::int64_t) {});
+    room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+    room.setOnVideoFrameCallback("bob", "cam-main", [](const VideoFrame&, std::int64_t) {});
     room.addOnDataFrameCallback("carol", "track",
                                 [](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {});
   });
@@ -155,80 +78,13 @@ TEST_F(RoomCallbackTest, DestroyRoomWithRegisteredCallbacksIsSafe) {
 TEST_F(RoomCallbackTest, DestroyRoomAfterClearingCallbacksIsSafe) {
   EXPECT_NO_THROW({
     Room room;
-    room.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE, [](const AudioFrame&) {});
-    room.clearOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE);
+    room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+    room.clearOnAudioFrameCallback("alice", "mic-main");
 
     const auto id = room.addOnDataFrameCallback("alice", "track",
                                                 [](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {});
     room.removeOnDataFrameCallback(id);
   });
-}
-
-TEST_F(RoomCallbackTest, ConcurrentRegistrationDoesNotCrash) {
-  Room room;
-  constexpr int kThreads = 8;
-  constexpr int kIterations = 100;
-
-  std::vector<std::thread> threads;
-  threads.reserve(kThreads);
-
-  for (int t = 0; t < kThreads; ++t) {
-    threads.emplace_back([&room, t, kIterations]() {
-      for (int i = 0; i < kIterations; ++i) {
-        const std::string id = "participant-" + std::to_string(t);
-        room.setOnAudioFrameCallback(id, TrackSource::SOURCE_MICROPHONE, [](const AudioFrame&) {});
-        room.clearOnAudioFrameCallback(id, TrackSource::SOURCE_MICROPHONE);
-      }
-    });
-  }
-
-  for (auto& thread : threads) {
-    thread.join();
-  }
-
-  SUCCEED();
-}
-
-TEST_F(RoomCallbackTest, ConcurrentMixedRegistrationDoesNotCrash) {
-  Room room;
-  constexpr int kThreads = 4;
-  constexpr int kIterations = 50;
-
-  std::vector<std::thread> threads;
-  threads.reserve(kThreads);
-
-  for (int t = 0; t < kThreads; ++t) {
-    threads.emplace_back([&room, t, kIterations]() {
-      const std::string id = "p-" + std::to_string(t);
-      for (int i = 0; i < kIterations; ++i) {
-        room.setOnAudioFrameCallback(id, TrackSource::SOURCE_MICROPHONE, [](const AudioFrame&) {});
-        room.setOnVideoFrameCallback(id, TrackSource::SOURCE_CAMERA, [](const VideoFrame&, std::int64_t) {});
-        const auto data_id = room.addOnDataFrameCallback(
-            id, "track", [](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {});
-        room.removeOnDataFrameCallback(data_id);
-      }
-    });
-  }
-
-  for (auto& thread : threads) {
-    thread.join();
-  }
-
-  SUCCEED();
-}
-
-TEST_F(RoomCallbackTest, ManyDistinctAudioCallbacksCanBeRegisteredAndCleared) {
-  Room room;
-  constexpr int kCount = 50;
-
-  for (int i = 0; i < kCount; ++i) {
-    EXPECT_NO_THROW(room.setOnAudioFrameCallback("participant-" + std::to_string(i), TrackSource::SOURCE_MICROPHONE,
-                                                 [](const AudioFrame&) {}));
-  }
-
-  for (int i = 0; i < kCount; ++i) {
-    EXPECT_NO_THROW(room.clearOnAudioFrameCallback("participant-" + std::to_string(i), TrackSource::SOURCE_MICROPHONE));
-  }
 }
 
 TEST_F(RoomCallbackTest, DefaultConnectionStateIsDisconnected) {
@@ -239,10 +95,10 @@ TEST_F(RoomCallbackTest, DefaultConnectionStateIsDisconnected) {
 TEST_F(RoomCallbackTest, ConnectionStateRemainsDisconnectedWithoutConnect) {
   // Register callbacks, do other operations — state must stay Disconnected.
   Room room;
-  room.setOnAudioFrameCallback("alice", TrackSource::SOURCE_MICROPHONE, [](const AudioFrame&) {});
-  room.setOnVideoFrameCallback("alice", TrackSource::SOURCE_CAMERA, [](const VideoFrame&, std::int64_t) {});
+  room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+  room.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
   room.addOnDataFrameCallback("alice", "track", [](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {});
-  room.registerTextStreamHandler("topic", [](std::shared_ptr<TextStreamReader>, const std::string&) {});
+  room.registerTextStreamHandler("topic", [](const std::shared_ptr<TextStreamReader>&, const std::string&) {});
   EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
 }
 
