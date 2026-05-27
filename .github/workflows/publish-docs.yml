@@ -2,7 +2,29 @@ name: Publish docs
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Documentation version (for example, 0.1.0 or v0.1.0)'
+        required: false
+        type: string
   workflow_call:
+    inputs:
+      version:
+        description: 'Documentation version (for example, 0.1.0 or v0.1.0)'
+        required: false
+        type: string
+  # Dry-run on PRs that touch C++ code (or docs sources): build the docs to
+  # ensure they still generate, but skip the S3 upload / CloudFront invalidation.
+  pull_request:
+    branches: ["main"]
+    paths:
+      - include/**
+      - src/**
+      - examples/**
+      - docs/**
+      - README.md
+      - scripts/build-docs.sh
+      - .github/workflows/publish-docs.yml
 
 jobs:
   docs:
@@ -19,10 +41,52 @@ jobs:
           sudo apt-get install -y doxygen graphviz
 
       - name: Build Docs (Doxygen)
+        id: build_docs
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version || github.event.inputs.version || '' }}
         run: |
-          doxygen docs/Doxyfile
+          set -euo pipefail
+
+          args=()
+          if [[ -n "$INPUT_VERSION" ]]; then
+            args+=(--version "$INPUT_VERSION")
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            args+=(--version "${{ github.ref_name }}")
+          fi
+
+          ./scripts/build-docs.sh "${args[@]}"
+
+      - name: Print docs version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PROJECT_NUMBER="${{ steps.build_docs.outputs.project_number }}"
+          VERSION="${{ steps.build_docs.outputs.version }}"
+
+          if [[ -z "$PROJECT_NUMBER" || -z "$VERSION" ]]; then
+            echo "ERROR: build_docs step did not emit version outputs."
+            exit 1
+          fi
+
+          echo "Docs project number: ${PROJECT_NUMBER}"
+          echo "Docs version:        ${VERSION}"
+
+          {
+            echo "### Docs build"
+            echo ""
+            echo "- Project number: \`${PROJECT_NUMBER}\`"
+            echo "- Version: \`${VERSION}\`"
+            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              echo "- Mode: dry-run (PR build, not published)"
+            else
+              echo "- Mode: publish"
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
 
       - name: S3 Upload
+        if: github.event_name != 'pull_request'
         run: |
           DOCS_DIR="html"
           if [[ ! -d "$DOCS_DIR" ]]; then
@@ -30,14 +94,19 @@ jobs:
             exit 1
           fi
 
-          # Upload to rolling latest (no versioned docs, always overwrite)
-          aws s3 cp "$DOCS_DIR"/ s3://livekit-docs/client-sdk-cpp --recursive
+          VERSIONED_PREFIX="s3://livekit-docs/client-sdk-cpp/${{ steps.build_docs.outputs.project_number }}"
+          LATEST_PREFIX="s3://livekit-docs/client-sdk-cpp"
+
+          # Upload immutable versioned docs, then refresh rolling latest.
+          aws s3 cp "$DOCS_DIR"/ "$VERSIONED_PREFIX" --recursive
+          aws s3 cp "$DOCS_DIR"/ "$LATEST_PREFIX" --recursive
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: "us-east-1"
 
       - name: Invalidate cloudfront cache
+        if: github.event_name != 'pull_request'
         run: |
           aws cloudfront create-invalidation --distribution-id EJJ40KLJ3TRY9 --paths "/client-sdk-cpp/*"
         env:

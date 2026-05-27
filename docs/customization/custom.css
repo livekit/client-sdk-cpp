@@ -8,6 +8,20 @@ html {
   --primary-dark-color: rgb(22, 35, 89);
   --primary-light-color: rgb(172, 175, 191);
   --fragment-link: var(--primary-color);
+  --project-version-background: rgba(0, 0, 0, 0.06);
+  --project-version-foreground: var(--page-secondary-foreground-color);
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not(.light-mode) {
+    --project-version-background: rgba(255, 255, 255, 0.1);
+    --project-version-foreground: var(--page-secondary-foreground-color);
+  }
+}
+
+html.dark-mode {
+  --project-version-background: rgba(255, 255, 255, 0.1);
+  --project-version-foreground: var(--page-secondary-foreground-color);
 }
 
 #main-nav {
@@ -20,8 +34,9 @@ html {
 }
 
 #projectnumber {
-  background-color: #eee;
+  background-color: var(--project-version-background);
   border-radius: var(--border-radius-medium);
+  color: var(--project-version-foreground);
   padding-right: 0.5em;
   padding-left: 0.25em;
 }
