@@ -60,6 +60,7 @@ All `RoomDelegate` callbacks and stream handler callbacks (e.g., `registerTextSt
 | `SubscriptionThreadDispatcher` | Yes | Internal `std::mutex` protects registrations and active readers. Thread joins happen outside the lock. |
 | `AudioStream` / `VideoStream` / `DataTrackStream` | Yes | Internal `std::mutex` + `condition_variable` coordinate the FFI producer thread and the consumer reader thread. |
 | `AudioSource::captureFrame` | No | Not safe to call concurrently from multiple threads. |
+| `PlatformAudio` / `PlatformAudioSource` | Yes | Thin `sendRequest` wrappers over immutable FFI handle state; destruction and move operations must be externally synchronized. |
 | `VideoSource::captureFrame` | No | Not safe to call concurrently from multiple threads. |
 | `LocalAudioTrack` / `LocalVideoTrack` | No | Thin `sendRequest` wrappers with no internal synchronization. |
 | `LocalDataTrack::tryPush` | No | Thin `sendRequest` wrapper with no internal synchronization. |

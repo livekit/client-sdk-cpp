@@ -31,12 +31,15 @@ class OwnedTrack;
 }
 
 class AudioSource;
+class PlatformAudioSource;
 
 /// Represents a user-provided audio track sourced from the local device.
 ///
-///  `LocalAudioTrack` is used to publish microphone audio (or any custom
-///  audio source) to a LiveKit room. It wraps a platform-specific audio
-///  source and exposes simple controls such as `mute()` and `unmute()`.
+/// `LocalAudioTrack` is used to publish microphone audio or any custom audio
+/// source to a LiveKit room. It wraps a platform-specific audio
+/// source and exposes simple controls such as `mute()` and `unmute()`.
+/// Muting a local audio track stops transmitting audio to the room, but
+/// the underlying source may continue capturing depending on platform behavior.
 ///
 ///  Typical usage:
 ///
@@ -52,6 +55,8 @@ class AudioSource;
 ///
 ///  The track name provided during creation is visible to remote
 ///  participants and can be used for debugging or UI display.
+/// @note Thread-safety: Not thread-safe. This is a thin FFI wrapper with no
+/// internal synchronization.
 class LIVEKIT_API LocalAudioTrack : public Track {
 public:
   /// Creates a new local audio track backed by the given `AudioSource`.
@@ -63,30 +68,55 @@ public:
   ///               directly for frame capture.
   ///
   /// @return A shared pointer to the newly constructed `LocalAudioTrack`.
+  /// @throws std::invalid_argument  If \p source is null.
+  /// @throws std::runtime_error  If the FFI request fails.
   static std::shared_ptr<LocalAudioTrack> createLocalAudioTrack(const std::string& name,
                                                                 const std::shared_ptr<AudioSource>& source);
+
+  /// Creates a new local audio track backed by the given `PlatformAudioSource`.
+  ///
+  /// @param name   Human-readable name for the track. This may appear to
+  ///               remote participants and in analytics/debug logs.
+  /// @param source  The platform source that captures microphone audio
+  ///               automatically through WebRTC's Audio Device Module.
+  ///
+  /// @return A shared pointer to the newly constructed `LocalAudioTrack`.
+  /// @throws std::invalid_argument  If \p source is null.
+  /// @throws std::runtime_error  If the FFI request fails.
+  ///
+  /// @note Thread-safety: Not thread-safe. This is a thin FFI wrapper with no
+  /// internal synchronization.
+  static std::shared_ptr<LocalAudioTrack> createLocalAudioTrack(const std::string& name,
+                                                                const std::shared_ptr<PlatformAudioSource>& source);
 
   /// Mutes the audio track.
   ///
   /// A muted track stops sending audio to the room, but the track remains
   /// published and can be unmuted later without renegotiation.
+  ///
+  /// @throws std::runtime_error  If the FFI request fails.
   void mute();
 
-  /// Unmutes the audio track and resumes sending audio to the room.
+  /// Unmute the audio track.
+  ///
+  /// Resumes sending audio to the room.
+  ///
+  /// @throws std::runtime_error  If the FFI request fails.
   void unmute();
 
-  /// Returns a human-readable string representation of the track,
-  /// including its SID and name. Useful for debugging and logging.
+  /// Return a human-readable string representation of the track.
+  ///
+  /// @return String containing the track SID and name.
   std::string toString() const;
 
   /// Returns the publication that owns this track, or nullptr if the track is
   /// not published.
   std::shared_ptr<LocalTrackPublication> publication() const noexcept { return local_publication_; }
 
-  /// Sets the publication that owns this track.
-  /// Note: std::move on a const& silently falls back to a copy, so we assign
-  /// directly. Changing the virtual signature to take by value would enable
-  /// a true move but is an API-breaking change hence left for a future revision.
+  /// Set the publication that owns this track.
+  ///
+  /// @param publication  Publication that owns this track, or nullptr to clear
+  /// the association.
   void setPublication(const std::shared_ptr<LocalTrackPublication>& publication) noexcept override {
     local_publication_ = publication;
   }

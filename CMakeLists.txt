@@ -385,6 +385,7 @@ add_library(livekit SHARED
   src/logging.cpp
   src/local_audio_track.cpp
   src/local_data_track.cpp
+  src/platform_audio.cpp
   src/remote_audio_track.cpp
   src/remote_data_track.cpp
   src/room.cpp
