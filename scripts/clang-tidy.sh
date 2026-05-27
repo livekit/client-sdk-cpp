@@ -113,7 +113,7 @@ BUILD_DIR="build-release"
 # Positive match for top-level src/*.{c,cpp,cc,cxx}; negative lookahead excludes
 # dep paths (_deps/, build-*/, -src/src/) and every other top-level dir. Python
 # regex (PCRE-ish) supports lookahead; this regex is evaluated by run-clang-tidy.
-FILE_REGEX='^(?!.*/(_deps|build-[^/]*|bridge|examples|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$'
+FILE_REGEX='^(?!.*/(_deps|build-[^/]*|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$'
 
 CI_MODE=0
 # Automatically detect CI mode if in GitHub actions environment

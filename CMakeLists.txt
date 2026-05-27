@@ -748,9 +748,6 @@ install(FILES
 
 # ------------------------------------------------------------------------
 
-# Build the LiveKit C++ bridge before examples (human_robot depends on it)
-add_subdirectory(bridge)
-
 if(LIVEKIT_BUILD_EXAMPLES)
   include(cpp-example-collection)
   livekit_configure_cpp_example_collection()

@@ -179,10 +179,7 @@ clang-format --version
 #   - benchmarks/   (in-tree micro-benchmarks)
 # Using `git ls-files` automatically skips the client-sdk-rust/ submodule,
 # build-*/, _deps/, local-install/, vcpkg_installed/, etc., without having
-# to maintain a lookahead exclusion regex. The deprecated bridge/ tree and
-# the empty examples/ tree are intentionally left out -- bridge/ has its
-# own conventions (it's frozen pending removal), and examples/ has no
-# tracked C/C++ files today.
+# to maintain a lookahead exclusion regex.
 files=()
 if (( ${#explicit_files[@]} > 0 )); then
   files=("${explicit_files[@]}")

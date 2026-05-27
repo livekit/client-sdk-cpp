@@ -314,25 +314,11 @@ void Room::unregisterByteStreamHandler(const std::string& topic) {
 // Frame callback registration
 // -------------------------------------------------------------------
 
-void Room::setOnAudioFrameCallback(const std::string& participant_identity, TrackSource source,
-                                   AudioFrameCallback callback, const AudioStream::Options& opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnAudioFrameCallback(participant_identity, source, std::move(callback), opts);
-  }
-}
-
 void Room::setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                    AudioFrameCallback callback, const AudioStream::Options& opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnAudioFrameCallback(participant_identity, track_name, std::move(callback),
                                                              opts);
-  }
-}
-
-void Room::setOnVideoFrameCallback(const std::string& participant_identity, TrackSource source,
-                                   VideoFrameCallback callback, const VideoStream::Options& opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnVideoFrameCallback(participant_identity, source, std::move(callback), opts);
   }
 }
 
@@ -352,21 +338,9 @@ void Room::setOnVideoFrameEventCallback(const std::string& participant_identity,
   }
 }
 
-void Room::clearOnAudioFrameCallback(const std::string& participant_identity, TrackSource source) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->clearOnAudioFrameCallback(participant_identity, source);
-  }
-}
-
 void Room::clearOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->clearOnAudioFrameCallback(participant_identity, track_name);
-  }
-}
-
-void Room::clearOnVideoFrameCallback(const std::string& participant_identity, TrackSource source) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->clearOnVideoFrameCallback(participant_identity, source);
   }
 }
 

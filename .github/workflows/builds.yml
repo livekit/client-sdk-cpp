@@ -7,7 +7,6 @@ on:
       - src/**
       - include/**
       - cpp-example-collection/**
-      - bridge/**
       - client-sdk-rust/**
       - cmake/**
       - scripts/**
@@ -28,7 +27,6 @@ on:
       - src/**
       - include/**
       - cpp-example-collection/**
-      - bridge/**
       - client-sdk-rust/**
       - cmake/**
       - scripts/**
