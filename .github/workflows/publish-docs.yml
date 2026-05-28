@@ -19,14 +19,6 @@ permissions:
   actions: read
 
 jobs:
-  # Reuse generate-docs.yml so the publish path runs exactly the same build/print
-  # logic that PR dry-runs run, and we ship the resulting HTML tree (built into
-  # docs/doxygen/html/ on the builder) to the publish job below as a workflow
-  # artifact (avoids double-building). The artifact contains the *contents* of
-  # that directory at its root (actions/upload-artifact uses the longest common
-  # path of the uploaded files as the artifact root), so the download step
-  # below lands them at html/index.html, html/favicon.ico, etc. The
-  # "Verify artifact layout" step in generate-docs.yml asserts this every run.
   validate:
     name: Validate (build docs)
     uses: ./.github/workflows/generate-docs.yml

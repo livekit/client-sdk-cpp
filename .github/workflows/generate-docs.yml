@@ -13,12 +13,15 @@ permissions:
 #      artifact for a downstream publish job to consume. Avoids double-building
 #      the docs.
 #
-# Artifact layout: actions/upload-artifact@v4 uses the longest common path of
+# Artifact layout: actions/upload-artifact@v4+ uses the longest common path of
 # all uploaded files as the artifact root. With `path: docs/doxygen/html/`, the
 # artifact contains the *contents* of that directory at the artifact root
-# (index.html, favicon.ico, …) -- NOT nested under docs/doxygen/html/. This
-# means downstream consumers using `path: html` get files at html/index.html.
-# The "Verify artifact layout" step below proves this empirically on every run.
+# (index.html, favicon.ico, …) -- NOT nested under docs/doxygen/html/. The
+# `html/` prefix that publish-docs.yml relies on comes from the *download*
+# step's `path: html` parameter, not from the artifact itself. The
+# "Re-download artifact" + "Inspect downloaded artifact" steps below prove
+# this end-to-end on every run by re-downloading with `path: html` and
+# asserting `html/index.html` is present.
 on:
   pull_request:
     branches: ["main"]
@@ -156,17 +159,19 @@ jobs:
           retention-days: ${{ steps.artifact_meta.outputs.retention }}
           if-no-files-found: error
 
-      # Empirical verification that the artifact GitHub stores is laid out the
-      # way publish-docs.yml expects: download it back into a *separate*
-      # directory and confirm index.html lives at the top of that directory
-      # (not nested under docs/doxygen/html/). If actions/upload-artifact ever
-      # changes its "longest common path" behavior, this step fails loudly.
-      - name: Verify artifact layout
+      # Empirical proof of the publish-docs.yml contract: re-download the
+      # just-uploaded artifact using the *same* `path: html` value that
+      # publish-docs.yml uses, and assert html/index.html exists. The artifact
+      # itself is flat (its root contains index.html, favicon.ico, …); the
+      # `html/` prefix comes purely from the download step's `path:`. If
+      # actions/upload-artifact ever changes its "longest common path" root
+      # behavior, this assertion fails loudly.
+      - name: Re-download artifact (mirrors publish-docs.yml exactly)
         if: steps.artifact_meta.outputs.name != ''
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: ${{ steps.artifact_meta.outputs.name }}
-          path: artifact-verify
+          path: html
 
       - name: Inspect downloaded artifact
         if: steps.artifact_meta.outputs.name != ''
@@ -175,9 +180,11 @@ jobs:
           set -euo pipefail
 
           NAME="${{ steps.artifact_meta.outputs.name }}"
-          ROOT="artifact-verify"
+          ROOT="html"
 
-          echo "Artifact '${NAME}' top-level contents:"
+          echo "Artifact '${NAME}' extracted into '${ROOT}/'. Top-level contents:"
+          # `sed -n '1,Np'` reads the whole pipe before truncating its output,
+          # so the producer (ls) never hits SIGPIPE under `pipefail`.
           ls -la "$ROOT" | sed -n '1,40p'
 
           TOTAL=$(find "$ROOT" -type f | wc -l | tr -d ' ')
@@ -185,22 +192,27 @@ jobs:
 
           if [[ ! -f "${ROOT}/index.html" ]]; then
             echo "ERROR: ${ROOT}/index.html is missing -- artifact layout regressed."
-            echo "       publish-docs.yml expects index.html at the artifact root."
+            echo "       publish-docs.yml downloads with the same 'path: html' and"
+            echo "       expects html/index.html."
             exit 1
           fi
 
-          # Print a small sample to the step summary so the layout is visible
-          # without digging through the job log.
+          SAMPLE=$( (cd "$ROOT" && ls -1) | sed -n '1,20p' )
+
           {
             echo "### Docs artifact: \`${NAME}\`"
             echo ""
-            echo "Uploaded ${TOTAL} files. Sample top-level entries:"
+            echo "Uploaded ${TOTAL} files. The artifact's *contents* live at"
+            echo "the artifact root (there is no \`html/\` prefix inside the"
+            echo "artifact itself). The \`html/\` directory below comes from"
+            echo "this step's \`path: html\`, which mirrors \`publish-docs.yml\`:"
             echo ""
             echo '```'
-            (cd "$ROOT" && ls -1 | head -20)
+            echo "${SAMPLE}"
             echo '```'
             echo ""
-            echo "Layout confirmed: \`index.html\` is at the artifact root,"
-            echo "so \`publish-docs.yml\` downloading with \`path: html\` will land"
-            echo "files at \`html/index.html\`, \`html/favicon.ico\`, etc."
+            echo "Layout confirmed: \`html/index.html\` is present, so the"
+            echo "\`aws s3 cp html/ s3://… --recursive\` step in"
+            echo "\`publish-docs.yml\` will publish \`index.html\`, \`favicon.ico\`,"
+            echo "etc. at the bucket root."
           } >>"$GITHUB_STEP_SUMMARY"
