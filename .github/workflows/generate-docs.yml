@@ -159,14 +159,8 @@ jobs:
           retention-days: ${{ steps.artifact_meta.outputs.retention }}
           if-no-files-found: error
 
-      # Empirical proof of the publish-docs.yml contract: re-download the
-      # just-uploaded artifact using the *same* `path: html` value that
-      # publish-docs.yml uses, and assert html/index.html exists. The artifact
-      # itself is flat (its root contains index.html, favicon.ico, …); the
-      # `html/` prefix comes purely from the download step's `path:`. If
-      # actions/upload-artifact ever changes its "longest common path" root
-      # behavior, this assertion fails loudly.
-      - name: Re-download artifact (mirrors publish-docs.yml exactly)
+      # Simple check to make sure the documentation artifact is valid.
+      - name: Re-download artifact (publish workflow pre-validation)
         if: steps.artifact_meta.outputs.name != ''
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -192,27 +186,6 @@ jobs:
 
           if [[ ! -f "${ROOT}/index.html" ]]; then
             echo "ERROR: ${ROOT}/index.html is missing -- artifact layout regressed."
-            echo "       publish-docs.yml downloads with the same 'path: html' and"
-            echo "       expects html/index.html."
+            echo "       publish-docs.yml expects html/index.html."
             exit 1
           fi
-
-          SAMPLE=$( (cd "$ROOT" && ls -1) | sed -n '1,20p' )
-
-          {
-            echo "### Docs artifact: \`${NAME}\`"
-            echo ""
-            echo "Uploaded ${TOTAL} files. The artifact's *contents* live at"
-            echo "the artifact root (there is no \`html/\` prefix inside the"
-            echo "artifact itself). The \`html/\` directory below comes from"
-            echo "this step's \`path: html\`, which mirrors \`publish-docs.yml\`:"
-            echo ""
-            echo '```'
-            echo "${SAMPLE}"
-            echo '```'
-            echo ""
-            echo "Layout confirmed: \`html/index.html\` is present, so the"
-            echo "\`aws s3 cp html/ s3://… --recursive\` step in"
-            echo "\`publish-docs.yml\` will publish \`index.html\`, \`favicon.ico\`,"
-            echo "etc. at the bucket root."
-          } >>"$GITHUB_STEP_SUMMARY"
