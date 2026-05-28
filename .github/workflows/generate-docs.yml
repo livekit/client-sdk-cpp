@@ -16,9 +16,7 @@ on:
     paths:
       - include/**
       - src/**
-      - examples/**
       - docs/**
-      - README.md
       - scripts/generate-docs.sh
       - .github/workflows/generate-docs.yml
       - .github/workflows/publish-docs.yml
