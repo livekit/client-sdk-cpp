@@ -22,23 +22,31 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 # Skip GMock, not used currently
 set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(googletest)
+livekit_fetchcontent_makeavailable(googletest)
 livekit_collect_targets_in_directory(_livekit_googletest_targets "${googletest_BINARY_DIR}")
 foreach(_livekit_googletest_target IN LISTS _livekit_googletest_targets)
-  livekit_treat_as_external(${_livekit_googletest_target})
+  livekit_disable_warnings(${_livekit_googletest_target})
 endforeach()
-if(TARGET GTest::gtest_main)
-  livekit_treat_as_external(GTest::gtest_main)
+
+set(LIVEKIT_TEST_PROTOBUF_DEP_INCLUDE_DIRS ${Protobuf_INCLUDE_DIRS})
+if(TARGET absl::base)
+  livekit_get_interface_includes(absl::base _livekit_test_absl_inc)
+  if(_livekit_test_absl_inc)
+    list(APPEND LIVEKIT_TEST_PROTOBUF_DEP_INCLUDE_DIRS ${_livekit_test_absl_inc})
+  endif()
 endif()
 
-set(LIVEKIT_TEST_THIRD_PARTY_INCLUDE_DIRS
-  ${LIVEKIT_BINARY_DIR}/generated
-  ${Protobuf_INCLUDE_DIRS}
-)
-if(TARGET absl::base)
-  get_target_property(_livekit_test_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
-  if(_livekit_test_absl_inc)
-    list(APPEND LIVEKIT_TEST_THIRD_PARTY_INCLUDE_DIRS ${_livekit_test_absl_inc})
+set(LIVEKIT_TEST_SYSTEM_INCLUDE_DIRS ${LIVEKIT_BINARY_DIR}/generated)
+if(TARGET spdlog::spdlog)
+  livekit_get_interface_includes(spdlog::spdlog _livekit_test_spdlog_inc)
+  if(_livekit_test_spdlog_inc)
+    list(APPEND LIVEKIT_TEST_SYSTEM_INCLUDE_DIRS ${_livekit_test_spdlog_inc})
+  endif()
+endif()
+if(TARGET GTest::gtest_main)
+  livekit_get_interface_includes(GTest::gtest_main _livekit_test_gtest_inc)
+  if(_livekit_test_gtest_inc)
+    list(APPEND LIVEKIT_TEST_SYSTEM_INCLUDE_DIRS ${_livekit_test_gtest_inc})
   endif()
 endif()
 
@@ -92,9 +100,10 @@ if(UNIT_TEST_SOURCES)
       ${LIVEKIT_ROOT_DIR}/src
       ${LIVEKIT_ROOT_DIR}/src/trace
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
+      ${LIVEKIT_TEST_PROTOBUF_DEP_INCLUDE_DIRS}
   )
   target_include_directories(livekit_unit_tests SYSTEM PRIVATE
-    ${LIVEKIT_TEST_THIRD_PARTY_INCLUDE_DIRS}
+    ${LIVEKIT_TEST_SYSTEM_INCLUDE_DIRS}
   )
 
   target_compile_definitions(livekit_unit_tests
@@ -183,9 +192,10 @@ if(INTEGRATION_TEST_SOURCES)
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
+      ${LIVEKIT_TEST_PROTOBUF_DEP_INCLUDE_DIRS}
   )
   target_include_directories(livekit_integration_tests SYSTEM PRIVATE
-    ${LIVEKIT_TEST_THIRD_PARTY_INCLUDE_DIRS}
+    ${LIVEKIT_TEST_SYSTEM_INCLUDE_DIRS}
   )
 
   target_compile_definitions(livekit_integration_tests
@@ -263,9 +273,10 @@ if(STRESS_TEST_SOURCES)
     PRIVATE
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
+      ${LIVEKIT_TEST_PROTOBUF_DEP_INCLUDE_DIRS}
   )
   target_include_directories(livekit_stress_tests SYSTEM PRIVATE
-    ${LIVEKIT_TEST_THIRD_PARTY_INCLUDE_DIRS}
+    ${LIVEKIT_TEST_SYSTEM_INCLUDE_DIRS}
   )
 
   target_compile_definitions(livekit_stress_tests

@@ -131,6 +131,7 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 # Disable installs/exports in subprojects (avoids export-set errors)
 set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
 set(ABSL_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(ABSL_PROPAGATE_CXX_STD ON CACHE BOOL "" FORCE)
 set(utf8_range_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 
 # Force hidden visibility on every target created by the FetchContent
@@ -159,10 +160,10 @@ if(MSVC)
 endif()
 
 # Make abseil available first so protobuf can find absl:: targets.
-FetchContent_MakeAvailable(livekit_abseil)
+livekit_fetchcontent_makeavailable(livekit_abseil)
 livekit_collect_targets_in_directory(_livekit_abseil_targets "${livekit_abseil_BINARY_DIR}")
 foreach(_livekit_abseil_target IN LISTS _livekit_abseil_targets)
-  livekit_treat_as_external(${_livekit_abseil_target})
+  livekit_disable_warnings(${_livekit_abseil_target})
 endforeach()
 
 # Workaround for some abseil flags on Apple Silicon.
@@ -190,10 +191,10 @@ if(NOT TARGET absl::base)
 endif()
 
 # Now make protobuf available.
-FetchContent_MakeAvailable(livekit_protobuf)
+livekit_fetchcontent_makeavailable(livekit_protobuf)
 livekit_collect_targets_in_directory(_livekit_protobuf_targets "${livekit_protobuf_BINARY_DIR}")
 foreach(_livekit_protobuf_target IN LISTS _livekit_protobuf_targets)
-  livekit_treat_as_external(${_livekit_protobuf_target})
+  livekit_disable_warnings(${_livekit_protobuf_target})
 endforeach()
 
 # Protobuf targets: modern protobuf exports protobuf::protoc etc.
@@ -216,8 +217,7 @@ endif()
 
 # Include dirs: prefer target usage; keep this var for your existing CMakeLists.
 if(TARGET protobuf::libprotobuf)
-  livekit_treat_as_external(protobuf::libprotobuf)
-  get_target_property(_pb_includes protobuf::libprotobuf INTERFACE_INCLUDE_DIRECTORIES)
+  livekit_get_interface_includes(protobuf::libprotobuf _pb_includes)
 endif()
 if(NOT _pb_includes)
   set(_pb_includes "${livekit_protobuf_SOURCE_DIR}/src")
