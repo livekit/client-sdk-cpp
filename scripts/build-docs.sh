@@ -111,8 +111,5 @@ docs_index="${repo_root}/html/index.html"
 echo "==> Docs written to ${docs_index}"
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-  {
-    echo "version=${project_number#v}"
-    echo "project_number=${project_number}"
-  } >>"$GITHUB_OUTPUT"
+  echo "project_number=${project_number}" >>"$GITHUB_OUTPUT"
 fi

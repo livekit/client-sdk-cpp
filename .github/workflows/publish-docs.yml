@@ -15,12 +15,12 @@ on:
         type: string
 
 jobs:
-  # Reuse validate-docs.yml so the publish path runs exactly the same build/print
+  # Reuse generate-docs.yml so the publish path runs exactly the same build/print
   # logic that PR dry-runs run, and we ship the resulting html/ tree to the
   # publish job below as a workflow artifact (avoids double-building).
   validate:
     name: Validate (build docs)
-    uses: ./.github/workflows/validate-docs.yml
+    uses: ./.github/workflows/generate-docs.yml
     with:
       version: ${{ inputs.version || github.event.inputs.version || '' }}
       upload_artifact: true

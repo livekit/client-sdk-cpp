@@ -40,6 +40,8 @@
 #include "livekit/video_stream.h"
 #include "livekit/visibility.h"
 
+/// @namespace livekit
+/// @brief Public API for the LiveKit C++ Client SDK.
 namespace livekit {
 
 /// The log sink to use for SDK messages.

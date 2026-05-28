@@ -64,3 +64,17 @@ ul.page-outline li.vis {
   margin-right: 0;
   height: unset;
 }
+
+/* Better inline-code styling, e.g. `code` spans */
+span.tt,
+.tt {
+  display: inline;
+  font-family: var(--font-family-monospace);
+  font-size: var(--code-font-size) !important;
+  background: var(--code-background);
+  color: var(--code-foreground);
+  border: 1px solid var(--separator-color);
+  border-radius: var(--border-radius-small);
+  padding: 2px 6px;
+  white-space: normal;
+}

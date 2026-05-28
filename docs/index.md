@@ -1,4 +1,4 @@
-# LiveKit C++ Client SDK
+# Overview
 
 Build real-time audio/video applications in C++ with LiveKit.
 
@@ -100,15 +100,33 @@ void shutdownLivekit() {
 See the [GitHub README](https://github.com/livekit/client-sdk-cpp#readme) for build instructions.
 
 **Requirements:**
+
 - CMake ≥ 3.20
 - Rust/Cargo (latest stable)
 - Platform: Windows, macOS, or Linux
 
 ## Examples
 
-- [SimpleRoom](https://github.com/livekit/client-sdk-cpp/tree/main/examples/simple_room) - Basic room connection with audio/video
-- [SimpleRpc](https://github.com/livekit/client-sdk-cpp/tree/main/examples/simple_rpc) - Remote procedure calls between participants
-- [SimpleDataStream](https://github.com/livekit/client-sdk-cpp/tree/main/examples/simple_data_stream) - Send text and binary data streams
+**Getting started**
+
+- [SimpleRoom](https://github.com/livekit-examples/cpp-example-collection/tree/main/simple_room) - Minimal room connection that publishes audio and video.
+- [BasicRoom](https://github.com/livekit-examples/cpp-example-collection/tree/main/basic_room) - Publishes synthetic noise audio plus an RGB test pattern with capture loops; runs until Ctrl-C.
+- [HelloLiveKit](https://github.com/livekit-examples/cpp-example-collection/tree/main/hello_livekit) - Two-process sender/receiver demo of publishing video and a data track from one app and subscribing in another.
+
+**Logging**
+
+- [LoggingLevels](https://github.com/livekit-examples/cpp-example-collection/tree/main/logging_levels) - Demonstrates @ref livekit::setLogLevel() and @ref livekit::setLogCallback(), including custom sinks for redirecting SDK logs.
+
+**RPC and data**
+
+- [SimpleRpc](https://github.com/livekit-examples/cpp-example-collection/tree/main/simple_rpc) - Remote procedure calls between participants.
+- [SimpleDataStream](https://github.com/livekit-examples/cpp-example-collection/tree/main/simple_data_stream) - Send and receive text and binary data streams.
+- [PingPong](https://github.com/livekit-examples/cpp-example-collection/tree/main/ping_pong) - Two-process round-trip over data tracks that prints RTT and one-way latency metrics.
+- [SimpleJoystick](https://github.com/livekit-examples/cpp-example-collection/tree/main/simple_joystick) - Interactive sender/receiver: keyboard-driven joystick commands delivered via RPC, with auto-reconnect.
+
+**Advanced video**
+
+- [UserTimestampedVideo](https://github.com/livekit-examples/cpp-example-collection/tree/main/user_timestamped_video) - Producer/consumer pair showing per-frame `VideoFrameMetadata::user_timestamp_us` and the rich `setOnVideoFrameEventCallback` vs. legacy `setOnVideoFrameCallback` paths.
 
 ## Resources
 

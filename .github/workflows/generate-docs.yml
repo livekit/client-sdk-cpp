@@ -18,19 +18,19 @@ on:
       - docs/**
       - README.md
       - scripts/build-docs.sh
-      - .github/workflows/validate-docs.yml
+      - .github/workflows/generate-docs.yml
       - .github/workflows/publish-docs.yml
   workflow_call:
     inputs:
       version:
-        description: 'Documentation version (for example, 0.1.0 or v0.1.0)'
+        description: 'Documentation version (e.g. v0.1.0)'
         required: false
         type: string
       upload_artifact:
         description: 'Upload the built html/ tree as a workflow artifact'
         required: false
         type: boolean
-        default: false
+        default: true
       artifact_name:
         description: 'Name to use for the uploaded docs artifact'
         required: false
@@ -40,14 +40,11 @@ on:
         description: 'Retention (days) for the uploaded docs artifact'
         required: false
         type: number
-        default: 7
+        default: 1
     outputs:
       project_number:
         description: 'Doxygen PROJECT_NUMBER used for the build (e.g., v1.2.3)'
         value: ${{ jobs.validate.outputs.project_number }}
-      version:
-        description: 'Bare semantic version with the leading v stripped (e.g., 1.2.3)'
-        value: ${{ jobs.validate.outputs.version }}
       artifact_name:
         description: 'Name of the uploaded docs artifact (empty when upload_artifact is false)'
         value: ${{ jobs.validate.outputs.artifact_name }}
@@ -58,13 +55,18 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       project_number: ${{ steps.build_docs.outputs.project_number }}
-      version: ${{ steps.build_docs.outputs.version }}
       artifact_name: ${{ steps.artifact_meta.outputs.name }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 1
-          fetch-tags: true # for version detection
+          # fetch-depth: 0 is required so `git describe --tags` in
+          # scripts/build-docs.sh can walk back from HEAD to the nearest
+          # ancestor tag. A shallow clone (fetch-depth: 1) — even combined
+          # with fetch-tags: true — fetches the tag refs but not the
+          # connecting history, so `git describe` cannot reach any tag and
+          # falls back to a short SHA, producing v0.0.0-dev+<sha> instead
+          # of the expected v<X.Y.Z>-<N>-g<sha>.
+          fetch-depth: 0
 
       # Doxygen is available on ubuntu-latest, but we install explicitly for stability
       - name: Install Doxygen
@@ -95,26 +97,16 @@ jobs:
           set -euo pipefail
 
           PROJECT_NUMBER="${{ steps.build_docs.outputs.project_number }}"
-          VERSION="${{ steps.build_docs.outputs.version }}"
 
-          if [[ -z "$PROJECT_NUMBER" || -z "$VERSION" ]]; then
-            echo "ERROR: build_docs step did not emit version outputs."
+          if [[ -z "$PROJECT_NUMBER" ]]; then
+            echo "ERROR: build_docs step did not emit a project_number output."
             exit 1
           fi
 
-          echo "Docs project number: ${PROJECT_NUMBER}"
-          echo "Docs version:        ${VERSION}"
+          echo "Docs version: ${PROJECT_NUMBER}"
 
           {
-            echo "### Docs build"
-            echo ""
-            echo "- Project number: \`${PROJECT_NUMBER}\`"
-            echo "- Version: \`${VERSION}\`"
-            if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-              echo "- Mode: dry-run (PR build, not published)"
-            else
-              echo "- Mode: validate (reusable workflow)"
-            fi
+            echo "Version: \`${PROJECT_NUMBER}\`"
           } >>"$GITHUB_STEP_SUMMARY"
 
       - name: Verify docs were generated
