@@ -2,15 +2,23 @@ name: Generate docs
 permissions:
   contents: read
 
-# Builds the Doxygen docs (and optionally uploads them as a workflow artifact)
-# without publishing. Two roles:
+# Builds the Doxygen docs and uploads them as a workflow artifact (without
+# publishing). Two roles:
 #
 #   1. Dry-run on every PR that touches C++ code (or other Doxygen inputs) so
-#      docs breakage is caught before merge. No artifact is uploaded.
+#      docs breakage is caught before merge. The artifact is attached to the
+#      workflow run so reviewers can download a preview.
 #   2. Reusable workflow consumed by publish-docs.yml: builds the docs, prints
 #      the resolved version, and uploads the docs/doxygen/html/ directory as an
-#      artifact for
-#      a downstream publish job to consume. Avoids double-building the docs.
+#      artifact for a downstream publish job to consume. Avoids double-building
+#      the docs.
+#
+# Artifact layout: actions/upload-artifact@v4 uses the longest common path of
+# all uploaded files as the artifact root. With `path: docs/doxygen/html/`, the
+# artifact contains the *contents* of that directory at the artifact root
+# (index.html, favicon.ico, …) -- NOT nested under docs/doxygen/html/. This
+# means downstream consumers using `path: html` get files at html/index.html.
+# The "Verify artifact layout" step below proves this empirically on every run.
 on:
   pull_request:
     branches: ["main"]
@@ -33,23 +41,23 @@ on:
         description: 'Upload the built docs/doxygen/html/ tree as a workflow artifact'
         required: false
         type: boolean
-        default: false
+        default: true
       artifact_name:
         description: 'Name to use for the uploaded docs artifact'
         required: false
         type: string
         default: livekit-cpp-docs
       artifact_retention_days:
-        description: 'Retention (days) for the uploaded docs artifact'
+        description: 'Retention (days) for the uploaded docs artifact. Default tuned for PR-preview use.'
         required: false
         type: number
-        default: 1
+        default: 7
     outputs:
       project_number:
         description: 'Doxygen PROJECT_NUMBER used for the build (e.g., v1.2.3)'
         value: ${{ jobs.validate.outputs.project_number }}
       artifact_name:
-        description: 'Name of the uploaded docs artifact (empty when upload_artifact is false)'
+        description: 'Name of the uploaded docs artifact (empty if upload was skipped via upload_artifact: false)'
         value: ${{ jobs.validate.outputs.artifact_name }}
 
 jobs:
@@ -119,24 +127,80 @@ jobs:
             exit 1
           fi
 
-      - name: Resolve artifact name
+      # `inputs.*` is only populated on `workflow_call`. On a direct
+      # `pull_request` trigger every `inputs.*` lookup is the empty string, so
+      # we OR-fold to the documented defaults to keep PR runs behaving the same
+      # as the workflow_call default of `upload_artifact: true`.
+      - name: Resolve artifact metadata
         id: artifact_meta
-        if: inputs.upload_artifact
+        if: inputs.upload_artifact || github.event_name == 'pull_request'
+        shell: bash
+        env:
+          INPUT_NAME: ${{ inputs.artifact_name || 'livekit-cpp-docs' }}
+          INPUT_RETENTION: ${{ inputs.artifact_retention_days || '7' }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$INPUT_NAME" ]]; then
+            echo "ERROR: artifact name resolved to empty."
+            exit 1
+          fi
+          echo "name=${INPUT_NAME}" >>"$GITHUB_OUTPUT"
+          echo "retention=${INPUT_RETENTION}" >>"$GITHUB_OUTPUT"
+
+      - name: Upload docs artifact
+        if: steps.artifact_meta.outputs.name != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.artifact_meta.outputs.name }}
+          path: docs/doxygen/html/
+          retention-days: ${{ steps.artifact_meta.outputs.retention }}
+          if-no-files-found: error
+
+      # Empirical verification that the artifact GitHub stores is laid out the
+      # way publish-docs.yml expects: download it back into a *separate*
+      # directory and confirm index.html lives at the top of that directory
+      # (not nested under docs/doxygen/html/). If actions/upload-artifact ever
+      # changes its "longest common path" behavior, this step fails loudly.
+      - name: Verify artifact layout
+        if: steps.artifact_meta.outputs.name != ''
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ steps.artifact_meta.outputs.name }}
+          path: artifact-verify
+
+      - name: Inspect downloaded artifact
+        if: steps.artifact_meta.outputs.name != ''
         shell: bash
         run: |
           set -euo pipefail
-          NAME="${{ inputs.artifact_name }}"
-          if [[ -z "$NAME" ]]; then
-            echo "ERROR: artifact_name input is empty."
+
+          NAME="${{ steps.artifact_meta.outputs.name }}"
+          ROOT="artifact-verify"
+
+          echo "Artifact '${NAME}' top-level contents:"
+          ls -la "$ROOT" | sed -n '1,40p'
+
+          TOTAL=$(find "$ROOT" -type f | wc -l | tr -d ' ')
+          echo "Total files: ${TOTAL}"
+
+          if [[ ! -f "${ROOT}/index.html" ]]; then
+            echo "ERROR: ${ROOT}/index.html is missing -- artifact layout regressed."
+            echo "       publish-docs.yml expects index.html at the artifact root."
             exit 1
           fi
-          echo "name=${NAME}" >>"$GITHUB_OUTPUT"
 
-      - name: Upload docs artifact
-        if: inputs.upload_artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ${{ inputs.artifact_name }}
-          path: docs/doxygen/html/
-          retention-days: ${{ inputs.artifact_retention_days }}
-          if-no-files-found: error
+          # Print a small sample to the step summary so the layout is visible
+          # without digging through the job log.
+          {
+            echo "### Docs artifact: \`${NAME}\`"
+            echo ""
+            echo "Uploaded ${TOTAL} files. Sample top-level entries:"
+            echo ""
+            echo '```'
+            (cd "$ROOT" && ls -1 | head -20)
+            echo '```'
+            echo ""
+            echo "Layout confirmed: \`index.html\` is at the artifact root,"
+            echo "so \`publish-docs.yml\` downloading with \`path: html\` will land"
+            echo "files at \`html/index.html\`, \`html/favicon.ico\`, etc."
+          } >>"$GITHUB_STEP_SUMMARY"
