@@ -17,10 +17,8 @@ include/livekit/build.h
 received_green.avif
 docs/*.bak
 # Doxygen
-docs/html/
-docs/latex/
-html/
-latex/
+docs/doxygen/html/
+docs/doxygen/latex/
 .vs/
 .vscode/
 .cursor/

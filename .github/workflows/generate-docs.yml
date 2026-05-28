@@ -8,7 +8,8 @@ permissions:
 #   1. Dry-run on every PR that touches C++ code (or other Doxygen inputs) so
 #      docs breakage is caught before merge. No artifact is uploaded.
 #   2. Reusable workflow consumed by publish-docs.yml: builds the docs, prints
-#      the resolved version, and uploads the html/ directory as an artifact for
+#      the resolved version, and uploads the docs/doxygen/html/ directory as an
+#      artifact for
 #      a downstream publish job to consume. Avoids double-building the docs.
 on:
   pull_request:
@@ -29,7 +30,7 @@ on:
         required: false
         type: string
       upload_artifact:
-        description: 'Upload the built html/ tree as a workflow artifact'
+        description: 'Upload the built docs/doxygen/html/ tree as a workflow artifact'
         required: false
         type: boolean
         default: false
@@ -113,8 +114,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -f html/index.html ]]; then
-            echo "ERROR: Expected docs at html/index.html but file not found."
+          if [[ ! -f docs/doxygen/html/index.html ]]; then
+            echo "ERROR: Expected docs at docs/doxygen/html/index.html but file not found."
             exit 1
           fi
 
@@ -136,6 +137,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ inputs.artifact_name }}
-          path: html/
+          path: docs/doxygen/html/
           retention-days: ${{ inputs.artifact_retention_days }}
           if-no-files-found: error

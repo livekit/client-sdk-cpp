@@ -20,8 +20,10 @@ permissions:
 
 jobs:
   # Reuse generate-docs.yml so the publish path runs exactly the same build/print
-  # logic that PR dry-runs run, and we ship the resulting html/ tree to the
-  # publish job below as a workflow artifact (avoids double-building).
+  # logic that PR dry-runs run, and we ship the resulting HTML tree (built into
+  # docs/doxygen/html/ on the builder) to the publish job below as a workflow
+  # artifact (avoids double-building). The artifact contains the *contents* of
+  # that directory, so the download path here can stay as the simpler "html".
   validate:
     name: Validate (build docs)
     uses: ./.github/workflows/generate-docs.yml

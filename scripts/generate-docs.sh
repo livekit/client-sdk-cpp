@@ -111,7 +111,7 @@ fi
 echo "==> Building Doxygen docs with PROJECT_NUMBER=${project_number}"
 cd "$repo_root"
 
-# Doxygen owns the failure decision: docs/Doxyfile sets
+# Doxygen owns the failure decision: docs/doxygen/Doxyfile sets
 #   WARN_IF_UNDOCUMENTED = NO        (silences the ~400 "X is not documented"
 #                                     warnings about internal/private symbols)
 #   WARN_AS_ERROR        = FAIL_ON_WARNINGS
@@ -120,9 +120,9 @@ cd "$repo_root"
 # non-zero exit. There is no per-warning toggle in Doxygen; if a category
 # becomes too noisy to enforce, mute it at the WARN_IF_* level in the Doxyfile
 # rather than adding pattern allowlists here.
-LIVEKIT_DOXYGEN_PROJECT_NUMBER="$project_number" doxygen docs/Doxyfile
+LIVEKIT_DOXYGEN_PROJECT_NUMBER="$project_number" doxygen docs/doxygen/Doxyfile
 
-docs_index="${repo_root}/html/index.html"
+docs_index="${repo_root}/docs/doxygen/html/index.html"
 
 echo "==> Docs written to ${docs_index}"
 
