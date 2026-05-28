@@ -104,7 +104,7 @@ jobs:
 
           {
             echo "Version: \`${PROJECT_NUMBER}\`"
-            echo "Note: On a non-tag PR, the version will resolve to `<closest tag>-<commits since tag>-g<commit sha>`"
+            echo "Note: On a non-tag PR, the version will resolve to \`<closest tag>-<commits since tag>-g<commit sha>\`"
           } >>"$GITHUB_STEP_SUMMARY"
 
       - name: Verify docs were generated
