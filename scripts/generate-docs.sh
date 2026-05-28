@@ -81,14 +81,8 @@ elif [[ -z "$project_number" ]]; then
     described=""
   fi
 
-  # git describe emits "<tag>-<n>-g<sha>[-dirty]" when HEAD is past the
-  # nearest ancestor tag. The leading 'g' on the abbreviated SHA is a
-  # git-describe convention (it once signified the originating SCM back
-  # when SVN/Hg interop mattered) and adds nothing for human readers of
-  # the docs version banner. Strip it so the rendered version reads as
-  # the more obvious "<tag>-<n>-<sha>[-dirty]". Untagged --always
-  # output (bare SHA) and on-tag output (no -<n>-g segment) are left
-  # untouched by this regex.
+  # git describe emits "<tag>-<n>-g<sha>[-dirty]"
+  # Strip unneeded "g" so it's easier to read.
   if [[ "$described" =~ ^(.+-[0-9]+)-g([0-9a-f]+)(.*)$ ]]; then
     described="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
   fi
