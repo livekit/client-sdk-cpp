@@ -2,26 +2,14 @@ name: Generate docs
 permissions:
   contents: read
 
-# Builds the Doxygen docs and uploads them as a workflow artifact (without
-# publishing). Two roles:
-#
-#   1. Dry-run on every PR that touches C++ code (or other Doxygen inputs) so
-#      docs breakage is caught before merge. The artifact is attached to the
-#      workflow run so reviewers can download a preview.
-#   2. Reusable workflow consumed by publish-docs.yml: builds the docs, prints
-#      the resolved version, and uploads the docs/doxygen/html/ directory as an
-#      artifact for a downstream publish job to consume. Avoids double-building
-#      the docs.
-#
-# Artifact layout: actions/upload-artifact@v4+ uses the longest common path of
-# all uploaded files as the artifact root. With `path: docs/doxygen/html/`, the
-# artifact contains the *contents* of that directory at the artifact root
-# (index.html, favicon.ico, …) -- NOT nested under docs/doxygen/html/. The
-# `html/` prefix that publish-docs.yml relies on comes from the *download*
-# step's `path: html` parameter, not from the artifact itself. The
-# "Re-download artifact" + "Inspect downloaded artifact" steps below prove
-# this end-to-end on every run by re-downloading with `path: html` and
-# asserting `html/index.html` is present.
+# Generates Doxygen docs and uploads them as a workflow artifact.
+
+# This workflow is used to validate documentation before merge, for example catching 
+# things like broken @ref tags, missing @param tags, etc.
+
+# The artifact is attached to the workflow run so reviewers can download a preview,
+# but also to verify the documentation artifact is valid for subsequent release runs
+# that will publish them to the LiveKit docs web page: https://docs.livekit.io/reference/client-sdk-cpp/
 on:
   pull_request:
     branches: ["main"]
@@ -41,7 +29,7 @@ on:
         required: false
         type: string
       upload_artifact:
-        description: 'Upload the built docs/doxygen/html/ tree as a workflow artifact'
+        description: 'Upload the generated docs folder as a workflow artifact'
         required: false
         type: boolean
         default: true
@@ -51,7 +39,7 @@ on:
         type: string
         default: livekit-cpp-docs
       artifact_retention_days:
-        description: 'Retention (days) for the uploaded docs artifact. Default tuned for PR-preview use.'
+        description: 'Retention (days) for the uploaded docs artifact'
         required: false
         type: number
         default: 7
