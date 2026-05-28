@@ -106,7 +106,7 @@ jobs:
             echo "Version: \`${PROJECT_NUMBER}\`"
             echo ""
             echo "> Note: On a non-tag/release run, the version will resolve to:"
-            echo "  \`<closest tag>-<commits since tag>-g<commit sha>\`"
+            echo "  \`<closest tag>-<commits since tag>-<commit sha>\`"
           } >>"$GITHUB_STEP_SUMMARY"
 
       - name: Verify docs were generated
