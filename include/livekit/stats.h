@@ -295,12 +295,10 @@ struct VideoSourceStats {
   double frames_per_second;
 };
 
-/**
- * @brief Statistics for audio playout performance.
- *
- * Contains metrics about audio sample synthesis and playout timing,
- * useful for monitoring audio quality and detecting issues like underruns.
- */
+/// @brief Statistics for audio playout performance.
+///
+/// Contains metrics about audio sample synthesis and playout timing,
+/// useful for monitoring audio quality and detecting issues like underruns.
 struct AudioPlayoutStats {
   std::string kind;                         ///< The type of media ("audio").
   double synthesized_samples_duration;      ///< Duration of synthesized samples in

@@ -81,14 +81,14 @@ TEST_F(RoomListenerRaceStressTest, ConnectFailDestroyReconnectAndPublishDataTrac
 
           {
             Room failed_room;
-            if (failed_room.Connect("ws://127.0.0.1:9", tokens[publisher_index], options)) {
+            if (failed_room.connect("ws://127.0.0.1:9", tokens[publisher_index], options)) {
               addStressError(errors, errors_mutex, "unexpected successful failed connect");
               return;
             }
           }
 
           Room room;
-          if (!room.Connect(config_.url, tokens[publisher_index], options)) {
+          if (!room.connect(config_.url, tokens[publisher_index], options)) {
             addStressError(errors, errors_mutex, "valid connect failed");
             return;
           }

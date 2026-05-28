@@ -30,18 +30,16 @@ class OwnedTrack;
 
 class AudioSource;
 
-/**
- * Represents an audio track published by a remote participant and
- * subscribed to by the local participant.
- *
- * `RemoteAudioTrack` instances are created internally when the SDK receives a
- * `kTrackSubscribed` event. Each instance is owned by its associated
- * `RemoteParticipant` and delivered to the application via
- * `TrackSubscribedEvent`.
- *
- * Applications generally interact with `RemoteAudioTrack` through events and
- * `RemoteTrackPublication`, not through direct construction.
- */
+/// Represents an audio track published by a remote participant and
+/// subscribed to by the local participant.
+///
+/// `RemoteAudioTrack` instances are created internally when the SDK receives a
+/// `kTrackSubscribed` event. Each instance is owned by its associated
+/// `RemoteParticipant` and delivered to the application via
+/// `TrackSubscribedEvent`.
+///
+/// Applications generally interact with `RemoteAudioTrack` through events and
+/// `RemoteTrackPublication`, not through direct construction.
 class LIVEKIT_API RemoteAudioTrack : public Track {
 public:
   /// Constructs a `RemoteAudioTrack` from an internal protocol-level

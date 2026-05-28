@@ -11,7 +11,7 @@ permissions:
 
 env:
   # Pinned commit for cpp-example-collection smoke build (https://github.com/livekit-examples/cpp-example-collection)
-  CPP_EXAMPLE_COLLECTION_REF: 46083ea4e5d3def8e44a53148c2c7800131efca0
+  CPP_EXAMPLE_COLLECTION_REF: 56815733a71c14692569e8adf2916a56a14d4882
 
 jobs:
   validate-x64:

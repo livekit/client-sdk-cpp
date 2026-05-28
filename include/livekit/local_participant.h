@@ -50,240 +50,201 @@ struct RpcInvocationData {
   double response_timeout_sec; // seconds
 };
 
-/**
- * Represents the local participant in a room.
- *
- * LocalParticipant, built on top of the participant.h base class.
- */
+/// Represents the local participant in a room.
+///
+/// LocalParticipant, built on top of the participant.h base class.
 class LIVEKIT_API LocalParticipant : public Participant {
 public:
   using PublicationMap = std::unordered_map<std::string, std::shared_ptr<LocalTrackPublication>>;
   using TrackMap = std::unordered_map<std::string, std::weak_ptr<Track>>;
 
-  /**
-   * Type of callback used to handle incoming RPC method invocations.
-   *
-   * The handler receives an RpcInvocationData describing the incoming call
-   * and may return an optional response payload. To signal an error to the
-   * remote caller, throw an RpcError; it will be serialized and forwarded.
-   *
-   * Returning std::nullopt means "no payload" and results in an empty
-   * response body being sent back to the caller.
-   */
+  /// Type of callback used to handle incoming RPC method invocations.
+  ///
+  /// The handler receives an RpcInvocationData describing the incoming call
+  /// and may return an optional response payload. To signal an error to the
+  /// remote caller, throw an RpcError; it will be serialized and forwarded.
+  ///
+  /// Returning std::nullopt means "no payload" and results in an empty
+  /// response body being sent back to the caller.
   using RpcHandler = std::function<std::optional<std::string>(const RpcInvocationData&)>;
 
   LocalParticipant(FfiHandle handle, std::string sid, std::string name, std::string identity, std::string metadata,
                    std::unordered_map<std::string, std::string> attributes, ParticipantKind kind,
                    DisconnectReason reason);
 
-  /**
-   * Track publications for this participant, keyed by publication SID.
-   *
-   * Built on each call from published local tracks (see \ref publishTrack).
-   * Expired track handles are removed from the internal map while building.
-   */
+  /// Track publications for this participant, keyed by publication SID.
+  ///
+  /// Built on each call from published local tracks (see @ref publishTrack).
+  /// Expired track handles are removed from the internal map while building.
   PublicationMap trackPublications() const;
 
-  /**
-   * Publish arbitrary data to the room.
-   *
-   * @param payload                Raw bytes to send.
-   * @param reliable               Whether to send reliably or not.
-   * @param destination_identities Optional list of participant identities.
-   * @param topic                  Optional topic string.
-   *
-   * Throws std::runtime_error if FFI reports an error (if you wire that up).
-   */
+  /// Publish arbitrary data to the room.
+  ///
+  /// @param payload                Raw bytes to send.
+  /// @param reliable               Whether to send reliably or not.
+  /// @param destination_identities Optional list of participant identities.
+  /// @param topic                  Optional topic string.
+  ///
+  /// @throws std::runtime_error if FFI reports an error (if you wire that up).
   void publishData(const std::vector<std::uint8_t>& payload, bool reliable = true,
                    const std::vector<std::string>& destination_identities = {}, const std::string& topic = {});
 
-  /**
-   * Publish a SIP DTMF (phone keypad) tone into the room.
-   *
-   * Only meaningful when a SIP trunk is bridging a phone call into the
-   * room.  See SipDtmfData for background on SIP and DTMF.
-   *
-   * @param code  DTMF code (0-15).
-   * @param digit Human-readable digit string (e.g. "5", "#").
-   */
+  /// Publish a SIP DTMF (phone keypad) tone into the room.
+  ///
+  /// Only meaningful when a SIP trunk is bridging a phone call into the
+  /// room.  See SipDtmfData for background on SIP and DTMF.
+  ///
+  /// @param code  DTMF code (0-15).
+  /// @param digit Human-readable digit string (e.g. "5", "#").
   void publishDtmf(int code, const std::string& digit);
 
-  /**
-   * Update this participant's metadata on the server.
-   *
-   * Sends an FFI request to the LiveKit server to change the metadata
-   * associated with the local participant. Other participants will be
-   * notified via \c onParticipantMetadataChanged.
-   *
-   * Note: this requires \c canUpdateOwnMetadata permission.
-   */
+  /// Update this participant's metadata on the server.
+  ///
+  /// Sends an FFI request to the LiveKit server to change the metadata
+  /// associated with the local participant. Other participants will be
+  /// notified via @c onParticipantMetadataChanged.
+  ///
+  /// @note this requires @c canUpdateOwnMetadata permission.
   void setMetadata(const std::string& metadata);
 
-  /**
-   * Update this participant's display name on the server.
-   *
-   * Sends an FFI request to the LiveKit server to change the name
-   * associated with the local participant. Other participants will be
-   * notified via \c onParticipantNameChanged.
-   *
-   * Note: this requires \c canUpdateOwnMetadata permission.
-   */
+  /// Update this participant's display name on the server.
+  ///
+  /// Sends an FFI request to the LiveKit server to change the name
+  /// associated with the local participant. Other participants will be
+  /// notified via @c onParticipantNameChanged.
+  ///
+  /// @note this requires @c canUpdateOwnMetadata permission.
   void setName(const std::string& name);
 
-  /**
-   * Update this participant's attributes on the server.
-   *
-   * Sends an FFI request to the LiveKit server to replace the attribute
-   * map for the local participant. Other participants will be notified
-   * via \c onParticipantAttributesChanged.
-   *
-   * Note: this requires \c canUpdateOwnMetadata permission.
-   */
+  /// Update this participant's attributes on the server.
+  ///
+  /// Sends an FFI request to the LiveKit server to replace the attribute
+  /// map for the local participant. Other participants will be notified
+  /// via @c onParticipantAttributesChanged.
+  ///
+  /// @note this requires @c canUpdateOwnMetadata permission.
   void setAttributes(const std::unordered_map<std::string, std::string>& attributes);
 
-  /**
-   * Set track subscription permissions for this participant.
-   *
-   * @param allow_all_participants If true, all participants may subscribe.
-   * @param participant_permissions Optional participant-specific permissions.
-   */
+  /// Set track subscription permissions for this participant.
+  ///
+  /// @param allow_all_participants If true, all participants may subscribe.
+  /// @param participant_permissions Optional participant-specific permissions.
   void setTrackSubscriptionPermissions(bool allow_all_participants,
                                        const std::vector<ParticipantTrackPermission>& participant_permissions = {});
 
-  /**
-   * Publish a local track to the room.
-   *
-   * Throws std::runtime_error on error (e.g. publish failure).
-   */
+  /// Publish a local track to the room.
+  ///
+  /// @throws std::runtime_error on error (e.g. publish failure).
   void publishTrack(const std::shared_ptr<Track>& track, const TrackPublishOptions& options);
 
-  /**
-   * Create a \ref LocalVideoTrack backed by the given \ref VideoSource,
-   * publish it, and return the track.
-   *
-   * The caller retains ownership of \p source and should use it directly
-   * for frame capture on the video thread.
-   */
+  /// Create a @ref LocalVideoTrack backed by the given @ref VideoSource,
+  /// publish it, and return the track.
+  ///
+  /// The caller retains ownership of @p source and should use it directly
+  /// for frame capture on the video thread.
   std::shared_ptr<LocalVideoTrack> publishVideoTrack(const std::string& name,
                                                      const std::shared_ptr<VideoSource>& source,
                                                      TrackSource track_source);
 
-  /**
-   * Create a \ref LocalAudioTrack backed by the given \ref AudioSource,
-   * publish it, and return the track.
-   *
-   * The caller retains ownership of \p source and should use it directly
-   * for frame capture on the audio thread.
-   */
+  /// Create a @ref LocalAudioTrack backed by the given @ref AudioSource,
+  /// publish it, and return the track.
+  ///
+  /// The caller retains ownership of @p source and should use it directly
+  /// for frame capture on the audio thread.
   std::shared_ptr<LocalAudioTrack> publishAudioTrack(const std::string& name,
                                                      const std::shared_ptr<AudioSource>& source,
                                                      TrackSource track_source);
 
-  /**
-   * Unpublish a track from the room by SID.
-   *
-   * If the publication exists in the local map, it is removed.
-   */
+  /// Unpublish a track from the room by SID.
+  ///
+  /// If the publication exists in the local map, it is removed.
   void unpublishTrack(const std::string& track_sid);
 
-  /**
-   * Publish a data track to the room.
-   *
-   * Data tracks carry arbitrary binary frames and are independent of the
-   * audio/video track hierarchy. The returned LocalDataTrack can push
-   * frames via tryPush() and be unpublished via
-   * LocalDataTrack::unpublishDataTrack() or
-   * LocalParticipant::unpublishDataTrack().
-   *
-   * @param name  Unique track name visible to other participants.
-   * @return The published track on success, or a typed error describing why
-   *         publication failed.
-   */
+  /// Publish a data track to the room.
+  ///
+  /// Data tracks carry arbitrary binary frames and are independent of the
+  /// audio/video track hierarchy. The returned LocalDataTrack can push
+  /// frames via tryPush() and be unpublished via
+  /// LocalDataTrack::unpublishDataTrack() or
+  /// LocalParticipant::unpublishDataTrack().
+  ///
+  /// @param name  Unique track name visible to other participants.
+  /// @return The published track on success, or a typed error describing why
+  ///         publication failed.
   Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> publishDataTrack(const std::string& name);
 
-  /**
-   * Unpublish a data track from the room.
-   *
-   * Delegates to LocalDataTrack::unpublishDataTrack(). After this call,
-   * tryPush() on the track will fail and the track cannot be re-published.
-   *
-   * @param track  The data track to unpublish. Null is ignored.
-   */
+  /// Unpublish a data track from the room.
+  ///
+  /// Delegates to LocalDataTrack::unpublishDataTrack(). After this call,
+  /// tryPush() on the track will fail and the track cannot be re-published.
+  ///
+  /// @param track  The data track to unpublish. Null is ignored.
   void unpublishDataTrack(const std::shared_ptr<LocalDataTrack>& track);
 
-  /**
-   * Initiate an RPC call to a remote participant.
-   *
-   * @param destination_identity  Identity of the destination participant.
-   * @param method                Name of the RPC method to invoke.
-   * @param payload               Request payload to send to the remote handler.
-   * @param response_timeout      Optional timeout in seconds for receiving
-   *                              a response. If not set, the server default
-   *                              timeout (15 seconds) is used.
-   *
-   * @return The response payload returned by the remote handler.
-   *
-   * @throws RpcError   If the remote side returns an RPC error, times out,
-   *                    or rejects the request.
-   * @throws std::runtime_error If the underlying FFI handle is invalid or
-   *                             the FFI call fails unexpectedly.
-   */
+  /// Initiate an RPC call to a remote participant.
+  ///
+  /// @param destination_identity  Identity of the destination participant.
+  /// @param method                Name of the RPC method to invoke.
+  /// @param payload               Request payload to send to the remote handler.
+  /// @param response_timeout      Optional timeout in seconds for receiving
+  ///                              a response. If not set, the server default
+  ///                              timeout (15 seconds) is used.
+  ///
+  /// @return The response payload returned by the remote handler.
+  ///
+  /// @throws RpcError   If the remote side returns an RPC error, times out,
+  ///                    or rejects the request.
+  /// @throws std::runtime_error If the underlying FFI handle is invalid or
+  ///                             the FFI call fails unexpectedly.
   std::string performRpc(const std::string& destination_identity, const std::string& method, const std::string& payload,
                          const std::optional<double>& response_timeout = std::nullopt);
 
-  /**
-   * Register a handler for an incoming RPC method.
-   *
-   * Once registered, the provided handler will be invoked whenever a remote
-   * participant calls the given method name on this LocalParticipant.
-   *
-   * @param method_name  Name of the RPC method to handle. This must match
-   *                     the method name used by remote callers.
-   * @param handler      Callback to execute when an invocation is received.
-   *                     The handler may return an optional response payload
-   *                     or throw an RpcError to signal failure.
-   *
-   * If a handler is already registered for the same method_name, it will be
-   * replaced by the new handler.
-   */
-
+  /// Register a handler for an incoming RPC method.
+  ///
+  /// Once registered, the provided handler will be invoked whenever a remote
+  /// participant calls the given method name on this LocalParticipant.
+  ///
+  /// @param method_name  Name of the RPC method to handle. This must match
+  ///                     the method name used by remote callers.
+  /// @param handler      Callback to execute when an invocation is received.
+  ///                     The handler may return an optional response payload
+  ///                     or throw an RpcError to signal failure.
+  ///
+  /// If a handler is already registered for the same method_name, it will be
+  /// replaced by the new handler.
   void registerRpcMethod(const std::string& method_name, RpcHandler handler);
 
-  /**
-   * Unregister a previously registered RPC method handler.
-   *
-   * After this call, invocations for the given method_name will no longer
-   * be dispatched to a local handler and will instead result in an
-   * "unsupported method" error being returned to the caller.
-   *
-   * @param method_name  Name of the RPC method to unregister.
-   *                     If no handler is registered for this name, the call
-   *                     is a no-op.
-   */
+  /// Unregister a previously registered RPC method handler.
+  ///
+  /// After this call, invocations for the given method_name will no longer
+  /// be dispatched to a local handler and will instead result in an
+  /// "unsupported method" error being returned to the caller.
+  ///
+  /// @param method_name  Name of the RPC method to unregister.
+  ///                     If no handler is registered for this name, the call
+  ///                     is a no-op.
   void unregisterRpcMethod(const std::string& method_name);
 
 protected:
-  /**
-   * Shutdown the local participant, cleaning up all resources.
-   *
-   * This unregisters all RPC handlers and prepares the participant for
-   * destruction. Called by Room during its destruction sequence.
-   */
+  /// Shutdown the local participant, cleaning up all resources.
+  ///
+  /// This unregisters all RPC handlers and prepares the participant for
+  /// destruction. Called by Room during its destruction sequence.
   void shutdown();
-  // Called by Room when an rpc_method_invocation event is received from the
-  // SFU. This is internal plumbing and not intended to be called directly by
-  // SDK users.
+  /// Called by Room when an rpc_method_invocation event is received from the
+  /// SFU. This is internal plumbing and not intended to be called directly by
+  /// SDK users.
   void handleRpcMethodInvocation(std::uint64_t invocation_id, const std::string& method, const std::string& request_id,
                                  const std::string& caller_identity, const std::string& payload,
                                  double response_timeout);
-  // Called by Room events like kTrackMuted.
+  /// Called by Room events like kTrackMuted.
   std::shared_ptr<TrackPublication> findTrackPublication(const std::string& sid) const override;
   friend class Room;
 
 private:
-  /// Publication SID → local track (\ref unpublishTrack clears the track’s
-  /// cached publication). \c mutable so \ref trackPublications() const can
-  /// prune expired \c weak_ptr entries.
+  /// Publication SID → local track (@ref unpublishTrack clears the track’s
+  /// cached publication). @c mutable so @ref trackPublications() const can
+  /// prune expired @c weak_ptr entries.
   mutable TrackMap published_tracks_by_sid_;
 
   std::unordered_map<std::string, RpcHandler> rpc_handlers_;

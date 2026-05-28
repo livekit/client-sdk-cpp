@@ -20,20 +20,18 @@
 
 namespace livekit {
 
-/**
- * Metadata about a published data track.
- *
- * Unlike audio/video tracks, data tracks are not part of the Track class
- * hierarchy. They carry their own lightweight info struct.
- */
+/// Metadata about a published data track.
+///
+/// Unlike audio/video tracks, data tracks are not part of the Track class
+/// hierarchy. They carry their own lightweight info struct.
 struct DataTrackInfo {
-  /** Publisher-assigned track name (unique per publisher). */
+  /// Publisher-assigned track name (unique per publisher).
   std::string name;
 
-  /** SFU-assigned track identifier. */
+  /// SFU-assigned track identifier.
   std::string sid;
 
-  /** Whether frames on this track use end-to-end encryption. */
+  /// Whether frames on this track use end-to-end encryption.
   bool uses_e2ee = false;
 };
 

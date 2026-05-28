@@ -32,26 +32,24 @@ class OwnedTrack;
 
 class AudioSource;
 
-/**
- * Represents a user-provided audio track sourced from the local device.
- *
- *  `LocalAudioTrack` is used to publish microphone audio (or any custom
- *  audio source) to a LiveKit room. It wraps a platform-specific audio
- *  source and exposes simple controls such as `mute()` and `unmute()`.
- *
- *  Typical usage:
- *
- *    auto source = AudioSource::create(...);
- *    auto track = LocalAudioTrack::createLocalAudioTrack("mic", source);
- *    room->localParticipant()->publishTrack(track);
- *
- *  Muting a local audio track stops transmitting audio to the room, but
- *  the underlying source may continue capturing depending on platform
- *  behavior.
- *
- *  The track name provided during creation is visible to remote
- *  participants and can be used for debugging or UI display.
- */
+/// Represents a user-provided audio track sourced from the local device.
+///
+///  `LocalAudioTrack` is used to publish microphone audio (or any custom
+///  audio source) to a LiveKit room. It wraps a platform-specific audio
+///  source and exposes simple controls such as `mute()` and `unmute()`.
+///
+///  Typical usage:
+///
+///    auto source = AudioSource::create(...);
+///    auto track = LocalAudioTrack::createLocalAudioTrack("mic", source);
+///    room->localParticipant()->publishTrack(track);
+///
+///  Muting a local audio track stops transmitting audio to the room, but
+///  the underlying source may continue capturing depending on platform
+///  behavior.
+///
+///  The track name provided during creation is visible to remote
+///  participants and can be used for debugging or UI display.
 class LIVEKIT_API LocalAudioTrack : public Track {
 public:
   /// Creates a new local audio track backed by the given `AudioSource`.

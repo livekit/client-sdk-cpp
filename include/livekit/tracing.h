@@ -23,35 +23,29 @@
 
 namespace livekit {
 
-/**
- * Start tracing and write events to a file.
- *
- * Events are written to the file asynchronously by a background thread.
- * The file is written in Chrome trace format (JSON), viewable in:
- *   - Chrome: chrome://tracing
- *   - Perfetto: https://ui.perfetto.dev
- *
- * @param trace_file_path Path to the output trace file (e.g., "trace.json")
- * @param categories Categories to enable (empty = all categories).
- *                   Supports wildcards: "livekit.*" matches all livekit
- * categories.
- * @return true if tracing was started, false if already running or file error
- */
+/// Start tracing and write events to a file.
+///
+/// Events are written to the file asynchronously by a background thread.
+/// The file is written in Chrome trace format (JSON), viewable in:
+///   - Chrome: chrome://tracing
+///   - Perfetto: https://ui.perfetto.dev
+///
+/// @param trace_file_path Path to the output trace file (e.g., "trace.json")
+/// @param categories Categories to enable (empty = all categories).
+///                   Supports wildcards: "livekit.*" matches all livekit
+/// categories.
+/// @return true if tracing was started, false if already running or file error
 LIVEKIT_API bool startTracing(const std::string& trace_file_path, const std::vector<std::string>& categories = {});
 
-/**
- * Stop tracing and flush remaining events to file.
- *
- * This blocks until all pending events are written and the file is closed.
- * After stopping, the trace file is complete and ready for analysis.
- */
+/// Stop tracing and flush remaining events to file.
+///
+/// This blocks until all pending events are written and the file is closed.
+/// After stopping, the trace file is complete and ready for analysis.
 LIVEKIT_API void stopTracing();
 
-/**
- * Check if tracing is currently active.
- *
- * @return true if tracing is running
- */
+/// Check if tracing is currently active.
+///
+/// @return true if tracing is running
 LIVEKIT_API bool isTracingEnabled();
 
 } // namespace livekit

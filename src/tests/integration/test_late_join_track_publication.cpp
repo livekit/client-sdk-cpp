@@ -363,7 +363,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   options.single_peer_connection = single_peer_connection;
 
   Room publisher_room;
-  ASSERT_TRUE(publisher_room.Connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
+  ASSERT_TRUE(publisher_room.connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
   ASSERT_NE(publisher_room.localParticipant(), nullptr);
 
   const std::string publisher_identity = publisher_room.localParticipant()->identity();
@@ -397,7 +397,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   Room consumer_room;
   consumer_room.setDelegate(&delegate);
 
-  ASSERT_TRUE(consumer_room.Connect(config_.url, config_.token_b, options)) << "Consumer failed to connect";
+  ASSERT_TRUE(consumer_room.connect(config_.url, config_.token_b, options)) << "Consumer failed to connect";
   ASSERT_NE(consumer_room.localParticipant(), nullptr);
   ASSERT_TRUE(waitForParticipant(&consumer_room, publisher_identity, 10s))
       << "Publisher not visible to late-joining consumer";
@@ -467,7 +467,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   options.single_peer_connection = single_peer_connection;
 
   Room publisher_room;
-  ASSERT_TRUE(publisher_room.Connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
+  ASSERT_TRUE(publisher_room.connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
   ASSERT_NE(publisher_room.localParticipant(), nullptr);
 
   const std::string publisher_identity = publisher_room.localParticipant()->identity();
@@ -502,7 +502,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   Room consumer_room;
   consumer_room.setDelegate(&delegate);
 
-  ASSERT_TRUE(consumer_room.Connect(config_.url, config_.token_b, options)) << "Consumer failed to connect";
+  ASSERT_TRUE(consumer_room.connect(config_.url, config_.token_b, options)) << "Consumer failed to connect";
   ASSERT_NE(consumer_room.localParticipant(), nullptr);
   ASSERT_TRUE(waitForParticipant(&consumer_room, publisher_identity, 10s))
       << "Publisher not visible to late-joining consumer";
@@ -572,7 +572,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   options.single_peer_connection = single_peer_connection;
 
   Room publisher_room;
-  ASSERT_TRUE(publisher_room.Connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
+  ASSERT_TRUE(publisher_room.connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
   ASSERT_NE(publisher_room.localParticipant(), nullptr);
 
   const std::string publisher_identity = publisher_room.localParticipant()->identity();
@@ -601,7 +601,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   Room consumer_room;
   consumer_room.setDelegate(&delegate);
 
-  ASSERT_TRUE(consumer_room.Connect(config_.url, config_.token_b, options)) << "Consumer failed to connect";
+  ASSERT_TRUE(consumer_room.connect(config_.url, config_.token_b, options)) << "Consumer failed to connect";
   ASSERT_NE(consumer_room.localParticipant(), nullptr);
   ASSERT_TRUE(waitForParticipant(&consumer_room, publisher_identity, 10s))
       << "Publisher not visible to late-joining consumer";

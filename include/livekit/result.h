@@ -24,20 +24,18 @@
 
 namespace livekit {
 
-/**
- * Lightweight success-or-error return type for non-exceptional API failures.
- *
- * This is intended for SDK operations where callers are expected to branch on
- * success vs. failure, such as back-pressure or an unpublished track.
- *
- * `Result<T, E>` stores either:
- * - a success value of type `T`, or
- * - an error value of type `E`
- *
- * Accessors validate their preconditions before returning. Calling `value()`
- * on an error result, or `error()` on a success result, throws `std::logic_error`.
- * Avoid this by checking `ok()` / `hasError()` / if (result) before calling `value()` or `error()`.
- */
+/// Lightweight success-or-error return type for non-exceptional API failures.
+///
+/// This is intended for SDK operations where callers are expected to branch on
+/// success vs. failure, such as back-pressure or an unpublished track.
+///
+/// `Result<T, E>` stores either:
+/// - a success value of type `T`, or
+/// - an error value of type `E`
+///
+/// Accessors validate their preconditions before returning. Calling `value()`
+/// on an error result, or `error()` on a success result, throws `std::logic_error`.
+/// Avoid this by checking `ok()` / `hasError()` / if (result) before calling `value()` or `error()`.
 template <typename T, typename E>
 class [[nodiscard]] Result {
 public:
@@ -154,12 +152,10 @@ private:
   std::variant<T, E> storage_;
 };
 
-/**
- * `void` specialization for operations that only report success or failure.
- *
- * This keeps the same calling style as `Result<T, E>` without forcing callers
- * to invent a dummy success payload.
- */
+/// `void` specialization for operations that only report success or failure.
+///
+/// This keeps the same calling style as `Result<T, E>` without forcing callers
+/// to invent a dummy success payload.
 template <typename E>
 class [[nodiscard]] Result<void, E> {
 public:
