@@ -383,7 +383,7 @@ Open the generated trace file in one of these viewers:
 
 The SDK includes integration and stress tests using Google Test (gtest).
 
-#### Build Tests
+### Build Tests
 
 **Linux/macOS:**
 ```bash
