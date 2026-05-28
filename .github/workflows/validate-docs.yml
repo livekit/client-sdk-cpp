@@ -1,4 +1,6 @@
 name: Validate docs
+permissions:
+  contents: read
 
 # Builds the Doxygen docs (and optionally uploads them as a workflow artifact)
 # without publishing. Two roles:
