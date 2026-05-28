@@ -51,7 +51,7 @@ struct RpcInvocationData {
   double response_timeout_sec; // seconds
 };
 
-/// Represents the local participant in a room.
+/// @brief Represents the local participant in a room.
 class LIVEKIT_API LocalParticipant : public Participant {
 public:
   using PublicationMap = std::unordered_map<std::string, std::shared_ptr<LocalTrackPublication>>;

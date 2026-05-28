@@ -25,7 +25,7 @@ namespace proto {
 class OwnedTrackPublication;
 }
 
-/// @brief Publication metadata for a remotely published media track.
+/// @brief A track published by a remote participant.
 class LIVEKIT_API RemoteTrackPublication : public TrackPublication {
 public:
   /// Note, this RemoteTrackPublication is constructed internally only;
