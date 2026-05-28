@@ -14,7 +14,7 @@
 Use this SDK to add realtime video, audio and data features to your C++ app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications such as multi-modal AI, live streaming, or video calls with just a few lines of code.
 <!--END_DESCRIPTION-->
 
-## 📦 Requirements
+## Requirements
 - **CMake** ≥ 3.20
 - **Rust / Cargo** (latest stable toolchain)
 - **Git LFS** (required for examples)
@@ -31,13 +31,13 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 - **macOS:** `brew install protobuf` (protobuf 3.x)
 
 ### For Using the Pre-built SDK:
-- **Windows:** ✅ All dependencies included (DLLs bundled) - ready to use
-- **Linux:** ⚠️ Requires `libprotobuf` and `libssl-dev`; deploy `liblivekit_ffi.so` with your executable
-- **macOS:** ⚠️ Requires `protobuf`; deploy `liblivekit_ffi.dylib` with your executable
+- **Windows:** All dependencies included (DLLs bundled) - ready to use
+- **Linux:** Requires `libprotobuf` and `libssl-dev`; deploy `liblivekit_ffi.so` with your executable
+- **macOS:** Requires `protobuf`; deploy `liblivekit_ffi.dylib` with your executable
 
 > **Note**: If the SDK was built with Protobuf 6.0+, you also need `libabsl-dev` (Linux) or `abseil` (macOS).
 
-## 🧩 Clone the Repository
+## Clone the Repository
 
 Make sure to initialize the Rust submodule (`client-sdk-rust`):
 
@@ -54,7 +54,7 @@ git submodule update --init --recursive
 git lfs pull
 ```
 
-## ⚙️ BUILD
+## Building
 
 ### Quick Build (Using Build Scripts)
 
@@ -99,7 +99,7 @@ cmake --build build --config Debug
 # Clean CMake build artifacts
 Remove-Item -Recurse -Force build
 ```
-Note (Windows), This assumes vcpkg is checked out in the repo root at .\vcpkg\.
+Note (Windows), This assumes vcpkg is checked out in the repo root at `.\vcpkg\`.
 You must install protobuf via vcpkg (so CMake can find ProtobufConfig.cmake and protoc), for example:
 ```bash
 .\vcpkg\vcpkg install protobuf:x64-windows
@@ -135,7 +135,7 @@ cmake --preset macos-release
 cmake --build --preset macos-release
 ```
 
-📖 **For complete build instructions, troubleshooting, and platform-specific notes, see [README_BUILD.md](README_BUILD.md)**
+**For complete build instructions, troubleshooting, and platform-specific notes, see [README_BUILD.md](README_BUILD.md)**
 
 ### Building with Docker
 The Docker setup is split into a reusable base image and an SDK image layered on top of it.
@@ -155,7 +155,7 @@ export PATH=$HOME/.cargo/bin:$PATH
 export PATH=$HOME/cmake-3.31/bin:$PATH
 ```
 
-## 🧪 Run Example
+## Run Example
 
 ### Prerequisites
 
@@ -169,7 +169,7 @@ lk token create -r test -i your_own_identity  --join --valid-for 99999h --dev --
 
 ### SimpleRoom
 
-```bash`
+```bash
 ./build-release/cpp-example-collection-build/simple_room/SimpleRoom --url $URL --token <jwt-token>
 ```
 
@@ -203,7 +203,7 @@ The SimpleRpc example demonstrates how to:
 - Handle success, application errors, unsupported methods, and timeouts
 - Observe round-trip times (RTT) for each RPC call
 
-#### 🔑 Generate Tokens
+#### Generate Tokens
 Before running any participant, create JWT tokens with **caller**, **greeter** and **math-genius** identities and room name.
 ```bash
 lk token create -r test -i caller --join --valid-for 99999h --dev --room=your_own_room
@@ -211,7 +211,7 @@ lk token create -r test -i greeter --join --valid-for 99999h --dev --room=your_o
 lk token create -r test -i math-genius --join --valid-for 99999h --dev --room=your_own_room
 ```
 
-#### ▶ Start Participants
+#### Start Participants
 Every participant is run as a separate terminal process, note --role needs to match the token identity.
 ```bash
 ./build-release/cpp-example-collection-build/simple_rpc/SimpleRpc --url $URL --token <jwt-token> --role=math-genius
@@ -232,14 +232,14 @@ The caller will automatically:
 - Measure and print one-way latency on the receiver using sender timestamps
 - Receive streamed chunks and reconstruct the full payload on the receiver
 
-#### 🔑 Generate Tokens
+#### Generate Tokens
 Before running any participant, create JWT tokens with caller and greeter identities and your room name.
 ```bash
 lk token create -r test -i caller  --join --valid-for 99999h --dev --room=your_own_room
 lk token create -r test -i greeter --join --valid-for 99999h --dev --room=your_own_room
 ```
 
-#### ▶ Start Participants
+#### Start Participants
 Start the receiver first (so it registers stream handlers before messages arrive):
 ```bash
 ./build-release/cpp-example-collection-build/simple_data_stream/SimpleDataStream --url $URL --token <jwt-token>
@@ -379,11 +379,11 @@ Open the generated trace file in one of these viewers:
 
 ---
 
-## 🧪 Integration & Stress Tests
+## Integration & Stress Tests
 
 The SDK includes integration and stress tests using Google Test (gtest).
 
-#### Build Tests
+### Build Tests
 
 **Linux/macOS:**
 ```bash
@@ -469,7 +469,7 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
 - **RPC**: Round-trip calls, max payload (15KB), timeouts, errors, concurrent calls
 - **Stress Tests**: High throughput, bidirectional RPC, memory pressure
 
-##  🧰 Recommended Setup
+## Recommended Setup
 ### macOS
 ```bash
 brew install cmake protobuf rust
@@ -482,7 +482,7 @@ sudo apt install -y cmake protobuf-compiler build-essential
 curl https://sh.rustup.rs -sSf | sh
 ```
 
-## 🛠️ Development Tips
+## Development Tips
 ###  Update Rust version
 ```bash
 cd client-sdk-cpp
@@ -599,7 +599,8 @@ valgrind --leak-check=full ./build-debug/bin/livekit_integration_tests
 valgrind --leak-check=full ./build-debug/bin/livekit_stress_tests
 ```
 
-# Running locally
+## Running locally
+
 1. Install the livekit-server
 https://docs.livekit.io/transport/self-hosting/local/
 
@@ -620,21 +621,23 @@ lk token create \
   --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}'
 ```
 
-# Deprecation
+## Deprecation
+
 - livekit_bridge (bridge/ folder) is deprecated. Avoid using it. Migrate to the base SDK. This will be removed on 06/01/2026.
 - setOn*FrameCallback with TrackSource is deprecated. Use track name instead. This will be removed on 06/01/2026.
+- All public headers that do not follow `camelBack()` case. This will be removed on 06/01/2026.
 
 <!--BEGIN_REPO_NAV-->
 <br/><table>
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
 <tbody>
-<tr><td>Agents SDKs</td><td><a href="https://github.com/livekit/agents">Python</a> · <a href="https://github.com/livekit/agents-js">Node.js</a></td></tr><tr></tr>
-<tr><td>LiveKit SDKs</td><td><a href="https://github.com/livekit/client-sdk-js">Browser</a> · <a href="https://github.com/livekit/client-sdk-swift">Swift</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (WebGL)</a> · <a href="https://github.com/livekit/client-sdk-esp32">ESP32</a> · <b>C++</b></td></tr><tr></tr>
-<tr><td>Starter Apps</td><td><a href="https://github.com/livekit-examples/agent-starter-python">Python Agent</a> · <a href="https://github.com/livekit-examples/agent-starter-node">TypeScript Agent</a> · <a href="https://github.com/livekit-examples/agent-starter-react">React App</a> · <a href="https://github.com/livekit-examples/agent-starter-swift">SwiftUI App</a> · <a href="https://github.com/livekit-examples/agent-starter-android">Android App</a> · <a href="https://github.com/livekit-examples/agent-starter-flutter">Flutter App</a> · <a href="https://github.com/livekit-examples/agent-starter-react-native">React Native App</a> · <a href="https://github.com/livekit-examples/agent-starter-embed">Web Embed</a></td></tr><tr></tr>
-<tr><td>UI Components</td><td><a href="https://github.com/livekit/components-js">React</a> · <a href="https://github.com/livekit/components-android">Android Compose</a> · <a href="https://github.com/livekit/components-swift">SwiftUI</a> · <a href="https://github.com/livekit/components-flutter">Flutter</a></td></tr><tr></tr>
-<tr><td>Server APIs</td><td><a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/server-sdk-go">Golang</a> · <a href="https://github.com/livekit/server-sdk-ruby">Ruby</a> · <a href="https://github.com/livekit/server-sdk-kotlin">Java/Kotlin</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/agence104/livekit-server-sdk-php">PHP (community)</a> · <a href="https://github.com/pabloFuente/livekit-server-sdk-dotnet">.NET (community)</a></td></tr><tr></tr>
-<tr><td>Resources</td><td><a href="https://docs.livekit.io">Docs</a> · <a href="https://docs.livekit.io/mcp">Docs MCP Server</a> · <a href="https://github.com/livekit/livekit-cli">CLI</a> · <a href="https://cloud.livekit.io">LiveKit Cloud</a></td></tr><tr></tr>
-<tr><td>LiveKit Server OSS</td><td><a href="https://github.com/livekit/livekit">LiveKit server</a> · <a href="https://github.com/livekit/egress">Egress</a> · <a href="https://github.com/livekit/ingress">Ingress</a> · <a href="https://github.com/livekit/sip">SIP</a></td></tr><tr></tr>
+<tr><td>Agents SDKs</td><td><a href="https://github.com/livekit/agents">Python</a> · <a href="https://github.com/livekit/agents-js">Node.js</a></td></tr>
+<tr><td>LiveKit SDKs</td><td><a href="https://github.com/livekit/client-sdk-js">Browser</a> · <a href="https://github.com/livekit/client-sdk-swift">Swift</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (WebGL)</a> · <a href="https://github.com/livekit/client-sdk-esp32">ESP32</a> · <b>C++</b></td></tr>
+<tr><td>Starter Apps</td><td><a href="https://github.com/livekit-examples/agent-starter-python">Python Agent</a> · <a href="https://github.com/livekit-examples/agent-starter-node">TypeScript Agent</a> · <a href="https://github.com/livekit-examples/agent-starter-react">React App</a> · <a href="https://github.com/livekit-examples/agent-starter-swift">SwiftUI App</a> · <a href="https://github.com/livekit-examples/agent-starter-android">Android App</a> · <a href="https://github.com/livekit-examples/agent-starter-flutter">Flutter App</a> · <a href="https://github.com/livekit-examples/agent-starter-react-native">React Native App</a> · <a href="https://github.com/livekit-examples/agent-starter-embed">Web Embed</a></td></tr>
+<tr><td>UI Components</td><td><a href="https://github.com/livekit/components-js">React</a> · <a href="https://github.com/livekit/components-android">Android Compose</a> · <a href="https://github.com/livekit/components-swift">SwiftUI</a> · <a href="https://github.com/livekit/components-flutter">Flutter</a></td></tr>
+<tr><td>Server APIs</td><td><a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/server-sdk-go">Golang</a> · <a href="https://github.com/livekit/server-sdk-ruby">Ruby</a> · <a href="https://github.com/livekit/server-sdk-kotlin">Java/Kotlin</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/agence104/livekit-server-sdk-php">PHP (community)</a> · <a href="https://github.com/pabloFuente/livekit-server-sdk-dotnet">.NET (community)</a></td></tr>
+<tr><td>Resources</td><td><a href="https://docs.livekit.io">Docs</a> · <a href="https://docs.livekit.io/mcp">Docs MCP Server</a> · <a href="https://github.com/livekit/livekit-cli">CLI</a> · <a href="https://cloud.livekit.io">LiveKit Cloud</a></td></tr>
+<tr><td>LiveKit Server OSS</td><td><a href="https://github.com/livekit/livekit">LiveKit server</a> · <a href="https://github.com/livekit/egress">Egress</a> · <a href="https://github.com/livekit/ingress">Ingress</a> · <a href="https://github.com/livekit/sip">SIP</a></td></tr>
 <tr><td>Community</td><td><a href="https://community.livekit.io">Developer Community</a> · <a href="https://livekit.io/join-slack">Slack</a> · <a href="https://x.com/livekit">X</a> · <a href="https://www.youtube.com/@livekit_io">YouTube</a></td></tr>
 </tbody>
 </table>

@@ -80,6 +80,8 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `LiveKitConfig.cmake.in`) |
 | `docker/` | Dockerfile for CI and SDK distribution images |
 | `scripts/` | Developer / CI helper scripts (e.g. `clang-tidy.sh`) |
+| `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
+| `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
 | `.github/workflows/` | GitHub Actions CI workflows |
 
 ### Key Types
@@ -238,7 +240,7 @@ with the same library loaded elsewhere in the host process.
 ### Public API Documentation (Doxygen)
 
 The public API (`include/livekit/*.h`) is what consumers read first and is also
-published as a Doxygen site (`docs/Doxyfile`, `.github/workflows/publish-docs.yml`).
+published as a Doxygen site (`docs/doxygen/Doxyfile`, `.github/workflows/publish-docs.yml`).
 Every doc comment in `include/livekit/` must use the rules below, and PRs that
 add or modify public symbols are gated on these rules during review.
 
@@ -259,12 +261,13 @@ add or modify public symbols are gated on these rules during review.
 
 #### Required tags
 
+- Document class/structs succinctly using `@brief Description.`
+- Document functions/methods/namespaces succinctly using `@brief Description.`
 - Document parameters using `@param name Description.`
 - Document non-void return values using `@return Description.`
-- Document thrown exceptions using `@throws ExceptionType When/why it's
-  thrown.` Operations that can fail without throwing should return
-  `Result<T, E>` (see Error Handling above) and the variants should be
-  documented in the doc block.
+- Document thrown exceptions using `@throws ExceptionType When/why it's thrown.`
+  Operations that can fail without throwing should return `Result<T, E>`
+  (see Error Handling above) and the variants should be documented in the doc block.
 - Free-text "Parameters:", "Returns:", "Throws:" sections in legacy comments
   must be converted to the corresponding `@param` / `@return` / `@throws`
   tags when the comment is touched.
@@ -290,15 +293,17 @@ render a deprecation callout (see "Deprecating a public API" above).
 
 #### Verifying locally
 
-Run Doxygen from the repository root to regenerate the HTML docs:
+Run the docs build script from the repository root:
 
 ```bash
-doxygen docs/Doxyfile
+./scripts/generate-docs.sh
 ```
 
-The output lands in `docs/html/`. Doxygen warnings about "is not documented"
-indicate undocumented public symbols — adding documentation to them is
-encouraged but not strictly required by these rules.
+The output lands in `docs/doxygen/html/index.html`. The Doxyfile sets
+`WARN_IF_UNDOCUMENTED = NO` (the 400+ "X is not documented" warnings for
+internal symbols are too noisy to enforce) and `WARN_AS_ERROR = FAIL_ON_WARNINGS`,
+so any other warning (broken `@ref`, unknown `@command`, unsupported HTML tag,
+malformed table, missing `@param` on a documented function, …) fails the build.
 
 ### Integer Types
 

@@ -110,15 +110,13 @@ public:
   ///     MyDelegate del;
   ///     Room room;
   ///     room.setDelegate(&del);
+  ///
+  /// @param delegate The RoomDelegate implementation to receive room lifecycle callbacks.
   void setDelegate(RoomDelegate* delegate);
 
   /// Connect to a LiveKit room using the given URL and token,  applying the
   /// supplied connection options.
   ///
-  /// @param url      WebSocket URL of the LiveKit server.
-  /// @param token    Access token for authentication.
-  /// @param options  Connection options controlling auto-subscribe,
-  ///                 dynacast, E2EE, and WebRTC configuration.
   /// Behavior:
   ///   - Registers an FFI event listener *before* sending the connect request.
   ///   - Sends a proto::FfiRequest::Connect with the URL, token,
@@ -130,6 +128,11 @@ public:
   ///   RoomOptions defaults auto_subscribe = true.
   ///   Without auto_subscribe enabled, remote tracks will NOT be subscribed
   ///   automatically, and no remote audio/video will ever arrive.
+  ///
+  /// @param url      WebSocket URL of the LiveKit server.
+  /// @param token    Access token for authentication.
+  /// @param options  Connection options controlling auto-subscribe,
+  ///                 dynacast, E2EE, and WebRTC configuration.
   bool connect(const std::string& url, const std::string& token, const RoomOptions& options);
 
   /// @deprecated Use connect() instead.
@@ -230,12 +233,15 @@ public:
   ///   - The ByteStreamReader remains valid as long as the shared_ptr is held,
   ///     preventing lifetime-related crashes when reading asynchronously.
   ///
+  /// @param topic The topic to register the byte stream handler for.
+  /// @param handler The ByteStreamHandler to invoke when a byte stream is received.
   /// @throws std::runtime_error if a handler is already registered for the topic.
   void registerByteStreamHandler(const std::string& topic, ByteStreamHandler handler);
 
   /// Unregister the byte stream handler for the given topic.
   ///
   /// If no handler exists for the topic, this function is a no-op.
+  /// @param topic The topic to unregister the byte stream handler for.
   void unregisterByteStreamHandler(const std::string& topic);
 
   /// Returns the room's E2EE manager, or nullptr if E2EE was not enabled at

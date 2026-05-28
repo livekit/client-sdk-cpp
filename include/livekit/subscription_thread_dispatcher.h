@@ -208,6 +208,7 @@ public:
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param source               Track source associated with the subscription.
+  /// @param track_name           Track name associated with the subscription.
   /// @param track                Subscribed remote track to read from.
   void handleTrackSubscribed(const std::string& participant_identity, TrackSource source, const std::string& track_name,
                              const std::shared_ptr<Track>& track);
