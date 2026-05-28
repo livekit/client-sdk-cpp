@@ -1,4 +1,4 @@
-name: Validate docs
+name: Generate docs
 permissions:
   contents: read
 
@@ -32,7 +32,7 @@ on:
         description: 'Upload the built html/ tree as a workflow artifact'
         required: false
         type: boolean
-        default: true
+        default: false
       artifact_name:
         description: 'Name to use for the uploaded docs artifact'
         required: false
@@ -62,12 +62,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # fetch-depth: 0 is required so `git describe --tags` in
-          # scripts/build-docs.sh can walk back from HEAD to the nearest
-          # ancestor tag. A shallow clone (fetch-depth: 1) — even combined
-          # with fetch-tags: true — fetches the tag refs but not the
-          # connecting history, so `git describe` cannot reach any tag and
-          # falls back to a short SHA, producing v0.0.0-dev+<sha> instead
-          # of the expected v<X.Y.Z>-<N>-g<sha>.
+          # scripts/build-docs.sh resolves the right version from the git history.
           fetch-depth: 0
 
       # Doxygen is available on ubuntu-latest, but we install explicitly for stability
@@ -109,6 +104,7 @@ jobs:
 
           {
             echo "Version: \`${PROJECT_NUMBER}\`"
+            echo "Note: On a non-tag PR, the version will resolve to `<closest tag>-<commits since tag>-g<commit sha>`"
           } >>"$GITHUB_STEP_SUMMARY"
 
       - name: Verify docs were generated
