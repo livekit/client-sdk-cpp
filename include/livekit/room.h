@@ -148,13 +148,15 @@ public:
   ///   - published tracks (audio/video/screen)
   ///   - identity, SID, metadata
   ///   - publishing/unpublishing operations
-  /// @return Non-null pointer after successful connect().
+  /// @return Non-null pointer while connected; nullptr before connect, after
+  ///   room end-of-stream teardown, or when the room is destroyed.
   LocalParticipant* localParticipant() const;
 
   /// Look up a remote participant by identity.
   ///
   /// @param identity The participant’s identity string (not SID)
-  /// @return Pointer to RemoteParticipant if present, otherwise nullptr.
+  /// @return Pointer to RemoteParticipant if present, otherwise nullptr (also
+  ///   nullptr after room teardown or when the room is destroyed).
   /// RemoteParticipant contains:
   ///   - identity/name/metadata
   ///   - track publications
@@ -165,7 +167,7 @@ public:
   ///
   /// @return Vector of non-null pointers to the current remote participants.
   ///   The pointers are owned by the Room and remain valid until the
-  ///   corresponding participant disconnects.
+  ///   corresponding participant disconnects or the room is torn down.
   std::vector<RemoteParticipant*> remoteParticipants() const;
 
   /// Returns the current connection state of the room.

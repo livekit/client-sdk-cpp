@@ -82,12 +82,19 @@ Room::~Room() {
 
   int listener_to_remove = 0;
   std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
+  std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> remote_participants_to_cleanup;
   {
     const std::scoped_lock<std::mutex> g(lock_);
     listener_to_remove = listener_id_;
     listener_id_ = 0;
-    // Move local participant out for cleanup outside the lock
+    connection_state_ = ConnectionState::Disconnected;
+    // Move participant state out so accessors return nullptr during teardown.
     local_participant_to_cleanup = std::move(local_participant_);
+    remote_participants_to_cleanup = std::move(remote_participants_);
+    room_handle_.reset();
+    e2ee_manager_.reset();
+    text_stream_readers_.clear();
+    byte_stream_readers_.clear();
   }
 
   // Shutdown local participant (unregisters RPC handlers, etc.) before
@@ -1165,7 +1172,11 @@ void Room::onEvent(const FfiEvent& event) {
             FfiClient::instance().removeListener(listener_to_remove);
           }
 
-          // Old state will be destroyed here when going out of scope
+          if (old_local_participant) {
+            old_local_participant->shutdown();
+          }
+
+          // old_* state is destroyed here when going out of scope
 
           const RoomEosEvent ev;
           if (delegate_snapshot) {
