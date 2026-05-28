@@ -261,12 +261,13 @@ add or modify public symbols are gated on these rules during review.
 
 #### Required tags
 
+- Document class/structs succinctly using `@brief Description.`
+- Document functions/methods/namespaces succinctly using `@brief Description.`
 - Document parameters using `@param name Description.`
 - Document non-void return values using `@return Description.`
-- Document thrown exceptions using `@throws ExceptionType When/why it's
-  thrown.` Operations that can fail without throwing should return
-  `Result<T, E>` (see Error Handling above) and the variants should be
-  documented in the doc block.
+- Document thrown exceptions using `@throws ExceptionType When/why it's thrown.`
+  Operations that can fail without throwing should return `Result<T, E>`
+  (see Error Handling above) and the variants should be documented in the doc block.
 - Free-text "Parameters:", "Returns:", "Throws:" sections in legacy comments
   must be converted to the corresponding `@param` / `@return` / `@throws`
   tags when the comment is touched.

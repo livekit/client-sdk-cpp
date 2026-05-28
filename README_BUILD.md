@@ -1,4 +1,4 @@
-# LiveKit C++ Client SDK - Build Guide
+# Build Guide
 
 ## Prerequisites
 
