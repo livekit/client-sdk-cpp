@@ -82,7 +82,7 @@ elif [[ -z "$project_number" ]]; then
   fi
 
   # git describe emits "<tag>-<n>-g<sha>[-dirty]"
-  # Strip unneeded "g" so it's easier to read.
+  # Strip unneeded "g" so it's easier to read
   if [[ "$described" =~ ^(.+-[0-9]+)-g([0-9a-f]+)(.*)$ ]]; then
     described="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}${BASH_REMATCH[3]}"
   fi
@@ -111,15 +111,6 @@ fi
 echo "==> Building Doxygen docs with PROJECT_NUMBER=${project_number}"
 cd "$repo_root"
 
-# Doxygen owns the failure decision: docs/doxygen/Doxyfile sets
-#   WARN_IF_UNDOCUMENTED = NO        (silences the ~400 "X is not documented"
-#                                     warnings about internal/private symbols)
-#   WARN_AS_ERROR        = FAIL_ON_WARNINGS
-# so any remaining warning (broken @ref, unknown @-command, unsupported HTML
-# tag, malformed table, unreadable INPUT entry, etc.) fails this script via a
-# non-zero exit. There is no per-warning toggle in Doxygen; if a category
-# becomes too noisy to enforce, mute it at the WARN_IF_* level in the Doxyfile
-# rather than adding pattern allowlists here.
 LIVEKIT_DOXYGEN_PROJECT_NUMBER="$project_number" doxygen docs/doxygen/Doxyfile
 
 docs_index="${repo_root}/docs/doxygen/html/index.html"
