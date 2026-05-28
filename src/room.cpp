@@ -636,8 +636,7 @@ void Room::onEvent(const FfiEvent& event) {
           }
 
           if (subscription_thread_dispatcher_ && remote_track && rpublication) {
-            subscription_thread_dispatcher_->handleTrackSubscribed(identity, rpublication->source(),
-                                                                   rpublication->name(), remote_track);
+            subscription_thread_dispatcher_->handleTrackSubscribed(identity, rpublication->name(), remote_track);
           }
           break;
         }

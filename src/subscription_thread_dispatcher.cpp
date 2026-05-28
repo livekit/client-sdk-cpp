@@ -143,19 +143,17 @@ void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(const std::string& 
   }
 }
 
-void SubscriptionThreadDispatcher::handleTrackSubscribed(const std::string& participant_identity, TrackSource source,
+void SubscriptionThreadDispatcher::handleTrackSubscribed(const std::string& participant_identity,
                                                          const std::string& track_name,
                                                          const std::shared_ptr<Track>& track) {
   if (!track) {
-    LK_LOG_WARN(
-        "Ignoring subscribed track dispatch for participant={} source={} "
-        "because track is null",
-        participant_identity, static_cast<int>(source));
+    LK_LOG_WARN("Ignoring subscribed track dispatch for participant={} track_name={} because track is null",
+                participant_identity, track_name);
     return;
   }
 
-  LK_LOG_DEBUG("Handling subscribed track for participant={} source={} kind={}", participant_identity,
-               static_cast<int>(source), trackKindName(track->kind()));
+  LK_LOG_DEBUG("Handling subscribed track for participant={} track_name={} kind={}", participant_identity, track_name,
+               trackKindName(track->kind()));
 
   const CallbackKey key{participant_identity, track_name};
   std::thread old_thread;

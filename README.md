@@ -622,8 +622,8 @@ lk token create \
 ```
 
 # Deprecation
-- setOn*FrameCallback with TrackSource is deprecated. Use track name instead. This will be removed on 06/01/2026.
-- All public headers that do not follow `camelBack()` case. This will be removed on 06/01/2026.
+NOTE: With the official 1.0.0 release we have introduced breaking changes to previous unofficial versions in order
+to align with other LiveKit client SDKs. See [PR #143](https://github.com/livekit/client-sdk-cpp/pull/143) for the source code changes.
 
 <!--BEGIN_REPO_NAV-->
 <br/><table>
