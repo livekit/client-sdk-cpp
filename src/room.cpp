@@ -207,13 +207,9 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
     if (listener_to_remove != 0) {
       FfiClient::instance().removeListener(listener_to_remove);
     }
-    LK_LOG_ERROR("Room::Connect failed: {}", e.what());
+    LK_LOG_ERROR("Room::connect failed: {}", e.what());
     return false;
   }
-}
-
-bool Room::Connect(const std::string& url, const std::string& token, const RoomOptions& options) {
-  return connect(url, token, options);
 }
 
 bool Room::disconnect(DisconnectReason reason) {
@@ -302,8 +298,6 @@ RoomInfoData Room::roomInfo() const {
   const std::scoped_lock<std::mutex> g(lock_);
   return room_info_;
 }
-
-RoomInfoData Room::room_info() const { return roomInfo(); }
 
 LocalParticipant* Room::localParticipant() const {
   const std::scoped_lock<std::mutex> g(lock_);

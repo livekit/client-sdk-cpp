@@ -100,35 +100,6 @@ public:
   bool hasHandle() const noexcept { return handle_.valid(); }
   uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
 
-  // NOLINTBEGIN(readability-identifier-naming)
-
-  /// @deprecated Use streamState() instead.
-  [[deprecated("Track::stream_state is deprecated; use Track::streamState instead")]]
-  StreamState stream_state() const noexcept {
-    return streamState();
-  }
-
-  /// @deprecated Use mimeType() instead.
-  // NOLINTNEXTLINE(bugprone-exception-escape)
-  [[deprecated("Track::mime_type is deprecated; use Track::mimeType instead")]]
-  std::optional<std::string> mime_type() const noexcept {
-    return mimeType();
-  }
-
-  /// @deprecated Use hasHandle() instead.
-  [[deprecated("Track::has_handle is deprecated; use Track::hasHandle instead")]]
-  bool has_handle() const noexcept {
-    return hasHandle();
-  }
-
-  /// @deprecated Use ffiHandleId() instead.
-  [[deprecated("Track::ffi_handle_id is deprecated; use Track::ffiHandleId instead")]]
-  uintptr_t ffi_handle_id() const noexcept {
-    return ffiHandleId();
-  }
-
-  // NOLINTEND(readability-identifier-naming)
-
   // Async get stats
   std::future<std::vector<RtcStats>> getStats() const;
 

@@ -77,12 +77,6 @@ public:
   /// including its SID and name. Useful for debugging and logging.
   std::string toString() const;
 
-  /// @deprecated Use toString() instead.
-  // NOLINTBEGIN(readability-identifier-naming)
-  [[deprecated("LocalVideoTrack::to_string is deprecated; use LocalVideoTrack::toString instead")]]
-  std::string to_string() const;
-  // NOLINTEND(readability-identifier-naming)
-
   /// Returns the publication that owns this track, or nullptr if the track is
   /// not published.
   std::shared_ptr<LocalTrackPublication> publication() const noexcept { return local_publication_; }

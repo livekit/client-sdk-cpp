@@ -16,8 +16,6 @@
 
 #include "livekit/remote_audio_track.h"
 
-#include "ffi.pb.h"
-#include "ffi_client.h"
 #include "track.pb.h"
 #include "track_proto_converter.h"
 
@@ -30,7 +28,5 @@ RemoteAudioTrack::RemoteAudioTrack(const proto::OwnedTrack& track)
 std::string RemoteAudioTrack::toString() const {
   return "rtc.RemoteAudioTrack(sid=" + sid() + ", name=" + name() + ")";
 }
-
-std::string RemoteAudioTrack::to_string() const { return toString(); }
 
 } // namespace livekit

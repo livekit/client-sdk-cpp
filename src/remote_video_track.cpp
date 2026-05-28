@@ -31,6 +31,4 @@ std::string RemoteVideoTrack::toString() const {
   return "rtc.RemoteVideoTrack(sid=" + sid() + ", name=" + name() + ")";
 }
 
-std::string RemoteVideoTrack::to_string() const { return toString(); }
-
 } // namespace livekit
