@@ -27,6 +27,7 @@ namespace livekit {
 
 class RemoteTrackPublication;
 
+/// @brief Represents a remote participant in a LiveKit room.
 class LIVEKIT_API RemoteParticipant : public Participant {
 public:
   using PublicationMap = std::unordered_map<std::string, std::shared_ptr<RemoteTrackPublication>>;

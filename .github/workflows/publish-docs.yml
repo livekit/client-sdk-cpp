@@ -2,25 +2,43 @@ name: Publish docs
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Documentation version (e.g. v0.1.0)'
+        required: false
+        type: string
   workflow_call:
+    inputs:
+      version:
+        description: 'Documentation version (e.g. v0.1.0)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
-  docs:
+  validate:
+    name: Validate (build docs)
+    uses: ./.github/workflows/generate-docs.yml
+    with:
+      version: ${{ inputs.version || github.event.inputs.version || '' }}
+      upload_artifact: true
+      # Suffix with run_id so concurrent publish runs cannot collide on the
+      # artifact namespace within the same repository.
+      artifact_name: livekit-cpp-docs-${{ github.run_id }}
+
+  publish:
+    name: Publish (S3 + CloudFront)
+    needs: validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        # Note: submodules and LFS not needed for docs generation
-        # Doxygen only reads from include/, docs/, README.md, and examples/
-
-      # Doxygen is available on ubuntu-latest, but we install explicitly for stability
-      - name: Install Doxygen
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y doxygen graphviz
-
-      - name: Build Docs (Doxygen)
-        run: |
-          doxygen docs/Doxyfile
+      - name: Download docs artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ${{ needs.validate.outputs.artifact_name }}
+          path: html
 
       - name: S3 Upload
         run: |
@@ -30,8 +48,12 @@ jobs:
             exit 1
           fi
 
-          # Upload to rolling latest (no versioned docs, always overwrite)
-          aws s3 cp "$DOCS_DIR"/ s3://livekit-docs/client-sdk-cpp --recursive
+          VERSIONED_PREFIX="s3://livekit-docs/client-sdk-cpp/${{ needs.validate.outputs.project_number }}"
+          LATEST_PREFIX="s3://livekit-docs/client-sdk-cpp"
+
+          # Upload immutable versioned docs, then refresh rolling latest.
+          aws s3 cp "$DOCS_DIR"/ "$VERSIONED_PREFIX" --recursive
+          aws s3 cp "$DOCS_DIR"/ "$LATEST_PREFIX" --recursive
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

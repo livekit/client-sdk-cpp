@@ -16,8 +16,9 @@ vcpkg_installed/
 include/livekit/build.h
 received_green.avif
 docs/*.bak
-docs/html/
-docs/latex/
+# Doxygen
+docs/doxygen/html/
+docs/doxygen/latex/
 .vs/
 .vscode/
 .cursor/

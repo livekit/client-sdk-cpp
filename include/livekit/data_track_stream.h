@@ -53,6 +53,7 @@ class DataTrackStreamReadResponse;
 ///   }
 class LIVEKIT_API DataTrackStream {
 public:
+  /// @brief Options for subscribing to a remote data track stream.
   struct Options {
     /// Maximum frames buffered on the Rust side. Rust defaults to 16.
     std::optional<std::uint32_t> buffer_size{std::nullopt};
