@@ -78,3 +78,32 @@ span.tt,
   padding: 2px 6px;
   white-space: normal;
 }
+
+.doxygen-readme-banner img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.doxygen-banner-dark {
+  display: none !important;
+}
+
+/* Follow Doxygen Awesome's theme toggles (system, forced dark, forced light). */
+@media (prefers-color-scheme: dark) {
+  html:not(.light-mode) .doxygen-banner-light {
+    display: none !important;
+  }
+
+  html:not(.light-mode) .doxygen-banner-dark {
+    display: block !important;
+  }
+}
+
+html.dark-mode .doxygen-banner-light {
+  display: none !important;
+}
+
+html.dark-mode .doxygen-banner-dark {
+  display: block !important;
+}
