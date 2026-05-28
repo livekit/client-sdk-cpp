@@ -267,16 +267,14 @@ ConnectionState Room::connectionState() const {
   return connection_state_;
 }
 
-std::future<Result<SessionStats, std::string>> Room::getStats() const {
+std::future<SessionStats> Room::getStats() const {
   std::shared_ptr<FfiHandle> handle;
   {
     const std::scoped_lock<std::mutex> g(lock_);
     handle = room_handle_;
   }
   if (!handle) {
-    std::promise<Result<SessionStats, std::string>> pr;
-    pr.set_value(Result<SessionStats, std::string>::failure("Room is not connected"));
-    return pr.get_future();
+    throw std::runtime_error("Room::getStats called on a disconnected room");
   }
   return FfiClient::instance().getSessionStatsAsync(handle->get());
 }

@@ -24,7 +24,6 @@
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
-#include "livekit/result.h"
 #include "livekit/room_event_types.h"
 #include "livekit/stats.h"
 #include "livekit/subscription_thread_dispatcher.h"
@@ -192,17 +191,16 @@ public:
 
   /// Retrieve aggregated WebRTC stats for this room session.
   ///
-  /// Behavior:
-  /// - If the room is not currently connected, returns a failed result immediately.
-  /// - Otherwise dispatches an async request to the server to get the stats.
+  /// Dispatches an async request to the server and returns a future that
+  /// resolves with the stats.
   ///
-  /// @note Check `result.ok()` before accessing the stats. The error variant
-  /// is a free-form diagnostic string; treat it as opaque (suitable for logs/
-  /// metrics, not for programmatic branching). The Rust FFI does not yet
-  /// surface a typed error code for this operation; see `cb.error()` plumbing
-  /// in `FfiClient::getSessionStatsAsync` for the source.
-  /// @return Future result of the room session stats.
-  std::future<Result<SessionStats, std::string>> getStats() const;
+  /// @return Future of the room session stats.
+  ///
+  /// @throws std::runtime_error Synchronously, if the room is not currently
+  ///                            connected, or if the FFI request fails to
+  ///                            dispatch.
+  /// @throws std::runtime_error On `future.get()`, if the async request fails.
+  std::future<SessionStats> getStats() const;
 
   /* Register a handler for incoming text streams on a specific topic.
    *

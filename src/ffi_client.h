@@ -97,9 +97,7 @@ public:
   // Track APIs
   std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);
 
-  // Room APIs (stats). On failure, the error variant carries an
-  // implementation-defined diagnostic string (suitable for logs/metrics).
-  std::future<Result<SessionStats, std::string>> getSessionStatsAsync(uintptr_t room_handle);
+  std::future<SessionStats> getSessionStatsAsync(uintptr_t room_handle);
 
   // Participant APIs
   std::future<proto::OwnedTrackPublication> publishTrackAsync(std::uint64_t local_participant_handle,

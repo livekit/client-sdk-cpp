@@ -221,13 +221,10 @@ TEST_F(FfiClientTest, NotInitialized_GetTrackStatsAsyncThrows) {
   EXPECT_THROW(FfiClient::instance().getTrackStatsAsync(1), std::runtime_error);
 }
 
-TEST_F(FfiClientTest, NotInitialized_GetSessionStatsAsyncFails) {
+TEST_F(FfiClientTest, NotInitialized_GetSessionStatsAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
 
-  auto fut_result = FfiClient::instance().getSessionStatsAsync(1);
-  auto result = fut_result.get();
-  EXPECT_FALSE(result.ok());
-  EXPECT_FALSE(result.error().empty());
+  EXPECT_THROW(FfiClient::instance().getSessionStatsAsync(1), std::runtime_error);
 }
 
 TEST_F(FfiClientTest, NotInitialized_PublishDataTrackAsyncFails) {

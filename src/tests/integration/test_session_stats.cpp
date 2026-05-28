@@ -174,8 +174,10 @@ TEST_F(SessionStatsIntegrationTest, PublishAudioThenFetchSessionStats) {
   auto sender_fut = sender_room->getStats();
   auto receiver_fut = receiver_room->getStats();
 
-  auto sender_result = sender_fut.get();
-  auto receiver_result = receiver_fut.get();
+  SessionStats sender_stats;
+  SessionStats receiver_stats;
+  ASSERT_NO_THROW(sender_stats = sender_fut.get()) << "Sender getStats threw";
+  ASSERT_NO_THROW(receiver_stats = receiver_fut.get()) << "Receiver getStats threw";
 
   running.store(false, std::memory_order_relaxed);
   if (audio_thread.joinable()) {
@@ -185,23 +187,16 @@ TEST_F(SessionStatsIntegrationTest, PublishAudioThenFetchSessionStats) {
     sender_room->localParticipant()->unpublishTrack(track->publication()->sid());
   }
 
-  ASSERT_TRUE(sender_result.ok()) << "Sender getStats failed: " << sender_result.error();
-  ASSERT_TRUE(receiver_result.ok()) << "Receiver getStats failed: " << receiver_result.error();
+  printSessionStats("sender", sender_stats);
+  printSessionStats("receiver", receiver_stats);
 
-  printSessionStats("sender", sender_result.value());
-  printSessionStats("receiver", receiver_result.value());
-
-  EXPECT_FALSE(sender_result.value().publisher_stats.empty()) << "Sender should have publisher stats";
-  EXPECT_FALSE(receiver_result.value().subscriber_stats.empty()) << "Receiver should have subscriber stats";
+  EXPECT_FALSE(sender_stats.publisher_stats.empty()) << "Sender should have publisher stats";
+  EXPECT_FALSE(receiver_stats.subscriber_stats.empty()) << "Receiver should have subscriber stats";
 }
 
-TEST_F(SessionStatsIntegrationTest, NotConnectedReturnsError) {
+TEST_F(SessionStatsIntegrationTest, NotConnectedThrows) {
   Room room;
-  auto fut = room.getStats();
-  auto result = fut.get();
-  EXPECT_FALSE(result.ok());
-  EXPECT_FALSE(result.error().empty());
-  std::cerr << "[SessionStats] disconnected message: " << result.error() << std::endl;
+  EXPECT_THROW(room.getStats(), std::runtime_error);
 }
 
 } // namespace livekit::test
