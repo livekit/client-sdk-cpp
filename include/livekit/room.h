@@ -178,7 +178,11 @@ public:
   RemoteParticipant* remoteParticipant(const std::string& identity) const;
 
   /// Returns a snapshot of all current remote participants.
-  std::vector<std::shared_ptr<RemoteParticipant>> remoteParticipants() const;
+  ///
+  /// @return Vector of non-null pointers to the current remote participants.
+  ///   The pointers are owned by the Room and remain valid until the
+  ///   corresponding participant disconnects.
+  std::vector<RemoteParticipant*> remoteParticipants() const;
 
   /// Returns the current connection state of the room.
   ConnectionState connectionState() const;

@@ -310,12 +310,12 @@ RemoteParticipant* Room::remoteParticipant(const std::string& identity) const {
   return it == remote_participants_.end() ? nullptr : it->second.get();
 }
 
-std::vector<std::shared_ptr<RemoteParticipant>> Room::remoteParticipants() const {
+std::vector<RemoteParticipant*> Room::remoteParticipants() const {
   const std::scoped_lock<std::mutex> guard(lock_);
-  std::vector<std::shared_ptr<RemoteParticipant>> out;
+  std::vector<RemoteParticipant*> out;
   out.reserve(remote_participants_.size());
   for (const auto& kv : remote_participants_) {
-    out.push_back(kv.second);
+    out.push_back(kv.second.get());
   }
   return out;
 }
