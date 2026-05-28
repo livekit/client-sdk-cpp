@@ -33,6 +33,10 @@ TEST_F(RoomTest, ConnectWithoutInitialize) {
   Room room;
   bool result = room.connect("wss://localhost:7880", "test", livekit::RoomOptions());
   EXPECT_FALSE(result) << "Connecting without initializing should return false";
+  EXPECT_EQ(room.localParticipant(), nullptr)
+      << "Local participant should be null after failed connect";
+  EXPECT_TRUE(room.remoteParticipants().empty())
+      << "Remote participants should be empty after failed connect";
 }
 
 TEST_F(RoomTest, CreateRoom) {

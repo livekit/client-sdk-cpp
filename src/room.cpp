@@ -1248,7 +1248,11 @@ void Room::onEvent(const FfiEvent& event) {
             FfiClient::instance().removeListener(listener_to_remove);
           }
 
-          // Old state will be destroyed here when going out of scope
+          if (old_local_participant) {
+            old_local_participant->shutdown();
+          }
+
+          // old_* state is destroyed here when going out of scope
 
           const RoomEosEvent ev;
           if (delegate_snapshot) {
