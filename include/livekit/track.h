@@ -32,14 +32,14 @@ namespace livekit {
 
 class LocalTrackPublication;
 
-/// Media kind for an audio or video track.
+/// @brief Media kind for an audio or video track.
 enum class TrackKind {
   KIND_UNKNOWN = 0,
   KIND_AUDIO = 1,
   KIND_VIDEO = 2,
 };
 
-/// Source category for a published track.
+/// @brief Source category for a published track.
 enum class TrackSource {
   SOURCE_UNKNOWN = 0,
   SOURCE_CAMERA = 1,
@@ -48,14 +48,14 @@ enum class TrackSource {
   SOURCE_SCREENSHARE_AUDIO = 4,
 };
 
-/// Stream state reported for a subscribed track.
+/// @brief Stream state reported for a subscribed track.
 enum class StreamState {
   STATE_UNKNOWN = 0,
   STATE_ACTIVE = 1,
   STATE_PAUSED = 2,
 };
 
-/// Optional audio processing or encoding feature advertised for a track.
+/// @brief Optional audio processing or encoding feature advertised for a track.
 enum class AudioTrackFeature {
   TF_STEREO = 0,
   TF_NO_DTX = 1,
@@ -66,14 +66,14 @@ enum class AudioTrackFeature {
   TF_PRECONNECT_BUFFER = 6,
 };
 
-/// Per-participant track subscription permission configuration.
+/// @brief Per-participant track subscription permission configuration.
 struct ParticipantTrackPermission {
   std::string participant_identity;
   std::optional<bool> allow_all;
   std::vector<std::string> allowed_track_sids;
 };
 
-/// Base class for local and remote media tracks.
+/// @brief Base class for local and remote media tracks.
 class LIVEKIT_API Track {
 public:
   virtual ~Track() = default;

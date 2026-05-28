@@ -65,7 +65,7 @@ class FfiEvent;
 ///   stream->close();  // optional, called automatically in destructor
 class LIVEKIT_API VideoStream {
 public:
-  /// Options for creating a decoded video frame stream.
+  /// @brief Options for creating a decoded video frame stream.
   struct Options {
     /// Maximum number of VideoFrameEvent items buffered in the internal queue.
     /// 0 means "unbounded" (the queue can grow without limit).

@@ -43,7 +43,7 @@ class FfiClient;
 class Track;
 class LocalTrackPublication;
 
-/// Data passed to a registered RPC method handler.
+/// @brief Data passed to a registered RPC method handler.
 struct RpcInvocationData {
   std::string request_id;
   std::string caller_identity;

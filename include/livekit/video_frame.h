@@ -28,7 +28,7 @@ namespace livekit {
 /// Mirror of WebRTC video buffer type
 enum class VideoBufferType { RGBA = 0, ABGR, ARGB, BGRA, RGB24, I420, I420A, I422, I444, I010, NV12 };
 
-/// Plane layout metadata for a VideoFrame buffer.
+/// @brief Plane layout metadata for a VideoFrame buffer.
 struct VideoPlaneInfo {
   std::uintptr_t data_ptr; ///< pointer to plane data (for FFI)
   std::uint32_t stride;    ///< bytes per row

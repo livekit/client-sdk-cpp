@@ -32,7 +32,7 @@ class Track;
 class LocalTrack;
 class RemoteTrack;
 
-/// Base class for a track that has been published to a room.
+/// @brief Base class for a track that has been published to a room.
 ///
 /// Wraps the immutable publication info plus an FFI handle, and
 /// holds a weak reference to the associated Track (if any).

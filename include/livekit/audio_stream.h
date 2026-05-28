@@ -40,7 +40,7 @@ class FfiEvent;
 // AudioFrame can throw in various places monitored by bugprone-exception-escape
 // Suppressing for now, would require significant refactor to fix
 
-/// Event containing an audio frame received from an AudioStream.
+/// @brief Event containing an audio frame received from an AudioStream.
 struct AudioFrameEvent {
   AudioFrame frame; ///< The decoded PCM audio frame.
 };

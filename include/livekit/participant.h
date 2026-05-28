@@ -27,10 +27,10 @@
 
 namespace livekit {
 
-/// Identifies the type of participant connected to a room.
+/// @brief Identifies the type of participant connected to a room.
 enum class ParticipantKind { Standard = 0, Ingress, Egress, Sip, Agent };
 
-/// Base class for local and remote room participants.
+/// @brief Base class for local and remote room participants.
 class LIVEKIT_API Participant {
 public:
   Participant(FfiHandle handle, std::string sid, std::string name, std::string identity, std::string metadata,
