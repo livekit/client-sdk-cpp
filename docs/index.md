@@ -2,8 +2,6 @@
 
 Build real-time audio/video applications in C++ with LiveKit.
 
-> **Note:** This SDK is currently in Developer Preview. APIs may change before the stable release.
-
 ## Quick Start
 
 ```cpp
