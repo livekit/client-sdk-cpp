@@ -21,7 +21,7 @@ repo_root="$(cd "${script_dir}/.." && pwd -P)"
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/build-docs.sh [--version VERSION]
+Usage: ./scripts/generate-docs.sh [--version VERSION]
 
 Build Doxygen HTML docs with a visible project version.
 
@@ -104,6 +104,16 @@ fi
 
 echo "==> Building Doxygen docs with PROJECT_NUMBER=${project_number}"
 cd "$repo_root"
+
+# Doxygen owns the failure decision: docs/Doxyfile sets
+#   WARN_IF_UNDOCUMENTED = NO        (silences the ~400 "X is not documented"
+#                                     warnings about internal/private symbols)
+#   WARN_AS_ERROR        = FAIL_ON_WARNINGS
+# so any remaining warning (broken @ref, unknown @-command, unsupported HTML
+# tag, malformed table, unreadable INPUT entry, etc.) fails this script via a
+# non-zero exit. There is no per-warning toggle in Doxygen; if a category
+# becomes too noisy to enforce, mute it at the WARN_IF_* level in the Doxyfile
+# rather than adding pattern allowlists here.
 LIVEKIT_DOXYGEN_PROJECT_NUMBER="$project_number" doxygen docs/Doxyfile
 
 docs_index="${repo_root}/html/index.html"

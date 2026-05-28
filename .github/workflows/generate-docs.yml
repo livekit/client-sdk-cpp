@@ -19,7 +19,7 @@ on:
       - examples/**
       - docs/**
       - README.md
-      - scripts/build-docs.sh
+      - scripts/generate-docs.sh
       - .github/workflows/generate-docs.yml
       - .github/workflows/publish-docs.yml
   workflow_call:
@@ -62,7 +62,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # fetch-depth: 0 is required so `git describe --tags` in
-          # scripts/build-docs.sh resolves the right version from the git history.
+          # scripts/generate-docs.sh resolves the right version from the git history.
           fetch-depth: 0
 
       # Doxygen is available on ubuntu-latest, but we install explicitly for stability
@@ -86,7 +86,7 @@ jobs:
             args+=(--version "${{ github.ref_name }}")
           fi
 
-          ./scripts/build-docs.sh "${args[@]}"
+          ./scripts/generate-docs.sh "${args[@]}"
 
       - name: Print docs version
         shell: bash
@@ -104,7 +104,9 @@ jobs:
 
           {
             echo "Version: \`${PROJECT_NUMBER}\`"
-            echo "Note: On a non-tag PR, the version will resolve to \`<closest tag>-<commits since tag>-g<commit sha>\`"
+            echo ""
+            echo "> Note: On a non-tag/release run, the version will resolve to:"
+            echo "  \`<closest tag>-<commits since tag>-g<commit sha>\`"
           } >>"$GITHUB_STEP_SUMMARY"
 
       - name: Verify docs were generated
