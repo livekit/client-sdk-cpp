@@ -83,14 +83,11 @@ set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(livekit_spdlog)
+livekit_fetchcontent_makeavailable(livekit_spdlog)
 livekit_collect_targets_in_directory(_livekit_spdlog_targets "${livekit_spdlog_BINARY_DIR}")
 foreach(_livekit_spdlog_target IN LISTS _livekit_spdlog_targets)
-  livekit_treat_as_external(${_livekit_spdlog_target})
+  livekit_disable_warnings(${_livekit_spdlog_target})
 endforeach()
-if(TARGET spdlog::spdlog)
-  livekit_treat_as_external(spdlog::spdlog)
-endif()
 
 # spdlog is linked PRIVATE into liblivekit and must not leak its symbols into
 # the SDK's exported ABI.  Force hidden visibility on the spdlog target so its

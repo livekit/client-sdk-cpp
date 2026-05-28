@@ -114,17 +114,28 @@ if(TARGET protobuf::libprotobuf)
 else()
   message(FATAL_ERROR "No protobuf library target found (expected protobuf::libprotobuf)")
 endif()
-target_include_directories(livekit_proto SYSTEM PRIVATE
-  "${PROTO_BINARY_DIR}"
-  ${Protobuf_INCLUDE_DIRS}
-)
-target_link_libraries(livekit_proto PRIVATE ${LIVEKIT_PROTOBUF_TARGET})
+set(LIVEKIT_PROTOBUF_DEP_INCLUDE_DIRS ${Protobuf_INCLUDE_DIRS})
 if(TARGET absl::base)
-  get_target_property(_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
+  livekit_get_interface_includes(absl::base _absl_inc)
   if(_absl_inc)
-    target_include_directories(livekit_proto SYSTEM PRIVATE ${_absl_inc})
+    list(APPEND LIVEKIT_PROTOBUF_DEP_INCLUDE_DIRS ${_absl_inc})
   endif()
 endif()
+set(LIVEKIT_SYSTEM_INCLUDE_DIRS)
+if(TARGET spdlog::spdlog)
+  livekit_get_interface_includes(spdlog::spdlog _spdlog_inc)
+  if(_spdlog_inc)
+    list(APPEND LIVEKIT_SYSTEM_INCLUDE_DIRS ${_spdlog_inc})
+  endif()
+endif()
+target_include_directories(livekit_proto SYSTEM PRIVATE
+  "${PROTO_BINARY_DIR}"
+)
+target_include_directories(livekit_proto PRIVATE
+  ${LIVEKIT_PROTOBUF_DEP_INCLUDE_DIRS}
+)
+target_link_libraries(livekit_proto PRIVATE ${LIVEKIT_PROTOBUF_TARGET})
+livekit_disable_warnings(livekit_proto)
 
 # Manually generate protobuf files to avoid path prefix issues
 set(PROTO_SRCS)
@@ -433,11 +444,13 @@ target_include_directories(livekit
   PRIVATE
     ${LIVEKIT_ROOT_DIR}/src
     ${LIVEKIT_ROOT_DIR}/src/trace
+    ${LIVEKIT_PROTOBUF_DEP_INCLUDE_DIRS}
 )
 
 target_include_directories(livekit SYSTEM PRIVATE
-    ${RUST_ROOT}/livekit-ffi/include
-    ${PROTO_BINARY_DIR}
+  ${RUST_ROOT}/livekit-ffi/include
+  ${PROTO_BINARY_DIR}
+  ${LIVEKIT_SYSTEM_INCLUDE_DIRS}
 )
 
 target_link_libraries(livekit
