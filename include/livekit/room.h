@@ -131,12 +131,6 @@ public:
   ///   automatically, and no remote audio/video will ever arrive.
   bool connect(const std::string& url, const std::string& token, const RoomOptions& options);
 
-  /// @deprecated Use connect() instead.
-  // NOLINTBEGIN(readability-identifier-naming)
-  [[deprecated("Room::Connect is deprecated; use Room::connect instead")]]
-  bool Connect(const std::string& url, const std::string& token, const RoomOptions& options);
-  // NOLINTEND(readability-identifier-naming)
-
   // Accessors
 
   /// Retrieve static metadata about the room.
@@ -147,12 +141,6 @@ public:
   ///   - participant counts
   ///   - creation timestamp
   RoomInfoData roomInfo() const;
-
-  /// @deprecated Use roomInfo() instead.
-  // NOLINTBEGIN(readability-identifier-naming)
-  [[deprecated("Room::room_info is deprecated; use Room::roomInfo instead")]]
-  RoomInfoData room_info() const;
-  // NOLINTEND(readability-identifier-naming)
 
   /// Get the local participant.
   ///

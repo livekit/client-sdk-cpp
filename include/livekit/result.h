@@ -58,14 +58,6 @@ public:
   /// Allows `if (result)` style success checks.
   explicit operator bool() const noexcept { return ok(); }
 
-  /// @deprecated Use hasError() instead.
-  // NOLINTBEGIN(readability-identifier-naming)
-  [[deprecated("Result::has_error is deprecated; use Result::hasError instead")]]
-  bool has_error() const noexcept {
-    return hasError();
-  }
-  // NOLINTEND(readability-identifier-naming)
-
   /// Access the success value.
   ///
   /// @throws std::logic_error if `ok() == false`.

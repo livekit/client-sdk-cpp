@@ -37,8 +37,6 @@ std::string RemoteParticipant::toString() const {
   return oss.str();
 }
 
-std::string RemoteParticipant::to_string() const { return toString(); }
-
 std::ostream& operator<<(std::ostream& os, const RemoteParticipant& participant) {
   os << participant.toString();
   return os;
