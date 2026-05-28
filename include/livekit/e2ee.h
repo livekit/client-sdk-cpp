@@ -99,7 +99,7 @@ struct E2EEOptions {
   EncryptionType encryption_type = EncryptionType::GCM; // default & recommended
 };
 
-/// E2EE manager for a connected room.
+/// @brief E2EE manager for a connected room.
 ///
 /// Lifetime:
 /// - Owned by Room. Applications must not construct E2EEManager directly.
@@ -116,11 +116,13 @@ struct E2EEOptions {
 /// not required by the API shape (keys may be supplied later).
 class LIVEKIT_API E2EEManager {
 public:
-  /// If your application requires key rotation during the lifetime of a single
-  /// room or unique keys per participant (such as when implementing the MEGOLM
-  /// or MLS protocol), you' can do it via key provider and frame cryptor. refer
-  /// https://docs.livekit.io/home/client/encryption/#custom-key-provider doe
-  /// details
+  /// @brief Manages encryption keys used by the E2EE pipeline.
+  ///
+  /// Use this for key rotation during the lifetime of a single room or for
+  /// per-participant keys (e.g., when implementing the MEGOLM or MLS protocol)
+  /// via shared-key or participant-keyed APIs paired with the frame cryptor.
+  /// See https://docs.livekit.io/home/client/encryption/#custom-key-provider
+  /// for details.
   class LIVEKIT_API KeyProvider {
   public:
     ~KeyProvider() = default;
