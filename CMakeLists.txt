@@ -14,6 +14,7 @@ project(livekit VERSION ${LIVEKIT_PROJECT_VERSION} LANGUAGES C CXX)
 set(LIVEKIT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(LIVEKIT_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(warnings)
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 option(LIVEKIT_BUILD_TESTS "Build LiveKit tests" OFF)
@@ -113,7 +114,7 @@ if(TARGET protobuf::libprotobuf)
 else()
   message(FATAL_ERROR "No protobuf library target found (expected protobuf::libprotobuf)")
 endif()
-target_include_directories(livekit_proto PRIVATE
+target_include_directories(livekit_proto SYSTEM PRIVATE
   "${PROTO_BINARY_DIR}"
   ${Protobuf_INCLUDE_DIRS}
 )
@@ -121,7 +122,7 @@ target_link_libraries(livekit_proto PRIVATE ${LIVEKIT_PROTOBUF_TARGET})
 if(TARGET absl::base)
   get_target_property(_absl_inc absl::base INTERFACE_INCLUDE_DIRECTORIES)
   if(_absl_inc)
-    target_include_directories(livekit_proto PRIVATE ${_absl_inc})
+    target_include_directories(livekit_proto SYSTEM PRIVATE ${_absl_inc})
   endif()
 endif()
 
@@ -432,6 +433,9 @@ target_include_directories(livekit
   PRIVATE
     ${LIVEKIT_ROOT_DIR}/src
     ${LIVEKIT_ROOT_DIR}/src/trace
+)
+
+target_include_directories(livekit SYSTEM PRIVATE
     ${RUST_ROOT}/livekit-ffi/include
     ${PROTO_BINARY_DIR}
 )

@@ -622,7 +622,7 @@ lk token create \
 ```
 
 # Deprecation
-NOTE: With the official 1.0.0 release we have introduced breaking changes to previous unofficial versions in order
+> NOTE: With the official 1.0.0 release we have introduced breaking changes to previous unofficial versions in order
 to align with other LiveKit client SDKs. See [PR #143](https://github.com/livekit/client-sdk-cpp/pull/143) for the source code changes.
 
 <!--BEGIN_REPO_NAV-->
