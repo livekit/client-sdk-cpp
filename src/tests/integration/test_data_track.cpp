@@ -113,8 +113,13 @@ std::string describeDataTrackError(const Error& error) {
   return "code=" + std::to_string(static_cast<std::uint32_t>(error.code)) + " message=" + error.message;
 }
 
-std::shared_ptr<LocalDataTrack> requirePublishedTrack(LocalParticipant* participant, const std::string& name) {
-  auto result = participant->publishDataTrack(name);
+std::shared_ptr<LocalDataTrack> requirePublishedTrack(const std::weak_ptr<LocalParticipant>& participant,
+                                                      const std::string& name) {
+  auto locked = participant.lock();
+  if (!locked) {
+    throw std::runtime_error("Local participant handle is expired");
+  }
+  auto result = locked->publishDataTrack(name);
   if (!result) {
     throw std::runtime_error("Failed to publish data track: " + describeDataTrackError(result.error()));
   }
@@ -216,7 +221,7 @@ void runEncryptedDataTrackRoundTrip(KeyDerivationFunction key_derivation_functio
   EXPECT_EQ(publisher_room->e2eeManager().lock()->keyProvider()->exportSharedKey(), e2eeSharedKey());
   EXPECT_EQ(subscriber_room->e2eeManager().lock()->keyProvider()->exportSharedKey(), e2eeSharedKey());
 
-  auto publish_result = publisher_room->localParticipant().lock()->publishDataTrack(track_name);
+  auto publish_result = lockLocalParticipant(*publisher_room)->publishDataTrack(track_name);
   if (!publish_result) {
     FAIL() << describeDataTrackError(publish_result.error());
   }
@@ -307,9 +312,9 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
 
   auto rooms = testRooms(room_configs);
   auto& publisher_room = rooms[0];
-  const auto publisher_identity = publisher_room->localParticipant().lock()->identity();
+  const auto publisher_identity = lockLocalParticipant(*publisher_room)->identity();
 
-  auto local_track = requirePublishedTrack(publisher_room->localParticipant().lock().get(), track_name);
+  auto local_track = requirePublishedTrack(publisher_room->localParticipant(), track_name);
   ASSERT_TRUE(local_track->isPublished());
   EXPECT_FALSE(local_track->info().uses_e2ee);
   EXPECT_EQ(local_track->info().name, track_name);
@@ -372,7 +377,7 @@ TEST_F(DataTrackE2ETest, UnpublishUpdatesPublishedStateEndToEnd) {
   auto rooms = testRooms(room_configs);
   auto& publisher_room = rooms[0];
 
-  auto publish_result = publisher_room->localParticipant().lock()->publishDataTrack(track_name);
+  auto publish_result = lockLocalParticipant(*publisher_room)->publishDataTrack(track_name);
   if (!publish_result) {
     FAIL() << describeDataTrackError(publish_result.error());
   }
@@ -401,7 +406,7 @@ TEST_F(DataTrackE2ETest, SubscribeAfterUnpublishReportsTerminalError) {
   auto rooms = testRooms(room_configs);
   auto& publisher_room = rooms[0];
 
-  auto local_track = requirePublishedTrack(publisher_room->localParticipant().lock().get(), track_name);
+  auto local_track = requirePublishedTrack(publisher_room->localParticipant(), track_name);
   ASSERT_TRUE(local_track->isPublished());
 
   auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
@@ -455,7 +460,7 @@ TEST_F(DataTrackE2ETest, PublishManyTracks) {
   const auto start = std::chrono::steady_clock::now();
   for (int index = 0; index < kPublishManyTrackCount; ++index) {
     const auto track_name = "track_" + std::to_string(index);
-    auto publish_result = room->localParticipant().lock()->publishDataTrack(track_name);
+    auto publish_result = lockLocalParticipant(*room)->publishDataTrack(track_name);
     if (!publish_result) {
       FAIL() << "Failed to publish track " << track_name << ": " << describeDataTrackError(publish_result.error());
     }
@@ -496,14 +501,14 @@ TEST_F(DataTrackE2ETest, PublishDuplicateName) {
   auto rooms = testRooms(1);
   auto& room = rooms[0];
 
-  auto first_track_result = room->localParticipant().lock()->publishDataTrack("first");
+  auto first_track_result = lockLocalParticipant(*room)->publishDataTrack("first");
   if (!first_track_result) {
     FAIL() << describeDataTrackError(first_track_result.error());
   }
   auto first_track = first_track_result.value();
   ASSERT_TRUE(first_track->isPublished());
 
-  auto duplicate_result = room->localParticipant().lock()->publishDataTrack("first");
+  auto duplicate_result = lockLocalParticipant(*room)->publishDataTrack("first");
   ASSERT_FALSE(duplicate_result) << "Expected duplicate data-track name to be rejected";
   EXPECT_EQ(duplicate_result.error().code, PublishDataTrackErrorCode::DUPLICATE_NAME);
   EXPECT_FALSE(duplicate_result.error().message.empty());
@@ -525,7 +530,7 @@ TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) {
   std::exception_ptr publish_error;
   std::thread publisher([&]() {
     try {
-      auto track = requirePublishedTrack(publisher_room->localParticipant().lock().get(), track_name);
+      auto track = requirePublishedTrack(publisher_room->localParticipant(), track_name);
       if (!track->isPublished()) {
         throw std::runtime_error("Publisher failed to publish data track");
       }
@@ -582,7 +587,7 @@ TEST_F(DataTrackE2ETest, FfiClientSubscribeDataTrackReturnsSyncResult) {
 
   for (std::size_t idx = 0; idx < kTopicCount; ++idx) {
     const auto track_name = "test_" + std::to_string(idx);
-    auto publish_result = publisher_room->localParticipant().lock()->publishDataTrack(track_name);
+    auto publish_result = lockLocalParticipant(*publisher_room)->publishDataTrack(track_name);
     if (!publish_result) {
       FAIL() << "Failed to publish " << track_name << ": " << describeDataTrackError(publish_result.error());
     }
@@ -644,7 +649,7 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
   auto rooms = testRooms(room_configs);
   auto& publisher_room = rooms[0];
 
-  auto publish_result = publisher_room->localParticipant().lock()->publishDataTrack(track_name);
+  auto publish_result = lockLocalParticipant(*publisher_room)->publishDataTrack(track_name);
   if (!publish_result) {
     FAIL() << describeDataTrackError(publish_result.error());
   }
@@ -735,7 +740,7 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampOnEncryptedDataTrack) {
   publisher_room->e2eeManager().lock()->setEnabled(true);
   subscriber_room->e2eeManager().lock()->setEnabled(true);
 
-  auto publish_result = publisher_room->localParticipant().lock()->publishDataTrack(track_name);
+  auto publish_result = lockLocalParticipant(*publisher_room)->publishDataTrack(track_name);
   if (!publish_result) {
     FAIL() << describeDataTrackError(publish_result.error());
   }

@@ -91,7 +91,7 @@ void expectFailedConnectDoesNotDuplicateParticipantCallbacks(const TestConfig& c
   Room peer_room;
   ASSERT_TRUE(peer_room.connect(config.url, config.token_b, options)) << "Peer failed to connect";
   ASSERT_FALSE(peer_room.localParticipant().expired());
-  const std::string peer_identity = peer_room.localParticipant().lock()->identity();
+  const std::string peer_identity = lockLocalParticipant(peer_room)->identity();
   ASSERT_FALSE(peer_identity.empty());
 
   expectSingleParticipantConnectedCallback(counter, peer_identity);
@@ -137,7 +137,7 @@ TEST_F(RoomListenerCleanupIntegrationTest, AlreadyConnectedConnectDoesNotReplace
   Room peer_room;
   ASSERT_TRUE(peer_room.connect(config_.url, config_.token_b, options)) << "Peer failed to connect";
   ASSERT_FALSE(peer_room.localParticipant().expired());
-  const std::string peer_identity = peer_room.localParticipant().lock()->identity();
+  const std::string peer_identity = lockLocalParticipant(peer_room)->identity();
   ASSERT_FALSE(peer_identity.empty());
 
   expectSingleParticipantConnectedCallback(counter, peer_identity);

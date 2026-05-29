@@ -138,6 +138,49 @@ inline bool waitForParticipant(Room* room, const std::string& identity, std::chr
   return false;
 }
 
+/// Safely promote the local participant weak handle to a shared_ptr.
+///
+/// Room::localParticipant() returns a std::weak_ptr whose lock() yields nullptr
+/// once the room is torn down (or before connect). Dereferencing the result of
+/// lock() blindly is undefined behavior, so tests must go through this helper,
+/// which throws instead of crashing when the handle is expired.
+inline std::shared_ptr<LocalParticipant> lockLocalParticipant(const Room& room) {
+  auto participant = room.localParticipant().lock();
+  if (!participant) {
+    throw std::runtime_error("Local participant handle is expired");
+  }
+  return participant;
+}
+
+/// Pointer overload of lockLocalParticipant(); throws if @p room is null.
+inline std::shared_ptr<LocalParticipant> lockLocalParticipant(const Room* room) {
+  if (room == nullptr) {
+    throw std::runtime_error("Room is null");
+  }
+  return lockLocalParticipant(*room);
+}
+
+/// Safely promote a remote participant weak handle to a shared_ptr.
+///
+/// Mirrors lockLocalParticipant(): Room::remoteParticipant() returns a
+/// std::weak_ptr that lock()s to nullptr once the participant disconnects, so
+/// this helper throws rather than letting callers dereference a null pointer.
+inline std::shared_ptr<RemoteParticipant> lockRemoteParticipant(const Room& room, const std::string& identity) {
+  auto participant = room.remoteParticipant(identity).lock();
+  if (!participant) {
+    throw std::runtime_error("Remote participant '" + identity + "' handle is expired");
+  }
+  return participant;
+}
+
+/// Pointer overload of lockRemoteParticipant(); throws if @p room is null.
+inline std::shared_ptr<RemoteParticipant> lockRemoteParticipant(const Room* room, const std::string& identity) {
+  if (room == nullptr) {
+    throw std::runtime_error("Room is null");
+  }
+  return lockRemoteParticipant(*room, identity);
+}
+
 inline std::array<std::string, 2> getDataTrackTestTokens() {
   const char* token_a = std::getenv("LIVEKIT_TOKEN_A");
   if (token_a == nullptr || std::string(token_a).empty()) {
@@ -164,7 +207,7 @@ inline void waitForParticipantVisibility(const std::vector<std::unique_ptr<Room>
     if (!room || room->localParticipant().expired()) {
       throw std::runtime_error("Test room is missing a local participant after connect");
     }
-    participant_identities.push_back(room->localParticipant().lock()->identity());
+    participant_identities.push_back(lockLocalParticipant(room.get())->identity());
   }
 
   auto start = std::chrono::steady_clock::now();

@@ -166,17 +166,18 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
   std::cout << "Receiver connected - Room: " << receiver_info.name << " (SID: " << receiver_info.sid.value_or("unknown")
             << ")" << std::endl;
 
-  std::string receiver_identity = receiver_room->localParticipant().lock()->identity();
+  std::string receiver_identity = lockLocalParticipant(*receiver_room)->identity();
 
   std::atomic<int> total_received{0};
 
   // Register RPC handler that processes max payloads
-  receiver_room->localParticipant().lock()->registerRpcMethod(
-      "max-payload-stress", [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
-        total_received++;
-        // Echo the payload back for round-trip verification
-        return data.payload;
-      });
+  lockLocalParticipant(*receiver_room)
+      ->registerRpcMethod("max-payload-stress",
+                          [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
+                            total_received++;
+                            // Echo the payload back for round-trip verification
+                            return data.payload;
+                          });
 
   // Create caller room
   auto caller_room = std::make_unique<Room>();
@@ -202,9 +203,7 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
   auto start_time = std::chrono::steady_clock::now();
   auto duration = std::chrono::seconds(config_.stress_duration_seconds);
 
-  // Hold the local participant alive for the lifetime of the caller threads.
-  auto caller_lp = caller_room->localParticipant().lock();
-  ASSERT_NE(caller_lp, nullptr);
+  ASSERT_NO_THROW(lockLocalParticipant(*caller_room));
 
   // Create caller threads
   std::vector<std::thread> caller_threads;
@@ -223,6 +222,8 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
         auto call_start = std::chrono::high_resolution_clock::now();
 
         try {
+          auto caller_lp = lockLocalParticipant(*caller_room);
+          ASSERT_NE(caller_lp, nullptr);
           std::string response = caller_lp->performRpc(receiver_identity, "max-payload-stress", payload, 60.0);
 
           auto call_end = std::chrono::high_resolution_clock::now();
@@ -317,7 +318,7 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
   double success_rate = (stats.totalCalls() > 0) ? (100.0 * stats.successfulCalls() / stats.totalCalls()) : 0.0;
   EXPECT_GT(success_rate, 95.0) << "Success rate below 95%";
 
-  receiver_room->localParticipant().lock()->unregisterRpcMethod("max-payload-stress");
+  lockLocalParticipant(*receiver_room)->unregisterRpcMethod("max-payload-stress");
   caller_room.reset();
   receiver_room.reset();
 }
@@ -347,16 +348,17 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   std::cout << "Receiver connected - Room: " << receiver_info.name << " (SID: " << receiver_info.sid.value_or("unknown")
             << ")" << std::endl;
 
-  std::string receiver_identity = receiver_room->localParticipant().lock()->identity();
+  std::string receiver_identity = lockLocalParticipant(*receiver_room)->identity();
 
   std::atomic<int> total_received{0};
 
   // Register RPC handler
-  receiver_room->localParticipant().lock()->registerRpcMethod(
-      "small-payload-stress", [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
-        total_received++;
-        return data.payload;
-      });
+  lockLocalParticipant(*receiver_room)
+      ->registerRpcMethod("small-payload-stress",
+                          [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
+                            total_received++;
+                            return data.payload;
+                          });
 
   // Create caller room
   auto caller_room = std::make_unique<Room>();
@@ -383,8 +385,7 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   auto duration = std::chrono::seconds(config_.stress_duration_seconds);
 
   // Hold the local participant alive for the lifetime of the caller threads.
-  auto caller_lp = caller_room->localParticipant().lock();
-  ASSERT_NE(caller_lp, nullptr);
+  ASSERT_NO_THROW(lockLocalParticipant(*caller_room));
 
   // Create caller threads
   std::vector<std::thread> caller_threads;
@@ -402,6 +403,8 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
         auto call_start = std::chrono::high_resolution_clock::now();
 
         try {
+          auto caller_lp = lockLocalParticipant(*caller_room);
+          ASSERT_NE(caller_lp, nullptr);
           std::string response = caller_lp->performRpc(receiver_identity, "small-payload-stress", payload, 60.0);
 
           auto call_end = std::chrono::high_resolution_clock::now();
@@ -491,7 +494,7 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   double success_rate = (stats.totalCalls() > 0) ? (100.0 * stats.successfulCalls() / stats.totalCalls()) : 0.0;
   EXPECT_GT(success_rate, 95.0) << "Success rate below 95%";
 
-  receiver_room->localParticipant().lock()->unregisterRpcMethod("small-payload-stress");
+  lockLocalParticipant(*receiver_room)->unregisterRpcMethod("small-payload-stress");
   caller_room.reset();
   receiver_room.reset();
 }
@@ -514,8 +517,8 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   bool b_connected = room_b->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(b_connected) << "Room B failed to connect";
 
-  std::string identity_a = room_a->localParticipant().lock()->identity();
-  std::string identity_b = room_b->localParticipant().lock()->identity();
+  std::string identity_a = lockLocalParticipant(*room_a)->identity();
+  std::string identity_b = lockLocalParticipant(*room_b)->identity();
 
   ASSERT_TRUE(waitForParticipant(room_a.get(), identity_b, 10s)) << "Room B not visible to Room A";
   ASSERT_TRUE(waitForParticipant(room_b.get(), identity_a, 10s)) << "Room A not visible to Room B";
@@ -524,14 +527,14 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   std::atomic<int> b_received{0};
 
   // Register handlers on both sides - echo payload back for verification
-  room_a->localParticipant().lock()->registerRpcMethod(
+  lockLocalParticipant(*room_a)->registerRpcMethod(
       "ping", [&a_received](const RpcInvocationData& data) -> std::optional<std::string> {
         a_received++;
         // Echo the payload back for round-trip verification
         return data.payload;
       });
 
-  room_b->localParticipant().lock()->registerRpcMethod(
+  lockLocalParticipant(*room_b)->registerRpcMethod(
       "ping", [&b_received](const RpcInvocationData& data) -> std::optional<std::string> {
         b_received++;
         // Echo the payload back for round-trip verification
@@ -550,10 +553,7 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   auto duration = std::chrono::seconds(config_.stress_duration_seconds);
 
   // Hold both local participants alive for the lifetime of the worker threads.
-  auto room_a_lp = room_a->localParticipant().lock();
-  auto room_b_lp = room_b->localParticipant().lock();
-  ASSERT_NE(room_a_lp, nullptr);
-  ASSERT_NE(room_b_lp, nullptr);
+  ASSERT_NO_THROW(lockLocalParticipant(*room_a));
 
   // A calling B
   std::thread thread_a_to_b([&]() {
@@ -569,6 +569,8 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
       auto call_start = std::chrono::high_resolution_clock::now();
 
       try {
+        auto room_a_lp = lockLocalParticipant(*room_a);
+        ASSERT_NE(room_a_lp, nullptr);
         std::string response = room_a_lp->performRpc(identity_b, "ping", payload, 60.0);
 
         auto call_end = std::chrono::high_resolution_clock::now();
@@ -600,6 +602,8 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
     }
   });
 
+  ASSERT_NO_THROW(lockLocalParticipant(*room_b));
+
   // B calling A
   std::thread thread_b_to_a([&]() {
     while (running.load()) {
@@ -614,6 +618,8 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
       auto call_start = std::chrono::high_resolution_clock::now();
 
       try {
+        auto room_b_lp = lockLocalParticipant(*room_b);
+        ASSERT_NE(room_b_lp, nullptr);
         std::string response = room_b_lp->performRpc(identity_a, "ping", payload, 60.0);
 
         auto call_end = std::chrono::high_resolution_clock::now();
@@ -688,8 +694,8 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   EXPECT_GT(stats_a_to_b.successfulCalls(), 0);
   EXPECT_GT(stats_b_to_a.successfulCalls(), 0);
 
-  room_a->localParticipant().lock()->unregisterRpcMethod("ping");
-  room_b->localParticipant().lock()->unregisterRpcMethod("ping");
+  lockLocalParticipant(*room_a)->unregisterRpcMethod("ping");
+  lockLocalParticipant(*room_b)->unregisterRpcMethod("ping");
   room_a.reset();
   room_b.reset();
 }
@@ -709,12 +715,12 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
-  std::string receiver_identity = receiver_room->localParticipant().lock()->identity();
+  std::string receiver_identity = lockLocalParticipant(*receiver_room)->identity();
 
   std::atomic<int> total_received{0};
 
-  receiver_room->localParticipant().lock()->registerRpcMethod(
-      "burst-test", [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
+  lockLocalParticipant(*receiver_room)
+      ->registerRpcMethod("burst-test", [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
         total_received++;
         // Echo the payload back for round-trip verification
         return data.payload;
@@ -738,8 +744,7 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   auto duration = std::chrono::seconds(config_.stress_duration_seconds);
 
   // Hold the local participant alive for the lifetime of the burst threads.
-  auto caller_lp = caller_room->localParticipant().lock();
-  ASSERT_NE(caller_lp, nullptr);
+  ASSERT_NO_THROW(lockLocalParticipant(*caller_room));
 
   // Multiple threads sending as fast as possible
   std::vector<std::thread> burst_threads;
@@ -757,6 +762,8 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
         auto call_start = std::chrono::high_resolution_clock::now();
 
         try {
+          auto caller_lp = lockLocalParticipant(*caller_room);
+          ASSERT_NE(caller_lp, nullptr);
           std::string response = caller_lp->performRpc(receiver_identity, "burst-test", payload, 60.0);
 
           auto call_end = std::chrono::high_resolution_clock::now();
@@ -836,7 +843,7 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
 
   EXPECT_GT(stats.successfulCalls(), 0);
 
-  receiver_room->localParticipant().lock()->unregisterRpcMethod("burst-test");
+  lockLocalParticipant(*receiver_room)->unregisterRpcMethod("burst-test");
   caller_room.reset();
   receiver_room.reset();
 }

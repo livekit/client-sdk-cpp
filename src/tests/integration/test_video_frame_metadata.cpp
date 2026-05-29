@@ -41,7 +41,7 @@ TEST_F(VideoFrameMetadataServerTest, UserTimestampRoundTripsToReceiverEventCallb
   ASSERT_FALSE(sender_room.localParticipant().expired());
   ASSERT_FALSE(receiver_room.localParticipant().expired());
 
-  const std::string sender_identity = sender_room.localParticipant().lock()->identity();
+  const std::string sender_identity = lockLocalParticipant(sender_room)->identity();
   ASSERT_FALSE(sender_identity.empty());
   ASSERT_TRUE(waitForParticipant(&receiver_room, sender_identity, 10s));
 
@@ -71,7 +71,7 @@ TEST_F(VideoFrameMetadataServerTest, UserTimestampRoundTripsToReceiverEventCallb
   publish_options.simulcast = false;
   publish_options.packet_trailer_features.user_timestamp = true;
 
-  ASSERT_NO_THROW(sender_room.localParticipant().lock()->publishTrack(track, publish_options));
+  ASSERT_NO_THROW(lockLocalParticipant(sender_room)->publishTrack(track, publish_options));
 
   const auto track_ready_deadline = std::chrono::steady_clock::now() + 10s;
   bool receiver_track_ready = false;
@@ -144,7 +144,7 @@ TEST_F(VideoFrameMetadataServerTest, UserTimestampRoundTripsToReceiverEventCallb
 
   receiver_room.clearOnVideoFrameCallback(sender_identity, track_name);
   if (track->publication()) {
-    sender_room.localParticipant().lock()->unpublishTrack(track->publication()->sid());
+    lockLocalParticipant(sender_room)->unpublishTrack(track->publication()->sid());
   }
 
   ASSERT_TRUE(got_metadata) << "Timed out waiting for user timestamp metadata";
