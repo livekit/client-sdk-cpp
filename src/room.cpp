@@ -81,14 +81,14 @@ Room::~Room() {
   }
 
   int listener_to_remove = 0;
-  std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
+  std::shared_ptr<LocalParticipant> local_participant_to_cleanup;
   std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> remote_participants_to_cleanup;
   {
     const std::scoped_lock<std::mutex> g(lock_);
     listener_to_remove = listener_id_;
     listener_id_ = 0;
     connection_state_ = ConnectionState::Disconnected;
-    // Move participant state out so accessors return nullptr during teardown.
+    // Move participant state out so weak handles expire during teardown.
     local_participant_to_cleanup = std::move(local_participant_);
     remote_participants_to_cleanup = std::move(remote_participants_);
     room_handle_.reset();
@@ -149,7 +149,7 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
     auto new_room_info = fromProto(owned_room.info());
 
     // Setup local particpant
-    std::unique_ptr<LocalParticipant> new_local_participant;
+    std::shared_ptr<LocalParticipant> new_local_participant;
     {
       const auto& owned_local = connectCb.result().local_participant();
       const auto& pinfo = owned_local.info();
@@ -166,7 +166,7 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
       // Participant base stores a weak_ptr<FfiHandle>, so share the room handle
       FfiHandle participant_handle(static_cast<uintptr_t>(owned_local.handle().id()));
       new_local_participant =
-          std::make_unique<LocalParticipant>(std::move(participant_handle), pinfo.sid(), pinfo.name(), pinfo.identity(),
+          std::make_shared<LocalParticipant>(std::move(participant_handle), pinfo.sid(), pinfo.name(), pinfo.identity(),
                                              pinfo.metadata(), std::move(attrs), kind, reason);
     }
 
@@ -189,11 +189,11 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
     }
 
     // Setup e2eeManager
-    std::unique_ptr<E2EEManager> new_e2ee_manager;
+    std::shared_ptr<E2EEManager> new_e2ee_manager;
     if (options.encryption) {
       LK_LOG_INFO("creating E2eeManager");
       new_e2ee_manager =
-          std::unique_ptr<E2EEManager>(new E2EEManager(new_room_handle->get(), options.encryption.value()));
+          std::shared_ptr<E2EEManager>(new E2EEManager(new_room_handle->get(), options.encryption.value()));
     }
 
     // Publish all state atomically under lock
@@ -211,7 +211,7 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
     return true;
   } catch (const std::exception& e) {
     int listener_to_remove = 0;
-    std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
+    std::shared_ptr<LocalParticipant> local_participant_to_cleanup;
     {
       const std::scoped_lock<std::mutex> g(lock_);
       connection_state_ = ConnectionState::Disconnected;
@@ -242,23 +242,23 @@ RoomInfoData Room::roomInfo() const {
   return room_info_;
 }
 
-LocalParticipant* Room::localParticipant() const {
+std::weak_ptr<LocalParticipant> Room::localParticipant() const {
   const std::scoped_lock<std::mutex> g(lock_);
-  return local_participant_.get();
+  return local_participant_;
 }
 
-RemoteParticipant* Room::remoteParticipant(const std::string& identity) const {
+std::weak_ptr<RemoteParticipant> Room::remoteParticipant(const std::string& identity) const {
   const std::scoped_lock<std::mutex> g(lock_);
   auto it = remote_participants_.find(identity);
-  return it == remote_participants_.end() ? nullptr : it->second.get();
+  return it == remote_participants_.end() ? std::weak_ptr<RemoteParticipant>{} : it->second;
 }
 
-std::vector<RemoteParticipant*> Room::remoteParticipants() const {
+std::vector<std::weak_ptr<RemoteParticipant>> Room::remoteParticipants() const {
   const std::scoped_lock<std::mutex> guard(lock_);
-  std::vector<RemoteParticipant*> out;
+  std::vector<std::weak_ptr<RemoteParticipant>> out;
   out.reserve(remote_participants_.size());
   for (const auto& kv : remote_participants_) {
-    out.push_back(kv.second.get());
+    out.push_back(kv.second);
   }
   return out;
 }
@@ -280,9 +280,9 @@ std::future<SessionStats> Room::getStats() const {
   return FfiClient::instance().getSessionStatsAsync(handle->get());
 }
 
-E2EEManager* Room::e2eeManager() const {
+std::weak_ptr<E2EEManager> Room::e2eeManager() const {
   const std::scoped_lock<std::mutex> g(lock_);
-  return e2ee_manager_.get();
+  return e2ee_manager_;
 }
 
 void Room::registerTextStreamHandler(const std::string& topic, TextStreamHandler handler) {
@@ -1143,10 +1143,10 @@ void Room::onEvent(const FfiEvent& event) {
 
           // Move state out of lock scope before destroying to avoid holding lock
           // during potentially long destructors
-          std::unique_ptr<LocalParticipant> old_local_participant;
+          std::shared_ptr<LocalParticipant> old_local_participant;
           std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> old_remote_participants;
           std::shared_ptr<FfiHandle> old_room_handle;
-          std::unique_ptr<E2EEManager> old_e2ee_manager;
+          std::shared_ptr<E2EEManager> old_e2ee_manager;
           std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> old_text_readers;
           std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> old_byte_readers;
 

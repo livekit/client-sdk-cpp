@@ -481,7 +481,7 @@ int main(int argc, char* argv[]) {
       throw std::runtime_error("Failed to connect to LiveKit room");
     }
 
-    auto* local_participant = room.localParticipant();
+    auto local_participant = room.localParticipant().lock();
     if (local_participant == nullptr) {
       throw std::runtime_error("Local participant unavailable after connect");
     }

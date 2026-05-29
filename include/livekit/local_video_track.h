@@ -41,7 +41,9 @@ class VideoSource;
 ///
 ///    auto source = std::make_shared<VideoSource>(1280, 720);
 ///    auto track = LocalVideoTrack::createLocalVideoTrack("cam", source);
-///    room->localParticipant()->publishTrack(track);
+///    if (auto lp = room->localParticipant().lock()) {
+///      lp->publishTrack(track);
+///    }
 ///    // Capture frames on the video thread via `source`, not via the track.
 ///
 ///  Muting a local video track stops transmitting video to the room, but

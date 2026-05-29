@@ -259,7 +259,8 @@ TEST_F(LatencyMeasurementTest, ConnectionTime) {
       // Get room and participant session IDs for debugging
       auto room_info = room->roomInfo();
       std::string room_sid = room_info.sid.has_value() ? room_info.sid.value() : "unknown";
-      std::string participant_sid = room->localParticipant() ? room->localParticipant()->sid() : "unknown";
+      auto latency_local_participant = room->localParticipant().lock();
+      std::string participant_sid = latency_local_participant ? latency_local_participant->sid() : "unknown";
 
       std::cout << "  Iteration " << (i + 1) << ": " << std::fixed << std::setprecision(2) << latency_ms << " ms"
                 << " | participant_sid=" << participant_sid << " | room_sid=" << room_sid << std::endl;
@@ -337,7 +338,7 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
   bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
-  std::string receiver_identity = receiver_room->localParticipant()->identity();
+  std::string receiver_identity = receiver_room->localParticipant().lock()->identity();
   std::cout << "Receiver connected as: " << receiver_identity << std::endl;
 
   // Create sender room (using token_a)
@@ -345,7 +346,7 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
   bool sender_connected = sender_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(sender_connected) << "Sender failed to connect";
 
-  std::string sender_identity = sender_room->localParticipant()->identity();
+  std::string sender_identity = sender_room->localParticipant().lock()->identity();
   std::cout << "Sender connected as: " << sender_identity << std::endl;
 
   // Wait for sender to be visible to receiver
@@ -356,7 +357,7 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
   auto audio_track = LocalAudioTrack::createLocalAudioTrack("latency-test", audio_source);
 
   TrackPublishOptions publish_options;
-  sender_room->localParticipant()->publishTrack(audio_track, publish_options);
+  sender_room->localParticipant().lock()->publishTrack(audio_track, publish_options);
   ASSERT_NE(audio_track->publication(), nullptr) << "Failed to publish audio track";
 
   std::cout << "Audio track published, waiting for subscription..." << std::endl;
@@ -492,7 +493,7 @@ TEST_F(LatencyMeasurementTest, AudioLatency) {
   }
 
   // Clean up
-  sender_room->localParticipant()->unpublishTrack(audio_track->publication()->sid());
+  sender_room->localParticipant().lock()->unpublishTrack(audio_track->publication()->sid());
 
   // Tracing is automatically handled by LiveKitTestBase
   // Stats for audio_latency will be printed in TearDown()
@@ -524,8 +525,8 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
   ASSERT_TRUE(room_a->connect(config_.url, config_.token_a, options)) << "Participant A failed to connect";
   ASSERT_TRUE(room_b->connect(config_.url, config_.token_b, options)) << "Participant B failed to connect";
 
-  std::string id_a = room_a->localParticipant()->identity();
-  std::string id_b = room_b->localParticipant()->identity();
+  std::string id_a = room_a->localParticipant().lock()->identity();
+  std::string id_b = room_b->localParticipant().lock()->identity();
   std::cout << "Participant A: " << id_a << std::endl;
   std::cout << "Participant B: " << id_b << std::endl;
 
@@ -540,8 +541,8 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
   ASSERT_NE(track_b, nullptr);
 
   TrackPublishOptions publish_options;
-  room_a->localParticipant()->publishTrack(track_a, publish_options);
-  room_b->localParticipant()->publishTrack(track_b, publish_options);
+  room_a->localParticipant().lock()->publishTrack(track_a, publish_options);
+  room_b->localParticipant().lock()->publishTrack(track_b, publish_options);
 
   auto track_from_a_on_b = delegate_b.waitForAudioTrackFromParticipant(id_a, 10s);
   auto track_from_b_on_a = delegate_a.waitForAudioTrackFromParticipant(id_b, 10s);
@@ -764,10 +765,10 @@ TEST_F(LatencyMeasurementTest, FullDeplexAudioLatency) {
   // Tracing is automatically handled by LiveKitTestBase
   // Stats for A_to_B, B_to_A, round_trip will be printed in TearDown()
   if (track_a->publication()) {
-    room_a->localParticipant()->unpublishTrack(track_a->publication()->sid());
+    room_a->localParticipant().lock()->unpublishTrack(track_a->publication()->sid());
   }
   if (track_b->publication()) {
-    room_b->localParticipant()->unpublishTrack(track_b->publication()->sid());
+    room_b->localParticipant().lock()->unpublishTrack(track_b->publication()->sid());
   }
 
   EXPECT_GT(round_trip_count.load(), 0) << "At least one round-trip latency measurement should be recorded";

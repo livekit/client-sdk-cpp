@@ -148,27 +148,34 @@ public:
   ///   - published tracks (audio/video/screen)
   ///   - identity, SID, metadata
   ///   - publishing/unpublishing operations
-  /// @return Non-null pointer while connected; nullptr before connect, after
-  ///   room end-of-stream teardown, or when the room is destroyed.
-  LocalParticipant* localParticipant() const;
+  ///
+  /// The returned handle is non-owning. Call @c lock() to obtain a usable
+  /// @c weak_ptr; the result is empty (`lock() == nullptr`) before connect,
+  /// after room end-of-stream teardown, or once the room is destroyed. This
+  /// lets callers that cache the handle detect teardown instead of holding a
+  /// dangling pointer.
+  ///
+  /// @return Weak handle to the local participant.
+  std::weak_ptr<LocalParticipant> localParticipant() const;
 
   /// Look up a remote participant by identity.
   ///
-  /// @param identity The participant’s identity string (not SID)
-  /// @return Pointer to RemoteParticipant if present, otherwise nullptr (also
-  ///   nullptr after room teardown or when the room is destroyed).
-  /// RemoteParticipant contains:
+  /// @param identity The participant’s identity string (not SID).
+  /// @return Weak handle to the RemoteParticipant if present, otherwise an
+  ///   empty handle (`lock() == nullptr`). The handle also becomes empty once
+  ///   the participant disconnects, the room is torn down, or the room is
+  ///   destroyed. RemoteParticipant contains:
   ///   - identity/name/metadata
   ///   - track publications
-  ///  - callbacks for track subscribed/unsubscribed, muted/unmuted
-  RemoteParticipant* remoteParticipant(const std::string& identity) const;
+  ///   - callbacks for track subscribed/unsubscribed, muted/unmuted
+  std::weak_ptr<RemoteParticipant> remoteParticipant(const std::string& identity) const;
 
   /// Returns a snapshot of all current remote participants.
   ///
-  /// @return Vector of non-null pointers to the current remote participants.
-  ///   The pointers are owned by the Room and remain valid until the
+  /// @return Vector of weak handles to the current remote participants. Each
+  ///   handle can be promoted with @c lock(); a handle becomes empty once the
   ///   corresponding participant disconnects or the room is torn down.
-  std::vector<RemoteParticipant*> remoteParticipants() const;
+  std::vector<std::weak_ptr<RemoteParticipant>> remoteParticipants() const;
 
   /// Returns the current connection state of the room.
   ConnectionState connectionState() const;
@@ -231,13 +238,16 @@ public:
   /// If no handler exists for the topic, this function is a no-op.
   void unregisterByteStreamHandler(const std::string& topic);
 
-  /// Returns the room's E2EE manager, or nullptr if E2EE was not enabled at
-  /// connect time.
+  /// Returns the room's E2EE manager as a weak handle, or an empty handle if
+  /// E2EE was not enabled at connect time.
   ///
   /// Notes:
   /// - The manager is created after a successful connect().
-  /// - If E2EE was not configured in RoomOptions, this will return nullptr.
-  E2EEManager* e2eeManager() const;
+  /// - If E2EE was not configured in RoomOptions, @c lock() returns nullptr.
+  /// - The handle also becomes empty once the room is torn down or destroyed.
+  ///
+  /// @return Weak handle to the E2EE manager.
+  std::weak_ptr<E2EEManager> e2eeManager() const;
 
   // ---------------------------------------------------------------
   // Frame callbacks
@@ -277,7 +287,7 @@ private:
   RoomDelegate* delegate_ = nullptr; // Not owned
   RoomInfoData room_info_;
   std::shared_ptr<FfiHandle> room_handle_;
-  std::unique_ptr<LocalParticipant> local_participant_;
+  std::shared_ptr<LocalParticipant> local_participant_;
   std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> remote_participants_;
   // Data stream
   std::unordered_map<std::string, TextStreamHandler> text_stream_handlers_;
@@ -285,7 +295,7 @@ private:
   std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> text_stream_readers_;
   std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> byte_stream_readers_;
   // E2EE
-  std::unique_ptr<E2EEManager> e2ee_manager_;
+  std::shared_ptr<E2EEManager> e2ee_manager_;
   std::shared_ptr<SubscriptionThreadDispatcher> subscription_thread_dispatcher_;
 
   // FfiClient listener ID (0 means no listener registered)

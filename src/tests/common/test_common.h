@@ -130,7 +130,7 @@ inline uint64_t getTimestampUs() {
 inline bool waitForParticipant(Room* room, const std::string& identity, std::chrono::milliseconds timeout) {
   auto start = std::chrono::steady_clock::now();
   while (std::chrono::steady_clock::now() - start < timeout) {
-    if (room->remoteParticipant(identity) != nullptr) {
+    if (!room->remoteParticipant(identity).expired()) {
       return true;
     }
     std::this_thread::sleep_for(100ms);
@@ -161,10 +161,10 @@ inline void waitForParticipantVisibility(const std::vector<std::unique_ptr<Room>
   std::vector<std::string> participant_identities;
   participant_identities.reserve(rooms.size());
   for (const auto& room : rooms) {
-    if (!room || room->localParticipant() == nullptr) {
+    if (!room || room->localParticipant().expired()) {
       throw std::runtime_error("Test room is missing a local participant after connect");
     }
-    participant_identities.push_back(room->localParticipant()->identity());
+    participant_identities.push_back(room->localParticipant().lock()->identity());
   }
 
   auto start = std::chrono::steady_clock::now();
@@ -172,7 +172,7 @@ inline void waitForParticipantVisibility(const std::vector<std::unique_ptr<Room>
     bool all_visible = true;
     for (size_t i = 0; i < rooms.size(); ++i) {
       const auto& room = rooms[i];
-      if (!room || room->localParticipant() == nullptr) {
+      if (!room || room->localParticipant().expired()) {
         throw std::runtime_error("Test room is missing a local participant after connect");
       }
 
@@ -181,7 +181,7 @@ inline void waitForParticipantVisibility(const std::vector<std::unique_ptr<Room>
           continue;
         }
 
-        if (room->remoteParticipant(participant_identities[j]) == nullptr) {
+        if (room->remoteParticipant(participant_identities[j]).expired()) {
           all_visible = false;
           break;
         }
