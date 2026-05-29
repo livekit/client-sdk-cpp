@@ -428,6 +428,59 @@ std::future<std::vector<RtcStats>> FfiClient::getTrackStatsAsync(uintptr_t track
   return fut;
 }
 
+std::future<SessionStats> FfiClient::getSessionStatsAsync(uintptr_t room_handle) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<SessionStats>(
+      async_id,
+      // match
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_get_session_stats() && event.get_session_stats().async_id() == async_id;
+      },
+      // handler
+      [](const proto::FfiEvent& event, std::promise<SessionStats>& pr) {
+        const auto& cb = event.get_session_stats();
+        if (cb.has_error()) {
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
+          return;
+        }
+        if (!cb.has_result()) {
+          pr.set_exception(
+              std::make_exception_ptr(std::runtime_error("GetSessionStatsCallback missing result and error")));
+          return;
+        }
+
+        const auto& result = cb.result();
+        SessionStats stats;
+        stats.publisher_stats.reserve(result.publisher_stats_size());
+        for (const auto& ps : result.publisher_stats()) {
+          stats.publisher_stats.push_back(fromProto(ps));
+        }
+        stats.subscriber_stats.reserve(result.subscriber_stats_size());
+        for (const auto& ps : result.subscriber_stats()) {
+          stats.subscriber_stats.push_back(fromProto(ps));
+        }
+        pr.set_value(std::move(stats));
+      });
+
+  proto::FfiRequest req;
+  auto* get_session_stats_req = req.mutable_get_session_stats();
+  get_session_stats_req->set_room_handle(room_handle);
+  get_session_stats_req->set_request_async_id(async_id);
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_get_session_stats()) {
+      logAndThrow("FfiResponse missing get_session_stats");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
 // Participant APIs Implementation
 std::future<proto::OwnedTrackPublication> FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
                                                                        std::uint64_t track_handle,

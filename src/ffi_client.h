@@ -97,6 +97,8 @@ public:
   // Track APIs
   std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);
 
+  std::future<SessionStats> getSessionStatsAsync(uintptr_t room_handle);
+
   // Participant APIs
   std::future<proto::OwnedTrackPublication> publishTrackAsync(std::uint64_t local_participant_handle,
                                                               std::uint64_t track_handle,
