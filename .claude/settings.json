@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh search *)",
+      "Bash(curl *)",
+      "Bash(git *)",
+      "Bash(sudo *)",
+      "Bash(apt-get *)",
+      "Bash(apt *)",
+      "Bash(dpkg *)",
+      "Bash(rpm *)",
+      "Bash(yum *)",
+      "Bash(zypper *)"
+    ]
+  }
+}
