@@ -8,21 +8,25 @@
 
 <!--END_BANNER_IMAGE-->
 
-# C++ SDK for LiveKit
+# C++ client SDK for LiveKit
 
 <!--BEGIN_DESCRIPTION-->
 Use this SDK to add realtime video, audio and data features to your C++ app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications such as multi-modal AI, live streaming, or video calls with just a few lines of code.
 <!--END_DESCRIPTION-->
 
+[![Builds](https://github.com/livekit/client-sdk-cpp/actions/workflows/builds.yml/badge.svg?branch=main)](https://github.com/livekit/client-sdk-cpp/actions/workflows/builds.yml)
+[![Tests](https://github.com/livekit/client-sdk-cpp/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/livekit/client-sdk-cpp/actions/workflows/tests.yml)
+
 ## Docs
 
-- [API reference](https://docs.livekit.io/reference/client-sdk-cpp/) (Doxygen)
 - LiveKit docs: [docs.livekit.io](https://docs.livekit.io)
+- [SDK reference](https://docs.livekit.io/reference/client-sdk-cpp/)
+- [Repository docs](./docs/README.md)
 
-## Install
+## Using Real-time SDK
 
-The fastest way to consume the SDK is via the
-[**cpp-example-collection**](https://github.com/livekit-examples/cpp-example-collection),
+This project uses [CMake](https://cmake.org/) for building the SDK itself and for consuming as a library. The
+[**cpp-example-collection**](https://github.com/livekit-examples/cpp-example-collection) contains a [LiveKitSDK.cmake](https://github.com/livekit-examples/cpp-example-collection/blob/main/cmake/LiveKitSDK.cmake)
 which downloads a prebuilt release at CMake configure time — no source build
 required.
 
@@ -34,71 +38,142 @@ cd client-sdk-cpp
 ./build.sh release        # or .\build.cmd release on Windows
 ```
 
-You'll need CMake ≥ 3.20, a stable Rust toolchain, and platform-specific build
-deps (protobuf, abseil, openssl on Linux). See [docs/building.md](docs/building.md)
-for the full prerequisites table, Docker recipe, CMake presets, and
-troubleshooting.
+You'll need `cmake` ≥ 3.20, a stable Rust toolchain, and platform-specific build
+deps (`protobuf`, `abseil`, `openssl` on Linux). See the [Building](docs/building.md) guide
+for full prerequisites table, Docker recipe, CMake presets, and troubleshooting.
 
-## Hello world
+## Hello, LiveKit
 
-A minimal program that initializes the SDK, connects to a room, and prints
-events as remote tracks are subscribed:
+Here is a minimal example of the `main` function for sending and receiving video and data track frames. The [sender](https://github.com/livekit-examples/cpp-example-collection/blob/main/hello_livekit/sender/main.cpp) plays the role of a robot or camera, publishing video and data track frames every 100 ms; the [receiver](https://github.com/livekit-examples/cpp-example-collection/blob/main/hello_livekit/receiver/main.cpp) stands in for the cloud service or operator UI, logging every frame it sees. In a production system the synthetic video would be a robot's perception output and the data track would carry sensor readings or operator commands, but the connection and publishing pattern is the same. Full source for both processes lives in the [cpp-example-collection](https://github.com/livekit-examples/cpp-example-collection/tree/main/hello_livekit) repo.
+
+The sender creates tracks and publishes data.
+
+**Initialize LiveKit and connect to the room**
 
 ```cpp
-#include <atomic>
-#include <csignal>
-#include <iostream>
-#include <thread>
+// get your url and token from env vars, args, etc
+const std::string url = "wss://hello.livekit.cloud";
+const std::string token = "sender_token";
 
-#include <livekit/livekit.h>
+// Start the LiveKit SDK before creating rooms or tracks.
+livekit::initialize(LogLevel::Info, LogSink::kConsole);
 
-class Delegate : public livekit::RoomDelegate {
-public:
-  void onParticipantConnected(livekit::Room&,
-                              const livekit::ParticipantConnectedEvent& ev) override {
-    std::cout << "participant joined: " << ev.participant->identity() << "\n";
-  }
+// set your room options, here we will use defaults
+livekit::RoomOptions options;
 
-  void onTrackSubscribed(livekit::Room&,
-                         const livekit::TrackSubscribedEvent& ev) override {
-    std::cout << "subscribed: kind=" << static_cast<int>(ev.track->kind())
-              << " sid=" << ev.publication->sid() << "\n";
-    // For real apps: wrap `ev.track` in AudioStream / VideoStream to receive frames.
-  }
-};
-
-std::atomic<bool> running{true};
-
-int main(int argc, char* argv[]) {
-  if (argc < 3) {
-    std::cerr << "usage: " << argv[0] << " <ws-url> <token>\n";
-    return 1;
-  }
-  std::signal(SIGINT, [](int) { running = false; });
-
-  livekit::initialize();
-
-  Delegate delegate;
-  auto room = std::make_unique<livekit::Room>();
-  room->setDelegate(&delegate);
-
-  livekit::RoomOptions options;
-  options.auto_subscribe = true;
-  if (!room->connect(argv[1], argv[2], options)) {
-    std::cerr << "connect failed\n";
-    return 1;
-  }
-
-  while (running) std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-  livekit::shutdown();
-  return 0;
+// Create the room & connect to the room using a server URL and participant token.
+auto room = std::make_unique<livekit::Room>();
+if (!room->connect(url, token, options)) {
+  std::cerr << "Failed to connect to LiveKit\n";
+  return 1;
 }
 ```
 
-For runnable variants (publishing audio, video rendering with SDL, RPC, data
-streams, E2EE), see the
-[cpp-example-collection](https://github.com/livekit-examples/cpp-example-collection).
+**Create the VideoSource, which provides frames to the VideoTrack, then create and publish the VideoTrack**
+
+```cpp
+// get the local participant to create tracks
+auto* participant = room->localParticipant();
+
+// Publish a synthetic camera track named "camera0" backed by a VideoSource.
+auto video_source = std::make_shared<VideoSource>(640, 480);
+auto video_track = participant->publishVideoTrack("camera0", video_source, TrackSource::SOURCE_CAMERA);
+if (!video_track) {
+  std::cerr << "Failed to publish video track\n";
+  return 1;
+}
+```
+
+**Create and publish the DataTrack**
+
+```cpp
+// Publish a data track named "app-data" for app messages.
+auto data_track_result = participant->publishDataTrack("app-data");
+if (!data_track_result) {
+  std::cerr << "Failed to publish data track\n";
+  return 1;
+}
+auto data_track = data_track_result.value();
+```
+
+**Publish video and data track frames every 100ms**
+
+```cpp
+int count = 0;
+
+while (true)
+{
+  // create a 640x480 RGBA video frame
+  auto vf = livekit::VideoFrame::create(640, 480, VideoBufferType::RGBA);
+
+  // capture the frame. This publishes the frame on VideoTrack camera0
+  video_source->captureFrame(vf);
+
+  const std::string message = "hello #" + std::to_string(count);
+  const auto now_microsec =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
+  // create and push stamped DataTrackFrame
+  const livekit::DataTrackFrame frame{
+        std::vector<std::uint8_t>(message.begin(), message.end()),
+        now_microsec,
+        };
+
+  // optionally, capture the result
+  auto push_result = data_track->tryPush(frame);
+  if (!push_result) {
+    const auto& error = push_result.error();
+    std::cerr << "[warn] Failed to push data frame: code=" << static_cast<std::uint32_t>(error.code)
+              << " message=" << error.message << "\n";
+  }
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+```
+
+The receiver side setup is the same, except now we set callbacks to the relevant tracks.
+
+**Initialize LiveKit and Connect to the room**
+
+```cpp
+// get your url and token from env vars, args, etc
+const std::string url = "wss://hello.livekit.cloud";
+const std::string token = "receiver_token";
+
+// Start the LiveKit SDK before creating rooms or tracks.
+livekit::initialize(LogLevel::Info, LogSink::kConsole);
+
+// set your room options, here we use the defaults
+livekit::RoomOptions options;
+
+// Create the room & connect to the room using a server URL and participant token.
+auto room = std::make_unique<livekit::Room>();
+if (!room->connect(url, token, options)) {
+  std::cerr << "Failed to connect to LiveKit\n";
+  return 1;
+}
+```
+
+**Set callbacks for new video and data frames**
+
+```cpp
+// the identity of the participant sending video and data frames
+const std::string sender_identity = "sender_identity";
+
+// Set the callback for new video frames from the sender's "camera0" VideoTrack
+room->setOnVideoFrameCallback(sender_identity, "camera0", [](const VideoFrame& frame, std::int64_t) {
+  std::cout << "video frame: " << frame.width() << "x" << frame.height() << "\n";
+});
+
+// Set the callback for new frames on the sender's "app-data" DataTrack
+room->addOnDataFrameCallback(sender_identity, "app-data",
+                             [](const std::vector<std::uint8_t>& payload, std::optional<std::uint64_t>) {
+                               const std::string message(payload.begin(), payload.end());
+                               std::cout << "data message: " << message << "\n";
+                             });
+```
+
+For end-to-end samples and a fuller set of demos, see the [cpp-example-collection repo](https://github.com/livekit-examples/cpp-example-collection).
 
 ## Features
 
@@ -161,10 +236,10 @@ PRs welcome. Issues: <https://github.com/livekit/client-sdk-cpp/issues>.
 <thead><tr><th colspan="2">LiveKit Ecosystem</th></tr></thead>
 <tbody>
 <tr><td>Agents SDKs</td><td><a href="https://github.com/livekit/agents">Python</a> · <a href="https://github.com/livekit/agents-js">Node.js</a></td></tr>
-<tr><td>LiveKit SDKs</td><td><a href="https://github.com/livekit/client-sdk-js">Browser</a> · <a href="https://github.com/livekit/client-sdk-swift">Swift</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (WebGL)</a> · <a href="https://github.com/livekit/client-sdk-esp32">ESP32</a> · <b>C++</b></td></tr>
+<tr><td>LiveKit SDKs</td><td><a href="https://github.com/livekit/client-sdk-js">Browser</a> · <a href="https://github.com/livekit/client-sdk-swift">Swift</a> · <a href="https://github.com/livekit/client-sdk-android">Android</a> · <a href="https://github.com/livekit/client-sdk-flutter">Flutter</a> · <a href="https://github.com/livekit/client-sdk-react-native">React Native</a> · <a href="https://github.com/livekit/client-sdk-cpp">Rust</a> · <a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/client-sdk-unity">Unity</a> · <a href="https://github.com/livekit/client-sdk-unity-web">Unity (WebGL)</a> · <a href="https://github.com/livekit/client-sdk-esp32">ESP32</a> · <b>C++</b></td></tr>
 <tr><td>Starter Apps</td><td><a href="https://github.com/livekit-examples/agent-starter-python">Python Agent</a> · <a href="https://github.com/livekit-examples/agent-starter-node">TypeScript Agent</a> · <a href="https://github.com/livekit-examples/agent-starter-react">React App</a> · <a href="https://github.com/livekit-examples/agent-starter-swift">SwiftUI App</a> · <a href="https://github.com/livekit-examples/agent-starter-android">Android App</a> · <a href="https://github.com/livekit-examples/agent-starter-flutter">Flutter App</a> · <a href="https://github.com/livekit-examples/agent-starter-react-native">React Native App</a> · <a href="https://github.com/livekit-examples/agent-starter-embed">Web Embed</a></td></tr>
 <tr><td>UI Components</td><td><a href="https://github.com/livekit/components-js">React</a> · <a href="https://github.com/livekit/components-android">Android Compose</a> · <a href="https://github.com/livekit/components-swift">SwiftUI</a> · <a href="https://github.com/livekit/components-flutter">Flutter</a></td></tr>
-<tr><td>Server APIs</td><td><a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/server-sdk-go">Golang</a> · <a href="https://github.com/livekit/server-sdk-ruby">Ruby</a> · <a href="https://github.com/livekit/server-sdk-kotlin">Java/Kotlin</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/rust-sdks">Rust</a> · <a href="https://github.com/agence104/livekit-server-sdk-php">PHP (community)</a> · <a href="https://github.com/pabloFuente/livekit-server-sdk-dotnet">.NET (community)</a></td></tr>
+<tr><td>Server APIs</td><td><a href="https://github.com/livekit/node-sdks">Node.js</a> · <a href="https://github.com/livekit/server-sdk-go">Golang</a> · <a href="https://github.com/livekit/server-sdk-ruby">Ruby</a> · <a href="https://github.com/livekit/server-sdk-kotlin">Java/Kotlin</a> · <a href="https://github.com/livekit/python-sdks">Python</a> · <a href="https://github.com/livekit/client-sdk-cpp">Rust</a> · <a href="https://github.com/agence104/livekit-server-sdk-php">PHP (community)</a> · <a href="https://github.com/pabloFuente/livekit-server-sdk-dotnet">.NET (community)</a></td></tr>
 <tr><td>Resources</td><td><a href="https://docs.livekit.io">Docs</a> · <a href="https://docs.livekit.io/mcp">Docs MCP Server</a> · <a href="https://github.com/livekit/livekit-cli">CLI</a> · <a href="https://cloud.livekit.io">LiveKit Cloud</a></td></tr>
 <tr><td>LiveKit Server OSS</td><td><a href="https://github.com/livekit/livekit">LiveKit server</a> · <a href="https://github.com/livekit/egress">Egress</a> · <a href="https://github.com/livekit/ingress">Ingress</a> · <a href="https://github.com/livekit/sip">SIP</a></td></tr>
 <tr><td>Community</td><td><a href="https://community.livekit.io">Developer Community</a> · <a href="https://livekit.io/join-slack">Slack</a> · <a href="https://x.com/livekit">X</a> · <a href="https://www.youtube.com/@livekit_io">YouTube</a></td></tr>
