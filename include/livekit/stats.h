@@ -544,6 +544,14 @@ struct RtcStats {
   RtcStatsVariant stats;
 };
 
+/// Aggregated WebRTC stats for a connected room session.
+struct SessionStats {
+  /// Stats from the publisher peer connection (outbound media).
+  std::vector<RtcStats> publisher_stats;
+  /// Stats from the subscriber peer connection (inbound media).
+  std::vector<RtcStats> subscriber_stats;
+};
+
 // ----------------------
 // fromProto declarations
 // ----------------------
