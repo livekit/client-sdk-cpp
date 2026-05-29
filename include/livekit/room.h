@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <future>
 #include <memory>
 #include <mutex>
 
@@ -24,6 +25,7 @@
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
+#include "livekit/stats.h"
 #include "livekit/subscription_thread_dispatcher.h"
 #include "livekit/visibility.h"
 
@@ -180,6 +182,19 @@ public:
 
   /// Returns the current connection state of the room.
   ConnectionState connectionState() const;
+
+  /// Retrieve aggregated WebRTC stats for this room session.
+  ///
+  /// Dispatches an async request to the server and returns a future that
+  /// resolves with the stats.
+  ///
+  /// @return Future of the room session stats.
+  ///
+  /// @throws std::runtime_error Synchronously, if the room is not currently
+  ///                            connected, or if the FFI request fails to
+  ///                            dispatch.
+  /// @throws std::runtime_error On `future.get()`, if the async request fails.
+  std::future<SessionStats> getStats() const;
 
   /// Register a handler for incoming text streams on a specific topic.
   ///
