@@ -29,7 +29,7 @@ namespace livekit::test {
 class RoomTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
+    livekit::initialize(livekit::LogLevel::Info);
 
     const char* url_env = std::getenv("LIVEKIT_URL");
     const char* token_env = std::getenv("LIVEKIT_TOKEN_A");

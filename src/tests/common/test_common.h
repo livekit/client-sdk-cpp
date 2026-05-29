@@ -497,7 +497,7 @@ private:
 class LiveKitTestBase : public ::testing::Test {
 protected:
   void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
+    livekit::initialize(livekit::LogLevel::Info);
     config_ = TestConfig::fromEnv();
 
     // Tracing is controlled by compile-time macro LIVEKIT_TEST_ENABLE_TRACING
