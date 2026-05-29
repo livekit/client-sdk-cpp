@@ -200,13 +200,15 @@ std::string waitForConsumerIdentity(Room& room, const std::string& requested_ide
   const auto deadline = std::chrono::steady_clock::now() + timeout;
   while (g_running.load() && std::chrono::steady_clock::now() < deadline) {
     if (!requested_identity.empty()) {
-      if (room.remoteParticipant(requested_identity) != nullptr) {
+      if (!room.remoteParticipant(requested_identity).expired()) {
         return requested_identity;
       }
     } else {
       const auto participants = room.remoteParticipants();
-      if (participants.size() == 1 && participants.front() != nullptr) {
-        return participants.front()->identity();
+      if (participants.size() == 1) {
+        if (auto participant = participants.front().lock()) {
+          return participant->identity();
+        }
       }
     }
 
@@ -316,7 +318,7 @@ int main(int argc, char* argv[]) {
       throw std::runtime_error("Failed to connect to LiveKit room");
     }
 
-    auto* local_participant = room.localParticipant();
+    auto local_participant = room.localParticipant().lock();
     if (local_participant == nullptr) {
       throw std::runtime_error("Local participant unavailable after connect");
     }

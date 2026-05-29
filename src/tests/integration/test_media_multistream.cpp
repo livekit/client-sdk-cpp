@@ -101,8 +101,8 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(bool s
   auto sender_room = std::make_unique<Room>();
   ASSERT_TRUE(sender_room->connect(config_.url, config_.token_a, options)) << "Sender failed to connect";
 
-  const std::string receiver_identity = receiver_room->localParticipant()->identity();
-  const std::string sender_identity = sender_room->localParticipant()->identity();
+  const std::string receiver_identity = receiver_room->localParticipant().lock()->identity();
+  const std::string sender_identity = sender_room->localParticipant().lock()->identity();
 
   constexpr int kVideoTrackCount = 10;
   constexpr int kAudioTrackCount = 10;
@@ -126,7 +126,7 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(bool s
     auto track = LocalVideoTrack::createLocalVideoTrack(name, source);
     TrackPublishOptions opts;
     opts.source = (i % 2 == 0) ? TrackSource::SOURCE_CAMERA : TrackSource::SOURCE_SCREENSHARE;
-    sender_room->localParticipant()->publishTrack(track, opts);
+    sender_room->localParticipant().lock()->publishTrack(track, opts);
     std::cerr << "[MediaMultiStream] published video " << name << " sid=" << track->sid() << std::endl;
     video_sources.push_back(source);
     video_tracks.push_back(track);
@@ -139,7 +139,7 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(bool s
     auto track = LocalAudioTrack::createLocalAudioTrack(name, source);
     TrackPublishOptions opts;
     opts.source = (i % 2 == 0) ? TrackSource::SOURCE_MICROPHONE : TrackSource::SOURCE_SCREENSHARE_AUDIO;
-    sender_room->localParticipant()->publishTrack(track, opts);
+    sender_room->localParticipant().lock()->publishTrack(track, opts);
     std::cerr << "[MediaMultiStream] published audio " << name << " sid=" << track->sid() << std::endl;
     audio_sources.push_back(source);
     audio_tracks.push_back(track);
@@ -188,7 +188,7 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(bool s
     EXPECT_GE(receiver_state.audio_tracks, kAudioTrackCount);
   }
 
-  auto* sender_on_receiver = receiver_room->remoteParticipant(sender_identity);
+  auto sender_on_receiver = receiver_room->remoteParticipant(sender_identity).lock();
   ASSERT_NE(sender_on_receiver, nullptr);
   std::cerr << "[MediaMultiStream] receiver sees sender publications=" << sender_on_receiver->trackPublications().size()
             << std::endl;
@@ -210,12 +210,12 @@ void MediaMultiStreamIntegrationTest::runPublishTwoVideoAndTwoAudioTracks(bool s
 
   for (const auto& track : video_tracks) {
     if (track->publication()) {
-      sender_room->localParticipant()->unpublishTrack(track->publication()->sid());
+      sender_room->localParticipant().lock()->unpublishTrack(track->publication()->sid());
     }
   }
   for (const auto& track : audio_tracks) {
     if (track->publication()) {
-      sender_room->localParticipant()->unpublishTrack(track->publication()->sid());
+      sender_room->localParticipant().lock()->unpublishTrack(track->publication()->sid());
     }
   }
 }

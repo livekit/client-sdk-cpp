@@ -23,6 +23,14 @@ bool initializeLivekit(const std::string& url, const std::string& token) {
 
   std::cout << "Connected.\n";
 
+  // localParticipant() returns a weak_ptr; lock it once and guard. The handle
+  // is empty before connect and after the room is torn down or destroyed.
+  auto lp = room_->localParticipant().lock();
+  if (!lp) {
+    std::cerr << "Local participant unavailable\n";
+    return false;
+  }
+
   // ---- Create & publish AUDIO ----
   // Note: Hook up your own audio capture flow to |audioSource_|
   audioSource_ = std::make_shared<livekit::AudioSource>(48000, 1, 10);
@@ -32,7 +40,7 @@ bool initializeLivekit(const std::string& url, const std::string& token) {
   audioOpts.source = livekit::TrackSource::SOURCE_MICROPHONE;
 
   try {
-    audioPub_ = room_->localParticipant()->publishTrack(audioTrack, audioOpts);
+    audioPub_ = lp->publishTrack(audioTrack, audioOpts);
     std::cout << "Published audio: sid=" << audioPub_->sid() << "\n";
   } catch (const std::exception& e) {
     std::cerr << "Failed to publish audio: " << e.what() << "\n";
@@ -48,7 +56,7 @@ bool initializeLivekit(const std::string& url, const std::string& token) {
   videoOpts.source = livekit::TrackSource::SOURCE_CAMERA;
 
   try {
-    videoPub_ = room_->localParticipant()->publishTrack(videoTrack, videoOpts);
+    videoPub_ = lp->publishTrack(videoTrack, videoOpts);
     std::cout << "Published video: sid=" << videoPub_->sid() << "\n";
   } catch (const std::exception& e) {
     std::cerr << "Failed to publish video: " << e.what() << "\n";
@@ -60,10 +68,12 @@ bool initializeLivekit(const std::string& url, const std::string& token) {
 void shutdownLivekit() {
   // Best-effort unpublish
   try {
-    if (room_ && audioPub_)
-      room_->localParticipant()->unpublishTrack(audioPub_->sid());
-    if (room_ && videoPub_)
-      room_->localParticipant()->unpublishTrack(videoPub_->sid());
+    if (auto lp = room_ ? room_->localParticipant().lock() : nullptr) {
+      if (audioPub_)
+        lp->unpublishTrack(audioPub_->sid());
+      if (videoPub_)
+        lp->unpublishTrack(videoPub_->sid());
+    }
   } catch (...) {
   }
 

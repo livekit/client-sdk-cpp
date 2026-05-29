@@ -163,7 +163,7 @@ TEST_F(SessionStatsIntegrationTest, PublishAudioThenFetchSessionStats) {
   auto track = LocalAudioTrack::createLocalAudioTrack("session-stats-audio", source);
   TrackPublishOptions opts;
   opts.source = TrackSource::SOURCE_MICROPHONE;
-  sender_room->localParticipant()->publishTrack(track, opts);
+  sender_room->localParticipant().lock()->publishTrack(track, opts);
   std::cerr << "[SessionStats] published audio track sid=" << track->sid() << std::endl;
 
   std::atomic<bool> running{true};
@@ -184,7 +184,7 @@ TEST_F(SessionStatsIntegrationTest, PublishAudioThenFetchSessionStats) {
     audio_thread.join();
   }
   if (track->publication()) {
-    sender_room->localParticipant()->unpublishTrack(track->publication()->sid());
+    sender_room->localParticipant().lock()->unpublishTrack(track->publication()->sid());
   }
 
   printSessionStats("sender", sender_stats);

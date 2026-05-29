@@ -42,7 +42,9 @@ class AudioSource;
 ///
 ///    auto source = AudioSource::create(...);
 ///    auto track = LocalAudioTrack::createLocalAudioTrack("mic", source);
-///    room->localParticipant()->publishTrack(track);
+///    if (auto lp = room->localParticipant().lock()) {
+///      lp->publishTrack(track);
+///    }
 ///
 ///  Muting a local audio track stops transmitting audio to the room, but
 ///  the underlying source may continue capturing depending on platform
