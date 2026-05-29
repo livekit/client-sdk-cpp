@@ -118,6 +118,8 @@ API reference is generated from headers using Doxygen. To rebuild locally:
 Output lands under `docs/doxygen/html/`. The deployed reference is at
 [docs.livekit.io/reference/client-sdk-cpp/](https://docs.livekit.io/reference/client-sdk-cpp/).
 
+To view the generated documentation locally, open `docs/doxygen/html/index.html` in your browser.
+
 For details on the Doxygen configuration and CI pipeline, see the
 [doxygen/](doxygen/) folder.
 

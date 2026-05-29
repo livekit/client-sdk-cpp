@@ -35,14 +35,14 @@ ctest --output-on-failure
 ./build-debug/bin/livekit_stress_tests --gtest_filter="*MaxPayloadStress*"
 ```
 
-__Note:__ The tests require tokens and a running LiveKit server. See [Running a local LiveKit server for tests](#running-a-local-livekit-server-for-tests) for details.
+__Note:__ The tests require tokens and a running LiveKit server. See the section below for details.
 
 ## Test binaries
 
 | Executable | Description |
 |------------|-------------|
 | `livekit_unit_tests` | Pure unit tests (no server required) |
-| `livekit_integration_tests` | Quick tests (~1–2 minutes) for SDK functionality |
+| `livekit_integration_tests` | Quick tests (~1-2 minutes) for SDK functionality |
 | `livekit_stress_tests` | Long-running tests (configurable, default 1 hour) |
 
 ## Running a local LiveKit server for tests
