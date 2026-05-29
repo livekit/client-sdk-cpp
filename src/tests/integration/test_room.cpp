@@ -99,7 +99,7 @@ TEST_F(RoomLifecycleTest, ParticipantHandlesExpireOnRoomDestruction) {
   ASSERT_TRUE(peer->connect(config_.url, config_.token_b, options)) << "Peer failed to connect";
 
   ASSERT_FALSE(peer->localParticipant().expired());
-  const std::string peer_identity = peer->localParticipant().lock()->identity();
+  const std::string peer_identity = lockLocalParticipant(*peer)->identity();
   ASSERT_TRUE(waitForParticipant(room.get(), peer_identity, 10s)) << "Peer not visible to room";
 
   // 2. Store the local participant handle. Keep the weak_ptr itself - locking

@@ -152,7 +152,7 @@ public:
   /// The returned handle is non-owning. Call @c lock() to obtain a usable
   /// @c weak_ptr; the result is empty (`lock() == nullptr`) before connect,
   /// after room end-of-stream teardown, or once the room is destroyed. This
-  /// lets callers that cache the handle detect teardown instead of holding a
+  /// lets callers that cache the handle detect object lifetime instead of holding a
   /// dangling pointer.
   ///
   /// @return Weak handle to the local participant.
@@ -287,6 +287,8 @@ private:
   RoomDelegate* delegate_ = nullptr; // Not owned
   RoomInfoData room_info_;
   std::shared_ptr<FfiHandle> room_handle_;
+  /// The local participant is owned by the room and is not shared with other objects.
+  /// It is a shared_ptr just to utilize the weak_ptr interface for the localParticipant() accessor.
   std::shared_ptr<LocalParticipant> local_participant_;
   std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> remote_participants_;
   // Data stream
@@ -294,7 +296,8 @@ private:
   std::unordered_map<std::string, ByteStreamHandler> byte_stream_handlers_;
   std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> text_stream_readers_;
   std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> byte_stream_readers_;
-  // E2EE
+  // The E2EE manager is owned by the room and is not shared with other objects.
+  // It is a shared_ptr just to utilize the weak_ptr interface for the e2eeManager() accessor.
   std::shared_ptr<E2EEManager> e2ee_manager_;
   std::shared_ptr<SubscriptionThreadDispatcher> subscription_thread_dispatcher_;
 

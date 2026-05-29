@@ -366,10 +366,10 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   ASSERT_TRUE(publisher_room.connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
   ASSERT_FALSE(publisher_room.localParticipant().expired());
 
-  const std::string publisher_identity = publisher_room.localParticipant().lock()->identity();
+  const std::string publisher_identity = lockLocalParticipant(publisher_room)->identity();
   ASSERT_FALSE(publisher_identity.empty());
 
-  PublishedTrackGuard published_tracks(publisher_room.localParticipant().lock().get());
+  PublishedTrackGuard published_tracks(lockLocalParticipant(publisher_room).get());
   MediaLoopGuard media_loops;
   std::vector<ExpectedPublication> expected_media;
 
@@ -380,7 +380,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
     TrackPublishOptions publish_options;
     publish_options.source = TrackSource::SOURCE_MICROPHONE;
 
-    ASSERT_NO_THROW(publisher_room.localParticipant().lock()->publishTrack(track, publish_options));
+    ASSERT_NO_THROW(lockLocalParticipant(publisher_room)->publishTrack(track, publish_options));
     ASSERT_NE(track->publication(), nullptr) << "Audio track was not locally published";
 
     published_tracks.addMediaTrack(track, track->publication()->sid());
@@ -470,10 +470,10 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   ASSERT_TRUE(publisher_room.connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
   ASSERT_FALSE(publisher_room.localParticipant().expired());
 
-  const std::string publisher_identity = publisher_room.localParticipant().lock()->identity();
+  const std::string publisher_identity = lockLocalParticipant(publisher_room)->identity();
   ASSERT_FALSE(publisher_identity.empty());
 
-  PublishedTrackGuard published_tracks(publisher_room.localParticipant().lock().get());
+  PublishedTrackGuard published_tracks(lockLocalParticipant(publisher_room).get());
   MediaLoopGuard media_loops;
   std::vector<ExpectedPublication> expected_media;
 
@@ -485,7 +485,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
     publish_options.source = TrackSource::SOURCE_CAMERA;
     publish_options.simulcast = false;
 
-    ASSERT_NO_THROW(publisher_room.localParticipant().lock()->publishTrack(track, publish_options));
+    ASSERT_NO_THROW(lockLocalParticipant(publisher_room)->publishTrack(track, publish_options));
     ASSERT_NE(track->publication(), nullptr) << "Video track was not locally published";
 
     published_tracks.addMediaTrack(track, track->publication()->sid());
@@ -575,15 +575,15 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   ASSERT_TRUE(publisher_room.connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
   ASSERT_FALSE(publisher_room.localParticipant().expired());
 
-  const std::string publisher_identity = publisher_room.localParticipant().lock()->identity();
+  const std::string publisher_identity = lockLocalParticipant(publisher_room)->identity();
   ASSERT_FALSE(publisher_identity.empty());
 
-  PublishedTrackGuard published_tracks(publisher_room.localParticipant().lock().get());
+  PublishedTrackGuard published_tracks(lockLocalParticipant(publisher_room).get());
   std::set<std::string> expected_data;
 
   for (int i = 0; i < kDataTrackCount; ++i) {
     const std::string track_name = makeTrackName("late-join-data", i);
-    auto publish_result = publisher_room.localParticipant().lock()->publishDataTrack(track_name);
+    auto publish_result = lockLocalParticipant(publisher_room)->publishDataTrack(track_name);
     ASSERT_TRUE(publish_result) << "Failed to publish data track " << track_name << ": "
                                 << publish_result.error().message;
 
