@@ -132,7 +132,6 @@ See the [GitHub README](https://github.com/livekit/client-sdk-cpp#readme) for bu
 - [SimpleRpc](https://github.com/livekit-examples/cpp-example-collection/tree/main/simple_rpc) - Remote procedure calls between participants.
 - [SimpleDataStream](https://github.com/livekit-examples/cpp-example-collection/tree/main/simple_data_stream) - Send and receive text and binary data streams.
 - [PingPong](https://github.com/livekit-examples/cpp-example-collection/tree/main/ping_pong) - Two-process round-trip over data tracks that prints RTT and one-way latency metrics.
-- [SimpleJoystick](https://github.com/livekit-examples/cpp-example-collection/tree/main/simple_joystick) - Interactive sender/receiver: keyboard-driven joystick commands delivered via RPC, with auto-reconnect.
 
 **Advanced video**
 
