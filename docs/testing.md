@@ -35,6 +35,8 @@ ctest --output-on-failure
 ./build-debug/bin/livekit_stress_tests --gtest_filter="*MaxPayloadStress*"
 ```
 
+__Note:__ The tests require tokens and a running LiveKit server. See [Running a local LiveKit server for tests](#running-a-local-livekit-server-for-tests) for details.
+
 ## Test binaries
 
 | Executable | Description |
@@ -53,7 +55,7 @@ Install [`livekit-server`](https://docs.livekit.io/home/self-hosting/local/)
 and start it with data tracks enabled:
 
 ```bash
-LIVEKIT_CONFIG="enable_data_tracks: true" livekit-server --dev
+livekit-server --dev
 ```
 
 ## Environment variables

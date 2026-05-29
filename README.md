@@ -177,14 +177,14 @@ For end-to-end samples and a fuller set of demos, see the [cpp-example-collectio
 
 ## Features
 
-- [x] Connect to LiveKit rooms (Cloud or self-hosted)
-- [x] Receive remote audio/video tracks
-- [x] Publish local audio/video tracks
-- [x] Data tracks (low-level) and data streams (high-level)
-- [x] RPC between participants
-- [x] End-to-end encryption (E2EE)
-- [x] Hardware-accelerated codecs (via the underlying Rust SDK)
-- [x] Chromium-style tracing for performance debugging
+- Connect to LiveKit rooms (Cloud or self-hosted)
+- Receive remote audio/video tracks
+- Publish local audio/video tracks
+- Data tracks (low-level) and data streams (high-level)
+- RPC between participants
+- End-to-end encryption (E2EE)
+- Hardware-accelerated codecs (via the underlying Rust SDK)
+- Chromium-style tracing for performance debugging
 
 Supported platforms: **Linux** (x64, arm64), **macOS** (12.3+, Apple Silicon
 & Intel), **Windows** (x64).
