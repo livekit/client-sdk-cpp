@@ -17,7 +17,6 @@
 #include "livekit/ffi_handle.h"
 
 #include "livekit_ffi.h"
-#include "lk_log.h"
 
 namespace livekit {
 
@@ -36,7 +35,6 @@ FfiHandle& FfiHandle::operator=(FfiHandle&& other) noexcept {
 
 void FfiHandle::reset(uintptr_t new_handle) noexcept {
   if (handle_) {
-    LK_LOG_INFO("FfiHandle::reset: dropping handle {} (replacement={})", handle_, new_handle);
     livekit_ffi_drop_handle(handle_);
   }
   handle_ = new_handle;

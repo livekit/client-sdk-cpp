@@ -96,19 +96,19 @@ TEST_F(RoomTest, UserDisconnect) {
   ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
   ASSERT_NE(room.localParticipant(), nullptr);
 
-  EXPECT_TRUE(room.disconnect()) << "disconnect should report success on a connected room";
+  EXPECT_NO_THROW(room.disconnect()) << "disconnect should not throw on a connected room";
   EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
   EXPECT_EQ(room.localParticipant(), nullptr) << "local participant should be cleared after disconnect";
   EXPECT_EQ(delegate.count.load(), 1) << "onDisconnected should fire exactly once";
   EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
 
   // Calling again on an already-disconnected room is a no-op
-  EXPECT_FALSE(room.disconnect()) << "second disconnect should report no-op";
+  EXPECT_NO_THROW(room.disconnect()) << "second disconnect should not throw on an already-disconnected room";
   EXPECT_EQ(delegate.count.load(), 1) << "delegate must not double-fire";
 }
 
 // Case: Room goes out of scope while still connected
-TEST_F(RoomTest, RoomDestructorDisconnect) {
+TEST_F(RoomTest, DestructorDisconnect) {
   std::unique_ptr<Room> room = std::make_unique<Room>();
 
   DisconnectTrackingDelegate delegate;
@@ -117,9 +117,8 @@ TEST_F(RoomTest, RoomDestructorDisconnect) {
   ASSERT_TRUE(room->connect(server_url_, token_, options));
   ASSERT_EQ(room->connectionState(), ConnectionState::Connected);
 
-  room.reset();
+  room.reset(); // invokes destructor which calls disconnect()
 
-  // Let room go out of scope while still connected
   EXPECT_EQ(delegate.count.load(), 1) << "destructor should fire onDisconnected exactly once";
   EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
 }

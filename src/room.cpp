@@ -76,41 +76,16 @@ void readyForRoomEvent(std::uint64_t room_handle) {
 Room::Room() : subscription_thread_dispatcher_(std::make_unique<SubscriptionThreadDispatcher>()) {}
 
 Room::~Room() {
-  LK_LOG_INFO("Room::~Room: entry (this={})", static_cast<const void*>(this));
-  // Issue a graceful disconnect so the server sees us leave instead of
-  // timing out (RAII expectation; see issue #118). disconnect() does the
-  // full teardown including subscription threads, listener, and local
-  // participant, so the destructor only needs to handle the
-  // already-disconnected path.
+  // disconnect() is used for all tear down cases: it handles the
+  // already-disconnected case (returns false, no-op), the partial/Reconnecting
+  // case, and the FFI-failure case (local teardown still runs). Nothing else
+  // needs to live in the destructor.
   try {
-    disconnect();
+    (void)disconnect(); // Don't need return value
   } catch (const std::exception& e) {
     LK_LOG_ERROR("Room::~Room: graceful disconnect failed: {}", e.what());
   } catch (...) {
     LK_LOG_ERROR("Room::~Room: graceful disconnect failed: unknown exception");
-  }
-
-  // Defensive: if disconnect() bailed early (e.g. never connected), still
-  // tear down any state that may have leaked.
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->stopAll();
-  }
-
-  int listener_to_remove = 0;
-  std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
-  {
-    const std::scoped_lock<std::mutex> g(lock_);
-    listener_to_remove = listener_id_;
-    listener_id_ = 0;
-    local_participant_to_cleanup = std::move(local_participant_);
-  }
-
-  if (local_participant_to_cleanup) {
-    local_participant_to_cleanup->shutdown();
-  }
-
-  if (listener_to_remove != 0) {
-    FfiClient::instance().removeListener(listener_to_remove);
   }
 }
 
@@ -246,64 +221,77 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
 
 bool Room::disconnect(DisconnectReason reason) {
   TRACE_EVENT0("livekit", "Room::disconnect");
-  LK_LOG_INFO("Room::disconnect: entry (this={}, reason={})", static_cast<const void*>(this), static_cast<int>(reason));
 
-  // Hold onto this in case the
-  auto prev_connection_state = connection_state_;
+  // Canonical teardown path. Move all owned state out under the lock, then
+  // operate on it outside the lock. The destructor (and any caller) gets
+  // the same behavior: once this returns, the Room is fully torn down.
+  //
+  // Return value:
+  //   true  - we owned live state and tore it down (FFI disconnect succeeded)
+  //   false - either already disconnected (no-op) or FFI disconnect failed.
+  //           In both false cases local-side teardown still completed.
 
   std::shared_ptr<FfiHandle> handle;
   RoomDelegate* delegate_snapshot = nullptr;
+  std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
+  std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> remote_participants_to_clear;
+  std::unique_ptr<E2EEManager> e2ee_manager_to_clear;
+  std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> text_stream_readers_to_clear;
+  std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> byte_stream_readers_to_clear;
+  int listener_to_remove = 0;
+
   {
     const std::scoped_lock<std::mutex> g(lock_);
     if (connection_state_ == ConnectionState::Disconnected) {
-      LK_LOG_INFO("Room::disconnect: already disconnected, returning false (this={})", static_cast<const void*>(this));
+      // Already torn down (or never connected). Nothing to do.
       return false;
     }
     handle = room_handle_;
     delegate_snapshot = delegate_;
+    // Take ownership of everything under the lock so the kEos handler (which
+    // also tries to move it out) loses any race here — only one teardown
+    // path operates on this state.
+    local_participant_to_cleanup = std::move(local_participant_);
+    remote_participants_to_clear = std::move(remote_participants_);
+    e2ee_manager_to_clear = std::move(e2ee_manager_);
+    text_stream_readers_to_clear = std::move(text_stream_readers_);
+    byte_stream_readers_to_clear = std::move(byte_stream_readers_);
+    listener_to_remove = listener_id_;
+    listener_id_ = 0;
+    room_handle_.reset();
     // Flip state immediately so the in-flight Disconnected room-event we'll
     // get back doesn't double-fire onDisconnected. Mirrors Python's
     // Room.disconnect(), which also flips state before sending the request.
     connection_state_ = ConnectionState::Disconnected;
   }
 
-  // Tell the FFI to close the room and wait for the callback. Catch the
-  // exception so we still run teardown below; the caller learns about the
-  // failure via the returned bool / logs.
+  // Drain in-flight RPC handlers BEFORE telling Rust to tear down the room.
+  // Mirrors client-sdk-python's Room.disconnect() ordering: once the FFI
+  // dispatches the Disconnect, Rust starts invalidating participant handles
+  // in its table, and any listener-thread RPC handler still mid-flight
+  // would race with that invalidation and send to a dead handle →
+  // INVALID_HANDLE → terminate.
+  if (local_participant_to_cleanup) {
+    local_participant_to_cleanup->shutdown();
+  }
+
+  // Tell the FFI to close the room and wait for the callback. If this fails
+  // we still complete local-side teardown below — releasing the listener,
+  // dropping handles, and notifying the delegate — so the Room is fully
+  // cleaned up regardless of whether the FFI round-trip succeeded.
   bool ffi_ok = true;
   if (handle) {
     try {
       FfiClient::instance().disconnectAsync(handle->get(), reason).get();
     } catch (const std::exception& e) {
-      LK_LOG_ERROR("Room::disconnect: FFI disconnect failed: {}", e.what());
+      LK_LOG_ERROR("Room::disconnect: FFI disconnect failed (continuing local teardown): {}", e.what());
       ffi_ok = false;
     }
   }
 
-  // Stop dispatcher first so no track callbacks fire mid-teardown.
+  // Stop dispatcher so no track callbacks fire mid-teardown.
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->stopAll();
-  }
-
-  int listener_to_remove = 0;
-  std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
-  {
-    const std::scoped_lock<std::mutex> g(lock_);
-    listener_to_remove = listener_id_;
-    listener_id_ = 0;
-    local_participant_to_cleanup = std::move(local_participant_);
-    remote_participants_.clear();
-    room_handle_.reset();
-    e2ee_manager_.reset();
-    text_stream_readers_.clear();
-    byte_stream_readers_.clear();
-  }
-
-  // Shut down local participant (unregisters RPC handlers, etc.) before
-  // removing the listener, so in-flight RPC responses don't reach a
-  // destroyed handle.
-  if (local_participant_to_cleanup) {
-    local_participant_to_cleanup->shutdown();
   }
 
   if (listener_to_remove != 0) {
@@ -323,6 +311,8 @@ bool Room::disconnect(DisconnectReason reason) {
     }
   }
 
+  // Moved-out state (local participant, remote participants, e2ee manager,
+  // stream readers) destructs here, releasing FFI handles.
   return ffi_ok;
 }
 
@@ -1231,8 +1221,6 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kDisconnected: {
-          LK_LOG_INFO("Room::onFfiEvent: kDisconnected received (this={}, reason={})", static_cast<const void*>(this),
-                      static_cast<int>(re.disconnected().reason()));
           // If disconnect() was driven from our side, it already flipped state
           // to Disconnected and fired the delegate; skip the duplicate here.
           bool already_disconnected = false;
@@ -1266,7 +1254,6 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kEos: {
-          LK_LOG_INFO("Room::onFfiEvent: kEos received (this={})", static_cast<const void*>(this));
           if (subscription_thread_dispatcher_) {
             subscription_thread_dispatcher_->stopAll();
           }
@@ -1304,8 +1291,6 @@ void Room::onEvent(const FfiEvent& event) {
           // without this, a listener-thread RPC handler can race with handle
           // disposal and send to a dead handle → INVALID_HANDLE → terminate.
           if (old_local_participant) {
-            LK_LOG_INFO("Room::onFfiEvent: kEos shutting down local participant (handle={})",
-                        old_local_participant->ffiHandleId());
             old_local_participant->shutdown();
           }
 

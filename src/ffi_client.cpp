@@ -202,10 +202,6 @@ proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) cons
   const FfiHandleId handle =
       livekit_ffi_request(reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size(), &resp_ptr, &resp_len);
   if (handle == INVALID_HANDLE) {
-    LK_LOG_ERROR(
-        "FfiClient::sendRequest: livekit_ffi_request returned INVALID_HANDLE; "
-        "request.message_case={}, bytes_len={}",
-        static_cast<int>(request.message_case()), bytes.size());
     throw std::runtime_error("failed to send request, received an invalid handle");
   }
 

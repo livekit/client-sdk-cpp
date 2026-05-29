@@ -370,8 +370,6 @@ void LocalParticipant::shutdown() {
 void LocalParticipant::handleRpcMethodInvocation(uint64_t invocation_id, const std::string& method,
                                                  const std::string& request_id, const std::string& caller_identity,
                                                  const std::string& payload, double response_timeout_sec) {
-  LK_LOG_DEBUG("LocalParticipant::handleRpcMethodInvocation: entry (handle={}, invocation_id={}, method={})",
-               ffiHandleId(), invocation_id, method);
   // Capture shared state so it outlives LocalParticipant if needed
   auto state = rpc_state_;
 
@@ -379,8 +377,6 @@ void LocalParticipant::handleRpcMethodInvocation(uint64_t invocation_id, const s
   {
     const std::scoped_lock<std::mutex> lock(state->mutex);
     if (state->shutting_down) {
-      LK_LOG_DEBUG("LocalParticipant::handleRpcMethodInvocation: shutting_down, skipping (invocation_id={})",
-                   invocation_id);
       // Already shutting down, don't process new invocations
       return;
     }
@@ -427,10 +423,6 @@ void LocalParticipant::handleRpcMethodInvocation(uint64_t invocation_id, const s
   {
     const std::scoped_lock<std::mutex> lock(state->mutex);
     if (state->shutting_down) {
-      LK_LOG_DEBUG(
-          "LocalParticipant::handleRpcMethodInvocation: shutdown during handler, skipping response "
-          "(invocation_id={})",
-          invocation_id);
       // Shutdown started, don't send response - handle may be invalid
       return;
     }
@@ -438,8 +430,7 @@ void LocalParticipant::handleRpcMethodInvocation(uint64_t invocation_id, const s
 
   FfiRequest req;
   auto* msg = req.mutable_rpc_method_invocation_response();
-  const auto handle_id_at_send = ffiHandleId();
-  msg->set_local_participant_handle(handle_id_at_send);
+  msg->set_local_participant_handle(ffiHandleId());
   msg->set_invocation_id(invocation_id);
   if (response_error.has_value()) {
     auto* err_proto = msg->mutable_error();
@@ -448,8 +439,6 @@ void LocalParticipant::handleRpcMethodInvocation(uint64_t invocation_id, const s
   if (response_payload.has_value()) {
     msg->set_payload(*response_payload);
   }
-  LK_LOG_DEBUG("LocalParticipant::handleRpcMethodInvocation: sending response (handle={}, invocation_id={})",
-               handle_id_at_send, invocation_id);
   FfiClient::instance().sendRequest(req);
 }
 
