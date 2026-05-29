@@ -76,6 +76,21 @@ void readyForRoomEvent(std::uint64_t room_handle) {
 Room::Room() : subscription_thread_dispatcher_(std::make_unique<SubscriptionThreadDispatcher>()) {}
 
 Room::~Room() {
+  // Issue a graceful disconnect so the server sees us leave instead of
+  // timing out (RAII expectation; see issue #118). disconnect() does the
+  // full teardown including subscription threads, listener, and local
+  // participant, so the destructor only needs to handle the
+  // already-disconnected path.
+  try {
+    disconnect();
+  } catch (const std::exception& e) {
+    LK_LOG_ERROR("Room::~Room: graceful disconnect failed: {}", e.what());
+  } catch (...) {
+    LK_LOG_ERROR("Room::~Room: graceful disconnect failed: unknown exception");
+  }
+
+  // Defensive: if disconnect() bailed early (e.g. never connected), still
+  // tear down any state that may have leaked.
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->stopAll();
   }
@@ -86,13 +101,9 @@ Room::~Room() {
     const std::scoped_lock<std::mutex> g(lock_);
     listener_to_remove = listener_id_;
     listener_id_ = 0;
-    // Move local participant out for cleanup outside the lock
     local_participant_to_cleanup = std::move(local_participant_);
   }
 
-  // Shutdown local participant (unregisters RPC handlers, etc.) before
-  // removing the listener. This prevents in-flight RPC responses from
-  // trying to use destroyed handles.
   if (local_participant_to_cleanup) {
     local_participant_to_cleanup->shutdown();
   }
@@ -100,8 +111,6 @@ Room::~Room() {
   if (listener_to_remove != 0) {
     FfiClient::instance().removeListener(listener_to_remove);
   }
-
-  // local_participant_to_cleanup is destroyed here after listener is removed
 }
 
 void Room::setDelegate(RoomDelegate* delegate) {
@@ -232,6 +241,83 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
 
 bool Room::Connect(const std::string& url, const std::string& token, const RoomOptions& options) {
   return connect(url, token, options);
+}
+
+bool Room::disconnect(DisconnectReason reason) {
+  TRACE_EVENT0("livekit", "Room::disconnect");
+
+  std::shared_ptr<FfiHandle> handle;
+  RoomDelegate* delegate_snapshot = nullptr;
+  {
+    const std::scoped_lock<std::mutex> g(lock_);
+    if (connection_state_ == ConnectionState::Disconnected) {
+      return false;
+    }
+    handle = room_handle_;
+    delegate_snapshot = delegate_;
+    // Flip state immediately so the in-flight Disconnected room-event we'll
+    // get back doesn't double-fire onDisconnected. Mirrors Python's
+    // Room.disconnect(), which also flips state before sending the request.
+    connection_state_ = ConnectionState::Disconnected;
+  }
+
+  // Tell the FFI to close the room and wait for the callback. Catch the
+  // exception so we still run teardown below; the caller learns about the
+  // failure via the returned bool / logs.
+  bool ffi_ok = true;
+  if (handle) {
+    try {
+      FfiClient::instance().disconnectAsync(handle->get(), reason).get();
+    } catch (const std::exception& e) {
+      LK_LOG_ERROR("Room::disconnect: FFI disconnect failed: {}", e.what());
+      ffi_ok = false;
+    }
+  }
+
+  // Stop dispatcher first so no track callbacks fire mid-teardown.
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->stopAll();
+  }
+
+  int listener_to_remove = 0;
+  std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
+  {
+    const std::scoped_lock<std::mutex> g(lock_);
+    listener_to_remove = listener_id_;
+    listener_id_ = 0;
+    local_participant_to_cleanup = std::move(local_participant_);
+    remote_participants_.clear();
+    room_handle_.reset();
+    e2ee_manager_.reset();
+    text_stream_readers_.clear();
+    byte_stream_readers_.clear();
+  }
+
+  // Shut down local participant (unregisters RPC handlers, etc.) before
+  // removing the listener, so in-flight RPC responses don't reach a
+  // destroyed handle.
+  if (local_participant_to_cleanup) {
+    local_participant_to_cleanup->shutdown();
+  }
+
+  if (listener_to_remove != 0) {
+    FfiClient::instance().removeListener(listener_to_remove);
+  }
+
+  // Fire onDisconnected exactly once, with the reason the caller passed.
+  if (delegate_snapshot) {
+    DisconnectedEvent ev;
+    ev.reason = reason;
+    try {
+      delegate_snapshot->onDisconnected(*this, ev);
+    } catch (const std::exception& e) {
+      LK_LOG_ERROR("Room::disconnect: onDisconnected threw: {}", e.what());
+    } catch (...) {
+      LK_LOG_ERROR("Room::disconnect: onDisconnected threw: unknown exception");
+    }
+  }
+
+  return ffi_ok;
 }
 
 RoomInfoData Room::roomInfo() const {
@@ -1139,6 +1225,17 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kDisconnected: {
+          // If disconnect() was driven from our side, it already flipped state
+          // to Disconnected and fired the delegate; skip the duplicate here.
+          bool already_disconnected = false;
+          {
+            const std::scoped_lock<std::mutex> guard(lock_);
+            already_disconnected = (connection_state_ == ConnectionState::Disconnected);
+            connection_state_ = ConnectionState::Disconnected;
+          }
+          if (already_disconnected) {
+            break;
+          }
           DisconnectedEvent ev;
           ev.reason = toDisconnectReason(re.disconnected().reason());
           if (delegate_snapshot) {

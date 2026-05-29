@@ -99,9 +99,80 @@ DataPacketKind toDataPacketKind(proto::DataPacketKind in) {
   }
 }
 
-DisconnectReason toDisconnectReason(proto::DisconnectReason /*in*/) {
-  // TODO: map each proto::DisconnectReason to your DisconnectReason enum
-  return DisconnectReason::Unknown;
+DisconnectReason toDisconnectReason(proto::DisconnectReason in) {
+  switch (in) {
+    case proto::CLIENT_INITIATED:
+      return DisconnectReason::ClientInitiated;
+    case proto::DUPLICATE_IDENTITY:
+      return DisconnectReason::DuplicateIdentity;
+    case proto::SERVER_SHUTDOWN:
+      return DisconnectReason::ServerShutdown;
+    case proto::PARTICIPANT_REMOVED:
+      return DisconnectReason::ParticipantRemoved;
+    case proto::ROOM_DELETED:
+      return DisconnectReason::RoomDeleted;
+    case proto::STATE_MISMATCH:
+      return DisconnectReason::StateMismatch;
+    case proto::JOIN_FAILURE:
+      return DisconnectReason::JoinFailure;
+    case proto::MIGRATION:
+      return DisconnectReason::Migration;
+    case proto::SIGNAL_CLOSE:
+      return DisconnectReason::SignalClose;
+    case proto::ROOM_CLOSED:
+      return DisconnectReason::RoomClosed;
+    case proto::USER_UNAVAILABLE:
+      return DisconnectReason::UserUnavailable;
+    case proto::USER_REJECTED:
+      return DisconnectReason::UserRejected;
+    case proto::SIP_TRUNK_FAILURE:
+      return DisconnectReason::SipTrunkFailure;
+    case proto::CONNECTION_TIMEOUT:
+      return DisconnectReason::ConnectionTimeout;
+    case proto::MEDIA_FAILURE:
+      return DisconnectReason::MediaFailure;
+    case proto::UNKNOWN_REASON:
+    default:
+      return DisconnectReason::Unknown;
+  }
+}
+
+proto::DisconnectReason toProto(DisconnectReason in) {
+  switch (in) {
+    case DisconnectReason::ClientInitiated:
+      return proto::CLIENT_INITIATED;
+    case DisconnectReason::DuplicateIdentity:
+      return proto::DUPLICATE_IDENTITY;
+    case DisconnectReason::ServerShutdown:
+      return proto::SERVER_SHUTDOWN;
+    case DisconnectReason::ParticipantRemoved:
+      return proto::PARTICIPANT_REMOVED;
+    case DisconnectReason::RoomDeleted:
+      return proto::ROOM_DELETED;
+    case DisconnectReason::StateMismatch:
+      return proto::STATE_MISMATCH;
+    case DisconnectReason::JoinFailure:
+      return proto::JOIN_FAILURE;
+    case DisconnectReason::Migration:
+      return proto::MIGRATION;
+    case DisconnectReason::SignalClose:
+      return proto::SIGNAL_CLOSE;
+    case DisconnectReason::RoomClosed:
+      return proto::ROOM_CLOSED;
+    case DisconnectReason::UserUnavailable:
+      return proto::USER_UNAVAILABLE;
+    case DisconnectReason::UserRejected:
+      return proto::USER_REJECTED;
+    case DisconnectReason::SipTrunkFailure:
+      return proto::SIP_TRUNK_FAILURE;
+    case DisconnectReason::ConnectionTimeout:
+      return proto::CONNECTION_TIMEOUT;
+    case DisconnectReason::MediaFailure:
+      return proto::MEDIA_FAILURE;
+    case DisconnectReason::Unknown:
+    default:
+      return proto::UNKNOWN_REASON;
+  }
 }
 
 // --------- basic helper conversions ---------

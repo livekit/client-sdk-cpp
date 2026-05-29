@@ -70,4 +70,66 @@ TEST_F(RoomTest, ConnectWithInvalidUrl) {
   EXPECT_FALSE(connected) << "Should fail to connect to invalid URL";
 }
 
+namespace {
+
+class DisconnectTrackingDelegate : public RoomDelegate {
+public:
+  void onDisconnected(Room&, const DisconnectedEvent& ev) override {
+    ++count;
+    last_reason = ev.reason;
+  }
+
+  std::atomic<int> count{0};
+  DisconnectReason last_reason = DisconnectReason::Unknown;
+};
+
+} // namespace
+
+// Issue #118: explicit disconnect() sends DisconnectRequest, flips state,
+// and fires onDisconnected exactly once.
+TEST_F(RoomTest, ExplicitDisconnectFiresDelegateAndClearsState) {
+  if (!server_available_) {
+    GTEST_SKIP() << "LIVEKIT_URL / LIVEKIT_TOKEN_A not set";
+  }
+
+  Room room;
+  DisconnectTrackingDelegate delegate;
+  room.setDelegate(&delegate);
+
+  RoomOptions options;
+  ASSERT_TRUE(room.connect(server_url_, token_, options)) << "connect failed";
+  ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
+  ASSERT_NE(room.localParticipant(), nullptr);
+
+  EXPECT_TRUE(room.disconnect()) << "disconnect should report success on a connected room";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_EQ(room.localParticipant(), nullptr) << "local participant should be cleared after disconnect";
+  EXPECT_EQ(delegate.count.load(), 1) << "onDisconnected should fire exactly once";
+  EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
+
+  // Idempotent: calling again on an already-disconnected room is a no-op.
+  EXPECT_FALSE(room.disconnect()) << "second disconnect should report no-op";
+  EXPECT_EQ(delegate.count.load(), 1) << "delegate must not double-fire";
+}
+
+// Issue #118: destruction of a still-connected Room must trigger a graceful
+// disconnect (RAII), not silently leak the participant on the server side.
+TEST_F(RoomTest, DestructorTriggersGracefulDisconnect) {
+  if (!server_available_) {
+    GTEST_SKIP() << "LIVEKIT_URL / LIVEKIT_TOKEN_A not set";
+  }
+
+  DisconnectTrackingDelegate delegate;
+  {
+    Room room;
+    room.setDelegate(&delegate);
+    RoomOptions options;
+    ASSERT_TRUE(room.connect(server_url_, token_, options));
+    ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
+    // Let `room` go out of scope while still connected.
+  }
+  EXPECT_EQ(delegate.count.load(), 1) << "destructor should fire onDisconnected exactly once";
+  EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
+}
+
 } // namespace livekit::test

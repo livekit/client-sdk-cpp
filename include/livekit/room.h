@@ -141,6 +141,26 @@ public:
   bool Connect(const std::string& url, const std::string& token, const RoomOptions& options);
   // NOLINTEND(readability-identifier-naming)
 
+  /// Gracefully disconnect from the room.
+  ///
+  /// Sends a `DisconnectRequest` to the server with the given reason, blocks
+  /// until the FFI acknowledges, and tears down all room state (participants,
+  /// listener, E2EE manager, subscription threads). The `onDisconnected`
+  /// delegate is invoked once with the supplied reason.
+  ///
+  /// Safe to call from any thread, but **must not** be called from inside a
+  /// `RoomDelegate` callback — doing so will deadlock the event listener.
+  ///
+  /// @note `~Room()` invokes `disconnect()` automatically if the room is
+  ///       still connected, so explicit calls are optional. Calling this
+  ///       explicitly lets you handle the disconnect outcome and choose a
+  ///       reason other than `ClientInitiated`.
+  ///
+  /// @param reason  Reason reported to the server (default: ClientInitiated).
+  /// @returns true if a disconnect roundtrip was performed; false if the
+  ///          room was already disconnected.
+  bool disconnect(DisconnectReason reason = DisconnectReason::ClientInitiated);
+
   // Accessors
 
   /// Retrieve static metadata about the room.
