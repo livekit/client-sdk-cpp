@@ -210,16 +210,16 @@ void runEncryptedDataTrackRoundTrip(KeyDerivationFunction key_derivation_functio
 
   ASSERT_FALSE(publisher_room->e2eeManager().expired());
   ASSERT_FALSE(subscriber_room->e2eeManager().expired());
-  ASSERT_NE(publisher_room->e2eeManager().lock()->keyProvider(), nullptr);
-  ASSERT_NE(subscriber_room->e2eeManager().lock()->keyProvider(), nullptr);
-  EXPECT_EQ(publisher_room->e2eeManager().lock()->keyProvider()->options().key_derivation_function,
+  ASSERT_FALSE(publisher_room->e2eeManager().lock()->keyProvider().expired());
+  ASSERT_FALSE(subscriber_room->e2eeManager().lock()->keyProvider().expired());
+  EXPECT_EQ(publisher_room->e2eeManager().lock()->keyProvider().lock()->options().key_derivation_function,
             key_derivation_function);
-  EXPECT_EQ(subscriber_room->e2eeManager().lock()->keyProvider()->options().key_derivation_function,
+  EXPECT_EQ(subscriber_room->e2eeManager().lock()->keyProvider().lock()->options().key_derivation_function,
             key_derivation_function);
   publisher_room->e2eeManager().lock()->setEnabled(true);
   subscriber_room->e2eeManager().lock()->setEnabled(true);
-  EXPECT_EQ(publisher_room->e2eeManager().lock()->keyProvider()->exportSharedKey(), e2eeSharedKey());
-  EXPECT_EQ(subscriber_room->e2eeManager().lock()->keyProvider()->exportSharedKey(), e2eeSharedKey());
+  EXPECT_EQ(publisher_room->e2eeManager().lock()->keyProvider().lock()->exportSharedKey(), e2eeSharedKey());
+  EXPECT_EQ(subscriber_room->e2eeManager().lock()->keyProvider().lock()->exportSharedKey(), e2eeSharedKey());
 
   auto publish_result = lockLocalParticipant(*publisher_room)->publishDataTrack(track_name);
   if (!publish_result) {

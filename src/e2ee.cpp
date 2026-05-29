@@ -137,7 +137,7 @@ E2EEManager::E2EEManager(std::uint64_t room_handle, const E2EEOptions& options)
     : room_handle_(room_handle),
       enabled_(true), // or false, depending on your desired default behavior
       options_(options),
-      key_provider_(room_handle, options.key_provider_options) {}
+      key_provider_(std::shared_ptr<KeyProvider>(new KeyProvider(room_handle, options.key_provider_options))) {}
 
 bool E2EEManager::enabled() const { return enabled_; }
 
@@ -149,8 +149,8 @@ void E2EEManager::setEnabled(bool enabled) {
   enabled_ = enabled;
 }
 
-E2EEManager::KeyProvider* E2EEManager::keyProvider() { return &key_provider_; }
-const E2EEManager::KeyProvider* E2EEManager::keyProvider() const { return &key_provider_; }
+std::weak_ptr<E2EEManager::KeyProvider> E2EEManager::keyProvider() { return key_provider_; }
+std::weak_ptr<const E2EEManager::KeyProvider> E2EEManager::keyProvider() const { return key_provider_; }
 
 std::vector<E2EEManager::FrameCryptor> E2EEManager::frameCryptors() const {
   proto::FfiRequest req;
