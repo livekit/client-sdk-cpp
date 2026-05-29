@@ -374,6 +374,17 @@ TEST_F(RpcIntegrationTest, ConcurrentRpcCalls) {
   receiver_room.reset();
 }
 
+class DummyRoomDelegate : public RoomDelegate {
+  void onDisconnected(Room& room, const DisconnectedEvent& disconnected_event) override {
+    std::cout << "Room disconnected\n";
+    std::cout << "Room name: " << room.roomInfo().name << "\n";
+    std::cout << "Room sid: " << room.roomInfo().sid.value_or("<unknown>") << "\n";
+    std::cout << "Reason: "
+              << (disconnected_event.reason == DisconnectReason::ClientInitiated ? "ClientInitiated" : "Unknown")
+              << "\n";
+  }
+};
+
 // Integration test: Run for approximately 1 minute
 TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   if (!config_.available) {
@@ -381,6 +392,8 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
   }
 
   auto receiver_room = std::make_unique<Room>();
+  DummyRoomDelegate delegate;
+  receiver_room->setDelegate(&delegate);
   RoomOptions options;
   options.auto_subscribe = true;
 
@@ -400,6 +413,7 @@ TEST_F(RpcIntegrationTest, OneMinuteIntegration) {
       });
 
   auto caller_room = std::make_unique<Room>();
+  caller_room->setDelegate(&delegate);
   bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 

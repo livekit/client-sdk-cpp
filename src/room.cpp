@@ -246,6 +246,9 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
 bool Room::disconnect(DisconnectReason reason) {
   TRACE_EVENT0("livekit", "Room::disconnect");
 
+  // Hold onto this in case the
+  auto prev_connection_state = connection_state_;
+
   std::shared_ptr<FfiHandle> handle;
   RoomDelegate* delegate_snapshot = nullptr;
   {

@@ -95,8 +95,6 @@ public:
   std::future<proto::ConnectCallback> connectAsync(const std::string& url, const std::string& token,
                                                    const RoomOptions& options);
 
-  // Send a DisconnectRequest for the given room handle and wait for the
-  // FFI's DisconnectCallback. Throws std::runtime_error on FFI failure.
   std::future<void> disconnectAsync(uintptr_t room_handle, DisconnectReason reason);
 
   // Track APIs

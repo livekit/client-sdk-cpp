@@ -85,13 +85,8 @@ public:
 
 } // namespace
 
-// Issue #118: explicit disconnect() sends DisconnectRequest, flips state,
-// and fires onDisconnected exactly once.
-TEST_F(RoomTest, ExplicitDisconnectFiresDelegateAndClearsState) {
-  if (!server_available_) {
-    GTEST_SKIP() << "LIVEKIT_URL / LIVEKIT_TOKEN_A not set";
-  }
-
+// Case: User calls disconnect()
+TEST_F(RoomTest, UserDisconnect) {
   Room room;
   DisconnectTrackingDelegate delegate;
   room.setDelegate(&delegate);
@@ -107,27 +102,24 @@ TEST_F(RoomTest, ExplicitDisconnectFiresDelegateAndClearsState) {
   EXPECT_EQ(delegate.count.load(), 1) << "onDisconnected should fire exactly once";
   EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
 
-  // Idempotent: calling again on an already-disconnected room is a no-op.
+  // Calling again on an already-disconnected room is a no-op
   EXPECT_FALSE(room.disconnect()) << "second disconnect should report no-op";
   EXPECT_EQ(delegate.count.load(), 1) << "delegate must not double-fire";
 }
 
-// Issue #118: destruction of a still-connected Room must trigger a graceful
-// disconnect (RAII), not silently leak the participant on the server side.
-TEST_F(RoomTest, DestructorTriggersGracefulDisconnect) {
-  if (!server_available_) {
-    GTEST_SKIP() << "LIVEKIT_URL / LIVEKIT_TOKEN_A not set";
-  }
+// Case: Room goes out of scope while still connected
+TEST_F(RoomTest, RoomDestructorDisconnect) {
+  std::unique_ptr<Room> room = std::make_unique<Room>();
 
   DisconnectTrackingDelegate delegate;
-  {
-    Room room;
-    room.setDelegate(&delegate);
-    RoomOptions options;
-    ASSERT_TRUE(room.connect(server_url_, token_, options));
-    ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
-    // Let `room` go out of scope while still connected.
-  }
+  room->setDelegate(&delegate);
+  RoomOptions options;
+  ASSERT_TRUE(room->connect(server_url_, token_, options));
+  ASSERT_EQ(room->connectionState(), ConnectionState::Connected);
+
+  room.reset();
+
+  // Let room go out of scope while still connected
   EXPECT_EQ(delegate.count.load(), 1) << "destructor should fire onDisconnected exactly once";
   EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
 }

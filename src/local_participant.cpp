@@ -29,7 +29,6 @@
 #include "livekit/local_video_track.h"
 #include "livekit/room_delegate.h"
 #include "livekit/track.h"
-#include "lk_log.h"
 #include "participant.pb.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
@@ -440,17 +439,7 @@ void LocalParticipant::handleRpcMethodInvocation(uint64_t invocation_id, const s
   if (response_payload.has_value()) {
     msg->set_payload(*response_payload);
   }
-  // This is invoked on the FFI listener thread; an unhandled throw here would
-  // call std::terminate. The caller will observe a timeout instead.
-  try {
-    FfiClient::instance().sendRequest(req);
-  } catch (const std::exception& e) {
-    LK_LOG_ERROR("LocalParticipant: failed to send RPC invocation response (invocation_id={}): {}", invocation_id,
-                 e.what());
-  } catch (...) {
-    LK_LOG_ERROR("LocalParticipant: failed to send RPC invocation response (invocation_id={}): unknown exception",
-                 invocation_id);
-  }
+  FfiClient::instance().sendRequest(req);
 }
 
 std::shared_ptr<TrackPublication> LocalParticipant::findTrackPublication(const std::string& sid) const {
