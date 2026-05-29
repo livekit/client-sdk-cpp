@@ -254,6 +254,6 @@ To verify you have all dependencies linked correctly:
 
 ## Need Help?
 
-- See `README_BUILD.md` for complete build instructions
+- See [`docs/building.md`](docs/building.md) for complete build instructions
 - Check `CMakeLists.txt` lines 287-381 for the exact CMake configuration
 - Open an issue at: https://github.com/livekit/client-sdk-cpp/issues

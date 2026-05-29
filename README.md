@@ -8,622 +8,235 @@
 
 <!--END_BANNER_IMAGE-->
 
-# C++ SDK for LiveKit
+# C++ client SDK for LiveKit
 
 <!--BEGIN_DESCRIPTION-->
 Use this SDK to add realtime video, audio and data features to your C++ app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications such as multi-modal AI, live streaming, or video calls with just a few lines of code.
 <!--END_DESCRIPTION-->
 
-## Requirements
-- **CMake** ≥ 3.20
-- **Rust / Cargo** (latest stable toolchain)
-- **Git LFS** (required for examples)
-  Some example data files (e.g., audio assets) are stored using Git LFS.
-  You must install Git LFS before cloning or pulling the repo if you want to run the examples.
-- **livekit-cli** install livekit-cli by following the [official LiveKit docs](https://docs.livekit.io/intro/basics/cli/start/)
-- **livekit-server** install livekit-server by following the [official LiveKit docs](https://docs.livekit.io/transport/self-hosting/local/)
+[![Builds](https://github.com/livekit/client-sdk-cpp/actions/workflows/builds.yml/badge.svg?branch=main)](https://github.com/livekit/client-sdk-cpp/actions/workflows/builds.yml)
+[![Tests](https://github.com/livekit/client-sdk-cpp/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/livekit/client-sdk-cpp/actions/workflows/tests.yml)
 
-**Platform-Specific Requirements:**
+## Docs
 
-### For Building the SDK:
-- **Windows:** Visual Studio 2019+, vcpkg
-- **Linux:** `sudo apt install libprotobuf-dev libssl-dev` (protobuf 3.x)
-- **macOS:** `brew install protobuf` (protobuf 3.x)
+- [LiveKit docs](https://docs.livekit.io)
+- [SDK reference](https://docs.livekit.io/reference/client-sdk-cpp/)
+- [Repository docs](./docs/README.md)
 
-### For Using the Pre-built SDK:
-- **Windows:** All dependencies included (DLLs bundled) - ready to use
-- **Linux:** Requires `libprotobuf` and `libssl-dev`; deploy `liblivekit_ffi.so` with your executable
-- **macOS:** Requires `protobuf`; deploy `liblivekit_ffi.dylib` with your executable
+## Using Real-time SDK
 
-> **Note**: If the SDK was built with Protobuf 6.0+, you also need `libabsl-dev` (Linux) or `abseil` (macOS).
+[CMake](https://cmake.org/) (≥ 3.20) is used for building the SDK itself and for consuming it as a library. The
+[**cpp-example-collection**](https://github.com/livekit-examples/cpp-example-collection) contains a reference [LiveKitSDK.cmake](https://github.com/livekit-examples/cpp-example-collection/blob/main/cmake/LiveKitSDK.cmake)
+which downloads the latest stable release at CMake configure time. See [docs/building.md](docs/building.md) for additional documentation on integrating LiveKit into your project.
 
-## Clone the Repository
-
-Make sure to initialize the Rust submodule (`client-sdk-rust`):
+To build the SDK from source:
 
 ```bash
-# Option 1: Clone with submodules in one step
 git clone --recurse-submodules https://github.com/livekit/client-sdk-cpp.git
-
-# Option 2: Clone first, then initialize submodules
-git clone https://github.com/livekit/client-sdk-cpp.git
 cd client-sdk-cpp
-git submodule update --init --recursive
-
-# Note: If running tests, pull Git LFS to bring in test data:
-git lfs pull
+./build.sh release  # or .\build.cmd release on Windows
 ```
 
-## Building
+Building requires a stable Rust toolchain and platform-specific build
+deps (`protobuf`, `abseil`, `openssl` on Linux). See [docs/building.md](docs/building.md)
+for full prerequisites table, Docker recipe, CMake presets, and troubleshooting.
 
-### Quick Build (Using Build Scripts)
+### Hello, LiveKit
 
-**Linux/macOS:**
-```bash
-./build.sh clean              # Clean CMake build artifacts + local-install
-./build.sh clean-all          # Deep clean (C++ + Rust + local-install + generated files)
-./build.sh debug              # Build Debug version
-./build.sh release            # Build Release version
-./build.sh debug-examples     # Build Debug with examples
-./build.sh release-examples   # Build Release with examples
-./build.sh debug-tests        # Build Debug with tests
-./build.sh debug-all          # Build Debug with tests + examples
-./build.sh release-tests      # Build Release with tests
-./build.sh release-all        # Build Release with tests + examples
-```
-**Windows**
-Using build scripts:
-```powershell
-.\build.cmd clean             # Clean CMake build artifacts + local-install
-.\build.cmd clean-all         # Deep clean (C++ + Rust + local-install + generated files)
-.\build.cmd debug             # Build Debug version
-.\build.cmd release           # Build Release version
-.\build.cmd debug-examples    # Build Debug with examples
-.\build.cmd release-examples  # Build Release with examples
-.\build.cmd debug-tests       # Build Debug with tests
-.\build.cmd debug-all         # Build Debug with tests + examples
-.\build.cmd release-tests     # Build Release with tests
-.\build.cmd release-all       # Build Release with tests + examples
-```
+Here is a minimal example of the `main` function for sending and receiving video and data track frames. The [sender](https://github.com/livekit-examples/cpp-example-collection/blob/main/hello_livekit/sender/main.cpp) plays the role of a robot or camera, publishing video and data track frames every 100 ms; the [receiver](https://github.com/livekit-examples/cpp-example-collection/blob/main/hello_livekit/receiver/main.cpp) stands in for the cloud service or operator UI, logging every frame it sees. In a production system the synthetic video would be a robot's perception output and the data track would carry sensor readings or operator commands, but the connection and publishing pattern is the same. Full source for both processes lives in the [cpp-example-collection](https://github.com/livekit-examples/cpp-example-collection/tree/main/hello_livekit) repo.
 
-The build scripts pass an explicit job count to `cmake --build --parallel`. Set
-`CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
+The sender creates tracks and publishes data.
 
-### Windows build using cmake/vcpkg
-```bash
-cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE="$PWD/vcpkg/scripts/buildsystems/vcpkg.cmake"  # Generate Makefiles in build folder
-# Build (Release or Debug)
-cmake --build build --config Release
-# or:
-cmake --build build --config Debug
-# Clean CMake build artifacts
-Remove-Item -Recurse -Force build
-```
-Note (Windows), This assumes vcpkg is checked out in the repo root at `.\vcpkg\`.
-You must install protobuf via vcpkg (so CMake can find ProtobufConfig.cmake and protoc), for example:
-```bash
-.\vcpkg\vcpkg install protobuf:x64-windows
-```
-
-### Advanced Build (Using CMake Presets)
-
-For more control and platform-specific builds, see the detailed instructions in [README_BUILD.md](README_BUILD.md).
-
-**Prerequisites (Windows only):**
-- Set `VCPKG_ROOT` environment variable pointing to your vcpkg installation
-
-```powershell
-# Windows PowerShell
-$env:VCPKG_ROOT = "C:\path\to\vcpkg"
-```
-
-**Prerequisites (Linux/macOS):**
-- Install system dependencies (see above)
-
-**Quick start:**
-```bash
-# Windows
-cmake --preset windows-release
-cmake --build --preset windows-release
-
-# Linux
-cmake --preset linux-release
-cmake --build --preset linux-release
-
-# macOS
-cmake --preset macos-release
-cmake --build --preset macos-release
-```
-
-**For complete build instructions, troubleshooting, and platform-specific notes, see [README_BUILD.md](README_BUILD.md)**
-
-### Building with Docker
-The Docker setup is split into a reusable base image and an SDK image layered on top of it.
- **NOTE:** this has only been tested on Linux
-```bash
-docker build -t livekit-cpp-sdk-base . -f docker/Dockerfile.base
-docker build --build-arg BASE_IMAGE=livekit-cpp-sdk-base -t livekit-cpp-sdk . -f docker/Dockerfile.sdk
-docker run -it --network host livekit-cpp-sdk:latest bash
-```
-
-__NOTE:__ if you are building your own Dockerfile, you will likely need to set the same `ENV` variables as in `docker/Dockerfile.base`, but to the relevant directories:
-```bash
-export CC=$HOME/gcc-14/bin/gcc
-export CXX=$HOME/gcc-14/bin/g++
-export LD_LIBRARY_PATH=$HOME/gcc-14/lib64:$LD_LIBRARY_PATH
-export PATH=$HOME/.cargo/bin:$PATH
-export PATH=$HOME/cmake-3.31/bin:$PATH
-```
-
-## Run Example
-
-### Prerequisites
-
-Ensure one of the `*-examples` build script options was run prior.
-
-### Generate Tokens
-Before running any participant, create JWT tokens with the proper identity and room name, example
-```bash
-lk token create -r test -i your_own_identity  --join --valid-for 99999h --dev --room=your_own_room
-```
-
-### SimpleRoom
-
-```bash
-./build-release/cpp-example-collection-build/simple_room/SimpleRoom --url $URL --token <jwt-token>
-```
-
-You can also provide the URL and token via environment variables:
-```bash
-export LIVEKIT_URL=ws://localhost:7880
-export LIVEKIT_TOKEN=<jwt-token>
-./build-release/cpp-example-collection-build/simple_room/SimpleRoom
-```
-
-**End-to-End Encryption (E2EE)**
-You can enable E2E encryption for the streams via --enable_e2ee and --e2ee_key flags,
-by running the following cmds in two terminals or computers. **Note, jwt_token needs to be different identity**
-```bash
-./build-release/cpp-example-collection-build/simple_room/SimpleRoom --url $URL --token <jwt-token> --enable_e2ee --e2ee_key="your_key"
-```
-**Note**, **all participants must use the exact same E2EE configuration and shared key.**
-If the E2EE keys do not match between participants:
-- Media cannot be decrypted
-- Video tracks will appear as a black screen
-- Audio will be silent
-- No explicit error may be shown at the UI level
-
-Press Ctrl-C to exit the example.
-
-### SimpleRpc
-The SimpleRpc example demonstrates how to:
-- Connect multiple participants to the same LiveKit room
-- Register RPC handlers (e.g., arrival, square-root, divide, long-calculation)
-- Send RPC requests from one participant to another
-- Handle success, application errors, unsupported methods, and timeouts
-- Observe round-trip times (RTT) for each RPC call
-
-#### Generate Tokens
-Before running any participant, create JWT tokens with **caller**, **greeter** and **math-genius** identities and room name.
-```bash
-lk token create -r test -i caller --join --valid-for 99999h --dev --room=your_own_room
-lk token create -r test -i greeter --join --valid-for 99999h --dev --room=your_own_room
-lk token create -r test -i math-genius --join --valid-for 99999h --dev --room=your_own_room
-```
-
-#### Start Participants
-Every participant is run as a separate terminal process, note --role needs to match the token identity.
-```bash
-./build-release/cpp-example-collection-build/simple_rpc/SimpleRpc --url $URL --token <jwt-token> --role=math-genius
-```
-The caller will automatically:
-- Wait for the greeter and math-genius to join
-- Perform RPC calls
-- Print round-trip times
-- Annotate expected successes or expected failures
-
-### SimpleDataStream
-- The SimpleDataStream example demonstrates how to:
-- Connect multiple participants to the same LiveKit room
-- Register text stream and byte stream handlers by topic (e.g. "chat", "files")
-- Send a text stream (chat message) from one participant to another
-- Send a byte stream (file/image) from one participant to another
-- Attach custom stream metadata (e.g. sent_ms) via stream attributes
-- Measure and print one-way latency on the receiver using sender timestamps
-- Receive streamed chunks and reconstruct the full payload on the receiver
-
-#### Generate Tokens
-Before running any participant, create JWT tokens with caller and greeter identities and your room name.
-```bash
-lk token create -r test -i caller  --join --valid-for 99999h --dev --room=your_own_room
-lk token create -r test -i greeter --join --valid-for 99999h --dev --room=your_own_room
-```
-
-#### Start Participants
-Start the receiver first (so it registers stream handlers before messages arrive):
-```bash
-./build-release/cpp-example-collection-build/simple_data_stream/SimpleDataStream --url $URL --token <jwt-token>
-```
-On another terminal or computer, start the sender
-```bash
-./build-release/cpp-example-collection-build/simple_data_stream/SimpleDataStream --url $URL --token <jwt-token>
-```
-
-**Sender** (e.g. greeter)
-- Waits for the peer, then sends a text stream ("chat") and a file stream ("files") with timestamps and metadata, logging stream IDs and send times.
-
-**Receiver** (e.g. caller)
-- Registers handlers for text and file streams, logs stream events, computes one-way latency, and saves the received file locally.
-
-
-## Logging
-
-The SDK uses [spdlog](https://github.com/gabime/spdlog) internally but does
-**not** expose it in public headers. All log output goes through a thin public
-API in `<livekit/logging.h>`.
-
-### Two-tier filtering
-
-| Tier | When | How | Cost |
-|------|------|-----|------|
-| **Compile-time** | CMake configure | `-DLIVEKIT_LOG_LEVEL=WARN` | Zero -- calls below the level are stripped from the binary |
-| **Runtime** | Any time after `initialize()` | `livekit::setLogLevel(LogLevel::Warn)` | Minimal -- a level check before formatting |
-
-#### Compile-time level (`LIVEKIT_LOG_LEVEL`)
-
-Set once when you configure CMake. Calls below this threshold are completely
-removed by the preprocessor -- no format-string evaluation, no function call.
-
-```bash
-# Development (default): keep everything available
-cmake -DLIVEKIT_LOG_LEVEL=TRACE ..
-
-# Release: strip TRACE / DEBUG / INFO
-cmake -DLIVEKIT_LOG_LEVEL=WARN ..
-
-# Production: only ERROR and CRITICAL survive
-cmake -DLIVEKIT_LOG_LEVEL=ERROR ..
-```
-
-Valid values: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `CRITICAL`, `OFF`.
-
-#### Runtime level (`setLogLevel`)
-
-Among the levels that survived compilation you can still filter at runtime
-without rebuilding:
+**Initialize LiveKit and connect to the room**
 
 ```cpp
-#include <livekit/livekit.h>
+#include "livekit/livekit.h"
 
-livekit::initialize();                           // default level: Info
-livekit::setLogLevel(livekit::LogLevel::Debug);  // show more detail
-livekit::setLogLevel(livekit::LogLevel::Warn);   // suppress info chatter
+// Get your url and token from env vars, args, etc.
+const std::string url = "wss://hello.livekit.cloud";
+const std::string token = "sender_token";
+
+// Start the LiveKit SDK before creating rooms or tracks.
+livekit::initialize(livekit::LogLevel::Info);
+
+// Set your room options, here we will use defaults.
+livekit::RoomOptions options;
+
+// Create the room & connect to the room using a server URL and participant token.
+auto room = std::make_unique<livekit::Room>();
+if (!room->connect(url, token, options)) {
+  std::cerr << "Failed to connect to LiveKit\n";
+  return 1;
+}
 ```
 
-### Custom log callback
-
-Replace the default stderr sink with your own handler. This is the integration
-point for frameworks like ROS2 (`RCLCPP_*` macros), Android logcat, or any
-structured-logging pipeline:
+**Create the VideoSource, which provides frames to the VideoTrack, then create and publish the VideoTrack**
 
 ```cpp
-#include <livekit/livekit.h>
+// Get the local participant to create tracks.
+auto participant = room->localParticipant().lock();
+if (!participant)
+{
+  std::cerr << "Unable to get the local participant!" << std::endl;
+  return 1;
+}
 
-livekit::initialize();
-livekit::setLogLevel(livekit::LogLevel::Trace);
-
-livekit::setLogCallback(
-    [](livekit::LogLevel level,
-       const std::string &logger_name,
-       const std::string &message) {
-      // Route to your framework, e.g.:
-      //   RCLCPP_INFO(get_logger(), "[%s] %s", logger_name.c_str(), message.c_str());
-      myLogger.log(level, logger_name, message);
-    });
-
-// Pass nullptr to restore the default stderr sink:
-livekit::setLogCallback(nullptr);
+// Publish a synthetic camera track named "camera0" backed by a VideoSource.
+auto video_source = std::make_shared<livekit::VideoSource>(640, 480);
+auto video_track = participant->publishVideoTrack("camera0", video_source, livekit::TrackSource::SOURCE_CAMERA);
+if (!video_track) {
+  std::cerr << "Failed to publish video track\n";
+  return 1;
+}
 ```
 
-See [`cpp-example-collection/logging_levels/custom_sinks.cpp`](cpp-example-collection/logging_levels/custom_sinks.cpp)
-for three copy-paste-ready patterns: **file logger**, **JSON structured lines**,
-and a **ROS2 bridge** that maps `LogLevel` to `RCLCPP_*` macros.
-
-### Available log levels
-
-| Level | Typical use |
-|-------|-------------|
-| `Trace` | Per-frame / per-packet detail (very noisy) |
-| `Debug` | Diagnostic info useful during development |
-| `Info` | Normal operational messages (connection, track events) |
-| `Warn` | Unexpected but recoverable situations |
-| `Error` | Failures that affect functionality |
-| `Critical` | Unrecoverable errors |
-| `Off` | Suppress all output |
-
----
-
-## Tracing
-
-The SDK includes built-in support for [Chromium tracing](https://www.chromium.org/developers/how-tos/trace-event-profiling-tool/), allowing you to capture detailed performance traces for debugging and optimization.
-
-### Basic Usage
+**Create and publish the DataTrack**
 
 ```cpp
-#include <livekit/livekit.h>
+// Publish a data track named "app-data" for app messages.
+auto data_track_result = participant->publishDataTrack("app-data");
+if (!data_track_result) {
+  std::cerr << "Failed to publish data track\n";
+  return 1;
+}
+auto data_track = data_track_result.value();
 
-// Start tracing to a file
-livekit::startTracing("trace.json");
-
-// ... run your application ...
-
-// Stop tracing and flush to file
-livekit::stopTracing();
+// Release the participant to reduce scope.
+participant.reset();
 ```
 
-### Filtering by Category
-
-You can optionally filter which categories to trace:
+**Publish video and data track frames every 100ms**
 
 ```cpp
-// Trace only specific categories (supports wildcards)
-livekit::startTracing("trace.json", {"livekit.*", "webrtc.*"});
+int count = 0;
+
+while (true)
+{
+  // Create a 640x480 RGBA video frame.
+  auto vf = livekit::VideoFrame::create(640, 480, livekit::VideoBufferType::RGBA);
+
+  // Capture the frame. This publishes the frame on VideoTrack camera0.
+  video_source->captureFrame(vf);
+
+  const std::string message = "hello #" + std::to_string(count);
+  const auto now_microsec =
+        std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
+  // Create and push stamped DataTrackFrame.
+  const livekit::DataTrackFrame frame{
+        std::vector<std::uint8_t>(message.begin(), message.end()),
+        now_microsec,
+        };
+
+  // Optionally, capture the result.
+  auto push_result = data_track->tryPush(frame);
+  if (!push_result) {
+    const auto& error = push_result.error();
+    std::cerr << "[warn] Failed to push data frame: code=" << static_cast<std::uint32_t>(error.code)
+              << " message=" << error.message << "\n";
+  }
+
+  ++count;
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
 ```
 
-### Viewing Traces
+The receiver side setup is the same, except now we set callbacks to the relevant tracks.
 
-Open the generated trace file in one of these viewers:
+**Initialize LiveKit and Connect to the room**
 
-1. **Chrome**: Navigate to `chrome://tracing` and click "Load" to open the trace file
-2. **Perfetto**: Go to https://ui.perfetto.dev and drag-drop your trace file
+```cpp
+#include "livekit/livekit.h"
 
----
+// Get your url and token from env vars, args, etc.
+const std::string url = "wss://hello.livekit.cloud";
+const std::string token = "receiver_token";
 
-## Integration & Stress Tests
+// Start the LiveKit SDK before creating rooms or tracks.
+livekit::initialize(livekit::LogLevel::Info);
 
-The SDK includes integration and stress tests using Google Test (gtest).
+// Set your room options, here we use the defaults.
+livekit::RoomOptions options;
 
-### Build Tests
-
-**Linux/macOS:**
-```bash
-./build.sh debug-tests      # Build Debug with tests
-./build.sh release-tests    # Build Release with tests
+// Create the room & connect to the room using a server URL and participant token.
+auto room = std::make_unique<livekit::Room>();
+if (!room->connect(url, token, options)) {
+  std::cerr << "Failed to connect to LiveKit\n";
+  return 1;
+}
 ```
 
-**Windows:**
-```powershell
-.\build.cmd debug-tests
-.\build.cmd release-tests
+**Set callbacks for new video and data frames**
+
+```cpp
+// The identity of the participant sending video and data frames.
+const std::string sender_identity = "sender_identity";
+
+// Set the callback for new video frames from the sender's "camera0" VideoTrack.
+room->setOnVideoFrameCallback(sender_identity, "camera0", [](const livekit::VideoFrame& frame, std::int64_t) {
+  std::cout << "video frame: " << frame.width() << "x" << frame.height() << "\n";
+});
+
+// Set the callback for new frames on the sender's "app-data" DataTrack.
+room->addOnDataFrameCallback(sender_identity, "app-data",
+                             [](const std::vector<std::uint8_t>& payload, std::optional<std::uint64_t>) {
+                               const std::string message(payload.begin(), payload.end());
+                               std::cout << "data message: " << message << "\n";
+                             });
 ```
 
-### Run Tests
+For end-to-end samples and a fuller set of demos, see the [cpp-example-collection repo](https://github.com/livekit-examples/cpp-example-collection).
 
-After building, run tests using ctest or directly:
+## Features
 
-```bash
-# Run all tests via ctest
-cd build-debug
-ctest --output-on-failure
+- Connect to LiveKit rooms (Cloud or self-hosted)
+- Receive remote audio/video tracks
+- Publish local audio/video tracks
+- Data tracks (low-level) and data streams (high-level)
+- RPC between participants
+- End-to-end encryption (E2EE)
+- Hardware-accelerated codecs (via the underlying Rust SDK)
+- Chromium-style tracing for performance debugging
 
-# Or run test executables directly
-./build-debug/bin/livekit_integration_tests
-./build-debug/bin/livekit_stress_tests
+Supported platforms: **Linux** (x64, arm64), **macOS** (12.3+, Apple Silicon
+& Intel), **Windows** (x64).
 
-# Run specific test suites
-./build-debug/bin/livekit_integration_tests --gtest_filter="*Rpc*"
-./build-debug/bin/livekit_stress_tests --gtest_filter="*MaxPayloadStress*"
-```
+## Logging & tracing
 
-### Test Types
+The SDK uses a thin public logging API in `<livekit/logging.h>` with both
+compile-time and runtime filtering. Plug your own sink in (file, JSON,
+syslog, ROS2 `RCLCPP_*`) via `setLogCallback`. See
+[docs/logging.md](docs/logging.md).
 
-| Executable | Description |
-|------------|-------------|
-| `livekit_integration_tests` | Quick tests (~1-2 minutes) for SDK functionality |
-| `livekit_stress_tests` | Long-running tests (configurable, default 1 hour) |
+Chromium-format performance traces can be captured with `startTracing` /
+`stopTracing` and viewed in `chrome://tracing` or
+[ui.perfetto.dev](https://ui.perfetto.dev). See [docs/tracing.md](docs/tracing.md).
 
-### Integration & Stress Test Environment Variables
+## Testing
 
-The integration and stress test suites (data tracks, RPC, media multistream,
-etc.) require a LiveKit server and two participant tokens:
+Integration and stress test suites live under `src/tests/`. Build them with
+`./build.sh debug-tests`, point `LIVEKIT_URL` + two participant tokens at a
+local `livekit-server --dev`, and run via `ctest` or directly. See
+[docs/testing.md](docs/testing.md).
 
-```bash
-# Required
-export LIVEKIT_URL="ws://localhost:7880"            # or wss://your-server.livekit.cloud
-export LIVEKIT_TOKEN_A="<first participant token>"
-export LIVEKIT_TOKEN_B="<second participant token>"
+## Developer tools
 
-# Optional (for stress tests)
-export RPC_STRESS_DURATION_SECONDS=3600   # Test duration (default: 1 hour)
-export RPC_STRESS_CALLER_THREADS=4        # Concurrent caller threads (default: 4)
-```
-
-**Generate tokens for the test suites:**
-
-The easiest path is to source the helper script, which will mint both
-participant tokens against a local `livekit-server --dev` and export
-`LIVEKIT_TOKEN_A`, `LIVEKIT_TOKEN_B`, and `LIVEKIT_URL` for the current shell:
-
-```bash
-source .token_helpers/set_data_track_test_tokens.bash
-```
-
-To generate tokens manually instead (e.g. against a non-default server):
-
-```bash
-export LIVEKIT_TOKEN_A="$(lk token create --api-key devkey --api-secret secret -i cpp-test-a \
-  --join --valid-for 99999h --room cpp_data_track_test \
-  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}' \
-  --token-only)"
-export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -i cpp-test-b \
-  --join --valid-for 99999h --room cpp_data_track_test \
-  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}' \
-  --token-only)"
-```
-
-### Test Coverage
-
-- **SDK Initialization**: Initialize/shutdown lifecycle
-- **Room**: Room creation, options, connection
-- **Audio Frame**: Frame creation, manipulation, edge cases
-- **RPC**: Round-trip calls, max payload (15KB), timeouts, errors, concurrent calls
-- **Stress Tests**: High throughput, bidirectional RPC, memory pressure
-
-## Recommended Setup
-### macOS
-```bash
-brew install cmake protobuf rust
-```
-
-### Ubuntu / Debian
-```bash
-sudo apt update
-sudo apt install -y cmake protobuf-compiler build-essential
-curl https://sh.rustup.rs -sSf | sh
-```
-
-## Development Tips
-###  Update Rust version
-```bash
-cd client-sdk-cpp
-git fetch origin
-git switch -c try-rust-main origin/main
-
-# Sync submodule URLs and check out what origin/main pins (recursively):
-git submodule sync --recursive
-git submodule update --init --recursive --checkout
-
-# Now, in case the nested submodule under yuv-sys didn’t materialize, force it explicitly:
-cd ..
-git -C client-sdk-rust/yuv-sys submodule sync --recursive
-git -C client-sdk-rust/yuv-sys submodule update --init --recursive --checkout
-
-# Sanity check:
-git submodule status --recursive
-```
-
-###  If yuv-sys fails to build
-```bash
-cargo clean -p yuv-sys
-cargo build -p yuv-sys -vv
-```
-
-### Full clean (Rust + C++ build folders)
-In some cases, you may need to perform a full clean that deletes all build artifacts from both the Rust and C++ folders, plus the local install folder:
-```bash
-./build.sh clean-all
-```
-
-## Quality Checks
-
-This SDK leverages various tools and checks to ensure the highest quality of the code.
-
-### Clang Tools
-
-- `clang-tidy`: static analysis checks to catch common C++ pitfalls. See [.clang-tidy](./.clang-tidy) for the list of current checks (enforced in CI on PR)
-- `clang-format`: code formatting and style consistency. See [.clang-format](./.clang-format) for the list of style configurations (enforced in CI on PR)
-
-> **Note**: For Windows, `clang-tidy` is not currently supported for this project because the Visual Studio CMake generator does not produce the compile_commands.json database that `clang-tidy` requires. Similarly, `clang-format` must be installed and run manually on Windows, referencing the root `.clang-format` file.
-
-To run locally, first install the following:
-
-**macOS:**
+`clang-tidy`, `clang-format`, `valgrind`, and Doxygen are all wired up via
+scripts under `scripts/`. Set up the pre-commit auto-formatter
+with:
 
 ```bash
-brew install llvm
+./scripts/install-pre-commit.sh
 ```
 
-This installs `clang-format`, `clang-tidy`, and `run-clang-tidy`. Homebrew may ask you to add `/opt/homebrew/opt/llvm/bin` to your `PATH`.
-
-**Linux:**
-
-```bash
-# Ubuntu / Debian:
-sudo apt-get install clang-format clang-tidy clang-tools
-```
-
-**Pre-commit hook**
-
-```bash
-printf '#!/bin/sh\nFILES=$(git diff --cached --name-only --diff-filter=ACMR -- "*.c" "*.cc" "*.cpp" "*.cxx" "*.h" "*.hpp" "*.hxx")\n[ -z "$FILES" ] && exit 0\necho "$FILES" | xargs ./scripts/clang-format.sh --fix\necho "$FILES" | xargs git add\n' > .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
-```
-
-To run `clang-tidy`:
-
-1. Generate `compile_commands.json` and the protobuf headers via a release build:
-
-```bash
-./build.sh release
-```
-
-1. Run the clang-tidy wrapper, which uses the same file set, regex filters, and `.clang-tidy` config as CI:
-
-```bash
-./scripts/clang-tidy.sh
-```
-
-The wrapper forwards extra arguments to `run-clang-tidy`, examples below:
-
-```bash
-./scripts/clang-tidy.sh -j 4                                # Change number of cores used
-./scripts/clang-tidy.sh -checks='-*,misc-const-correctness' # Only run certain checks
-./scripts/clang-tidy.sh -fix                                # Apply fixes automatically
-```
-
-Output is captured to `clang-tidy.log` at the repo root. This is done as a convenience feature, as often times the terminal buffer is not large enough for all the output.
-
-To run `clang-format`:
-
-```bash
-./scripts/clang-format.sh
-```
-
-With no arguments, runs `clang-format` against every relevant file in the repository against defined `.clang-format` rules.
-
-Pass flags or paths as needed, examples below:
-
-```bash
-./scripts/clang-format.sh --fix                                # Rewrite files in place
-./scripts/clang-format.sh src/room.cpp include/livekit/room.h  # Check just these files
-./scripts/clang-format.sh --fix src/room.cpp                   # Fix just this file
-```
-
-Output is captured to `clang-format.log` at the repo root.
-
-### Memory Checks
-
-Run valgrind on various examples or tests to check for memory leaks and other issues.
-
-```bash
-valgrind --leak-check=full ./build-debug/bin/livekit_integration_tests
-valgrind --leak-check=full ./build-debug/bin/livekit_stress_tests
-```
-
-## Running locally
-
-1. Install the livekit-server
-https://docs.livekit.io/transport/self-hosting/local/
-
-Start the livekit-server with data tracks enabled:
-```bash
-LIVEKIT_CONFIG="enable_data_tracks: true" livekit-server --dev
-```
-
-```bash
-# generate tokens, do for all participants
-lk token create \
-  --api-key devkey \
-  --api-secret secret \
-  -i robot \
-  --join \
-  --valid-for 99999h \
-  --room robo_room \
-  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}'
-```
+See [docs/tools.md](docs/tools.md).
 
 # Deprecation
 > NOTE: With the official 1.0.0 release we have introduced breaking changes to previous unofficial versions in order
 to align with other LiveKit client SDKs. See [PR #143](https://github.com/livekit/client-sdk-cpp/pull/143) for the source code changes.
+
+## Contributing
+PRs welcome. Issues: <https://github.com/livekit/client-sdk-cpp/issues>.
 
 <!--BEGIN_REPO_NAV-->
 <br/><table>
