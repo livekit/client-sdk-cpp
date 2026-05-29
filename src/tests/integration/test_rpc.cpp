@@ -93,7 +93,7 @@ std::string generateRandomPayload(size_t size) {
 class RpcIntegrationTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
+    livekit::initialize(livekit::LogLevel::Info);
     config_ = RpcTestConfig::fromEnv();
   }
 
