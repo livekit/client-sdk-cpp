@@ -261,7 +261,11 @@ jobs:
         timeout-minutes: 5
         shell: bash
         env:
-          RUST_LOG: "metrics=debug"
+          # Bump livekit_ffi to debug so handle-table errors (the exact Rust
+          # message that produces our INVALID_HANDLE → terminate path) land
+          # in the CI log. Keep livekit at info to avoid drowning out the
+          # interesting lines.
+          RUST_LOG: "metrics=debug,livekit_ffi=debug,livekit=info"
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash

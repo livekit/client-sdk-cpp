@@ -76,6 +76,7 @@ void readyForRoomEvent(std::uint64_t room_handle) {
 Room::Room() : subscription_thread_dispatcher_(std::make_unique<SubscriptionThreadDispatcher>()) {}
 
 Room::~Room() {
+  LK_LOG_INFO("Room::~Room: entry (this={})", static_cast<const void*>(this));
   // Issue a graceful disconnect so the server sees us leave instead of
   // timing out (RAII expectation; see issue #118). disconnect() does the
   // full teardown including subscription threads, listener, and local
@@ -245,6 +246,7 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
 
 bool Room::disconnect(DisconnectReason reason) {
   TRACE_EVENT0("livekit", "Room::disconnect");
+  LK_LOG_INFO("Room::disconnect: entry (this={}, reason={})", static_cast<const void*>(this), static_cast<int>(reason));
 
   // Hold onto this in case the
   auto prev_connection_state = connection_state_;
@@ -254,6 +256,7 @@ bool Room::disconnect(DisconnectReason reason) {
   {
     const std::scoped_lock<std::mutex> g(lock_);
     if (connection_state_ == ConnectionState::Disconnected) {
+      LK_LOG_INFO("Room::disconnect: already disconnected, returning false (this={})", static_cast<const void*>(this));
       return false;
     }
     handle = room_handle_;
@@ -1228,6 +1231,8 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kDisconnected: {
+          LK_LOG_INFO("Room::onFfiEvent: kDisconnected received (this={}, reason={})", static_cast<const void*>(this),
+                      static_cast<int>(re.disconnected().reason()));
           // If disconnect() was driven from our side, it already flipped state
           // to Disconnected and fired the delegate; skip the duplicate here.
           bool already_disconnected = false;
@@ -1261,6 +1266,7 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kEos: {
+          LK_LOG_INFO("Room::onFfiEvent: kEos received (this={})", static_cast<const void*>(this));
           if (subscription_thread_dispatcher_) {
             subscription_thread_dispatcher_->stopAll();
           }
@@ -1291,6 +1297,16 @@ void Room::onEvent(const FfiEvent& event) {
             old_e2ee_manager = std::move(e2ee_manager_);
             old_text_readers = std::move(text_stream_readers_);
             old_byte_readers = std::move(byte_stream_readers_);
+          }
+
+          // Drain in-flight RPC invocations before destroying the local
+          // participant's FFI handle. Mirrors the ordering in disconnect();
+          // without this, a listener-thread RPC handler can race with handle
+          // disposal and send to a dead handle → INVALID_HANDLE → terminate.
+          if (old_local_participant) {
+            LK_LOG_INFO("Room::onFfiEvent: kEos shutting down local participant (handle={})",
+                        old_local_participant->ffiHandleId());
+            old_local_participant->shutdown();
           }
 
           // Remove listener outside lock
