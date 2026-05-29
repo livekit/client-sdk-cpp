@@ -27,7 +27,7 @@ namespace livekit::test {
 
 class RoomStressTest : public ::testing::Test {
 protected:
-  void SetUp() override { livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole); }
+  void SetUp() override { livekit::initialize(livekit::LogLevel::Info); }
 
   void TearDown() override { livekit::shutdown(); }
 };
@@ -176,7 +176,7 @@ TEST_F(RoomStressTest, StreamHandlerRegistrationStress) {
 class RoomServerStressTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
+    livekit::initialize(livekit::LogLevel::Info);
 
     const char* url_env = std::getenv("LIVEKIT_URL");
     const char* token_env = std::getenv("LIVEKIT_TOKEN_A");
