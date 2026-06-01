@@ -70,4 +70,57 @@ TEST_F(RoomTest, ConnectWithInvalidUrl) {
   EXPECT_FALSE(connected) << "Should fail to connect to invalid URL";
 }
 
+namespace {
+
+class DisconnectTrackingDelegate : public RoomDelegate {
+public:
+  void onDisconnected(Room&, const DisconnectedEvent& ev) override {
+    ++count;
+    last_reason = ev.reason;
+  }
+
+  std::atomic<int> count{0};
+  DisconnectReason last_reason = DisconnectReason::Unknown;
+};
+
+} // namespace
+
+// Case: User calls disconnect()
+TEST_F(RoomTest, UserDisconnect) {
+  Room room;
+  DisconnectTrackingDelegate delegate;
+  room.setDelegate(&delegate);
+
+  RoomOptions options;
+  ASSERT_TRUE(room.connect(server_url_, token_, options)) << "connect failed";
+  ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
+  ASSERT_NE(room.localParticipant(), nullptr);
+
+  EXPECT_NO_THROW(room.disconnect()) << "disconnect should not throw on a connected room";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_EQ(room.localParticipant(), nullptr) << "local participant should be cleared after disconnect";
+  EXPECT_EQ(delegate.count.load(), 1) << "onDisconnected should fire exactly once";
+  EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
+
+  // Calling again on an already-disconnected room is a no-op
+  EXPECT_NO_THROW(room.disconnect()) << "second disconnect should not throw on an already-disconnected room";
+  EXPECT_EQ(delegate.count.load(), 1) << "delegate must not double-fire";
+}
+
+// Case: Room goes out of scope while still connected
+TEST_F(RoomTest, DestructorDisconnect) {
+  std::unique_ptr<Room> room = std::make_unique<Room>();
+
+  DisconnectTrackingDelegate delegate;
+  room->setDelegate(&delegate);
+  RoomOptions options;
+  ASSERT_TRUE(room->connect(server_url_, token_, options));
+  ASSERT_EQ(room->connectionState(), ConnectionState::Connected);
+
+  room.reset(); // invokes destructor which calls disconnect()
+
+  EXPECT_EQ(delegate.count.load(), 1) << "destructor should fire onDisconnected exactly once";
+  EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
+}
+
 } // namespace livekit::test

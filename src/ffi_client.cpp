@@ -380,6 +380,37 @@ std::future<proto::ConnectCallback> FfiClient::connectAsync(const std::string& u
   return fut;
 }
 
+std::future<void> FfiClient::disconnectAsync(uintptr_t room_handle, DisconnectReason reason) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<void>(
+      async_id,
+      // match: this DisconnectCallback's async_id
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_disconnect() && event.disconnect().async_id() == async_id;
+      },
+      // handler: nothing to extract; the callback is signal-only
+      [](const proto::FfiEvent& /*event*/, std::promise<void>& pr) { pr.set_value(); });
+
+  proto::FfiRequest req;
+  auto* disconnect = req.mutable_disconnect();
+  disconnect->set_room_handle(room_handle);
+  disconnect->set_request_async_id(async_id);
+  disconnect->set_reason(toProto(reason));
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_disconnect()) {
+      logAndThrow("FfiResponse missing disconnect");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
 // Track APIs Implementation
 std::future<std::vector<RtcStats>> FfiClient::getTrackStatsAsync(uintptr_t track_handle) {
   // Generate client-side async_id first
