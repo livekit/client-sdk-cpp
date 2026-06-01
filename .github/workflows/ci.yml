@@ -27,6 +27,14 @@ concurrency:
 
 permissions:
   contents: read
+  # Reusable child workflows (builds.yml, tests.yml) request actions:read
+  # (GHA cache) and packages:read (GHCR). GitHub clamps a child workflow's
+  # permissions to the MIN of (caller's permissions, child's request), so
+  # we must grant these at the caller level even though ci.yml itself
+  # doesn't use them. Without this, callers get
+  #   "actions: read, packages: read" but is only allowed "actions: none, packages: none"
+  actions: read
+  packages: read
 
 jobs:
   # Compute once which path groups changed; every other job references these
