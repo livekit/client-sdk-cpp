@@ -231,10 +231,12 @@ with:
 
 See [docs/tools.md](docs/tools.md).
 
-# Deprecation
+## Deprecation
+
 Future deprecations and deprecation dates will be listed here for the next major release.
 
-#### `v1.0.0`
+### `v1.0.0`
+
 >NOTE: With the official 1.0.0 release we have introduced breaking changes to previous unofficial versions in order
 to align with other LiveKit client SDKs. See the `v1.0.0` release notes for the full list of changes.
 
