@@ -1,0 +1,81 @@
+name: Bug Report
+description: File a bug report.
+labels: [triage]
+assignees: [alan-george-lk, stephen-derosa]
+body:
+  - type: input
+    id: sdk-version
+    validations: { required: true }
+    attributes:
+      label: LiveKit C++ SDK Version
+      description: What version (or commit SHA) of the LiveKit C++ SDK are you using?
+      placeholder: "v1.0.0"
+  - type: dropdown
+    id: platform
+    validations: { required: true }
+    attributes:
+      label: Platform
+      description: On which platform did you encounter the issue?
+      options:
+        - Linux x86_64
+        - Linux arm64
+        - macOS x86_64 (Intel)
+        - macOS arm64 (Apple Silicon)
+        - Windows x64
+        - Other (describe below)
+  - type: input
+    id: os-version
+    validations: { required: true }
+    attributes:
+      label: OS Version
+      description: What operating system version are you running?
+      placeholder: "Ubuntu 22.04 / macOS 14.5 / Windows 11"
+  - type: input
+    id: compiler
+    validations: { required: true }
+    attributes:
+      label: Compiler & Version
+      description: Which compiler and version are you building with?
+      placeholder: "clang 17 / gcc 13 / MSVC 19.39"
+  - type: input
+    id: cmake-version
+    validations: { required: true }
+    attributes:
+      label: CMake Version
+      description: Output of `cmake --version` (must be ≥ 3.20).
+      placeholder: "3.28.1"
+  - type: dropdown
+    id: consumption
+    validations: { required: true }
+    attributes:
+      label: How are you using the SDK?
+      description: Are you building from source or consuming a pre-built release?
+      options:
+        - Building from source (build.sh / build.cmd)
+        - Pre-built release package (find_package(LiveKit CONFIG))
+        - Other (describe below)
+  - type: textarea
+    id: description
+    validations: { required: true }
+    attributes:
+      label: Issue Description
+      description: |
+        Please describe the issue, including what you expected to happen and what
+        actually happened. Provide any relevant logs and code snippets.
+  - type: textarea
+    id: reproduction
+    validations: { required: false }
+    attributes:
+      label: Steps to Reproduce
+      description: |
+        A minimal set of steps (and, if possible, a code snippet) that reliably
+        reproduces the issue.
+  - type: textarea
+    id: logs
+    validations: { required: false }
+    attributes:
+      label: Logs
+      description: |
+        Relevant SDK logs. Setting the log level to debug via `setLogLevel`
+        (`include/livekit/logging.h`) often provides useful detail.
+      render: shell
