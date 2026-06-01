@@ -19,6 +19,8 @@
 
 #include <string>
 
+#include "lk_log.h"
+
 namespace livekit::test {
 
 class SDKInitializationTest : public ::testing::Test {
@@ -37,6 +39,19 @@ TEST_F(SDKInitializationTest, InitializeWithLogLevel) {
   bool result = livekit::initialize(livekit::LogLevel::Debug);
   EXPECT_TRUE(result) << "Initialization with explicit log level should succeed";
   EXPECT_EQ(livekit::getLogLevel(), livekit::LogLevel::Debug);
+}
+
+TEST_F(SDKInitializationTest, InitializeWithLogLevelAndCallback) {
+  std::size_t callback_count = 0;
+  bool result = livekit::initialize(livekit::LogLevel::Debug,
+                                    [&callback_count](livekit::LogLevel level, const std::string& logger_name,
+                                                      const std::string& message) { callback_count++; });
+  EXPECT_TRUE(result) << "Initialization with explicit log level and callback should succeed";
+  EXPECT_EQ(livekit::getLogLevel(), livekit::LogLevel::Debug);
+
+  // Simple log to ensure callback wired up right
+  LK_LOG_DEBUG("hello from test");
+  EXPECT_EQ(callback_count, 1);
 }
 
 TEST_F(SDKInitializationTest, DoubleInitializationReturnsFalse) {

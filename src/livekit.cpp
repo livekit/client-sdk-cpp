@@ -29,7 +29,14 @@ bool initialize(const LogLevel& level) {
   return ffi_client.initialize(false);
 }
 
-bool isInitialized() { return FfiClient::instance().isInitialized(); }
+bool initialize(const LogLevel& level, const LogCallback& callback) {
+  // Initializes logger if singleton instance is not already initialized
+  setLogLevel(level);
+  setLogCallback(callback);
+  auto& ffi_client = FfiClient::instance();
+  // Note: capture_logs currently disabled, requires event support in FfiClient
+  return ffi_client.initialize(false);
+}
 
 void shutdown() {
   FfiClient::instance().shutdown();

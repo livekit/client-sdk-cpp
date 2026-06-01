@@ -55,6 +55,13 @@ namespace livekit {
 ///          already initialized.
 LIVEKIT_API bool initialize(const LogLevel& level = LogLevel::Info);
 
+/// (AG) If we expose the log callback at the init level, two things are clean:
+/// 1. It's easier for the user, a one-shot API to set up the entire SDK/logging features (vs. init() +
+/// setLogCallback())
+/// 2. Opens flexibility later for us to forward FFI logs under this callback, essentially achieving the original
+/// LogSink Enum design without that additional type
+LIVEKIT_API bool initialize(const LogLevel& level, const LogCallback& callback);
+
 /// Shut down the LiveKit SDK.
 ///
 /// After shutdown, you may call initialize() again.
