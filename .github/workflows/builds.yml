@@ -23,7 +23,7 @@ env:
   # sccache cache per-crate compilations whenever the cargo target cache misses.
   CARGO_INCREMENTAL: "0"
   # Pinned commit for cpp-example-collection smoke build (https://github.com/livekit-examples/cpp-example-collection)
-  CPP_EXAMPLE_COLLECTION_REF: 402e6fbcc3cb8b2b2aaf80e21b289f27a9060dc6
+  CPP_EXAMPLE_COLLECTION_REF: bbf0fdf72dac2239117213475449565686f8c58b
   # vcpkg binary caching for Windows
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
