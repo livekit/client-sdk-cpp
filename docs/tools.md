@@ -5,10 +5,10 @@ are also enforced in CI on PRs.
 
 ## Clang tools
 
-- **`clang-tidy`** — static analysis. See [.clang-tidy](../.clang-tidy) for the
+- **`clang-tidy`** — static analysis. See [.clang-tidy](https://github.com/livekit/client-sdk-cpp/blob/main/.clang-tidy) for the
   enabled checks. Enforced in CI on PR.
 - **`clang-format`** — code formatting and style consistency. See
-  [.clang-format](../.clang-format) for the rules. Enforced in CI on PR.
+  [.clang-format](https://github.com/livekit/client-sdk-cpp/blob/main/.clang-format) for the rules. Enforced in CI on PR.
 
 > **Note (Windows):** `clang-tidy` is not currently driven by our scripts on
 > Windows. The MSBuild CMake generator doesn't emit
@@ -121,7 +121,7 @@ Output lands under `docs/doxygen/html/`. The deployed reference is at
 To view the generated documentation locally, open `docs/doxygen/html/index.html` in your browser.
 
 For details on the Doxygen configuration and CI pipeline, see the
-[doxygen/](doxygen/) folder.
+[doxygen/](https://github.com/livekit/client-sdk-cpp/tree/main/docs/doxygen) folder.
 
 ---
 

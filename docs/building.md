@@ -121,7 +121,7 @@ The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 ## Advanced: CMake presets
 
 For more control, drive CMake directly via the presets in
-[CMakePresets.json](../CMakePresets.json):
+[CMakePresets.json](https://github.com/livekit/client-sdk-cpp/blob/main/CMakePresets.json):
 
 ```bash
 # Linux
@@ -146,7 +146,7 @@ $env:VCPKG_ROOT = "C:\path\to\vcpkg"
 ## Advanced: vcpkg manifest mode
 
 vcpkg will automatically install all dependencies listed in
-[vcpkg.json](../vcpkg.json) the first time you configure with its toolchain
+[vcpkg.json](https://github.com/livekit/client-sdk-cpp/blob/main/vcpkg.json) the first time you configure with its toolchain
 file.
 
 **Windows:**
@@ -189,7 +189,7 @@ docker run -it --network host livekit-cpp-sdk:latest bash
 ```
 
 If you're authoring your own Dockerfile, mirror the `ENV` block in
-[docker/Dockerfile.base](../docker/Dockerfile.base):
+[docker/Dockerfile.base](https://github.com/livekit/client-sdk-cpp/blob/main/docker/Dockerfile.base):
 
 ```bash
 export CC=$HOME/gcc-14/bin/gcc
