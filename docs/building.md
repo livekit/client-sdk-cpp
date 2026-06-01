@@ -224,9 +224,6 @@ build-release/
     └── liblivekit_ffi.{so,dylib}   # (Linux/macOS: copied for runtime)
 ```
 
-<!-- markdownlint-disable-next-line MD033 -->
-<a id="integrating-into-your-project"></a>
-
 ## Integrating into your project
 
 ### Using CMake
