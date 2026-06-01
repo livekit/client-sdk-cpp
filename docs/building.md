@@ -1,11 +1,8 @@
 # Building
 
 This document covers everything you need to build the LiveKit C++ SDK from
-source: requirements, cloning the repository, the build scripts, advanced
+source: prerequisites, cloning the repository, the build scripts, advanced
 CMake/vcpkg flows, and Docker.
-
-For a quick `clone + build` recipe, see the main README. This guide is the
-long form.
 
 ## Prerequisites
 
@@ -226,6 +223,9 @@ build-release/
 └── bin/                            # Example/test executables
     └── liblivekit_ffi.{so,dylib}   # (Linux/macOS: copied for runtime)
 ```
+
+<!-- markdownlint-disable-next-line MD033 -->
+<a id="integrating-into-your-project"></a>
 
 ## Integrating into your project
 

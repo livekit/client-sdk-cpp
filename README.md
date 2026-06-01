@@ -27,7 +27,7 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 
 [CMake](https://cmake.org/) (≥ 3.20) is used for building the SDK itself and for consuming it as a library. The
 [**cpp-example-collection**](https://github.com/livekit-examples/cpp-example-collection) contains a reference [LiveKitSDK.cmake](https://github.com/livekit-examples/cpp-example-collection/blob/main/cmake/LiveKitSDK.cmake)
-which downloads the latest stable release at CMake configure time, and can be used in your project to start building with LiveKit in C++.
+which downloads the latest stable release at CMake configure time, and can be used in your project to start building with LiveKit in C++. See [Integrating into your project](docs/building.md#integrating-into-your-project) for additional documentation.
 
 To build the SDK from source:
 
