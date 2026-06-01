@@ -25,24 +25,23 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 
 ## Using Real-time SDK
 
-This project uses [CMake](https://cmake.org/) for building the SDK itself and for consuming as a library. The
-[**cpp-example-collection**](https://github.com/livekit-examples/cpp-example-collection) contains a [LiveKitSDK.cmake](https://github.com/livekit-examples/cpp-example-collection/blob/main/cmake/LiveKitSDK.cmake)
-which downloads a prebuilt release at CMake configure time — no source build
-required.
+[CMake](https://cmake.org/) (≥ 3.20) is used for building the SDK itself and for consuming it as a library. The
+[**cpp-example-collection**](https://github.com/livekit-examples/cpp-example-collection) contains a reference [LiveKitSDK.cmake](https://github.com/livekit-examples/cpp-example-collection/blob/main/cmake/LiveKitSDK.cmake)
+which downloads the latest stable release at CMake configure time, which can be used in your project to start building with LiveKit in C++.
 
-If you do want to build from source, the short version is:
+To build the SDK from source:
 
 ```bash
 git clone --recurse-submodules https://github.com/livekit/client-sdk-cpp.git
 cd client-sdk-cpp
-./build.sh release        # or .\build.cmd release on Windows
+./build.sh release  # or .\build.cmd release on Windows
 ```
 
-You'll need `cmake` ≥ 3.20, a stable Rust toolchain, and platform-specific build
+Building requires a stable Rust toolchain and platform-specific build
 deps (`protobuf`, `abseil`, `openssl` on Linux). See the [Building](docs/building.md) guide
 for full prerequisites table, Docker recipe, CMake presets, and troubleshooting.
 
-## Hello, LiveKit
+### Hello, LiveKit
 
 Here is a minimal example of the `main` function for sending and receiving video and data track frames. The [sender](https://github.com/livekit-examples/cpp-example-collection/blob/main/hello_livekit/sender/main.cpp) plays the role of a robot or camera, publishing video and data track frames every 100 ms; the [receiver](https://github.com/livekit-examples/cpp-example-collection/blob/main/hello_livekit/receiver/main.cpp) stands in for the cloud service or operator UI, logging every frame it sees. In a production system the synthetic video would be a robot's perception output and the data track would carry sensor readings or operator commands, but the connection and publishing pattern is the same. Full source for both processes lives in the [cpp-example-collection](https://github.com/livekit-examples/cpp-example-collection/tree/main/hello_livekit) repo.
 
@@ -51,14 +50,16 @@ The sender creates tracks and publishes data.
 **Initialize LiveKit and connect to the room**
 
 ```cpp
-// get your url and token from env vars, args, etc
+#include "livekit/livekit.h"
+
+// Get your url and token from env vars, args, etc.
 const std::string url = "wss://hello.livekit.cloud";
 const std::string token = "sender_token";
 
 // Start the LiveKit SDK before creating rooms or tracks.
-livekit::initialize(LogLevel::Info, LogSink::kConsole);
+livekit::initialize(livekit::LogLevel::Info);
 
-// set your room options, here we will use defaults
+// Set your room options, here we will use defaults.
 livekit::RoomOptions options;
 
 // Create the room & connect to the room using a server URL and participant token.
@@ -72,12 +73,17 @@ if (!room->connect(url, token, options)) {
 **Create the VideoSource, which provides frames to the VideoTrack, then create and publish the VideoTrack**
 
 ```cpp
-// get the local participant to create tracks
-auto* participant = room->localParticipant();
+// Get the local participant to create tracks.
+auto participant = room->localParticipant().lock();
+if (!participant)
+{
+  std::cerr << "Unable to get the local participant!" << std::endl;
+  return 1;
+}
 
 // Publish a synthetic camera track named "camera0" backed by a VideoSource.
-auto video_source = std::make_shared<VideoSource>(640, 480);
-auto video_track = participant->publishVideoTrack("camera0", video_source, TrackSource::SOURCE_CAMERA);
+auto video_source = std::make_shared<livekit::VideoSource>(640, 480);
+auto video_track = participant->publishVideoTrack("camera0", video_source, livekit::TrackSource::SOURCE_CAMERA);
 if (!video_track) {
   std::cerr << "Failed to publish video track\n";
   return 1;
@@ -94,6 +100,9 @@ if (!data_track_result) {
   return 1;
 }
 auto data_track = data_track_result.value();
+
+// Release the participant to reduce scope.
+participant.reset();
 ```
 
 **Publish video and data track frames every 100ms**
@@ -103,23 +112,23 @@ int count = 0;
 
 while (true)
 {
-  // create a 640x480 RGBA video frame
-  auto vf = livekit::VideoFrame::create(640, 480, VideoBufferType::RGBA);
+  // Create a 640x480 RGBA video frame.
+  auto vf = livekit::VideoFrame::create(640, 480, livekit::VideoBufferType::RGBA);
 
-  // capture the frame. This publishes the frame on VideoTrack camera0
+  // Capture the frame. This publishes the frame on VideoTrack camera0.
   video_source->captureFrame(vf);
 
   const std::string message = "hello #" + std::to_string(count);
   const auto now_microsec =
         std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-  // create and push stamped DataTrackFrame
+  // Create and push stamped DataTrackFrame.
   const livekit::DataTrackFrame frame{
         std::vector<std::uint8_t>(message.begin(), message.end()),
         now_microsec,
         };
 
-  // optionally, capture the result
+  // Optionally, capture the result.
   auto push_result = data_track->tryPush(frame);
   if (!push_result) {
     const auto& error = push_result.error();
@@ -127,6 +136,7 @@ while (true)
               << " message=" << error.message << "\n";
   }
 
+  ++count;
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 ```
@@ -136,14 +146,16 @@ The receiver side setup is the same, except now we set callbacks to the relevant
 **Initialize LiveKit and Connect to the room**
 
 ```cpp
-// get your url and token from env vars, args, etc
+#include "livekit/livekit.h"
+
+// Get your url and token from env vars, args, etc.
 const std::string url = "wss://hello.livekit.cloud";
 const std::string token = "receiver_token";
 
 // Start the LiveKit SDK before creating rooms or tracks.
-livekit::initialize(LogLevel::Info, LogSink::kConsole);
+livekit::initialize(livekit::LogLevel::Info);
 
-// set your room options, here we use the defaults
+// Set your room options, here we use the defaults.
 livekit::RoomOptions options;
 
 // Create the room & connect to the room using a server URL and participant token.
@@ -157,15 +169,15 @@ if (!room->connect(url, token, options)) {
 **Set callbacks for new video and data frames**
 
 ```cpp
-// the identity of the participant sending video and data frames
+// The identity of the participant sending video and data frames.
 const std::string sender_identity = "sender_identity";
 
-// Set the callback for new video frames from the sender's "camera0" VideoTrack
-room->setOnVideoFrameCallback(sender_identity, "camera0", [](const VideoFrame& frame, std::int64_t) {
+// Set the callback for new video frames from the sender's "camera0" VideoTrack.
+room->setOnVideoFrameCallback(sender_identity, "camera0", [](const livekit::VideoFrame& frame, std::int64_t) {
   std::cout << "video frame: " << frame.width() << "x" << frame.height() << "\n";
 });
 
-// Set the callback for new frames on the sender's "app-data" DataTrack
+// Set the callback for new frames on the sender's "app-data" DataTrack.
 room->addOnDataFrameCallback(sender_identity, "app-data",
                              [](const std::vector<std::uint8_t>& payload, std::optional<std::uint64_t>) {
                                const std::string message(payload.begin(), payload.end());
