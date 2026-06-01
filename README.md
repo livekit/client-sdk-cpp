@@ -222,7 +222,7 @@ local `livekit-server --dev`, and run via `ctest` or directly. See
 ## Developer tools
 
 `clang-tidy`, `clang-format`, `valgrind`, and Doxygen are all wired up via
-scripts under [`scripts/`](scripts/). Set up the pre-commit auto-formatter
+scripts under `scripts/`. Set up the pre-commit auto-formatter
 with:
 
 ```bash
