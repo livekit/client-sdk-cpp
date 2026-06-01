@@ -27,11 +27,6 @@ concurrency:
 
 permissions:
   contents: read
-  # Reusable child workflows can only request permissions <= what the
-  # caller has. builds.yml and tests.yml need actions:read (GHA cache) and
-  # packages:read (GHCR pulls), so grant them at the caller level too.
-  actions: read
-  packages: read
 
 jobs:
   # Compute once which path groups changed; every other job references these
@@ -83,7 +78,9 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/tests.yml
             docs:
-              - **/*.md
+              # Quoted because YAML treats a leading `*` as an alias
+              # reference and would otherwise reject this scalar.
+              - "**/*.md"
               - include/**
               - src/**
               - docs/**
