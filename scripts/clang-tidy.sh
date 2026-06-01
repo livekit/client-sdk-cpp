@@ -69,7 +69,7 @@ repo's CI workflow uses. Picks up checks from the repo-root .clang-tidy.
 Options:
   -h, --help, -?
         Show this help and exit.
-  --fix, -i
+  --fix
         Apply fixes in place (forwarded to run-clang-tidy as -fix).
   --github-actions, --gh
         Force GitHub Actions annotation + step-summary mode.
@@ -145,7 +145,7 @@ while (($#)); do
       __tidy_hint_active=0
       exit 0
       ;;
-    --fix|-fix|-i)
+    --fix)
       # Unify with clang-format.sh's --fix spelling. run-clang-tidy only
       # understands the single-dash -fix, so normalize every accepted form
       # to that when forwarding.
