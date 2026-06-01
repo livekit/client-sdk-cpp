@@ -232,8 +232,11 @@ with:
 See [docs/tools.md](docs/tools.md).
 
 # Deprecation
-> NOTE: With the official 1.0.0 release we have introduced breaking changes to previous unofficial versions in order
-to align with other LiveKit client SDKs. See [PR #143](https://github.com/livekit/client-sdk-cpp/pull/143) for the source code changes.
+Future deprecations and deprecation dates will be listed here for the next major release.
+
+#### `v1.0.0`
+>NOTE: With the official 1.0.0 release we have introduced breaking changes to previous unofficial versions in order
+to align with other LiveKit client SDKs. See the `v1.0.0` release notes for the full list of changes.
 
 ## Contributing
 PRs welcome. Issues: <https://github.com/livekit/client-sdk-cpp/issues>.

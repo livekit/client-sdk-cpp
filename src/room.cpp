@@ -217,9 +217,9 @@ bool Room::disconnect(DisconnectReason reason) {
 
   std::shared_ptr<FfiHandle> handle;
   RoomDelegate* delegate_snapshot = nullptr;
-  std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
+  std::shared_ptr<LocalParticipant> local_participant_to_cleanup;
   std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> remote_participants_to_clear;
-  std::unique_ptr<E2EEManager> e2ee_manager_to_clear;
+  std::shared_ptr<E2EEManager> e2ee_manager_to_clear;
   std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> text_stream_readers_to_clear;
   std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> byte_stream_readers_to_clear;
   int listener_to_remove = 0;
