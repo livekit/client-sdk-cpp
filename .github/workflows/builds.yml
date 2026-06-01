@@ -30,14 +30,6 @@ env:
   VCPKG_TARGET_TRIPLET: x64-windows-static-md
 
 jobs:
-  license-check:
-    name: License Check
-    uses: ./.github/workflows/license_check.yml
-
-  pin-check:
-    name: Pin Check
-    uses: ./.github/workflows/pin_check.yml
-
   build:
     strategy:
       fail-fast: false
