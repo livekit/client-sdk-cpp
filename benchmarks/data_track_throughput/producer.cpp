@@ -305,7 +305,7 @@ int main(int argc, char* argv[]) {
   std::signal(SIGTERM, handleSignal);
 #endif
 
-  livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
+  livekit::initialize(livekit::LogLevel::Info);
 
   try {
     Room room;
