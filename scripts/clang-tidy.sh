@@ -113,7 +113,7 @@ BUILD_DIR="build-release"
 # Positive match for top-level src/*.{c,cpp,cc,cxx}; negative lookahead excludes
 # dep paths (_deps/, build-*/, -src/src/) and every other top-level dir. Python
 # regex (PCRE-ish) supports lookahead; this regex is evaluated by run-clang-tidy.
-FILE_REGEX='^(?!.*/(_deps|build-[^/]*|bridge|examples|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$'
+FILE_REGEX='^(?!.*/(_deps|build-[^/]*|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$'
 
 CI_MODE=0
 # Automatically detect CI mode if in GitHub actions environment
@@ -206,7 +206,9 @@ fi
 # SDK and we forward it to every clang-tidy invocation via --extra-arg. Linux
 # CI doesn't need this -- the system clang-tidy already finds libstdc++/libc++
 # through its built-in resource dir.
-extra_args=()
+# Match the Clang build's variadic macro diagnostic suppression when clang-tidy
+# is driven from GCC compile commands in Linux CI.
+extra_args=(-extra-arg=-Wno-gnu-zero-variadic-macro-arguments)
 if [[ "$(uname)" == "Darwin" ]]; then
   sdk_path="$(xcrun --show-sdk-path 2>/dev/null || true)"
   if [[ -n "${sdk_path}" ]]; then

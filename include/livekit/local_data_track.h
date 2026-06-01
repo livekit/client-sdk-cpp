@@ -45,7 +45,8 @@ class OwnedLocalDataTrack;
 ///
 /// Typical usage:
 ///
-///   auto lp = room->localParticipant();
+///   auto lp = room->localParticipant().lock();
+///   if (!lp) return; // room not connected or already torn down
 ///   auto result = lp->publishDataTrack("sensor-data");
 ///   if (result) {
 ///     auto dt = result.value();

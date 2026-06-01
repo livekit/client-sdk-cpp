@@ -21,7 +21,7 @@ namespace livekit::test {
 
 class RoomTest : public ::testing::Test {
 protected:
-  void SetUp() override { livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole); }
+  void SetUp() override { livekit::initialize(livekit::LogLevel::Info); }
 
   void TearDown() override { livekit::shutdown(); }
 };
@@ -33,12 +33,14 @@ TEST_F(RoomTest, ConnectWithoutInitialize) {
   Room room;
   bool result = room.connect("wss://localhost:7880", "test", livekit::RoomOptions());
   EXPECT_FALSE(result) << "Connecting without initializing should return false";
+  EXPECT_TRUE(room.localParticipant().expired()) << "Local participant should be empty after failed connect";
+  EXPECT_TRUE(room.remoteParticipants().empty()) << "Remote participants should be empty after failed connect";
 }
 
 TEST_F(RoomTest, CreateRoom) {
   Room room;
   // Room should be created without issues
-  EXPECT_EQ(room.localParticipant(), nullptr) << "Local participant should be null before connect";
+  EXPECT_TRUE(room.localParticipant().expired()) << "Local participant should be empty before connect";
 }
 
 TEST_F(RoomTest, RoomOptionsDefaults) {
@@ -94,8 +96,8 @@ TEST_F(RoomTest, RemoteParticipantsEmptyBeforeConnect) {
 
 TEST_F(RoomTest, RemoteParticipantLookupBeforeConnect) {
   Room room;
-  auto participant = room.remoteParticipant("nonexistent");
-  EXPECT_EQ(participant, nullptr) << "Looking up participant before connect should return nullptr";
+  EXPECT_TRUE(room.remoteParticipant("nonexistent").expired())
+      << "Looking up participant before connect should return an empty handle";
 }
 
 } // namespace livekit::test

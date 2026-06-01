@@ -93,7 +93,7 @@ TEST_F(RoomListenerRaceStressTest, ConnectFailDestroyReconnectAndPublishDataTrac
             return;
           }
 
-          auto* local_participant = room.localParticipant();
+          auto local_participant = room.localParticipant().lock();
           if (local_participant == nullptr) {
             addStressError(errors, errors_mutex, "local participant missing after valid connect");
             return;

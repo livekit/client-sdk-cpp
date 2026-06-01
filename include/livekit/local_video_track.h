@@ -41,7 +41,9 @@ class VideoSource;
 ///
 ///    auto source = std::make_shared<VideoSource>(1280, 720);
 ///    auto track = LocalVideoTrack::createLocalVideoTrack("cam", source);
-///    room->localParticipant()->publishTrack(track);
+///    if (auto lp = room->localParticipant().lock()) {
+///      lp->publishTrack(track);
+///    }
 ///    // Capture frames on the video thread via `source`, not via the track.
 ///
 ///  Muting a local video track stops transmitting video to the room, but
@@ -76,12 +78,6 @@ public:
   /// Returns a human-readable string representation of the track,
   /// including its SID and name. Useful for debugging and logging.
   std::string toString() const;
-
-  /// @deprecated Use toString() instead.
-  // NOLINTBEGIN(readability-identifier-naming)
-  [[deprecated("LocalVideoTrack::to_string is deprecated; use LocalVideoTrack::toString instead")]]
-  std::string to_string() const;
-  // NOLINTEND(readability-identifier-naming)
 
   /// Returns the publication that owns this track, or nullptr if the track is
   /// not published.

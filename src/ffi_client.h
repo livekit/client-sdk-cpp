@@ -30,6 +30,7 @@
 #include "data_track.pb.h"
 #include "livekit/data_track_error.h"
 #include "livekit/result.h"
+#include "livekit/room_event_types.h"
 #include "livekit/stats.h"
 #include "livekit/visibility.h"
 #include "lk_log.h"
@@ -93,6 +94,8 @@ public:
   // Room APIs
   std::future<proto::ConnectCallback> connectAsync(const std::string& url, const std::string& token,
                                                    const RoomOptions& options);
+
+  std::future<void> disconnectAsync(uintptr_t room_handle, DisconnectReason reason);
 
   // Track APIs
   std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);

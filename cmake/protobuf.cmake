@@ -10,6 +10,7 @@
 #   - Target protobuf::protoc (on vendored path; on Windows we may only have an executable)
 
 include(FetchContent)
+include(warnings)
 
 option(LIVEKIT_USE_SYSTEM_PROTOBUF "Use system-installed Protobuf instead of vendoring" OFF)
 
@@ -63,8 +64,13 @@ if(WIN32 AND NOT LIVEKIT_USE_SYSTEM_PROTOBUF)
   # Include dirs: prefer the imported target usage requirements.
   if(TARGET protobuf::libprotobuf)
     get_target_property(_pb_includes protobuf::libprotobuf INTERFACE_INCLUDE_DIRECTORIES)
+    livekit_treat_as_external(protobuf::libprotobuf)
   elseif(TARGET protobuf::protobuf) # some protobuf builds use protobuf::protobuf
     get_target_property(_pb_includes protobuf::protobuf INTERFACE_INCLUDE_DIRECTORIES)
+    livekit_treat_as_external(protobuf::protobuf)
+  endif()
+  if(TARGET protobuf::protoc)
+    livekit_treat_as_external(protobuf::protoc)
   endif()
   if(NOT _pb_includes)
     # Best-effort fallback: Protobuf_INCLUDE_DIRS is commonly set by ProtobufConfig
@@ -88,6 +94,14 @@ if(LIVEKIT_USE_SYSTEM_PROTOBUF)
 
   if(NOT Protobuf_PROTOC_EXECUTABLE)
     find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc REQUIRED)
+  endif()
+  if(TARGET protobuf::libprotobuf)
+    livekit_treat_as_external(protobuf::libprotobuf)
+  elseif(TARGET protobuf::protobuf)
+    livekit_treat_as_external(protobuf::protobuf)
+  endif()
+  if(TARGET protobuf::protoc)
+    livekit_treat_as_external(protobuf::protoc)
   endif()
   message(STATUS "Using system protoc: ${Protobuf_PROTOC_EXECUTABLE}")
   return()
@@ -117,6 +131,7 @@ set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 # Disable installs/exports in subprojects (avoids export-set errors)
 set(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
 set(ABSL_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+set(ABSL_PROPAGATE_CXX_STD ON CACHE BOOL "" FORCE)
 set(utf8_range_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
 
 # Force hidden visibility on every target created by the FetchContent
@@ -145,7 +160,11 @@ if(MSVC)
 endif()
 
 # Make abseil available first so protobuf can find absl:: targets.
-FetchContent_MakeAvailable(livekit_abseil)
+livekit_fetchcontent_makeavailable(livekit_abseil)
+livekit_collect_targets_in_directory(_livekit_abseil_targets "${livekit_abseil_BINARY_DIR}")
+foreach(_livekit_abseil_target IN LISTS _livekit_abseil_targets)
+  livekit_disable_warnings(${_livekit_abseil_target})
+endforeach()
 
 # Workaround for some abseil flags on Apple Silicon.
 if(APPLE AND (CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64"))
@@ -172,7 +191,11 @@ if(NOT TARGET absl::base)
 endif()
 
 # Now make protobuf available.
-FetchContent_MakeAvailable(livekit_protobuf)
+livekit_fetchcontent_makeavailable(livekit_protobuf)
+livekit_collect_targets_in_directory(_livekit_protobuf_targets "${livekit_protobuf_BINARY_DIR}")
+foreach(_livekit_protobuf_target IN LISTS _livekit_protobuf_targets)
+  livekit_disable_warnings(${_livekit_protobuf_target})
+endforeach()
 
 # Protobuf targets: modern protobuf exports protobuf::protoc etc.
 if(TARGET protobuf::protoc)
@@ -194,7 +217,7 @@ endif()
 
 # Include dirs: prefer target usage; keep this var for your existing CMakeLists.
 if(TARGET protobuf::libprotobuf)
-  get_target_property(_pb_includes protobuf::libprotobuf INTERFACE_INCLUDE_DIRECTORIES)
+  livekit_get_interface_includes(protobuf::libprotobuf _pb_includes)
 endif()
 if(NOT _pb_includes)
   set(_pb_includes "${livekit_protobuf_SOURCE_DIR}/src")

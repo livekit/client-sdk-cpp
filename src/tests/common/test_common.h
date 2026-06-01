@@ -130,12 +130,53 @@ inline uint64_t getTimestampUs() {
 inline bool waitForParticipant(Room* room, const std::string& identity, std::chrono::milliseconds timeout) {
   auto start = std::chrono::steady_clock::now();
   while (std::chrono::steady_clock::now() - start < timeout) {
-    if (room->remoteParticipant(identity) != nullptr) {
+    if (!room->remoteParticipant(identity).expired()) {
       return true;
     }
     std::this_thread::sleep_for(100ms);
   }
   return false;
+}
+
+/// Safely promote the local participant weak handle to a shared_ptr.
+///
+/// Room::localParticipant() returns a std::weak_ptr whose lock() yields nullptr
+/// once the room is torn down (or before connect). Dereferencing the result of
+/// lock() blindly is undefined behavior, so tests must go through this helper,
+/// which throws instead of crashing when the handle is expired.
+inline std::shared_ptr<LocalParticipant> lockLocalParticipant(const Room& room) {
+  if (auto participant = room.localParticipant().lock()) {
+    return participant;
+  }
+  throw std::runtime_error("Local participant handle is expired");
+}
+
+/// Pointer overload of lockLocalParticipant(); throws if @p room is null.
+inline std::shared_ptr<LocalParticipant> lockLocalParticipant(const Room* room) {
+  if (room == nullptr) {
+    throw std::runtime_error("Room is null");
+  }
+  return lockLocalParticipant(*room);
+}
+
+/// Safely promote a remote participant weak handle to a shared_ptr.
+///
+/// Mirrors lockLocalParticipant(): Room::remoteParticipant() returns a
+/// std::weak_ptr that lock()s to nullptr once the participant disconnects, so
+/// this helper throws rather than letting callers dereference a null pointer.
+inline std::shared_ptr<RemoteParticipant> lockRemoteParticipant(const Room& room, const std::string& identity) {
+  if (auto participant = room.remoteParticipant(identity).lock()) {
+    return participant;
+  }
+  throw std::runtime_error("Remote participant '" + identity + "' handle is expired");
+}
+
+/// Pointer overload of lockRemoteParticipant(); throws if @p room is null.
+inline std::shared_ptr<RemoteParticipant> lockRemoteParticipant(const Room* room, const std::string& identity) {
+  if (room == nullptr) {
+    throw std::runtime_error("Room is null");
+  }
+  return lockRemoteParticipant(*room, identity);
 }
 
 inline std::array<std::string, 2> getDataTrackTestTokens() {
@@ -161,10 +202,10 @@ inline void waitForParticipantVisibility(const std::vector<std::unique_ptr<Room>
   std::vector<std::string> participant_identities;
   participant_identities.reserve(rooms.size());
   for (const auto& room : rooms) {
-    if (!room || room->localParticipant() == nullptr) {
+    if (!room || room->localParticipant().expired()) {
       throw std::runtime_error("Test room is missing a local participant after connect");
     }
-    participant_identities.push_back(room->localParticipant()->identity());
+    participant_identities.push_back(lockLocalParticipant(room.get())->identity());
   }
 
   auto start = std::chrono::steady_clock::now();
@@ -172,7 +213,7 @@ inline void waitForParticipantVisibility(const std::vector<std::unique_ptr<Room>
     bool all_visible = true;
     for (size_t i = 0; i < rooms.size(); ++i) {
       const auto& room = rooms[i];
-      if (!room || room->localParticipant() == nullptr) {
+      if (!room || room->localParticipant().expired()) {
         throw std::runtime_error("Test room is missing a local participant after connect");
       }
 
@@ -181,7 +222,7 @@ inline void waitForParticipantVisibility(const std::vector<std::unique_ptr<Room>
           continue;
         }
 
-        if (room->remoteParticipant(participant_identities[j]) == nullptr) {
+        if (room->remoteParticipant(participant_identities[j]).expired()) {
           all_visible = false;
           break;
         }
@@ -456,7 +497,7 @@ private:
 class LiveKitTestBase : public ::testing::Test {
 protected:
   void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
+    livekit::initialize(livekit::LogLevel::Info);
     config_ = TestConfig::fromEnv();
 
     // Tracing is controlled by compile-time macro LIVEKIT_TEST_ENABLE_TRACING

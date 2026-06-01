@@ -27,7 +27,7 @@ namespace livekit::test {
 
 class RoomStressTest : public ::testing::Test {
 protected:
-  void SetUp() override { livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole); }
+  void SetUp() override { livekit::initialize(livekit::LogLevel::Info); }
 
   void TearDown() override { livekit::shutdown(); }
 };
@@ -40,7 +40,7 @@ TEST_F(RoomStressTest, RapidRoomCreation) {
 
   for (int i = 0; i < num_iterations; ++i) {
     Room room;
-    ASSERT_EQ(room.localParticipant(), nullptr);
+    ASSERT_TRUE(room.localParticipant().expired());
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -65,7 +65,7 @@ TEST_F(RoomStressTest, MultipleSimultaneousRooms) {
   // Verify all rooms are valid
   for (const auto& room : rooms) {
     ASSERT_NE(room, nullptr);
-    ASSERT_EQ(room->localParticipant(), nullptr);
+    ASSERT_TRUE(room->localParticipant().expired());
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -89,7 +89,7 @@ TEST_F(RoomStressTest, ConcurrentRoomCreation) {
     threads.emplace_back([&total_rooms, rooms_per_thread]() {
       for (int i = 0; i < rooms_per_thread; ++i) {
         Room room;
-        if (room.localParticipant() == nullptr) {
+        if (room.localParticipant().expired()) {
           total_rooms.fetch_add(1, std::memory_order_relaxed);
         }
       }
@@ -176,7 +176,7 @@ TEST_F(RoomStressTest, StreamHandlerRegistrationStress) {
 class RoomServerStressTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
+    livekit::initialize(livekit::LogLevel::Info);
 
     const char* url_env = std::getenv("LIVEKIT_URL");
     const char* token_env = std::getenv("LIVEKIT_TOKEN_A");
@@ -211,7 +211,7 @@ TEST_F(RoomServerStressTest, RepeatedConnectDisconnect) {
 
     bool connected = room.connect(server_url_, token_, options);
     if (connected) {
-      ASSERT_NE(room.localParticipant(), nullptr);
+      ASSERT_FALSE(room.localParticipant().expired());
     }
     // Room disconnects when it goes out of scope
   }
