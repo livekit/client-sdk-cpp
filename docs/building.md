@@ -1,4 +1,4 @@
-# Build guide
+# Building
 
 This document covers everything you need to build the LiveKit C++ SDK from
 source: requirements, cloning the repository, the build scripts, advanced
