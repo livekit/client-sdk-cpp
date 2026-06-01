@@ -145,6 +145,16 @@ jobs:
           fi
 
       # ---------- Cache Cargo ----------
+      # The Rust FFI is built from the pinned client-sdk-rust submodule. Its
+      # compiled output only changes when the submodule commit changes, so we
+      # key the target cache on the submodule SHA (not Cargo.lock, which is
+      # pinned inside the submodule and effectively immutable -- that froze the
+      # old cache permanently). Resolve it once here for the restore/save steps.
+      - name: Resolve Rust submodule SHA
+        id: rust_sha
+        shell: bash
+        run: echo "sha=$(git -C client-sdk-rust rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Cache cargo registry
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -156,11 +166,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-registry-
 
-      - name: Cache cargo target
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Restore-only here; the matching save runs after a successful build (see
+      # "Save cargo target" below). A combined actions/cache saves in a post-job
+      # step that runs AFTER the "Clean after build" cleanup wipes target/debug
+      # and target/release, which is why the old cache was always ~empty. The
+      # restore/save split lets us snapshot the populated target/ before cleanup.
+      - name: Restore cargo target
+        id: cache-cargo-target
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: client-sdk-rust/target/
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('client-sdk-rust/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-target-
 
@@ -190,6 +206,18 @@ jobs:
         if: always()
         shell: bash
         run: sccache --show-stats || true
+
+      # Save the populated target/ now, while the build output still exists and
+      # before the "Clean after build" step runs clean-all. Only on a miss --
+      # an exact-key hit means the cache already holds this submodule's output.
+      # A restore-keys prefix hit still counts as a miss (cache-hit != 'true'),
+      # so a submodule bump always refreshes the cache under the new SHA.
+      - name: Save cargo target
+        if: steps.cache-cargo-target.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: client-sdk-rust/target/
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
 
       # ---------- Smoke test cpp-example-collection binaries ----------
       # Built under cpp-example-collection-build/ (not build-dir/bin). Visual Studio

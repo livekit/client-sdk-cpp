@@ -143,6 +143,16 @@ jobs:
           fi
 
       # ---------- Cache Cargo ----------
+      # See builds.yml for the rationale: the Rust FFI output only changes with
+      # the client-sdk-rust submodule commit, so key the target cache on the
+      # submodule SHA (Cargo.lock is pinned inside the submodule and froze the
+      # old cache). Restore/save split so the populated target/ is snapshotted
+      # right after the build instead of in a post-job step.
+      - name: Resolve Rust submodule SHA
+        id: rust_sha
+        shell: bash
+        run: echo "sha=$(git -C client-sdk-rust rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Cache cargo registry
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -154,11 +164,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-registry-
 
-      - name: Cache cargo target
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      - name: Restore cargo target
+        id: cache-cargo-target
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: client-sdk-rust/target/
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('client-sdk-rust/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-target-
 
@@ -188,6 +199,18 @@ jobs:
         if: always()
         shell: bash
         run: sccache --show-stats || true
+
+      # Snapshot the populated target/ after a successful build. Placed before
+      # the test steps so the Rust FFI output is cached regardless of whether
+      # the unit/integration tests pass. Only on a miss (exact-key hit means the
+      # cache already holds this submodule's output; a restore-keys prefix hit
+      # still counts as a miss and refreshes under the new SHA).
+      - name: Save cargo target
+        if: steps.cache-cargo-target.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: client-sdk-rust/target/
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
 
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
@@ -366,6 +389,14 @@ jobs:
           fi
 
       # ---------- Cache Cargo ----------
+      # Key the target cache on the client-sdk-rust submodule SHA (see builds.yml
+      # rationale). Restore/save split so the populated target/ is captured right
+      # after the build.
+      - name: Resolve Rust submodule SHA
+        id: rust_sha
+        shell: bash
+        run: echo "sha=$(git -C client-sdk-rust rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Cache cargo registry
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -377,11 +408,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-coverage-cargo-registry-
 
-      - name: Cache cargo target
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      - name: Restore cargo target
+        id: cache-cargo-target
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: client-sdk-rust/target/
-          key: ${{ runner.os }}-coverage-cargo-target-${{ hashFiles('client-sdk-rust/Cargo.lock') }}
+          key: ${{ runner.os }}-coverage-cargo-target-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
             ${{ runner.os }}-coverage-cargo-target-
 
@@ -409,6 +441,14 @@ jobs:
       # runner; bump if/when this moves to a larger runner.
       - name: Build
         run: cmake --build build-debug --parallel 2
+
+      # Snapshot the populated target/ after the build succeeds, only on a miss.
+      - name: Save cargo target
+        if: steps.cache-cargo-target.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: client-sdk-rust/target/
+          key: ${{ runner.os }}-coverage-cargo-target-${{ steps.rust_sha.outputs.sha }}
 
       # ---------- Run unit tests ----------
       - name: Run unit tests
