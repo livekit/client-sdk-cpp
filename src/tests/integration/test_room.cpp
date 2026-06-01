@@ -100,11 +100,11 @@ TEST_F(RoomTest, UserDisconnect) {
   RoomOptions options;
   ASSERT_TRUE(room.connect(server_url_, token_, options)) << "connect failed";
   ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
-  ASSERT_NE(room.localParticipant(), nullptr);
+  ASSERT_NE(room.localParticipant().lock(), nullptr);
 
   EXPECT_NO_THROW(room.disconnect()) << "disconnect should not throw on a connected room";
   EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
-  EXPECT_EQ(room.localParticipant(), nullptr) << "local participant should be cleared after disconnect";
+  EXPECT_EQ(room.localParticipant().lock(), nullptr) << "local participant should be cleared after disconnect";
   EXPECT_EQ(delegate.count.load(), 1) << "onDisconnected should fire exactly once";
   EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
 
