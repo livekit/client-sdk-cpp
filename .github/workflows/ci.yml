@@ -1,0 +1,119 @@
+name: CI
+
+# Aggregator workflow that fans out to every PR-gating workflow as a single,
+# always-running check. Configure branch protection to require only the "CI"
+# status; downstream workflows will run automatically. This avoids the
+# previous footgun where path-filtered workflows skipped entire PRs (so all
+# checks showed "passing" without ever executing — see #147).
+#
+# Each child workflow is conditionally invoked based on the paths a PR
+# touched, mirroring the path filters that used to live in each child.
+# Children that get skipped via `if:` count as "skipped" in the CI rollup
+# (not "failed"), so the parent "CI" status reaches SUCCESS and branch
+# protection is satisfied. Push-to-main and manual dispatch always run
+# everything regardless of changed paths.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: ["main"]
+  push:
+    branches: ["main"]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # Compute once which path groups changed; every other job references these
+  # outputs. dorny/paths-filter handles PR base diff, push base diff, and
+  # empty results on non-diff events (workflow_dispatch); the `if:` guards
+  # below explicitly opt non-PR events back into running everything.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      builds: ${{ steps.filter.outputs.builds }}
+      tests:  ${{ steps.filter.outputs.tests }}
+      docs:   ${{ steps.filter.outputs.docs }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590  # v3.0.3
+        id: filter
+        with:
+          filters: |
+            builds:
+              - src/**
+              - include/**
+              - cpp-example-collection/**
+              - bridge/**
+              - client-sdk-rust/**
+              - cmake/**
+              - scripts/**
+              - CMakeLists.txt
+              - build.sh
+              - build.cmd
+              - .build-info.json.in
+              - vcpkg.json
+              - CMakePresets.json
+              - docker/Dockerfile.base
+              - docker/Dockerfile.sdk
+              - .clang-format
+              - .github/workflows/ci.yml
+              - .github/workflows/builds.yml
+            tests:
+              - src/**
+              - include/**
+              - client-sdk-rust/**
+              - CMakeLists.txt
+              - CMakePresets.json
+              - build.sh
+              - build.cmd
+              - vcpkg.json
+              - .token_helpers/**
+              - .github/workflows/ci.yml
+              - .github/workflows/tests.yml
+            docs:
+              - **/*.md
+              - include/**
+              - src/**
+              - docs/**
+              - scripts/generate-docs.sh
+              - .github/workflows/ci.yml
+              - .github/workflows/generate-docs.yml
+              - .github/workflows/publish-docs.yml
+
+  builds:
+    name: Builds
+    needs: changes
+    if: ${{ needs.changes.outputs.builds == 'true' || github.event_name != 'pull_request' }}
+    uses: ./.github/workflows/builds.yml
+    secrets: inherit
+
+  tests:
+    name: Tests
+    needs: changes
+    if: ${{ needs.changes.outputs.tests == 'true' || github.event_name != 'pull_request' }}
+    uses: ./.github/workflows/tests.yml
+    secrets: inherit
+
+  # license-check and pin-check are cheap (seconds) and have no meaningful
+  # path scope (any source change can affect license headers; any action
+  # bump can affect pinning), so they always run.
+  license-check:
+    name: License Check
+    uses: ./.github/workflows/license_check.yml
+
+  pin-check:
+    name: Pin Check
+    uses: ./.github/workflows/pin_check.yml
+
+  generate-docs:
+    name: Generate Docs
+    needs: changes
+    if: ${{ needs.changes.outputs.docs == 'true' || github.event_name != 'pull_request' }}
+    uses: ./.github/workflows/generate-docs.yml

@@ -1,49 +1,10 @@
 name: Builds
 
+# Driven by .github/workflows/ci.yml. PR and push-to-main triggers live in
+# the parent so a single "CI" check gates every PR regardless of paths.
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - src/**
-      - include/**
-      - cpp-example-collection/**
-      - bridge/**
-      - client-sdk-rust/**
-      - cmake/**
-      - scripts/**
-      - CMakeLists.txt
-      - build.sh
-      - build.cmd
-      - .build-info.json.in
-      - vcpkg.json
-      - CMakePresets.json
-      - docker/Dockerfile.base
-      - docker/Dockerfile.sdk
-      - .github/workflows/**
-      - .clang-format
-      - scripts/clang-format.sh
-  pull_request:
-    branches: ["main"]
-    paths:
-      - src/**
-      - include/**
-      - cpp-example-collection/**
-      - bridge/**
-      - client-sdk-rust/**
-      - cmake/**
-      - scripts/**
-      - CMakeLists.txt
-      - build.sh
-      - build.cmd
-      - .build-info.json.in
-      - vcpkg.json
-      - CMakePresets.json
-      - docker/Dockerfile.base
-      - docker/Dockerfile.sdk
-      - .github/workflows/**
-      - .clang-format
-      - scripts/clang-format.sh
-  workflow_dispatch:
+  workflow_call: {}
+  workflow_dispatch: {}
 
 permissions:
   contents: read

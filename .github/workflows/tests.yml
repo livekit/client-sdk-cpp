@@ -1,33 +1,10 @@
 name: Tests
 
+# Driven by .github/workflows/ci.yml. PR and push-to-main triggers live in
+# the parent so a single "CI" check gates every PR regardless of paths.
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - src/**
-      - include/**
-      - client-sdk-rust/**
-      - CMakeLists.txt
-      - CMakePresets.json
-      - build.sh
-      - build.cmd
-      - vcpkg.json
-      - .token_helpers/**
-      - .github/workflows/tests.yml
-  pull_request:
-    branches: ["main"]
-    paths:
-      - src/**
-      - include/**
-      - client-sdk-rust/**
-      - CMakeLists.txt
-      - CMakePresets.json
-      - build.sh
-      - build.cmd
-      - vcpkg.json
-      - .token_helpers/**
-      - .github/workflows/tests.yml
-  workflow_dispatch:
+  workflow_call: {}
+  workflow_dispatch: {}
 
 permissions:
   contents: read
