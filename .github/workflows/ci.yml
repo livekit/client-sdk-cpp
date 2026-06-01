@@ -11,7 +11,7 @@ name: CI
 # Children that get skipped via `if:` count as "skipped" in the CI rollup
 # (not "failed"), so the parent "CI" status reaches SUCCESS and branch
 # protection is satisfied. Push-to-main and manual dispatch always run
-# everything regardless of changed paths.
+# everything regardless of changed paths. 
 
 on:
   workflow_dispatch:
