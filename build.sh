@@ -144,6 +144,19 @@ configure() {
     echo "==> Setting CMAKE_OSX_ARCHITECTURES=${MACOS_ARCH}"
     extra_args+=("-DCMAKE_OSX_ARCHITECTURES=${MACOS_ARCH}")
   fi
+  # Bridge compiler-launcher env vars (e.g. sccache/ccache) into the CMake
+  # cache. CMake does NOT read CMAKE_<LANG>_COMPILER_LAUNCHER from the
+  # environment, so CI exports these and we forward them explicitly. Only the
+  # Ninja/Makefile generators honor launchers; the Visual Studio generator
+  # ignores them, so Windows builds simply leave these unset.
+  if [[ -n "${CMAKE_C_COMPILER_LAUNCHER:-}" ]]; then
+    echo "==> Using C compiler launcher: ${CMAKE_C_COMPILER_LAUNCHER}"
+    extra_args+=("-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}")
+  fi
+  if [[ -n "${CMAKE_CXX_COMPILER_LAUNCHER:-}" ]]; then
+    echo "==> Using C++ compiler launcher: ${CMAKE_CXX_COMPILER_LAUNCHER}"
+    extra_args+=("-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}")
+  fi
   if ((${#extra_args[@]})); then
     if ! cmake --preset "${PRESET}" "${extra_args[@]}"; then
       echo "Warning: CMake preset '${PRESET}' failed. Falling back to traditional configure..."

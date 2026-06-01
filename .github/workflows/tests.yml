@@ -18,6 +18,10 @@ env:
   # transient cache backend failures fall back to uncached rustc instead of
   # failing the build.
   SCCACHE_GHA_ENABLED: "true"
+  # sccache cannot cache Cargo incremental artifacts; without this, sccache
+  # reports ~0% utilization even on cache misses. Disabling incremental lets
+  # sccache cache per-crate compilations whenever the cargo target cache misses.
+  CARGO_INCREMENTAL: "0"
   # vcpkg binary caching for Windows (mirrors builds.yml)
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
@@ -123,7 +127,17 @@ jobs:
         run: |
           if sccache --start-server >/dev/null 2>&1; then
             echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-            echo "::notice::sccache enabled (RUSTC_WRAPPER=sccache)"
+            # Wire sccache into the C++ build too (the dominant build cost),
+            # but only where the generator honors compiler launchers. The
+            # Windows preset uses the Visual Studio generator, which ignores
+            # CMAKE_<LANG>_COMPILER_LAUNCHER, so we skip it there.
+            if [[ "$RUNNER_OS" != "Windows" ]]; then
+              echo "CMAKE_C_COMPILER_LAUNCHER=sccache" >> "$GITHUB_ENV"
+              echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" >> "$GITHUB_ENV"
+              echo "::notice::sccache enabled for rustc + C/C++ (RUSTC_WRAPPER + CMAKE_*_COMPILER_LAUNCHER)"
+            else
+              echo "::notice::sccache enabled for rustc only (Windows VS generator ignores compiler launchers)"
+            fi
           else
             echo "::warning::sccache backend unreachable; building without compile cache this run"
           fi
@@ -169,6 +183,11 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ${{ matrix.build_cmd }}
+
+      - name: sccache stats
+        if: always()
+        shell: bash
+        run: sccache --show-stats || true
 
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
@@ -280,6 +299,10 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    # A debug build instrumented with --coverage is far heavier (RAM + disk)
+    # than the release builds. Cap the wall-clock so a stuck/OOM build fails
+    # fast and visibly instead of hanging toward the 6h default.
+    timeout-minutes: 45
 
     steps:
       - name: Checkout (with submodules)
@@ -290,6 +313,19 @@ jobs:
 
       - name: Pull LFS files
         run: git lfs pull
+
+      # Reclaim ~30GB on the runner. The debug+coverage object tree plus gcov
+      # data is large; prior runs died mid-build from disk/memory pressure.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
 
       # ---------- OS deps ----------
       - name: Install deps
@@ -366,8 +402,13 @@ jobs:
             -DCMAKE_EXE_LINKER_FLAGS="--coverage" \
             -DCMAKE_SHARED_LINKER_FLAGS="--coverage"
 
+      # Cap parallelism: a debug build with --coverage instrumentation has a
+      # much larger per-TU memory footprint, and unbounded --parallel (one job
+      # per core) is what OOM-killed prior runs (failure surfaced only as an
+      # abandoned "Build" step). 2 keeps peak RAM in check on the standard
+      # runner; bump if/when this moves to a larger runner.
       - name: Build
-        run: cmake --build build-debug --parallel
+        run: cmake --build build-debug --parallel 2
 
       # ---------- Run unit tests ----------
       - name: Run unit tests
@@ -375,6 +416,16 @@ jobs:
         run: |
           build-debug/bin/livekit_unit_tests \
             --gtest_output=xml:build-debug/unit-test-results.xml
+
+      # Make resource-exhaustion failures visible instead of silent. Runs only
+      # if an earlier step failed (e.g. OOM during Build).
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          echo "===== disk ====="; df -h || true
+          echo "===== memory ====="; free -h || true
+          echo "===== dmesg (OOM killer) ====="
+          sudo dmesg 2>/dev/null | grep -iE 'killed process|out of memory|oom' | tail -20 || true
 
       # ---------- Generate coverage reports ----------
       - name: Generate coverage reports
@@ -415,7 +466,3 @@ jobs:
           path: coverage-html/
           retention-days: 14
 
-      - name: Upload coverage to Codecov
-        uses: getsentry/codecov-action@03112cc3b486a3397dc8d17a58680008721fc86f # v0.3.7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}

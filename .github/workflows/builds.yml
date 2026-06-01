@@ -18,6 +18,10 @@ env:
   # transient cache backend failures fall back to uncached rustc instead of
   # failing the build.
   SCCACHE_GHA_ENABLED: "true"
+  # sccache cannot cache Cargo incremental artifacts; without this, sccache
+  # reports ~0% utilization even on cache misses. Disabling incremental lets
+  # sccache cache per-crate compilations whenever the cargo target cache misses.
+  CARGO_INCREMENTAL: "0"
   # Pinned commit for cpp-example-collection smoke build (https://github.com/livekit-examples/cpp-example-collection)
   CPP_EXAMPLE_COLLECTION_REF: 56815733a71c14692569e8adf2916a56a14d4882
   # vcpkg binary caching for Windows
@@ -133,7 +137,17 @@ jobs:
         run: |
           if sccache --start-server >/dev/null 2>&1; then
             echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-            echo "::notice::sccache enabled (RUSTC_WRAPPER=sccache)"
+            # Wire sccache into the C++ build too (the dominant build cost),
+            # but only where the generator honors compiler launchers. The
+            # Windows preset uses the Visual Studio generator, which ignores
+            # CMAKE_<LANG>_COMPILER_LAUNCHER, so we skip it there.
+            if [[ "$RUNNER_OS" != "Windows" ]]; then
+              echo "CMAKE_C_COMPILER_LAUNCHER=sccache" >> "$GITHUB_ENV"
+              echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" >> "$GITHUB_ENV"
+              echo "::notice::sccache enabled for rustc + C/C++ (RUSTC_WRAPPER + CMAKE_*_COMPILER_LAUNCHER)"
+            else
+              echo "::notice::sccache enabled for rustc only (Windows VS generator ignores compiler launchers)"
+            fi
           else
             echo "::warning::sccache backend unreachable; building without compile cache this run"
           fi
@@ -179,6 +193,11 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ${{ matrix.build_cmd }}
+
+      - name: sccache stats
+        if: always()
+        shell: bash
+        run: sccache --show-stats || true
 
       # ---------- Smoke test cpp-example-collection binaries ----------
       # Built under cpp-example-collection-build/ (not build-dir/bin). Visual Studio
