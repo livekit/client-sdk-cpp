@@ -44,12 +44,6 @@ public:
 
   std::string toString() const;
 
-  /// @deprecated Use toString() instead.
-  // NOLINTBEGIN(readability-identifier-naming)
-  [[deprecated("RemoteParticipant::to_string is deprecated; use RemoteParticipant::toString instead")]]
-  std::string to_string() const;
-  // NOLINTEND(readability-identifier-naming)
-
 protected:
   /// Called by Room events like kTrackMuted. This is internal plumbing and not
   /// intended to be called directly by SDK users.

@@ -131,7 +131,7 @@ private:
   }
 
   void validateCommonCallbackState(Room& room, const std::string& callback_name) {
-    if (room.localParticipant() == nullptr) {
+    if (room.localParticipant().expired()) {
       recordInvariantFailure(callback_name + " fired before room.localParticipant() was initialized");
     }
 
@@ -141,7 +141,7 @@ private:
       expected_publisher_identity = state_.expected_publisher_identity;
     }
 
-    if (!expected_publisher_identity.empty() && room.remoteParticipant(expected_publisher_identity) == nullptr) {
+    if (!expected_publisher_identity.empty() && room.remoteParticipant(expected_publisher_identity).expired()) {
       recordInvariantFailure(callback_name +
                              " fired before expected remote participant was visible: " + expected_publisher_identity);
     }
@@ -164,8 +164,8 @@ private:
       recordInvariantFailure(callback_name + " fired for unexpected media publication: " + track_name);
     }
 
-    auto* participant = room.remoteParticipant(expected_publisher_identity);
-    if (!hasPublication(participant, track_name, kind)) {
+    auto participant = room.remoteParticipant(expected_publisher_identity).lock();
+    if (!hasPublication(participant.get(), track_name, kind)) {
       recordInvariantFailure(callback_name + " fired before expected remote publication was visible: " + track_name);
     }
   }
@@ -364,12 +364,12 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
 
   Room publisher_room;
   ASSERT_TRUE(publisher_room.connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
-  ASSERT_NE(publisher_room.localParticipant(), nullptr);
+  ASSERT_FALSE(publisher_room.localParticipant().expired());
 
-  const std::string publisher_identity = publisher_room.localParticipant()->identity();
+  const std::string publisher_identity = lockLocalParticipant(publisher_room)->identity();
   ASSERT_FALSE(publisher_identity.empty());
 
-  PublishedTrackGuard published_tracks(publisher_room.localParticipant());
+  PublishedTrackGuard published_tracks(lockLocalParticipant(publisher_room).get());
   MediaLoopGuard media_loops;
   std::vector<ExpectedPublication> expected_media;
 
@@ -380,7 +380,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
     TrackPublishOptions publish_options;
     publish_options.source = TrackSource::SOURCE_MICROPHONE;
 
-    ASSERT_NO_THROW(publisher_room.localParticipant()->publishTrack(track, publish_options));
+    ASSERT_NO_THROW(lockLocalParticipant(publisher_room)->publishTrack(track, publish_options));
     ASSERT_NE(track->publication(), nullptr) << "Audio track was not locally published";
 
     published_tracks.addMediaTrack(track, track->publication()->sid());
@@ -398,7 +398,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   consumer_room.setDelegate(&delegate);
 
   ASSERT_TRUE(consumer_room.connect(config_.url, config_.token_b, options)) << "Consumer failed to connect";
-  ASSERT_NE(consumer_room.localParticipant(), nullptr);
+  ASSERT_FALSE(consumer_room.localParticipant().expired());
   ASSERT_TRUE(waitForParticipant(&consumer_room, publisher_identity, 10s))
       << "Publisher not visible to late-joining consumer";
 
@@ -436,7 +436,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
     EXPECT_EQ(subscribed_media_counts[expected.name], 1) << "Unexpected onTrackSubscribed count for " << expected.name;
   }
 
-  auto* publisher_on_consumer = consumer_room.remoteParticipant(publisher_identity);
+  auto publisher_on_consumer = consumer_room.remoteParticipant(publisher_identity).lock();
   ASSERT_NE(publisher_on_consumer, nullptr);
 
   std::map<std::string, TrackKind> remote_publications;
@@ -468,12 +468,12 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
 
   Room publisher_room;
   ASSERT_TRUE(publisher_room.connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
-  ASSERT_NE(publisher_room.localParticipant(), nullptr);
+  ASSERT_FALSE(publisher_room.localParticipant().expired());
 
-  const std::string publisher_identity = publisher_room.localParticipant()->identity();
+  const std::string publisher_identity = lockLocalParticipant(publisher_room)->identity();
   ASSERT_FALSE(publisher_identity.empty());
 
-  PublishedTrackGuard published_tracks(publisher_room.localParticipant());
+  PublishedTrackGuard published_tracks(lockLocalParticipant(publisher_room).get());
   MediaLoopGuard media_loops;
   std::vector<ExpectedPublication> expected_media;
 
@@ -485,7 +485,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
     publish_options.source = TrackSource::SOURCE_CAMERA;
     publish_options.simulcast = false;
 
-    ASSERT_NO_THROW(publisher_room.localParticipant()->publishTrack(track, publish_options));
+    ASSERT_NO_THROW(lockLocalParticipant(publisher_room)->publishTrack(track, publish_options));
     ASSERT_NE(track->publication(), nullptr) << "Video track was not locally published";
 
     published_tracks.addMediaTrack(track, track->publication()->sid());
@@ -503,7 +503,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   consumer_room.setDelegate(&delegate);
 
   ASSERT_TRUE(consumer_room.connect(config_.url, config_.token_b, options)) << "Consumer failed to connect";
-  ASSERT_NE(consumer_room.localParticipant(), nullptr);
+  ASSERT_FALSE(consumer_room.localParticipant().expired());
   ASSERT_TRUE(waitForParticipant(&consumer_room, publisher_identity, 10s))
       << "Publisher not visible to late-joining consumer";
 
@@ -541,7 +541,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
     EXPECT_EQ(subscribed_media_counts[expected.name], 1) << "Unexpected onTrackSubscribed count for " << expected.name;
   }
 
-  auto* publisher_on_consumer = consumer_room.remoteParticipant(publisher_identity);
+  auto publisher_on_consumer = consumer_room.remoteParticipant(publisher_identity).lock();
   ASSERT_NE(publisher_on_consumer, nullptr);
 
   std::map<std::string, TrackKind> remote_publications;
@@ -573,17 +573,17 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
 
   Room publisher_room;
   ASSERT_TRUE(publisher_room.connect(config_.url, config_.token_a, options)) << "Publisher failed to connect";
-  ASSERT_NE(publisher_room.localParticipant(), nullptr);
+  ASSERT_FALSE(publisher_room.localParticipant().expired());
 
-  const std::string publisher_identity = publisher_room.localParticipant()->identity();
+  const std::string publisher_identity = lockLocalParticipant(publisher_room)->identity();
   ASSERT_FALSE(publisher_identity.empty());
 
-  PublishedTrackGuard published_tracks(publisher_room.localParticipant());
+  PublishedTrackGuard published_tracks(lockLocalParticipant(publisher_room).get());
   std::set<std::string> expected_data;
 
   for (int i = 0; i < kDataTrackCount; ++i) {
     const std::string track_name = makeTrackName("late-join-data", i);
-    auto publish_result = publisher_room.localParticipant()->publishDataTrack(track_name);
+    auto publish_result = lockLocalParticipant(publisher_room)->publishDataTrack(track_name);
     ASSERT_TRUE(publish_result) << "Failed to publish data track " << track_name << ": "
                                 << publish_result.error().message;
 
@@ -602,7 +602,7 @@ TEST_P(LateJoinTrackPublicationIntegrationTest, ConsumerReceivesAlreadyPublished
   consumer_room.setDelegate(&delegate);
 
   ASSERT_TRUE(consumer_room.connect(config_.url, config_.token_b, options)) << "Consumer failed to connect";
-  ASSERT_NE(consumer_room.localParticipant(), nullptr);
+  ASSERT_FALSE(consumer_room.localParticipant().expired());
   ASSERT_TRUE(waitForParticipant(&consumer_room, publisher_identity, 10s))
       << "Publisher not visible to late-joining consumer";
 

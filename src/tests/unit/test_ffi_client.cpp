@@ -56,7 +56,7 @@ TEST_F(FfiClientTest, Initialize) {
 }
 
 TEST_F(FfiClientTest, InitializeFromSDK) {
-  EXPECT_TRUE(livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole));
+  EXPECT_TRUE(livekit::initialize(livekit::LogLevel::Info));
   EXPECT_TRUE(FfiClient::instance().isInitialized());
 }
 

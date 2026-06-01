@@ -73,6 +73,4 @@ void LocalVideoTrack::unmute() {
 
 std::string LocalVideoTrack::toString() const { return "rtc.LocalVideoTrack(sid=" + sid() + ", name=" + name() + ")"; }
 
-std::string LocalVideoTrack::to_string() const { return toString(); }
-
 } // namespace livekit

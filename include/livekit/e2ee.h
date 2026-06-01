@@ -203,10 +203,17 @@ public:
   ///   will result in undecodable media (black video / silent audio).
   void setEnabled(bool enabled);
 
-  /// Returns the key provider if E2EE was configured for the room; otherwise
-  /// nullptr.
-  KeyProvider* keyProvider();
-  const KeyProvider* keyProvider() const;
+  /// Returns a weak reference to the key provider if E2EE was configured for
+  /// the room; otherwise an expired weak_ptr.
+  ///
+  /// The KeyProvider is owned by this E2EEManager (which is in turn owned by
+  /// Room). Callers must lock() the returned weak_ptr before use and must not
+  /// retain the resulting shared_ptr beyond the lifetime of the Room.
+  ///
+  /// @return A weak_ptr to the KeyProvider, or an expired weak_ptr if E2EE was
+  /// not configured.
+  std::weak_ptr<KeyProvider> keyProvider();
+  std::weak_ptr<const KeyProvider> keyProvider() const;
 
   /// Retrieves the current list of frame cryptors from the underlying runtime.
   std::vector<E2EEManager::FrameCryptor> frameCryptors() const;
@@ -220,7 +227,9 @@ private:
   std::uint64_t room_handle_{0};
   bool enabled_{false};
   E2EEOptions options_;
-  KeyProvider key_provider_;
+  /// The key provider is owned by the E2EEManager and is not shared with other objects.
+  /// It is a shared_ptr just to utilize the weak_ptr interface for the keyProvider() accessor.
+  std::shared_ptr<KeyProvider> key_provider_;
 };
 
 } // namespace livekit

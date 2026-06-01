@@ -110,6 +110,4 @@ std::string AudioFrame::toString() const {
   return oss.str();
 }
 
-std::string AudioFrame::to_string() const { return toString(); }
-
 } // namespace livekit

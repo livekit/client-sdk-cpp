@@ -73,6 +73,4 @@ void LocalAudioTrack::unmute() {
 
 std::string LocalAudioTrack::toString() const { return "rtc.LocalAudioTrack(sid=" + sid() + ", name=" + name() + ")"; }
 
-std::string LocalAudioTrack::to_string() const { return toString(); }
-
 } // namespace livekit

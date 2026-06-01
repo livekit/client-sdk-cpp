@@ -74,7 +74,6 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `src/` | Implementation files and internal-only headers (`ffi_client.h`, `lk_log.h`, etc.) |
 | `src/tests/` | Google Test integration and stress tests |
 | `examples/` | In-tree example applications |
-| `bridge/` | **Deprecated** C-style bridge layer — do not add new functionality |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `LiveKitConfig.cmake.in`) |
@@ -367,11 +366,6 @@ When adding new client facing functionality, add benchmarking to understand the 
 - Keep each function short (roughly ≤ 60 lines)
 - Declare all data objects at the smallest possible level of scope
 - Each calling function must check the return value of nonvoid functions, and each called function must check the validity of all parameters provided by the caller
-
-
-## Deprecated / Out of Scope
-
-- **`bridge/`** (`livekit_bridge`) is deprecated. Do not add new functionality to it.
 
 ## Common Pitfalls
 
