@@ -76,10 +76,7 @@ void readyForRoomEvent(std::uint64_t room_handle) {
 Room::Room() : subscription_thread_dispatcher_(std::make_unique<SubscriptionThreadDispatcher>()) {}
 
 Room::~Room() {
-  // disconnect() is used for all tear down cases: it handles the
-  // already-disconnected case (returns false, no-op), the partial/Reconnecting
-  // case, and the FFI-failure case (local teardown still runs). Nothing else
-  // needs to live in the destructor.
+  // disconnect() handles all destruction/graceful teardown functionality, simply call it here
   try {
     (void)disconnect(); // Don't need return value
   } catch (const std::exception& e) {
@@ -222,15 +219,6 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
 bool Room::disconnect(DisconnectReason reason) {
   TRACE_EVENT0("livekit", "Room::disconnect");
 
-  // Canonical teardown path. Move all owned state out under the lock, then
-  // operate on it outside the lock. The destructor (and any caller) gets
-  // the same behavior: once this returns, the Room is fully torn down.
-  //
-  // Return value:
-  //   true  - we owned live state and tore it down (FFI disconnect succeeded)
-  //   false - either already disconnected (no-op) or FFI disconnect failed.
-  //           In both false cases local-side teardown still completed.
-
   std::shared_ptr<FfiHandle> handle;
   RoomDelegate* delegate_snapshot = nullptr;
   std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
@@ -261,24 +249,18 @@ bool Room::disconnect(DisconnectReason reason) {
     room_handle_.reset();
     // Flip state immediately so the in-flight Disconnected room-event we'll
     // get back doesn't double-fire onDisconnected. Mirrors Python's
-    // Room.disconnect(), which also flips state before sending the request.
+    // Room.disconnect()
     connection_state_ = ConnectionState::Disconnected;
   }
 
   // Drain in-flight RPC handlers BEFORE telling Rust to tear down the room.
-  // Mirrors client-sdk-python's Room.disconnect() ordering: once the FFI
-  // dispatches the Disconnect, Rust starts invalidating participant handles
-  // in its table, and any listener-thread RPC handler still mid-flight
-  // would race with that invalidation and send to a dead handle →
-  // INVALID_HANDLE → terminate.
+  // Mirrors client-sdk-python's Room.disconnect() ordering
   if (local_participant_to_cleanup) {
     local_participant_to_cleanup->shutdown();
   }
 
   // Tell the FFI to close the room and wait for the callback. If this fails
-  // we still complete local-side teardown below — releasing the listener,
-  // dropping handles, and notifying the delegate — so the Room is fully
-  // cleaned up regardless of whether the FFI round-trip succeeded.
+  // we still complete local-side teardown below
   bool ffi_ok = true;
   if (handle) {
     try {
