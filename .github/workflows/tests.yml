@@ -135,6 +135,18 @@ jobs:
         if: matrix.name == 'macos-x64'
         run: rustup target add x86_64-apple-darwin
 
+      # ---------- sccache experiment for Windows Rust builds ----------
+      - name: Setup sccache (Windows only)
+        if: runner.os == 'Windows'
+        uses: mozilla-actions/sccache-action@1583d6b38d7be47f593cb472781bbb21cab4321e # v0.0.10
+
+      - name: Enable sccache for Rust (Windows only)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+
       # ---------- Cache Cargo ----------
       # See builds.yml for the rationale: the Rust FFI output only changes with
       # the client-sdk-rust submodule commit, so key the target cache on the
@@ -174,6 +186,11 @@ jobs:
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
           echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
 
+      - name: Reset sccache stats (Windows only)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: sccache --zero-stats
+
       # ---------- Build (release-tests: tests on, examples off) ----------
       - name: Build tests (Unix)
         if: runner.os != 'Windows'
@@ -186,6 +203,11 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ${{ matrix.build_cmd }}
+
+      - name: Show sccache stats (Windows only)
+        if: always() && runner.os == 'Windows'
+        shell: bash
+        run: sccache --show-stats
 
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
