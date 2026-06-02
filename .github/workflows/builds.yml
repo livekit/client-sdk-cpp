@@ -21,7 +21,7 @@ env:
   # vcpkg binary caching for Windows. The x-gha backend was removed from vcpkg,
   # so use vcpkg's files provider and persist that directory with actions/cache.
   VCPKG_GIT_COMMIT: fb87e2bb3fe69e16c224989acb5a61349166c782
-  VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg-binary-cache
+  VCPKG_BINARY_CACHE_DIR: ${{ github.workspace }}/.vcpkg-binary-cache
   VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-binary-cache,readwrite"
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
@@ -88,7 +88,7 @@ jobs:
         id: cache-vcpkg-binary
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          path: ${{ env.VCPKG_BINARY_CACHE_DIR }}
           key: ${{ runner.os }}-${{ matrix.name }}-vcpkg-binary-${{ env.VCPKG_TARGET_TRIPLET }}-${{ env.VCPKG_GIT_COMMIT }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-vcpkg-binary-${{ env.VCPKG_TARGET_TRIPLET }}-${{ env.VCPKG_GIT_COMMIT }}-
@@ -208,7 +208,7 @@ jobs:
         if: runner.os == 'Windows' && steps.cache-vcpkg-binary.outputs.cache-hit != 'true'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          path: ${{ env.VCPKG_DEFAULT_BINARY_CACHE }}
+          path: ${{ env.VCPKG_BINARY_CACHE_DIR }}
           key: ${{ runner.os }}-${{ matrix.name }}-vcpkg-binary-${{ env.VCPKG_TARGET_TRIPLET }}-${{ env.VCPKG_GIT_COMMIT }}-${{ hashFiles('vcpkg.json') }}
 
       # ---------- Smoke test cpp-example-collection binaries ----------
