@@ -13,14 +13,10 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # sccache caches rustc invocations across runs. RUSTC_WRAPPER is exported
-  # only after the setup step verifies the GHA cache backend is reachable, so
-  # transient cache backend failures fall back to uncached rustc instead of
-  # failing the build.
-  SCCACHE_GHA_ENABLED: "true"
-  # sccache cannot cache Cargo incremental artifacts; without this, sccache
-  # reports ~0% utilization even on cache misses. Disabling incremental lets
-  # sccache cache per-crate compilations whenever the cargo target cache misses.
+  # Disable Cargo incremental artifacts. The Rust FFI is built once per
+  # submodule SHA and cached whole (see the cargo target cache below), so
+  # incremental dirs add nothing but bloat the cached target/ directory and
+  # slow the cache upload/download.
   CARGO_INCREMENTAL: "0"
   # Pinned commit for cpp-example-collection smoke build (https://github.com/livekit-examples/cpp-example-collection)
   CPP_EXAMPLE_COLLECTION_REF: bbf0fdf72dac2239117213475449565686f8c58b
@@ -120,30 +116,6 @@ jobs:
         if: matrix.name == 'macos-x64'
         run: rustup target add x86_64-apple-darwin
 
-      # ---------- Setup sccache ----------
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9 # v0.0.7
-
-      - name: Enable sccache wrapping (probe first)
-        shell: bash
-        run: |
-          if sccache --start-server >/dev/null 2>&1; then
-            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-            # Wire sccache into the C++ build too (the dominant build cost),
-            # but only where the generator honors compiler launchers. The
-            # Windows preset uses the Visual Studio generator, which ignores
-            # CMAKE_<LANG>_COMPILER_LAUNCHER, so we skip it there.
-            if [[ "$RUNNER_OS" != "Windows" ]]; then
-              echo "CMAKE_C_COMPILER_LAUNCHER=sccache" >> "$GITHUB_ENV"
-              echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" >> "$GITHUB_ENV"
-              echo "::notice::sccache enabled for rustc + C/C++ (RUSTC_WRAPPER + CMAKE_*_COMPILER_LAUNCHER)"
-            else
-              echo "::notice::sccache enabled for rustc only (Windows VS generator ignores compiler launchers)"
-            fi
-          else
-            echo "::warning::sccache backend unreachable; building without compile cache this run"
-          fi
-
       # ---------- Cache Cargo ----------
       # The Rust FFI is built from the pinned client-sdk-rust submodule. Its
       # compiled output only changes when the submodule commit changes, so we
@@ -201,11 +173,6 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ${{ matrix.build_cmd }}
-
-      - name: sccache stats
-        if: always()
-        shell: bash
-        run: sccache --show-stats || true
 
       # Save the populated target/ now, while the build output still exists and
       # before the "Clean after build" step runs clean-all. Only on a miss --
@@ -508,6 +475,20 @@ jobs:
     if: github.event_name == 'pull_request'
 
     steps:
+      # Reclaim ~30GB before loading the multi-GB SDK image and building the
+      # example collection inside it. Mirrors the docker-build jobs; without it
+      # the x64 collection build has hit "no space left on device".
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Download Docker image artifact
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -535,6 +516,20 @@ jobs:
     if: github.event_name == 'pull_request'
 
     steps:
+      # Reclaim ~30GB before loading the multi-GB SDK image and building the
+      # example collection inside it. The standard ubuntu-latest runner has hit
+      # "no space left on device" here without this step.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
       - name: Download Docker image artifact
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:

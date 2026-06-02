@@ -13,11 +13,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  # sccache caches rustc invocations across runs. RUSTC_WRAPPER is exported
-  # only after the setup step verifies the GHA cache backend is reachable, so
-  # transient cache backend failures fall back to uncached rustc instead of
-  # failing the build.
-  SCCACHE_GHA_ENABLED: "true"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
@@ -140,21 +135,16 @@ jobs:
         if: matrix.name == 'macos-x64'
         run: rustup target add x86_64-apple-darwin
 
-      # ---------- Setup sccache ----------
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9 # v0.0.7
-
-      - name: Enable sccache wrapping (probe first)
-        shell: bash
-        run: |
-          if sccache --start-server >/dev/null 2>&1; then
-            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-            echo "::notice::sccache enabled (RUSTC_WRAPPER=sccache)"
-          else
-            echo "::warning::sccache backend unreachable; building without compile cache this run"
-          fi
-
       # ---------- Cache Cargo ----------
+      # Key the target cache on the client-sdk-rust submodule SHA (Cargo.lock is
+      # pinned inside the submodule and froze the old cache). No clean step runs
+      # in this workflow, so the combined actions/cache post-job save captures
+      # the populated target/ correctly once the key busts on a submodule bump.
+      - name: Resolve Rust submodule SHA
+        id: rust_sha
+        shell: bash
+        run: echo "sha=$(git -C client-sdk-rust rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Cache Cargo registry
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -170,7 +160,7 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: client-sdk-rust/target/
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('client-sdk-rust/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-target-
 
