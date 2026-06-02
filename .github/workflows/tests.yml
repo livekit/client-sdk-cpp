@@ -322,15 +322,6 @@ jobs:
       - name: Pull LFS files
         run: git lfs pull
 
-      # See the test job for why this exists: pin submodule source mtimes to a
-      # fixed timestamp so cargo treats the workspace as unchanged across runs
-      # and reuses the cached FFI build instead of recompiling it (~6 min).
-      # Runs before the cargo target cache is restored, so target/ is untouched.
-      - name: Stabilize Rust source mtimes for cargo freshness
-        shell: bash
-        run: |
-          find client-sdk-rust -type f -not -path '*/.git/*' -exec touch -t 202001010000 {} +
-
       # Reclaim ~30GB on the runner. The debug+coverage object tree plus gcov
       # data is large; prior runs died mid-build from disk/memory pressure.
       - name: Free disk space
@@ -369,14 +360,9 @@ jobs:
           toolchain: stable
 
       # ---------- Cache Cargo ----------
-      # Key the target cache on the client-sdk-rust submodule SHA (see builds.yml
-      # rationale). Restore/save split so the populated target/ is captured right
-      # after the build.
-      - name: Resolve Rust submodule SHA
-        id: rust_sha
-        shell: bash
-        run: echo "sha=$(git -C client-sdk-rust rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
+      # Only the cargo registry (downloaded crate sources, ~60 MB) is cached
+      # here. The compiled target/ is intentionally not cached for coverage —
+      # see the note below the registry cache step.
       - name: Cache cargo registry
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -388,14 +374,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-coverage-cargo-registry-
 
-      - name: Restore cargo target
-        id: cache-cargo-target
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: client-sdk-rust/target/
-          key: ${{ runner.os }}-coverage-cargo-target-${{ steps.rust_sha.outputs.sha }}
-          restore-keys: |
-            ${{ runner.os }}-coverage-cargo-target-
+      # NOTE: we deliberately do NOT cache client-sdk-rust/target/ here. The
+      # coverage job builds the FFI in debug mode, so its target/ was ~2.8 GB —
+      # the single largest entry in the repo's 10 GB Actions cache budget. That
+      # one cache crowded out the release build/test caches (and the Windows
+      # vcpkg binaries), causing repo-wide LRU eviction and cold rebuilds
+      # elsewhere. Coverage runs once per PR off the critical path, so eating a
+      # cold FFI build here is cheaper than the eviction it caused. The cargo
+      # registry cache above is tiny (~60 MB) and stays.
 
       # ---------- Build environment setup ----------
       - name: Set build environment
@@ -421,14 +407,6 @@ jobs:
       # runner; bump if/when this moves to a larger runner.
       - name: Build
         run: cmake --build build-debug --parallel 2
-
-      # Snapshot the populated target/ after the build succeeds, only on a miss.
-      - name: Save cargo target
-        if: steps.cache-cargo-target.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: client-sdk-rust/target/
-          key: ${{ runner.os }}-coverage-cargo-target-${{ steps.rust_sha.outputs.sha }}
 
       # ---------- Run unit tests ----------
       - name: Run unit tests
