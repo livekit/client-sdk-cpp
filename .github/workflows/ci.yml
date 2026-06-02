@@ -42,6 +42,7 @@ jobs:
       builds: ${{ steps.filter.outputs.builds }}
       tests:  ${{ steps.filter.outputs.tests }}
       docs:   ${{ steps.filter.outputs.docs }}
+      docker_images: ${{ steps.filter.outputs.docker_images }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d  # v4.0.1
@@ -51,44 +52,64 @@ jobs:
             builds:
               - src/**
               - include/**
+              - benchmarks/**
               - cpp-example-collection/**
               - client-sdk-rust/**
               - cmake/**
-              - scripts/**
+              - docker/**
+              - scripts/clang-format.sh
+              - scripts/clang-tidy.sh
               - CMakeLists.txt
+              - CMakePresets.json
               - build.sh
               - build.cmd
+              - build.h.in
               - .build-info.json.in
               - vcpkg.json
-              - CMakePresets.json
-              - docker/Dockerfile.base
-              - docker/Dockerfile.sdk
               - .clang-format
+              - .clang-tidy
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
             tests:
               - src/**
               - include/**
               - client-sdk-rust/**
+              - cmake/**
+              - .token_helpers/**
               - CMakeLists.txt
               - CMakePresets.json
               - build.sh
               - build.cmd
+              - build.h.in
+              - .build-info.json.in
               - vcpkg.json
-              - .token_helpers/**
               - .github/workflows/ci.yml
               - .github/workflows/tests.yml
             docs:
-              # Quoted because YAML treats a leading `*` as an alias
-              # reference and would otherwise reject this scalar.
-              - "**/*.md"
+              - README.md
               - include/**
-              - src/**
               - docs/**
               - scripts/generate-docs.sh
               - .github/workflows/ci.yml
               - .github/workflows/generate-docs.yml
               - .github/workflows/publish-docs.yml
+            docker_images:
+              - src/**
+              - include/**
+              - client-sdk-rust/**
+              - cmake/**
+              - data/**
+              - docker/Dockerfile.base
+              - docker/Dockerfile.sdk
+              - CMakeLists.txt
+              - CMakePresets.json
+              - build.sh
+              - build.cmd
+              - build.h.in
+              - .build-info.json.in
+              - .github/workflows/ci.yml
+              - .github/workflows/docker-images.yml
+              - .github/workflows/docker-validate.yml
 
   builds:
     name: Builds
@@ -104,9 +125,8 @@ jobs:
     uses: ./.github/workflows/tests.yml
     secrets: inherit
 
-  # license-check and pin-check are cheap (seconds) and have no meaningful
-  # path scope (any source change can affect license headers; any action
-  # bump can affect pinning), so they always run.
+  # license-check and pin-check are cheap (seconds) and broad enough that they
+  # should run on every PR.
   license-check:
     name: License Check
     uses: ./.github/workflows/license_check.yml
@@ -120,3 +140,23 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.docs == 'true' || github.event_name != 'pull_request' }}
     uses: ./.github/workflows/generate-docs.yml
+
+  docker-images:
+    name: Docker Images
+    needs: changes
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.docker_images == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/docker-images.yml
+    secrets: inherit
+
+  docker-validate:
+    name: Docker Validate
+    needs: docker-images
+    if: ${{ needs.docker-images.result == 'success' }}
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/docker-validate.yml
+    secrets: inherit

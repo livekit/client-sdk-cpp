@@ -71,6 +71,20 @@ jobs:
       - name: Pull LFS files
         run: git lfs pull
 
+      # Cargo's freshness check is mtime-based. A fresh `actions/checkout`
+      # stamps every submodule source file with the checkout time, which is
+      # newer than the cached target/ artifacts — so cargo rebuilds the whole
+      # client-sdk-rust workspace (~6 min) even on an exact cargo-target cache
+      # hit. Pin all submodule source files to a fixed, deterministic
+      # timestamp (older than any cached artifact) so cargo treats them as
+      # unchanged across runs and reuses the cached FFI build. Runs before the
+      # cargo target cache is restored, so target/ does not yet exist and is
+      # never touched. shell: bash so this also runs under Git Bash on Windows.
+      - name: Stabilize Rust source mtimes for cargo freshness
+        shell: bash
+        run: |
+          find client-sdk-rust -type f -not -path '*/.git/*' -exec touch -t 202001010000 {} +
+
       # ---------- vcpkg caching for Windows ----------
       - name: Export GitHub Actions cache environment variables
         if: runner.os == 'Windows'

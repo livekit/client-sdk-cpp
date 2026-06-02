@@ -1,22 +1,7 @@
 name: Docker Images
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - src/**
-      - include/**
-      - client-sdk-rust/**
-      - CMakeLists.txt
-      - build.sh
-      - build.cmd
-      - build.h.in
-      - .build-info.json.in
-      - CMakePresets.json
-      - cmake/**
-      - data/**
-      - docker/Dockerfile.base
-      - docker/Dockerfile.sdk
+  workflow_call: {}
 
 permissions:
   contents: read
@@ -89,7 +74,7 @@ jobs:
             fi
 
             case "${path}" in
-              docker/Dockerfile.sdk|src/*|include/*|client-sdk-rust/*|cmake/*|data/*|CMakeLists.txt|build.sh|build.cmd|build.h.in|.build-info.json.in|CMakePresets.json)
+              docker/Dockerfile.sdk|src/*|include/*|client-sdk-rust/*|cmake/*|data/*|CMakeLists.txt|build.sh|build.cmd|build.h.in|.build-info.json.in|CMakePresets.json|.github/workflows/ci.yml|.github/workflows/docker-images.yml|.github/workflows/docker-validate.yml)
                 sdk_changed=true
                 ;;
             esac
