@@ -1,18 +1,5 @@
 name: CI
 
-# Aggregator workflow that fans out to every PR-gating workflow as a single,
-# always-running check. Configure branch protection to require only the "CI"
-# status; downstream workflows will run automatically. This avoids the
-# previous footgun where path-filtered workflows skipped entire PRs (so all
-# checks showed "passing" without ever executing — see #147).
-#
-# Each child workflow is conditionally invoked based on the paths a PR
-# touched, mirroring the path filters that used to live in each child.
-# Children that get skipped via `if:` count as "skipped" in the CI rollup
-# (not "failed"), so the parent "CI" status reaches SUCCESS and branch
-# protection is satisfied. Push-to-main and manual dispatch always run
-# everything regardless of changed paths. 
-
 on:
   workflow_dispatch:
   pull_request:
@@ -23,7 +10,7 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  # cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
