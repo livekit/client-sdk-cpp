@@ -202,6 +202,7 @@ echo   build.cmd clean-all
 goto :eof
 
 :configure_build
+call :now _T_CONFIG_START
 echo ==^> Configuring CMake (%BUILD_TYPE%)...
 if not defined VCPKG_ROOT (
     echo Warning: VCPKG_ROOT is not set. Attempting to configure without vcpkg...
@@ -213,6 +214,7 @@ if errorlevel 1 (
     echo Configuration failed!
     exit /b 1
 )
+call :elapsed "configure (%PRESET%)" %_T_CONFIG_START%
 goto build_only
 
 :build_only
@@ -225,13 +227,43 @@ if not defined BUILD_PARALLEL_JOBS (
         set "BUILD_PARALLEL_JOBS=2"
     )
 )
+call :now _T_BUILD_START
 echo ==^> Building (%BUILD_TYPE%) with %BUILD_PARALLEL_JOBS% parallel jobs...
+
+rem Optional Rust-FFI-first split: build the build_rust_ffi target on its own
+rem first so CI logs report the Rust dep/FFI compile time separately from the
+rem C++ compile time. Off by default (single build invocation).
+if "%LK_BUILD_TIMING%"=="1" (
+    call :now _T_FFI_START
+    echo ==^> [timing] Building Rust FFI target ^(build_rust_ffi^) first...
+    cmake --build "%BUILD_DIR%" --config %BUILD_TYPE% --parallel "%BUILD_PARALLEL_JOBS%" --target build_rust_ffi
+    if errorlevel 1 (
+        echo Build failed!
+        exit /b 1
+    )
+    call :elapsed "build: Rust FFI (build_rust_ffi)" %_T_FFI_START%
+)
+
 cmake --build "%BUILD_DIR%" --config %BUILD_TYPE% --parallel "%BUILD_PARALLEL_JOBS%"
 if errorlevel 1 (
     echo Build failed!
     exit /b 1
 )
+call :elapsed "build total (%PRESET%)" %_T_BUILD_START%
 echo ==^> Build complete!
+goto :eof
+
+rem ---- timing helpers ----
+rem :now <varname>  -> sets <varname> to current Unix epoch seconds.
+:now
+for /f %%s in ('powershell -NoProfile -Command "[int][double]::Parse((Get-Date -UFormat %%s))"') do set "%~1=%%s"
+goto :eof
+
+rem :elapsed "<label>" <start-epoch>  -> prints "==> [timing] <label>: <N>s".
+:elapsed
+call :now _T_ELAPSED_END
+set /a _T_ELAPSED_DIFF=%_T_ELAPSED_END% - %~2
+echo ==^> [timing] %~1: %_T_ELAPSED_DIFF%s
 goto :eof
 
 :clean

@@ -18,7 +18,11 @@ env:
   # incremental dirs add nothing but bloat the cached target/ directory and
   # slow the cache upload/download.
   CARGO_INCREMENTAL: "0"
-  # vcpkg binary caching for Windows (mirrors builds.yml)
+  # vcpkg binary caching for Windows (mirrors builds.yml). x-gha stores
+  # compiled vcpkg packages in the GitHub Actions cache so the Windows
+  # manifest-mode dep build is skipped on a warm cache. Requires the
+  # ACTIONS_CACHE_URL / ACTIONS_RUNTIME_TOKEN export step below.
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
   VCPKG_TARGET_TRIPLET: x64-windows-static-md
