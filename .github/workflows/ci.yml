@@ -29,6 +29,7 @@ jobs:
       builds: ${{ steps.filter.outputs.builds }}
       tests:  ${{ steps.filter.outputs.tests }}
       docs:   ${{ steps.filter.outputs.docs }}
+      quality: ${{ steps.filter.outputs.quality }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d  # v4.0.1
@@ -44,8 +45,6 @@ jobs:
               - client-sdk-rust/**
               - cmake/**
               - docker/**
-              - scripts/clang-format.sh
-              - scripts/clang-tidy.sh
               - CMakeLists.txt
               - CMakePresets.json
               - build.sh
@@ -53,8 +52,6 @@ jobs:
               - build.h.in
               - .build-info.json.in
               - vcpkg.json
-              - .clang-format
-              - .clang-tidy
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
             tests:
@@ -80,6 +77,20 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/generate-docs.yml
               - .github/workflows/publish-docs.yml
+            quality:
+              - src/**
+              - include/**
+              - benchmarks/**
+              - client-sdk-rust/**
+              - cmake/**
+              - CMakeLists.txt
+              - CMakePresets.json
+              - scripts/clang-format.sh
+              - scripts/clang-tidy.sh
+              - .clang-format
+              - .clang-tidy
+              - .github/workflows/ci.yml
+              - .github/workflows/quality-checks.yml
 
   builds:
     name: Builds
@@ -104,6 +115,12 @@ jobs:
   pin-check:
     name: Pin Check
     uses: ./.github/workflows/pin_check.yml
+
+  quality-checks:
+    name: Quality Checks
+    needs: changes
+    if: ${{ needs.changes.outputs.quality == 'true' || github.event_name != 'pull_request' }}
+    uses: ./.github/workflows/quality-checks.yml
 
   generate-docs:
     name: Generate Docs
