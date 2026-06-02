@@ -18,8 +18,6 @@ env:
   # incremental dirs add nothing but bloat the cached target/ directory and
   # slow the cache upload/download.
   CARGO_INCREMENTAL: "0"
-  # Pinned commit for cpp-example-collection smoke build (https://github.com/livekit-examples/cpp-example-collection)
-  CPP_EXAMPLE_COLLECTION_REF: bbf0fdf72dac2239117213475449565686f8c58b
   # vcpkg binary caching for Windows. x-gha stores compiled vcpkg packages
   # (protobuf, abseil, spdlog, ...) in the GitHub Actions cache, so the
   # Windows manifest-mode dep build is skipped on a warm cache. `clear`
@@ -175,10 +173,10 @@ jobs:
       - name: Set Linux build environment
         if: runner.os == 'Linux'
         run: |
-          echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
-          echo "CFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
+          echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
-          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
 
       # ---------- Build ----------
       - name: Build (Unix)
@@ -494,6 +492,11 @@ jobs:
     if: github.event_name == 'pull_request'
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+
       # Reclaim ~30GB before loading the multi-GB SDK image and building the
       # example collection inside it. Mirrors the docker-build jobs; without it
       # the x64 collection build has hit "no space left on device".
@@ -518,7 +521,8 @@ jobs:
 
       - name: Build cpp-example-collection against installed SDK
         run: |
-          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm livekit-cpp-sdk:${{ github.sha }} bash -lc '
+          cpp_ex_ref="$(git rev-parse HEAD:cpp-example-collection)"
+          docker run -e CPP_EX_REF="${cpp_ex_ref}" --rm livekit-cpp-sdk:${{ github.sha }} bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
@@ -535,6 +539,11 @@ jobs:
     if: github.event_name == 'pull_request'
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+
       # Reclaim ~30GB before loading the multi-GB SDK image and building the
       # example collection inside it. The standard ubuntu-latest runner has hit
       # "no space left on device" here without this step.
@@ -559,7 +568,8 @@ jobs:
 
       - name: Build cpp-example-collection against installed SDK
         run: |
-          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -lc '
+          cpp_ex_ref="$(git rev-parse HEAD:cpp-example-collection)"
+          docker run -e CPP_EX_REF="${cpp_ex_ref}" --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
@@ -655,10 +665,10 @@ jobs:
 
       - name: Set Linux build environment
         run: |
-          echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
-          echo "CFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
+          echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
-          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
 
       - name: CMake configure
         run: cmake --preset linux-release

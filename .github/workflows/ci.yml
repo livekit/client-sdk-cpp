@@ -42,7 +42,6 @@ jobs:
       builds: ${{ steps.filter.outputs.builds }}
       tests:  ${{ steps.filter.outputs.tests }}
       docs:   ${{ steps.filter.outputs.docs }}
-      docker_images: ${{ steps.filter.outputs.docker_images }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d  # v4.0.1
@@ -53,6 +52,7 @@ jobs:
               - src/**
               - include/**
               - benchmarks/**
+              - cpp-example-collection
               - cpp-example-collection/**
               - client-sdk-rust/**
               - cmake/**
@@ -93,23 +93,6 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/generate-docs.yml
               - .github/workflows/publish-docs.yml
-            docker_images:
-              - src/**
-              - include/**
-              - client-sdk-rust/**
-              - cmake/**
-              - data/**
-              - docker/Dockerfile.base
-              - docker/Dockerfile.sdk
-              - CMakeLists.txt
-              - CMakePresets.json
-              - build.sh
-              - build.cmd
-              - build.h.in
-              - .build-info.json.in
-              - .github/workflows/ci.yml
-              - .github/workflows/docker-images.yml
-              - .github/workflows/docker-validate.yml
 
   builds:
     name: Builds
@@ -140,23 +123,3 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.docs == 'true' || github.event_name != 'pull_request' }}
     uses: ./.github/workflows/generate-docs.yml
-
-  docker-images:
-    name: Docker Images
-    needs: changes
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.docker_images == 'true' }}
-    permissions:
-      contents: read
-      packages: write
-    uses: ./.github/workflows/docker-images.yml
-    secrets: inherit
-
-  docker-validate:
-    name: Docker Validate
-    needs: docker-images
-    if: ${{ needs.docker-images.result == 'success' }}
-    permissions:
-      contents: read
-      packages: read
-    uses: ./.github/workflows/docker-validate.yml
-    secrets: inherit

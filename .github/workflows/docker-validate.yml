@@ -1,29 +1,36 @@
 name: Docker Validate
 
 on:
-  workflow_call: {}
+  workflow_run:
+    workflows: ["Docker Images"]
+    types: [completed]
 
 permissions:
   contents: read
   packages: read
 
-env:
-  # Pinned commit for cpp-example-collection smoke build (https://github.com/livekit-examples/cpp-example-collection)
-  CPP_EXAMPLE_COLLECTION_REF: bbf0fdf72dac2239117213475449565686f8c58b
-
 jobs:
   validate-x64:
     name: Validate Docker image (linux-x64)
     runs-on: ubuntu-latest
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+
       - name: Resolve image name
         id: refs
         shell: bash
         run: |
           set -euo pipefail
           owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp:sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp:sha-${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Login to GHCR
         shell: bash
@@ -46,7 +53,8 @@ jobs:
 
       - name: Build cpp-example-collection against installed SDK
         run: |
-          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm "${{ steps.refs.outputs.sdk_image }}" bash -lc '
+          cpp_ex_ref="$(git rev-parse HEAD:cpp-example-collection)"
+          docker run -e CPP_EX_REF="${cpp_ex_ref}" --rm "${{ steps.refs.outputs.sdk_image }}" bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
@@ -59,15 +67,24 @@ jobs:
   validate-arm64:
     name: Validate Docker image (linux-arm64)
     runs-on: ubuntu-24.04-arm
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+
       - name: Resolve image name
         id: refs
         shell: bash
         run: |
           set -euo pipefail
           owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp:sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp:sha-${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Login to GHCR
         shell: bash
@@ -90,7 +107,8 @@ jobs:
 
       - name: Build cpp-example-collection against installed SDK
         run: |
-          docker run -e CPP_EX_REF="${{ env.CPP_EXAMPLE_COLLECTION_REF }}" --rm "${{ steps.refs.outputs.sdk_image }}" bash -lc '
+          cpp_ex_ref="$(git rev-parse HEAD:cpp-example-collection)"
+          docker run -e CPP_EX_REF="${cpp_ex_ref}" --rm "${{ steps.refs.outputs.sdk_image }}" bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
