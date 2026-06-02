@@ -138,9 +138,8 @@ jobs:
       # ---------- Cache Cargo ----------
       # See builds.yml for the rationale: the Rust FFI output only changes with
       # the client-sdk-rust submodule commit, so key the target cache on the
-      # submodule SHA (Cargo.lock is pinned inside the submodule and froze the
-      # old cache). Restore/save split so the populated target/ is snapshotted
-      # right after the build instead of in a post-job step.
+      # submodule SHA. The build workflow owns saving this cache; tests are
+      # restore-only to avoid same-key save races across parallel jobs.
       - name: Resolve Rust submodule SHA
         id: rust_sha
         shell: bash
@@ -187,18 +186,6 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: ${{ matrix.build_cmd }}
-
-      # Snapshot the populated target/ after a successful build. Placed before
-      # the test steps so the Rust FFI output is cached regardless of whether
-      # the unit/integration tests pass. Only on a miss (exact-key hit means the
-      # cache already holds this submodule's output; a restore-keys prefix hit
-      # still counts as a miss and refreshes under the new SHA).
-      - name: Save cargo target
-        if: steps.cache-cargo-target.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: client-sdk-rust/target/
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
 
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
