@@ -128,3 +128,40 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/generate-docs.yml
+
+  required:
+    name: Required Checks
+    runs-on: ubuntu-latest
+    needs:
+      - builds
+      - tests
+      - license-check
+      - pin-check
+      - cpp-checks
+      - generate-docs
+    if: always()
+    steps:
+      - name: Verify required CI jobs
+        shell: bash
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          needs = json.loads(os.environ["NEEDS_JSON"])
+          failed = {
+              name: data["result"]
+              for name, data in needs.items()
+              if data["result"] not in ("success", "skipped")
+          }
+
+          if failed:
+              for name, result in failed.items():
+                  print(f"::error::{name} finished with result={result}")
+              sys.exit(1)
+
+          print("All required CI jobs succeeded or were skipped by path filters.")
+          PY
