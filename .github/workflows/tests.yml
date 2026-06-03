@@ -291,10 +291,12 @@ jobs:
           source .token_helpers/set_data_track_test_tokens.bash
           # TMP: Mac crash debug - begin lldb wrapper
           if [[ "$RUNNER_OS" == "macOS" ]]; then
-            lldb --batch \
-              -o "run --gtest_repeat=10 --gtest_output=xml:build-release/integration-test-results.xml" \
-              -o "thread backtrace all" \
-              -- build-release/bin/livekit_integration_tests
+            cat > macos-crash-debug.lldb <<'LLDB'
+          settings set target.process.thread.step-avoid-regexp ^$
+          run --gtest_repeat=15 --gtest_output=xml:build-release/integration-test-results.xml
+          script process = lldb.debugger.GetSelectedTarget().GetProcess(); lldb.debugger.HandleCommand("thread backtrace all") if process and process.IsValid() and process.GetState() == lldb.eStateStopped else None
+          LLDB
+            lldb --batch -s macos-crash-debug.lldb -- build-release/bin/livekit_integration_tests
           else
             build-release/bin/livekit_integration_tests \
               --gtest_output=xml:build-release/integration-test-results.xml
