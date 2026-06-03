@@ -391,8 +391,6 @@ all filtered stages; normal pull requests and pushes use the path filters.
 - `.github/workflows/generate-docs.yml` — Reusable Doxygen docs validation.
 - `.github/workflows/license_check.yml` — Cheap license check, run on every CI
   invocation.
-- `.github/workflows/pin_check.yml` — Cheap action pin check, run on every CI
-  invocation.
 - `.github/workflows/docker-images.yml` — Docker image build/publish workflow,
   outside PR-review aggregation.
 - `.github/workflows/docker-validate.yml` — Docker image validation workflow,

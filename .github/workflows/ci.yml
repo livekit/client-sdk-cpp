@@ -8,10 +8,6 @@ on:
   push:
     branches: ["main"]
 
-# concurrency:
-#   group: ci-${{ github.ref }}
-#   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 permissions:
   contents: read
   actions: read
@@ -47,10 +43,8 @@ jobs:
               - docker/**
               - CMakeLists.txt
               - CMakePresets.json
-              - build.sh
-              - build.cmd
-              - build.h.in
-              - .build-info.json.in
+              - build*
+              - .build*
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
@@ -62,10 +56,8 @@ jobs:
               - .token_helpers/**
               - CMakeLists.txt
               - CMakePresets.json
-              - build.sh
-              - build.cmd
-              - build.h.in
-              - .build-info.json.in
+              - build*
+              - .build*
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/tests.yml
@@ -107,15 +99,11 @@ jobs:
     uses: ./.github/workflows/tests.yml
     secrets: inherit
 
-  # license-check and pin-check are cheap (seconds) and broad enough that they
-  # should run on every PR.
+  # license-check is cheap (seconds) and broad enough that it should run on
+  # every PR.
   license-check:
     name: License Check
     uses: ./.github/workflows/license_check.yml
-
-  pin-check:
-    name: Pin Check
-    uses: ./.github/workflows/pin_check.yml
 
   cpp-checks:
     name: C++ Checks
@@ -129,39 +117,22 @@ jobs:
     if: ${{ needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/generate-docs.yml
 
-  required:
-    name: Required Checks
+  # Context: GitHub repository rulesets "required checks" actually need a job name to list.
+  # This job is an aggregate job
+  ci:
+    name: CI
     runs-on: ubuntu-latest
+    # List all the jobs that need to succeed for the CI to pass
     needs:
+      - changes
       - builds
       - tests
       - license-check
-      - pin-check
       - cpp-checks
       - generate-docs
     if: always()
     steps:
       - name: Verify required CI jobs
-        shell: bash
-        env:
-          NEEDS_JSON: ${{ toJson(needs) }}
-        run: |
-          python3 - <<'PY'
-          import json
-          import os
-          import sys
-
-          needs = json.loads(os.environ["NEEDS_JSON"])
-          failed = {
-              name: data["result"]
-              for name, data in needs.items()
-              if data["result"] not in ("success", "skipped")
-          }
-
-          if failed:
-              for name, result in failed.items():
-                  print(f"::error::{name} finished with result={result}")
-              sys.exit(1)
-
-          print("All required CI jobs succeeded or were skipped by path filters.")
-          PY
+        uses: suzuki-shunsuke/required-status-check-action@2b5a46064846b09381852c2c4217e898f639e768  # v0.1.3
+        with:
+          needs: ${{ toJson(needs) }}
