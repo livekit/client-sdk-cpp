@@ -373,3 +373,36 @@ When adding new client facing functionality, add benchmarking to understand the 
 - A single participant cannot subscribe to its own tracks as "remote." Testing sender/receiver requires two separate room connections with distinct identities.
 - macOS dylibs require `install_name_tool` fixups for `@rpath` — the CMakeLists.txt handles this automatically. Do not manually adjust RPATH unless you understand the implications.
 - When consuming the installed SDK, use `-DLIVEKIT_LOCAL_SDK_DIR=/path/to/sdk` to point cmake at a local install instead of downloading a release tarball.
+
+### CI Workflow Structure
+
+`ci.yml` is the PR-review aggregator. It computes path changes once with
+`dorny/paths-filter` and conditionally calls reusable workflows for the
+expensive stages. Manual `workflow_dispatch` runs intentionally opt back into
+all filtered stages; normal pull requests and pushes use the path filters.
+
+- `.github/workflows/ci.yml` — Top-level PR/push/manual aggregator and path
+  filter owner.
+- `.github/workflows/builds.yml` — Reusable SDK and example-collection build
+  matrix.
+- `.github/workflows/tests.yml` — Reusable unit/integration test matrix.
+- `.github/workflows/cpp-checks.yml` — Reusable `clang-format` and
+  `clang-tidy` checks.
+- `.github/workflows/generate-docs.yml` — Reusable Doxygen docs validation.
+- `.github/workflows/license_check.yml` — Cheap license check, run on every CI
+  invocation.
+- `.github/workflows/docker-images.yml` — Docker image build/publish workflow,
+  outside PR-review aggregation.
+- `.github/workflows/docker-validate.yml` — Docker image validation workflow,
+  outside PR-review aggregation.
+
+When adding or renaming files that affect a CI stage, update the matching
+`ci.yml` `changes` filter in the same PR. For example, new build scripts,
+CMake files, package manifests, or reusable build workflows should be added to
+the `builds` filter; test-only helpers to `tests`; formatting/static-analysis
+configuration to `cpp_checks`; and docs generation inputs to `docs`.
+
+Keep broad agent guidance files such as `AGENTS.md` out of the expensive
+`builds`, `tests`, `cpp_checks`, and `docs` filters unless they start affecting
+generated docs or build artifacts. An `AGENTS.md`-only change should not trigger
+those stages; only the always-on cheap checks should run.
