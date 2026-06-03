@@ -133,19 +133,7 @@ parse_opts() {
   done
 }
 
-# Print "<label>: <N>s" using a start timestamp captured with `date +%s`.
-# Used for the build-phase timing breakdown surfaced in CI logs. Set
-# LK_BUILD_TIMING=1 to also split the Rust FFI build out from the C++ build.
-_lk_now() { date +%s; }
-_lk_report() {
-  local label="$1" start="$2" end
-  end="$(_lk_now)"
-  echo "==> [timing] ${label}: $((end - start))s"
-}
-
 configure() {
-  local _t_start
-  _t_start="$(_lk_now)"
   echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
   local -a extra_args=()
   if [[ -n "${LIVEKIT_VERSION}" ]]; then
@@ -155,19 +143,6 @@ configure() {
   if [[ -n "${MACOS_ARCH}" ]]; then
     echo "==> Setting CMAKE_OSX_ARCHITECTURES=${MACOS_ARCH}"
     extra_args+=("-DCMAKE_OSX_ARCHITECTURES=${MACOS_ARCH}")
-  fi
-  # Bridge compiler-launcher env vars (e.g. sccache/ccache) into the CMake
-  # cache. CMake does NOT read CMAKE_<LANG>_COMPILER_LAUNCHER from the
-  # environment, so CI exports these and we forward them explicitly. Only the
-  # Ninja/Makefile generators honor launchers; the Visual Studio generator
-  # ignores them, so Windows builds simply leave these unset.
-  if [[ -n "${CMAKE_C_COMPILER_LAUNCHER:-}" ]]; then
-    echo "==> Using C compiler launcher: ${CMAKE_C_COMPILER_LAUNCHER}"
-    extra_args+=("-DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}")
-  fi
-  if [[ -n "${CMAKE_CXX_COMPILER_LAUNCHER:-}" ]]; then
-    echo "==> Using C++ compiler launcher: ${CMAKE_CXX_COMPILER_LAUNCHER}"
-    extra_args+=("-DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}")
   fi
   if ((${#extra_args[@]})); then
     if ! cmake --preset "${PRESET}" "${extra_args[@]}"; then
@@ -185,7 +160,6 @@ configure() {
     ln -sf "${BUILD_DIR}/compile_commands.json" "${PROJECT_ROOT}/compile_commands.json"
     echo "==> Symlinked compile_commands.json -> ${BUILD_DIR}/compile_commands.json"
   fi
-  _lk_report "configure (${PRESET})" "${_t_start}"
 }
 
 detect_parallel_jobs() {
@@ -214,37 +188,14 @@ build() {
   local parallel_jobs
   parallel_jobs="$(detect_parallel_jobs)"
 
-  local _t_start _t_ffi
-  _t_start="$(_lk_now)"
-
   echo "==> Building (${BUILD_TYPE}) with ${parallel_jobs} parallel jobs..."
-  local have_preset=0
   if [[ -n "${PRESET}" ]] && [[ -f "${PROJECT_ROOT}/CMakePresets.json" ]]; then
-    have_preset=1
-  fi
-
-  # Optional Rust-FFI-first split: build the build_rust_ffi target on its own
-  # first so CI logs report the Rust dep/FFI compile time separately from the
-  # C++ compile time. Off by default (single build invocation).
-  if [[ "${LK_BUILD_TIMING:-0}" == "1" ]]; then
-    _t_ffi="$(_lk_now)"
-    echo "==> [timing] Building Rust FFI target (build_rust_ffi) first..."
-    if [[ "${have_preset}" -eq 1 ]]; then
-      cmake --build --preset "${PRESET}" --parallel "${parallel_jobs}" --target build_rust_ffi
-    else
-      cmake --build "${BUILD_DIR}" --parallel "${parallel_jobs}" --target build_rust_ffi
-    fi
-    _lk_report "build: Rust FFI (build_rust_ffi)" "${_t_ffi}"
-  fi
-
-  if [[ "${have_preset}" -eq 1 ]]; then
     # Use preset build if available
     cmake --build --preset "${PRESET}" --parallel "${parallel_jobs}"
   else
     # Fallback to traditional build
     cmake --build "${BUILD_DIR}" --parallel "${parallel_jobs}"
   fi
-  _lk_report "build total (${PRESET})" "${_t_start}"
 }
 
 install_bundle() {
