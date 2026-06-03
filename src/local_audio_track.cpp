@@ -38,7 +38,6 @@ proto::OwnedTrack createAudioTrackWithSourceHandle(const std::string& name, std:
 
   const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   if (!resp.has_create_audio_track()) {
-    // TODO(sderosa): we dont have an error code/return, is throwing ok?
     throw std::runtime_error("create_audio_track response is missing track");
   }
   return resp.create_audio_track().track();
