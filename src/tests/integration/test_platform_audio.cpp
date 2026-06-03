@@ -82,9 +82,7 @@ class PlatformAudioIntegrationTest : public LiveKitTestBase {};
 // microphone is required: the source captures silence on headless runners,
 // but the publish/subscribe round-trip still completes.
 TEST_F(PlatformAudioIntegrationTest, PublishPlatformAudioTrackEndToEnd) {
-  if (!config_.available) {
-    throw std::runtime_error("LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set");
-  }
+  EXPECT_TRUE(config_.available) << "Missing integration configuration";
 
   std::unique_ptr<PlatformAudio> platform_audio;
   try {
@@ -127,9 +125,7 @@ TEST_F(PlatformAudioIntegrationTest, PublishPlatformAudioTrackEndToEnd) {
 // Unpublishing a platform audio track must propagate to the remote, exercising
 // the source/track lifecycle that keeps the shared PlatformAudioState alive.
 TEST_F(PlatformAudioIntegrationTest, UnpublishPlatformAudioTrackPropagates) {
-  if (!config_.available) {
-    throw std::runtime_error("LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set");
-  }
+  EXPECT_TRUE(config_.available) << "Missing integration configuration";
 
   std::unique_ptr<PlatformAudio> platform_audio;
   try {
@@ -184,9 +180,7 @@ TEST_F(PlatformAudioIntegrationTest, UnpublishPlatformAudioTrackPropagates) {
 // A single PlatformAudio manager can vend multiple independent sources, each
 // with a distinct FFI handle, and both should publish end-to-end.
 TEST_F(PlatformAudioIntegrationTest, MultipleSourcesFromOneManagerPublish) {
-  if (!config_.available) {
-    throw std::runtime_error("LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set");
-  }
+  EXPECT_TRUE(config_.available) << "Missing integration configuration";
 
   std::unique_ptr<PlatformAudio> platform_audio;
   try {

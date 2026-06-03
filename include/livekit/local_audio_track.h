@@ -55,8 +55,7 @@ class PlatformAudioSource;
 ///
 ///  The track name provided during creation is visible to remote
 ///  participants and can be used for debugging or UI display.
-/// @note Thread-safety: Not thread-safe. This is a thin FFI wrapper with no
-/// internal synchronization.
+/// @note This operation is not thread-safe.
 class LIVEKIT_API LocalAudioTrack : public Track {
 public:
   /// Creates a new local audio track backed by the given `AudioSource`.
@@ -69,7 +68,7 @@ public:
   ///
   /// @return A shared pointer to the newly constructed `LocalAudioTrack`.
   /// @throws std::invalid_argument  If \p source is null.
-  /// @throws std::runtime_error  If the FFI request fails.
+  /// @throws std::runtime_error If the FFI request fails.
   static std::shared_ptr<LocalAudioTrack> createLocalAudioTrack(const std::string& name,
                                                                 const std::shared_ptr<AudioSource>& source);
 
@@ -82,10 +81,9 @@ public:
   ///
   /// @return A shared pointer to the newly constructed `LocalAudioTrack`.
   /// @throws std::invalid_argument  If \p source is null.
-  /// @throws std::runtime_error  If the FFI request fails.
+  /// @throws std::runtime_error If the FFI request fails.
   ///
-  /// @note Thread-safety: Not thread-safe. This is a thin FFI wrapper with no
-  /// internal synchronization.
+  /// @note This operation is not thread-safe.
   static std::shared_ptr<LocalAudioTrack> createLocalAudioTrack(const std::string& name,
                                                                 const std::shared_ptr<PlatformAudioSource>& source);
 
@@ -94,14 +92,14 @@ public:
   /// A muted track stops sending audio to the room, but the track remains
   /// published and can be unmuted later without renegotiation.
   ///
-  /// @throws std::runtime_error  If the FFI request fails.
+  /// @throws std::runtime_error If the FFI request fails.
   void mute();
 
   /// Unmute the audio track.
   ///
   /// Resumes sending audio to the room.
   ///
-  /// @throws std::runtime_error  If the FFI request fails.
+  /// @throws std::runtime_error If the FFI request fails.
   void unmute();
 
   /// Return a human-readable string representation of the track.

@@ -32,17 +32,13 @@ namespace livekit {
 /// This forward declaration is exposed only so public wrapper types can hold a
 /// shared implementation pointer.
 ///
-/// @note Thread-safety: Thread-safe. Instances are managed internally by
-/// PlatformAudio.
+/// @note This object is thread-safe.
 struct PlatformAudioState;
 
 /// Information about a platform audio device.
 ///
-/// Device indices may change when audio hardware is added or removed. Prefer
+/// @note Device indices may change when audio hardware is added or removed. Use
 /// the stable `id` value when selecting a device.
-///
-/// @note Thread-safety: Thread-safe. This is an aggregate value type with no
-/// internal shared state.
 struct AudioDeviceInfo {
   /// Current device index.
   std::uint32_t index = 0;
@@ -58,9 +54,6 @@ struct AudioDeviceInfo {
 ///
 /// The default values enable WebRTC's voice processing path for typical
 /// microphone publishing.
-///
-/// @note Thread-safety: Thread-safe. This is an aggregate value type with no
-/// internal shared state.
 struct PlatformAudioOptions {
   /// Enable acoustic echo cancellation.
   bool echo_cancellation = true;
@@ -76,17 +69,11 @@ struct PlatformAudioOptions {
 };
 
 /// Error raised when platform audio setup or device operations fail.
-///
-/// @note Thread-safety: Thread-safe. Instances are immutable after
-/// construction.
 class LIVEKIT_API PlatformAudioError : public std::runtime_error {
 public:
   /// Create a platform audio error.
   ///
   /// @param message  Human-readable error message.
-  ///
-  /// @note Thread-safety: Thread-safe. Instances are immutable after
-  /// construction.
   explicit PlatformAudioError(const std::string& message) : std::runtime_error(message) {}
 };
 
@@ -94,32 +81,19 @@ public:
 ///
 /// A PlatformAudioSource captures microphone audio automatically. Unlike
 /// AudioSource, callers do not push frames with captureFrame().
-///
-/// @note Thread-safety: Thread-safe. The source owns an immutable FFI handle
-/// and keeps the shared PlatformAudio state alive.
 class LIVEKIT_API PlatformAudioSource {
 public:
   /// Copy construction is disabled.
-  ///
-  /// @param other  Source to copy from.
-  ///
-  /// @note Thread-safety: Not thread-safe. This operation is deleted.
   PlatformAudioSource(const PlatformAudioSource& other) = delete;
 
   /// Copy assignment is disabled.
-  ///
-  /// @param other  Source to copy from.
-  /// @return Reference to this source.
-  ///
-  /// @note Thread-safety: Not thread-safe. This operation is deleted.
   PlatformAudioSource& operator=(const PlatformAudioSource& other) = delete;
 
   /// Move the platform audio source.
   ///
   /// @param other  Source to move from.
   ///
-  /// @note Thread-safety: Not thread-safe. The moved-from and moved-to objects
-  /// must not be accessed concurrently during the move.
+  /// @note This operation is not thread-safe.
   PlatformAudioSource(PlatformAudioSource&& other) noexcept = default;
 
   /// Move-assign the platform audio source.
@@ -127,13 +101,12 @@ public:
   /// @param other  Source to move from.
   /// @return Reference to this source.
   ///
-  /// @note Thread-safety: Not thread-safe. The moved-from and moved-to objects
-  /// must not be accessed concurrently during the move.
+  /// @note This operation is not thread-safe.
   PlatformAudioSource& operator=(PlatformAudioSource&& other) noexcept = default;
 
   /// Return the underlying FFI handle ID used in FFI requests.
   ///
-  /// @note Thread-safety: Thread-safe. Reads immutable handle state.
+  /// @note This operation is thread-safe.
   std::uint64_t ffiHandleId() const noexcept { return static_cast<std::uint64_t>(handle_.get()); }
 
 private:
@@ -147,13 +120,10 @@ private:
 
 /// Platform audio device manager backed by WebRTC's Audio Device Module.
 ///
-/// Use PlatformAudio for normal microphone publishing when built-in echo
+/// Use PlatformAudio for microphone capture when built-in echo
 /// cancellation, noise suppression, automatic gain control, and speaker playout
 /// are desired. Use AudioSource instead when the application needs direct access
 /// to raw PCM frames or custom audio generation.
-///
-/// @note Thread-safety: Thread-safe. Methods send independent FFI requests and
-/// share immutable handle state.
 class LIVEKIT_API PlatformAudio {
 public:
   /// Create a platform audio manager.
@@ -164,7 +134,7 @@ public:
   /// @throws PlatformAudioError  If the FFI response is malformed or the
   /// platform Audio Device Module cannot be created.
   ///
-  /// @note Thread-safety: Thread-safe. Sends an independent FFI request.
+  /// @note This operation is thread-safe.
   PlatformAudio();
 
   /// Copy the platform audio manager.
@@ -173,8 +143,7 @@ public:
   ///
   /// @param other  Manager to copy from.
   ///
-  /// @note Thread-safety: Not thread-safe. The source object must not be
-  /// concurrently moved or assigned while copying.
+  /// @note This operation is not thread-safe.
   PlatformAudio(const PlatformAudio& other) = default;
 
   /// Copy-assign the platform audio manager.
@@ -184,16 +153,14 @@ public:
   /// @param other  Manager to copy from.
   /// @return Reference to this manager.
   ///
-  /// @note Thread-safety: Not thread-safe. The assigned object and source
-  /// object must not be accessed concurrently during assignment.
+  /// @note This operation is not thread-safe.
   PlatformAudio& operator=(const PlatformAudio& other) = default;
 
   /// Move the platform audio manager.
   ///
   /// @param other  Manager to move from.
   ///
-  /// @note Thread-safety: Not thread-safe. The moved-from and moved-to objects
-  /// must not be accessed concurrently during the move.
+  /// @note This operation is not thread-safe.
   PlatformAudio(PlatformAudio&& other) noexcept = default;
 
   /// Move-assign the platform audio manager.
@@ -201,18 +168,17 @@ public:
   /// @param other  Manager to move from.
   /// @return Reference to this manager.
   ///
-  /// @note Thread-safety: Not thread-safe. The moved-from and moved-to objects
-  /// must not be accessed concurrently during the move.
+  /// @note This operation is not thread-safe.
   PlatformAudio& operator=(PlatformAudio&& other) noexcept = default;
 
   /// Return the number of recording devices reported when this instance was created.
   ///
-  /// @note Thread-safety: Thread-safe. Reads immutable handle state.
+  /// @note This operation is thread-safe.
   std::int32_t recordingDeviceCount() const noexcept;
 
   /// Return the number of playout devices reported when this instance was created.
   ///
-  /// @note Thread-safety: Thread-safe. Reads immutable handle state.
+  /// @note This operation is thread-safe.
   std::int32_t playoutDeviceCount() const noexcept;
 
   /// Enumerate available microphones.
@@ -221,7 +187,7 @@ public:
   /// @throws PlatformAudioError  If the FFI response is malformed or device
   /// enumeration fails.
   ///
-  /// @note Thread-safety: Thread-safe. Sends an independent FFI request.
+  /// @note This operation is thread-safe.
   std::vector<AudioDeviceInfo> recordingDevices() const;
 
   /// Enumerate available speakers/headphones.
@@ -230,7 +196,7 @@ public:
   /// @throws PlatformAudioError  If the FFI response is malformed or device
   /// enumeration fails.
   ///
-  /// @note Thread-safety: Thread-safe. Sends an independent FFI request.
+  /// @note This operation is thread-safe.
   std::vector<AudioDeviceInfo> playoutDevices() const;
 
   /// Select the microphone by device ID.
@@ -239,7 +205,7 @@ public:
   /// @throws PlatformAudioError  If the FFI response is malformed or device
   /// selection fails.
   ///
-  /// @note Thread-safety: Thread-safe. Sends an independent FFI request.
+  /// @note This operation is thread-safe.
   void setRecordingDevice(const std::string& device_id) const;
 
   /// Select the speaker/headphones by device ID.
@@ -248,7 +214,7 @@ public:
   /// @throws PlatformAudioError  If the FFI response is malformed or device
   /// selection fails.
   ///
-  /// @note Thread-safety: Thread-safe. Sends an independent FFI request.
+  /// @note This operation is thread-safe.
   void setPlayoutDevice(const std::string& device_id) const;
 
   /// Create an automatically captured microphone source for LocalAudioTrack.
@@ -258,8 +224,7 @@ public:
   /// @throws PlatformAudioError  If the FFI response is malformed or source
   /// creation fails.
   ///
-  /// @note Thread-safety: Thread-safe. Sends an independent FFI request and
-  /// returns a source that keeps the shared PlatformAudio state alive.
+  /// @note This operation is thread-safe.
   std::shared_ptr<PlatformAudioSource> createAudioSource(const PlatformAudioOptions& options = {}) const;
 
 private:
