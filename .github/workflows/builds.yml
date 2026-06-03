@@ -137,14 +137,22 @@ jobs:
       # ---------- sccache experiment for Windows Rust builds ----------
       - name: Setup sccache (Windows only)
         if: runner.os == 'Windows'
-        uses: mozilla-actions/sccache-action@1583d6b38d7be47f593cb472781bbb21cab4321e # v0.0.10
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
 
-      - name: Enable sccache for Rust (Windows only)
+      - name: Enable sccache wrapping (Windows only)
+        id: sccache
         if: runner.os == 'Windows'
         shell: bash
         run: |
           echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
-          echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+          if sccache --start-server >/dev/null 2>&1; then
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::sccache enabled (RUSTC_WRAPPER=sccache)"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::sccache backend unreachable; building without compile cache this run"
+          fi
 
       # ---------- Cache Cargo ----------
       # The Rust FFI is built from the pinned client-sdk-rust submodule. Its
@@ -192,7 +200,7 @@ jobs:
           echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
 
       - name: Reset sccache stats (Windows only)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.sccache.outputs.enabled == 'true'
         shell: bash
         run: sccache --zero-stats
 
