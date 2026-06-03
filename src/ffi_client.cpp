@@ -258,7 +258,8 @@ extern "C" LIVEKIT_INTERNAL_API void ffiEventCallback(const uint8_t* buf, size_t
 
   // We are in a unrecoverable state, terminate the process
   if (event.has_panic()) {
-    LK_LOG_ERROR("FFI Panic: {}", event.panic().message());
+    LK_LOG_CRITICAL("FFI Panic: {}", event.panic().message());
+    livekit::detail::getLogger()->flush(); // Flush the logger to ensure all messages are written
     std::raise(SIGTERM);
     return;
   }
