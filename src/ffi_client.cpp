@@ -18,7 +18,6 @@
 
 #include <cassert>
 #include <csignal>
-#include <iostream>
 
 #include "data_track.pb.h"
 #include "e2ee.pb.h"
@@ -260,7 +259,7 @@ extern "C" LIVEKIT_INTERNAL_API void ffiEventCallback(const uint8_t* buf, size_t
   // We are in a unrecoverable state, terminate the process
   // This is what Python does, may not make sense for C++
   if (event.has_panic()) {
-    std::cerr << "FFI Panic: " << event.panic().message() << '\n';
+    LK_LOG_ERROR("FFI Panic: {}", event.panic().message());
     std::raise(SIGTERM);
     return;
   }
