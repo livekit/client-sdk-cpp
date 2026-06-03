@@ -257,7 +257,6 @@ extern "C" LIVEKIT_INTERNAL_API void ffiEventCallback(const uint8_t* buf, size_t
                        static_cast<int>(len)); // TODO: this fixes for now, what if len exceeds int?
 
   // We are in a unrecoverable state, terminate the process
-  // This is what Python does, may not make sense for C++
   if (event.has_panic()) {
     LK_LOG_ERROR("FFI Panic: {}", event.panic().message());
     std::raise(SIGTERM);
