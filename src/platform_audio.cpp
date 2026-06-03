@@ -75,7 +75,7 @@ PlatformAudio::PlatformAudio() {
 
   const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
   if (!resp.has_new_platform_audio()) {
-    throw PlatformAudioError("FfiResponse missing new_platform_audio");
+    throw PlatformAudioError("Failed to construct PlatformAudio: FfiResponse missing new_platform_audio");
   }
 
   const auto& platform_audio = resp.new_platform_audio();
@@ -83,7 +83,7 @@ PlatformAudio::PlatformAudio() {
     throw PlatformAudioError(platform_audio.error());
   }
   if (!platform_audio.has_platform_audio()) {
-    throw PlatformAudioError("NewPlatformAudioResponse missing platform_audio");
+    throw PlatformAudioError("Failed to construct PlatformAudio: NewPlatformAudioResponse missing platform_audio");
   }
 
   const auto& owned = platform_audio.platform_audio();
