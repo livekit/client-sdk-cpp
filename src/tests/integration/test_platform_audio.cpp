@@ -85,11 +85,7 @@ TEST_F(PlatformAudioIntegrationTest, PublishPlatformAudioTrackEndToEnd) {
   EXPECT_TRUE(config_.available) << "Missing integration configuration";
 
   std::unique_ptr<PlatformAudio> platform_audio;
-  try {
-    platform_audio = std::make_unique<PlatformAudio>();
-  } catch (const PlatformAudioError& error) {
-    GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
-  }
+  EXPECT_NO_THROW(platform_audio = std::make_unique<PlatformAudio>());
 
   RoomOptions options;
   options.auto_subscribe = true;
@@ -128,11 +124,7 @@ TEST_F(PlatformAudioIntegrationTest, UnpublishPlatformAudioTrackPropagates) {
   EXPECT_TRUE(config_.available) << "Missing integration configuration";
 
   std::unique_ptr<PlatformAudio> platform_audio;
-  try {
-    platform_audio = std::make_unique<PlatformAudio>();
-  } catch (const PlatformAudioError& error) {
-    GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
-  }
+  EXPECT_NO_THROW(platform_audio = std::make_unique<PlatformAudio>());
 
   RoomOptions options;
   options.auto_subscribe = true;
@@ -183,11 +175,7 @@ TEST_F(PlatformAudioIntegrationTest, MultipleSourcesFromOneManagerPublish) {
   EXPECT_TRUE(config_.available) << "Missing integration configuration";
 
   std::unique_ptr<PlatformAudio> platform_audio;
-  try {
-    platform_audio = std::make_unique<PlatformAudio>();
-  } catch (const PlatformAudioError& error) {
-    GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
-  }
+  EXPECT_NO_THROW(platform_audio = std::make_unique<PlatformAudio>());
 
   RoomOptions options;
   options.auto_subscribe = true;
