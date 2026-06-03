@@ -16,6 +16,7 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -216,6 +217,82 @@ TEST_F(PlatformAudioIntegrationTest, MultipleSourcesFromOneManagerPublish) {
            receiver_state.subscribed_audio_names.count(name_b) > 0;
   });
   EXPECT_TRUE(both_subscribed) << "Receiver did not subscribe to both platform audio tracks";
+}
+
+// Audio captured by the platform Audio Device Module must actually stream to a
+// remote participant as decoded frames, not merely produce a subscribed track.
+// PlatformAudioSource captures the real microphone (silence on headless
+// runners), so this verifies frames *flow* end-to-end without asserting on
+// their content.
+TEST_F(PlatformAudioIntegrationTest, PlatformAudioFramesReachRemote) {
+  EXPECT_TRUE(config_.available) << "Missing integration configuration";
+
+  std::unique_ptr<PlatformAudio> platform_audio;
+  EXPECT_NO_THROW(platform_audio = std::make_unique<PlatformAudio>());
+
+  RoomOptions options;
+  options.auto_subscribe = true;
+
+  PlatformTrackState receiver_state;
+  PlatformTrackCollectorDelegate receiver_delegate(receiver_state);
+
+  auto receiver_room = std::make_unique<Room>();
+  receiver_room->setDelegate(&receiver_delegate);
+  ASSERT_TRUE(receiver_room->connect(config_.url, config_.token_b, options)) << "Receiver failed to connect";
+
+  auto sender_room = std::make_unique<Room>();
+  ASSERT_TRUE(sender_room->connect(config_.url, config_.token_a, options)) << "Sender failed to connect";
+
+  const std::string sender_identity = lockLocalParticipant(*sender_room)->identity();
+
+  const auto source = platform_audio->createAudioSource();
+  ASSERT_NE(source, nullptr);
+
+  const std::string track_name = "platform-mic-frames";
+  const auto track = LocalAudioTrack::createLocalAudioTrack(track_name, source);
+  ASSERT_NE(track, nullptr);
+
+  // A few hundred ms of audio (10ms frames) is plenty to confirm the media path
+  // is live without making the test slow.
+  constexpr int kRequiredFrames = 10;
+  constexpr auto kFrameTimeout = 20s;
+
+  std::mutex frame_mutex;
+  std::condition_variable frame_cv;
+  int received_frames = 0;
+
+  // The reader thread is only started when the subscription event fires and a
+  // matching callback is already registered, so register before publishing.
+  receiver_room->setOnAudioFrameCallback(sender_identity, track_name, [&](const AudioFrame& frame) {
+    if (frame.totalSamples() == 0) {
+      return;
+    }
+    {
+      std::lock_guard<std::mutex> lock(frame_mutex);
+      ++received_frames;
+    }
+    frame_cv.notify_all();
+  });
+
+  TrackPublishOptions publish_options;
+  publish_options.source = TrackSource::SOURCE_MICROPHONE;
+  lockLocalParticipant(*sender_room)->publishTrack(track, publish_options);
+
+  {
+    std::unique_lock<std::mutex> lock(receiver_state.mutex);
+    ASSERT_TRUE(receiver_state.cv.wait_for(lock, kSubscriptionTimeout, [&]() {
+      return receiver_state.subscribed_audio_names.count(track_name) > 0;
+    })) << "Receiver never subscribed to the platform audio track";
+  }
+
+  bool frames_received = false;
+  {
+    std::unique_lock<std::mutex> lock(frame_mutex);
+    frames_received = frame_cv.wait_for(lock, kFrameTimeout, [&]() { return received_frames >= kRequiredFrames; });
+  }
+  EXPECT_TRUE(frames_received) << "Receiver did not get platform audio frames from the remote";
+
+  receiver_room->clearOnAudioFrameCallback(sender_identity, track_name);
 }
 
 } // namespace livekit::test
