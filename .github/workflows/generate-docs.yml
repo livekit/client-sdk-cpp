@@ -10,7 +10,7 @@ permissions:
 # The artifact is attached to the workflow run so reviewers can download a preview,
 # but also to verify the documentation artifact is valid for subsequent release runs
 # that will publish them to the LiveKit docs web page: https://docs.livekit.io/reference/client-sdk-cpp/
-# Driven by .github/workflows/ci.yml on PRs. PR trigger lives in the parent
+# Called by top-level ci.yml on PRs. PR trigger lives in the parent
 # so a single "CI" check gates every PR regardless of paths.
 on:
   workflow_call:

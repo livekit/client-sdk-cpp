@@ -386,7 +386,7 @@ all filtered stages; normal pull requests and pushes use the path filters.
 - `.github/workflows/builds.yml` — Reusable SDK and example-collection build
   matrix.
 - `.github/workflows/tests.yml` — Reusable unit/integration test matrix.
-- `.github/workflows/quality-checks.yml` — Reusable `clang-format` and
+- `.github/workflows/cpp-checks.yml` — Reusable `clang-format` and
   `clang-tidy` checks.
 - `.github/workflows/generate-docs.yml` — Reusable Doxygen docs validation.
 - `.github/workflows/license_check.yml` — Cheap license check, run on every CI
@@ -402,9 +402,9 @@ When adding or renaming files that affect a CI stage, update the matching
 `ci.yml` `changes` filter in the same PR. For example, new build scripts,
 CMake files, package manifests, or reusable build workflows should be added to
 the `builds` filter; test-only helpers to `tests`; formatting/static-analysis
-configuration to `quality`; and docs generation inputs to `docs`.
+configuration to `cpp_checks`; and docs generation inputs to `docs`.
 
 Keep broad agent guidance files such as `AGENTS.md` out of the expensive
-`builds`, `tests`, `quality`, and `docs` filters unless they start affecting
+`builds`, `tests`, `cpp_checks`, and `docs` filters unless they start affecting
 generated docs or build artifacts. An `AGENTS.md`-only change should not trigger
 those stages; only the always-on cheap checks should run.

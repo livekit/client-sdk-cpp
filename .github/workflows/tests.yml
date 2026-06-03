@@ -1,7 +1,6 @@
 name: Tests
 
-# Driven by .github/workflows/ci.yml. PR and push-to-main triggers live in
-# the parent so a single "CI" check gates every PR regardless of paths.
+# Called by top-level ci.yml
 on:
   workflow_call: {}
   workflow_dispatch: {}
@@ -252,26 +251,15 @@ jobs:
 
       - name: Run integration tests
         if: matrix.e2e-testing
-        timeout-minutes: 45
+        timeout-minutes: 5
         shell: bash
         env:
           RUST_LOG: "metrics=debug"
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
-          # TMP: Mac crash debug - begin lldb wrapper
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            cat > macos-crash-debug.lldb <<'LLDB'
-          settings set target.process.thread.step-avoid-regexp ^$
-          run --gtest_repeat=15 --gtest_output=xml:build-release/integration-test-results.xml
-          script process = lldb.debugger.GetSelectedTarget().GetProcess(); lldb.debugger.HandleCommand("thread backtrace all") if process and process.IsValid() and process.GetState() == lldb.eStateStopped else None
-          LLDB
-            lldb --batch -s macos-crash-debug.lldb -- build-release/bin/livekit_integration_tests
-          else
-            build-release/bin/livekit_integration_tests \
-              --gtest_output=xml:build-release/integration-test-results.xml
-          fi
-          # TMP: Mac crash debug - end lldb wrapper
+          build-release/bin/livekit_integration_tests \
+            --gtest_output=xml:build-release/integration-test-results.xml
 
       - name: Stop livekit-server
         if: always() && matrix.e2e-testing
@@ -286,27 +274,6 @@ jobs:
         if: failure() && matrix.e2e-testing
         shell: bash
         run: tail -n 500 livekit-server.log || true
-
-      # TMP: Mac crash debug - begin crash report collection
-      - name: Collect macOS crash reports
-        if: failure() && runner.os == 'macOS' && matrix.e2e-testing
-        shell: bash
-        run: |
-          set -euxo pipefail
-          mkdir -p crash-reports
-          sleep 5
-          cp -v "$HOME"/Library/Logs/DiagnosticReports/livekit_integration_tests*.crash crash-reports/ || true
-          cp -v /Library/Logs/DiagnosticReports/livekit_integration_tests*.crash crash-reports/ || true
-
-      - name: Upload macOS crash reports
-        if: failure() && runner.os == 'macOS' && matrix.e2e-testing
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: macos-crash-reports-${{ matrix.name }}
-          path: crash-reports/**
-          if-no-files-found: ignore
-          retention-days: 7
-      # TMP: Mac crash debug - end crash report collection
 
       # ---------- Upload results ----------
       - name: Upload test results

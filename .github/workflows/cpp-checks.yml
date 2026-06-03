@@ -1,7 +1,6 @@
-name: Quality Checks
+name: C++ Checks
 
-# Driven by .github/workflows/ci.yml. PR and push-to-main triggers live in
-# the parent so a single "CI" check gates every PR regardless of paths.
+# Called by top-level ci.yml
 on:
   workflow_call: {}
   workflow_dispatch: {}

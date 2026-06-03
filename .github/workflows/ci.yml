@@ -29,7 +29,7 @@ jobs:
       builds: ${{ steps.filter.outputs.builds }}
       tests:  ${{ steps.filter.outputs.tests }}
       docs:   ${{ steps.filter.outputs.docs }}
-      quality: ${{ steps.filter.outputs.quality }}
+      cpp_checks: ${{ steps.filter.outputs.cpp_checks }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d  # v4.0.1
@@ -78,7 +78,7 @@ jobs:
               - .github/workflows/generate-docs.yml
               - .github/workflows/publish-docs.yml
               - "!AGENTS.md"
-            quality:
+            cpp_checks:
               - src/**
               - include/**
               - benchmarks/**
@@ -91,7 +91,7 @@ jobs:
               - .clang-format
               - .clang-tidy
               - .github/workflows/ci.yml
-              - .github/workflows/quality-checks.yml
+              - .github/workflows/cpp-checks.yml
 
   builds:
     name: Builds
@@ -117,11 +117,11 @@ jobs:
     name: Pin Check
     uses: ./.github/workflows/pin_check.yml
 
-  quality-checks:
-    name: Quality Checks
+  cpp-checks:
+    name: C++ Checks
     needs: changes
-    if: ${{ needs.changes.outputs.quality == 'true' || github.event_name == 'workflow_dispatch' }}
-    uses: ./.github/workflows/quality-checks.yml
+    if: ${{ needs.changes.outputs.cpp_checks == 'true' || github.event_name == 'workflow_dispatch' }}
+    uses: ./.github/workflows/cpp-checks.yml
 
   generate-docs:
     name: Generate Docs
