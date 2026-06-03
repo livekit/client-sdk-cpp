@@ -16,7 +16,7 @@ The SDK uses different distribution strategies per platform:
 ✅ **Ready to use** - All dependencies included:
 - `livekit.lib` - Main SDK static library
 - `livekit_ffi.dll` + `livekit_ffi.dll.lib` - Rust FFI dynamic library
-- `libprotobuf.dll` + `libprotobuf.lib` - Protocol Buffers runtime
+- `libprotobuf-lite.dll` + `libprotobuf-lite.lib` - Protocol Buffers lite runtime
 - `abseil_dll.dll` + `abseil_dll.lib` - Abseil C++ library
 
 **User action**: Copy all DLLs alongside your executable. No additional installation required.
@@ -25,7 +25,7 @@ The SDK uses different distribution strategies per platform:
 ⚠️ **Requires system dependencies**:
 - `liblivekit.a` - Main SDK static library (included)
 - `liblivekit_ffi.so` - Rust FFI dynamic library (included, **must be placed alongside your executable**)
-- `libprotobuf` - Must install via `apt install libprotobuf-dev`
+- `libprotobuf-lite` - provided by `apt install libprotobuf-dev`
 - `libssl` - Must install via `apt install libssl-dev`
 - `libabsl` - Only if built with Protobuf 6.0+: `apt install libabsl-dev`
 
@@ -175,8 +175,8 @@ target_link_libraries(your_app PRIVATE
     livekit
     livekit_ffi
     
-    # Protobuf (REQUIRED)
-    protobuf::libprotobuf
+    # Protobuf lite runtime (REQUIRED)
+    protobuf::libprotobuf-lite
     
     # Linux system libraries (REQUIRED)
     OpenSSL::SSL
@@ -196,7 +196,7 @@ g++ your_app.cpp \
     -I/path/to/livekit/include \
     -L/path/to/livekit/lib \
     -llivekit -llivekit_ffi \
-    -lprotobuf -lssl -lcrypto -lpthread -ldl
+    -lprotobuf-lite -lssl -lcrypto -lpthread -ldl
 ```
 
 ---

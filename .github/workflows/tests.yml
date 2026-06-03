@@ -7,6 +7,7 @@ on:
       - src/**
       - include/**
       - client-sdk-rust/**
+      - cmake/**
       - CMakeLists.txt
       - CMakePresets.json
       - build.sh
@@ -20,6 +21,7 @@ on:
       - src/**
       - include/**
       - client-sdk-rust/**
+      - cmake/**
       - CMakeLists.txt
       - CMakePresets.json
       - build.sh

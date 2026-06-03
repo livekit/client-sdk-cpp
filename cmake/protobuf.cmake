@@ -1,12 +1,13 @@
 # cmake/protobuf.cmake
 #
 # Windows: use vcpkg Protobuf (static-md triplet) + vcpkg protoc
-# macOS/Linux: vendored Protobuf (static) + vendored Abseil + vendored protoc
+# macOS/Linux: vendored Protobuf + vendored Abseil + vendored protoc
+# The SDK links generated FFI code against protobuf-lite only.
 #
 # Exposes:
 #   - Protobuf_PROTOC_EXECUTABLE
 #   - Protobuf_INCLUDE_DIRS
-#   - Target protobuf::libprotobuf (and optionally protobuf::libprotobuf-lite)
+#   - Target protobuf::libprotobuf-lite
 #   - Target protobuf::protoc (on vendored path; on Windows we may only have an executable)
 
 include(FetchContent)
@@ -17,8 +18,35 @@ option(LIVEKIT_USE_SYSTEM_PROTOBUF "Use system-installed Protobuf instead of ven
 set(LIVEKIT_PROTOBUF_VERSION "25.3" CACHE STRING "Vendored Protobuf version")
 set(LIVEKIT_ABSEIL_VERSION  "20240116.2" CACHE STRING "Vendored Abseil version")
 
+function(livekit_require_protobuf_lite context)
+  if(TARGET protobuf::libprotobuf-lite)
+    # ok
+  elseif(TARGET libprotobuf-lite)
+    add_library(protobuf::libprotobuf-lite ALIAS libprotobuf-lite)
+  else()
+    message(FATAL_ERROR
+      "${context} Protobuf package did not provide protobuf::libprotobuf-lite. "
+      "The LiveKit C++ SDK requires protobuf-lite because generated FFI code is "
+      "compiled with option optimize_for = LITE_RUNTIME.")
+  endif()
+
+  livekit_treat_as_external(protobuf::libprotobuf-lite)
+  livekit_get_interface_includes(protobuf::libprotobuf-lite _pb_lite_includes)
+  if(_pb_lite_includes)
+    set(Protobuf_INCLUDE_DIRS "${_pb_lite_includes}" CACHE STRING "Protobuf include dirs" FORCE)
+  elseif(Protobuf_INCLUDE_DIRS)
+    set(Protobuf_INCLUDE_DIRS "${Protobuf_INCLUDE_DIRS}" CACHE STRING "Protobuf include dirs" FORCE)
+  elseif(DEFINED livekit_protobuf_SOURCE_DIR)
+    set(Protobuf_INCLUDE_DIRS "${livekit_protobuf_SOURCE_DIR}/src" CACHE STRING "Protobuf include dirs" FORCE)
+  else()
+    message(FATAL_ERROR
+      "${context} protobuf-lite target does not expose include directories and "
+      "Protobuf_INCLUDE_DIRS is empty.")
+  endif()
+endfunction()
+
 # ---------------------------------------------------------------------------
-# Windows path: prefer vcpkg static-md protobuf to avoid /MT vs /MD mismatches.
+# Windows path: prefer vcpkg static-md protobuf-lite to avoid /MT vs /MD mismatches.
 # This assumes you configure CMake with:
 #   -DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake
 #   -DVCPKG_TARGET_TRIPLET=x64-windows-static-md
@@ -29,7 +57,7 @@ if(WIN32 AND NOT LIVEKIT_USE_SYSTEM_PROTOBUF)
   # If the user forgot the triplet, fail fast with a helpful message.
   if(DEFINED VCPKG_TARGET_TRIPLET AND NOT VCPKG_TARGET_TRIPLET STREQUAL "x64-windows-static-md")
     message(FATAL_ERROR
-      "On Windows, LiveKit expects vcpkg triplet x64-windows-static-md for static protobuf + /MD.\n"
+      "On Windows, LiveKit expects vcpkg triplet x64-windows-static-md for static protobuf-lite + /MD.\n"
       "You have VCPKG_TARGET_TRIPLET='${VCPKG_TARGET_TRIPLET}'.\n"
       "Reconfigure with -DVCPKG_TARGET_TRIPLET=x64-windows-static-md."
     )
@@ -37,7 +65,7 @@ if(WIN32 AND NOT LIVEKIT_USE_SYSTEM_PROTOBUF)
     message(WARNING
       "VCPKG_TARGET_TRIPLET is not set. On Windows you should configure with:\n"
       "  -DVCPKG_TARGET_TRIPLET=x64-windows-static-md\n"
-      "to get static protobuf built against /MD."
+      "to get static protobuf-lite built against /MD."
     )
   endif()
 
@@ -47,7 +75,7 @@ if(WIN32 AND NOT LIVEKIT_USE_SYSTEM_PROTOBUF)
   endif()
 
   # Use vcpkg's Protobuf package (CONFIG mode provides imported targets).
-  # This should give protobuf::libprotobuf and protobuf::protoc.
+  # This must provide protobuf::libprotobuf-lite and protobuf::protoc.
   find_package(Protobuf CONFIG REQUIRED)
 
   # Prefer protoc target if available; else fall back to locating protoc.
@@ -61,22 +89,10 @@ if(WIN32 AND NOT LIVEKIT_USE_SYSTEM_PROTOBUF)
     set(Protobuf_PROTOC_EXECUTABLE "${Protobuf_PROTOC_EXECUTABLE}" CACHE STRING "protoc (found)" FORCE)
   endif()
 
-  # Include dirs: prefer the imported target usage requirements.
-  if(TARGET protobuf::libprotobuf)
-    get_target_property(_pb_includes protobuf::libprotobuf INTERFACE_INCLUDE_DIRECTORIES)
-    livekit_treat_as_external(protobuf::libprotobuf)
-  elseif(TARGET protobuf::protobuf) # some protobuf builds use protobuf::protobuf
-    get_target_property(_pb_includes protobuf::protobuf INTERFACE_INCLUDE_DIRECTORIES)
-    livekit_treat_as_external(protobuf::protobuf)
-  endif()
+  livekit_require_protobuf_lite("Windows/vcpkg")
   if(TARGET protobuf::protoc)
     livekit_treat_as_external(protobuf::protoc)
   endif()
-  if(NOT _pb_includes)
-    # Best-effort fallback: Protobuf_INCLUDE_DIRS is commonly set by ProtobufConfig
-    set(_pb_includes "${Protobuf_INCLUDE_DIRS}")
-  endif()
-  set(Protobuf_INCLUDE_DIRS "${_pb_includes}" CACHE STRING "Protobuf include dirs" FORCE)
 
   message(STATUS "Windows: using vcpkg Protobuf (expect triplet x64-windows-static-md)")
   message(STATUS "Windows: protoc = ${Protobuf_PROTOC_EXECUTABLE}")
@@ -95,11 +111,7 @@ if(LIVEKIT_USE_SYSTEM_PROTOBUF)
   if(NOT Protobuf_PROTOC_EXECUTABLE)
     find_program(Protobuf_PROTOC_EXECUTABLE NAMES protoc REQUIRED)
   endif()
-  if(TARGET protobuf::libprotobuf)
-    livekit_treat_as_external(protobuf::libprotobuf)
-  elseif(TARGET protobuf::protobuf)
-    livekit_treat_as_external(protobuf::protobuf)
-  endif()
+  livekit_require_protobuf_lite("System")
   if(TARGET protobuf::protoc)
     livekit_treat_as_external(protobuf::protoc)
   endif()
@@ -206,28 +218,7 @@ else()
   message(FATAL_ERROR "Vendored protobuf did not create a protoc target")
 endif()
 
-# protobuf-lite is REQUIRED. The LiveKit C++ SDK builds its generated FFI
-# protobuf code with `option optimize_for = LITE_RUNTIME` (see
-# cmake/patch_protos_for_lite.cmake) and links only against libprotobuf-lite.
-if(TARGET protobuf::libprotobuf-lite)
-  # ok
-elseif(TARGET libprotobuf-lite)
-  add_library(protobuf::libprotobuf-lite ALIAS libprotobuf-lite)
-else()
-  message(FATAL_ERROR
-    "Vendored protobuf did not create a libprotobuf-lite target. "
-    "The LiveKit C++ SDK requires protobuf-lite (LITE_RUNTIME). "
-    "Check LIVEKIT_PROTOBUF_VERSION='${LIVEKIT_PROTOBUF_VERSION}'.")
-endif()
-
-# Include dirs: prefer target usage; keep this var for your existing CMakeLists.
-if(TARGET protobuf::libprotobuf)
-  livekit_get_interface_includes(protobuf::libprotobuf _pb_includes)
-endif()
-if(NOT _pb_includes)
-  set(_pb_includes "${livekit_protobuf_SOURCE_DIR}/src")
-endif()
-set(Protobuf_INCLUDE_DIRS "${_pb_includes}" CACHE STRING "Protobuf include dirs" FORCE)
+livekit_require_protobuf_lite("Vendored")
 
 message(STATUS "macOS/Linux: using vendored Protobuf v${LIVEKIT_PROTOBUF_VERSION}")
 message(STATUS "macOS/Linux: vendored protoc: ${Protobuf_PROTOC_EXECUTABLE}")

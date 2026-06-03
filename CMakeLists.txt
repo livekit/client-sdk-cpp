@@ -120,7 +120,7 @@ add_custom_command(
   VERBATIM
 )
 
-# Livekit static protobuf.
+# Protobuf toolchain and lite runtime.
 include(protobuf)
 # spdlog logging library (PRIVATE dependency).
 include(spdlog)
@@ -173,6 +173,7 @@ target_include_directories(livekit_proto PRIVATE
 )
 target_link_libraries(livekit_proto PRIVATE ${LIVEKIT_PROTOBUF_TARGET})
 livekit_disable_warnings(livekit_proto)
+message(STATUS "Using protobuf runtime target: ${LIVEKIT_PROTOBUF_TARGET}")
 
 # Manually generate protobuf files to avoid path prefix issues. The inputs are
 # the patched copies in ${PROTO_LITE_SRC_DIR}, not the originals — see the

@@ -12,7 +12,7 @@ CMake/vcpkg flows, and Docker.
 - **Rust / Cargo** — latest stable toolchain (for building the Rust FFI layer).
   Install via [rustup](https://rustup.rs/).
 - **Git LFS** — required for examples that pull test media assets.
-- **Protobuf** ≥ 5.29
+- **Protobuf** ≥ 5.29 — provides `protoc`; the SDK links against protobuf-lite.
 - **Abseil** — always required (used by Protobuf 5.x+)
 
 ### Platform-specific toolchains
@@ -204,7 +204,7 @@ export PATH=$HOME/cmake-3.31/bin:$PATH
 | Option | Default | Description |
 |--------|---------|-------------|
 | `LIVEKIT_BUILD_EXAMPLES` | OFF | Build example applications |
-| `LIVEKIT_USE_SYSTEM_PROTOBUF` | OFF | Use system Protobuf instead of vcpkg's |
+| `LIVEKIT_USE_SYSTEM_PROTOBUF` | OFF | Use system Protobuf instead of the vendored package |
 | `LIVEKIT_LOG_LEVEL` | `TRACE` | Compile-time log threshold (see [logging.md](logging.md)) |
 | `LIVEKIT_VERSION` | repo-derived | SDK version string baked into the binary |
 
@@ -288,17 +288,17 @@ OpenSSL::SSL OpenSSL::Crypto
 
 ### Runtime dependencies of prebuilt artifacts
 
-Whether protobuf / abseil / openssl need to be installed on the target
+Whether protobuf-lite / abseil / openssl need to be installed on the target
 machine depends on how the SDK binary was built:
 
 - **Windows** release artifacts use vcpkg triplet `x64-windows-static-md` —
-  protobuf and abseil are statically linked into the DLLs; no runtime install
+  protobuf-lite and abseil are statically linked into the DLLs; no runtime install
   needed.
 - **macOS** release artifacts (from our CI) do **not** dynamically depend on
-  protobuf / abseil / openssl. You can verify with `otool -L liblivekit.dylib`.
+  protobuf-lite / abseil / openssl. You can verify with `otool -L liblivekit.dylib`.
 - **Linux** depends on packaging. Check with `ldd liblivekit_ffi.so`; if any
   of those are listed, install the corresponding `-dev` (build) or runtime
-  package (`libprotobuf32` / `libabsl` / `libssl3`) as appropriate.
+  package (`libprotobuf-lite32` / `libabsl` / `libssl3`) as appropriate.
 
 ## Troubleshooting
 

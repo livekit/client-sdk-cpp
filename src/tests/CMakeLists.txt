@@ -79,9 +79,8 @@ if(UNIT_TEST_SOURCES)
   )
 
   # liblivekit no longer re-exports protobuf/absl symbols (hidden visibility +
-  # --exclude-libs,ALL).  Tests that touch livekit::proto::* types or absl
-  # helpers must link the proto object library and the libprotobuf static
-  # archive directly.
+  # --exclude-libs,ALL). Tests that touch livekit::proto::* types or absl
+  # helpers must link the proto object library and protobuf-lite directly.
   if(TARGET livekit_proto)
     target_sources(livekit_unit_tests PRIVATE $<TARGET_OBJECTS:livekit_proto>)
   endif()
@@ -172,9 +171,8 @@ if(INTEGRATION_TEST_SOURCES)
   )
 
   # liblivekit no longer re-exports protobuf/absl symbols (hidden visibility +
-  # --exclude-libs,ALL).  Tests that touch livekit::proto::* types or absl
-  # helpers must link the proto object library and the libprotobuf static
-  # archive directly.
+  # --exclude-libs,ALL). Tests that touch livekit::proto::* types or absl
+  # helpers must link the proto object library and protobuf-lite directly.
   if(TARGET livekit_proto)
     target_sources(livekit_integration_tests PRIVATE $<TARGET_OBJECTS:livekit_proto>)
   endif()

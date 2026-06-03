@@ -39,13 +39,19 @@ foreach(_name IN LISTS FILES)
 
   file(READ "${_src}" _content)
 
-  # Defensive: refuse to patch if an explicit optimize_for is already present;
-  # honor whatever upstream chose rather than silently overriding it.
-  string(REGEX MATCH "option[ \t]+optimize_for" _existing "${_content}")
-  if(_existing)
+  # If upstream already opts into lite, keep the file unchanged. If it chooses
+  # another runtime, fail rather than silently overriding that choice.
+  string(REGEX MATCH "(^|\n)[ \t]*option[ \t]+optimize_for[ \t]*=[ \t]*LITE_RUNTIME[ \t]*;" _existing_lite "${_content}")
+  if(_existing_lite)
+    file(WRITE "${_dst}" "${_content}")
+    continue()
+  endif()
+
+  string(REGEX MATCH "(^|\n)[ \t]*option[ \t]+optimize_for[ \t]*=" _existing_runtime "${_content}")
+  if(_existing_runtime)
     message(FATAL_ERROR
-      "patch_protos_for_lite.cmake: ${_name} already declares optimize_for. "
-      "Remove the LITE_RUNTIME patch or upstream the option instead.")
+      "patch_protos_for_lite.cmake: ${_name} declares a non-lite optimize_for. "
+      "The LiveKit C++ SDK requires LITE_RUNTIME.")
   endif()
 
   # Append the option as a trailing line. File-level options have no ordering
