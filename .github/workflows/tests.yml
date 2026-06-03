@@ -18,6 +18,9 @@ env:
   # incremental dirs add nothing but bloat the cached target/ directory and
   # slow the cache upload/download.
   CARGO_INCREMENTAL: "0"
+  # sccache uses this when the server starts. Set it at workflow scope so the
+  # probe step can actually start the server with the GitHub Actions backend.
+  SCCACHE_GHA_ENABLED: "true"
   # vcpkg binary caching for Windows (mirrors builds.yml). The x-gha backend
   # was removed from vcpkg, so use vcpkg's files provider and persist that
   # directory with actions/cache.
@@ -145,7 +148,6 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
           if sccache --start-server >/dev/null 2>&1; then
             echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
             echo "enabled=true" >> "$GITHUB_OUTPUT"

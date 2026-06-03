@@ -23,7 +23,7 @@ jobs:
   # empty results on non-diff events (workflow_dispatch); the `if:` guards
   # below explicitly opt manual runs back into running everything.
   changes:
-    name: Detect changes
+    name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
       builds: ${{ steps.filter.outputs.builds }}
