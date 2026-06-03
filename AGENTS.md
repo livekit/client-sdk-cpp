@@ -40,7 +40,7 @@ When making larger scale changes, check with the developer before committing to 
 
 The SDK has three categories of threads:
 
-**FFI callback thread** — The Rust FFI layer calls `LivekitFfiCallback` from a Rust-managed thread (typically a Tokio runtime thread). This single entry point deserializes the `FfiEvent` and calls `FfiClient::pushEvent`, which:
+**FFI callback thread** — The Rust FFI layer calls `ffiEventCallback` from a Rust-managed thread (typically a Tokio runtime thread). This single entry point deserializes the `FfiEvent` and calls `FfiClient::pushEvent`, which:
 1. Completes any pending async `std::promise` matched by `async_id`.
 2. Invokes all registered `FfiClient` listeners (including `Room::onEvent`).
 

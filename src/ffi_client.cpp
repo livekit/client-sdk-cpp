@@ -17,6 +17,8 @@
 #include "ffi_client.h"
 
 #include <cassert>
+#include <csignal>
+#include <iostream>
 
 #include "data_track.pb.h"
 #include "e2ee.pb.h"
@@ -167,7 +169,7 @@ bool FfiClient::initialize(bool capture_logs) {
     return false;
   }
   initialized_.store(true, std::memory_order_release);
-  livekit_ffi_initialize(&LivekitFfiCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION);
+  livekit_ffi_initialize(&ffiEventCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION);
   return true;
 }
 
@@ -250,10 +252,18 @@ void FfiClient::pushEvent(const proto::FfiEvent& event) const {
   }
 }
 
-void LivekitFfiCallback(const uint8_t* buf, size_t len) {
+extern "C" LIVEKIT_INTERNAL_API void ffiEventCallback(const uint8_t* buf, size_t len) {
   proto::FfiEvent event;
   event.ParseFromArray(buf,
                        static_cast<int>(len)); // TODO: this fixes for now, what if len exceeds int?
+
+  // We are in a unrecoverable state, terminate the process
+  // This is what Python does, may not make sense for C++
+  if (event.has_panic()) {
+    std::cerr << "FFI Panic: " << event.panic().message() << '\n';
+    std::raise(SIGTERM);
+    return;
+  }
 
   FfiClient::instance().pushEvent(event);
 }

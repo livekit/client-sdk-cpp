@@ -20,7 +20,6 @@
 #include <cstdint>
 #include <functional>
 #include <future>
-#include <iostream>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -59,7 +58,7 @@ extern "C" void livekit_ffi_initialize(FfiCallbackFn cb, bool capture_logs, cons
 
 extern "C" void livekit_ffi_dispose();
 
-extern "C" void LivekitFfiCallback(const uint8_t* buf, size_t len);
+extern "C" LIVEKIT_INTERNAL_API void ffiEventCallback(const uint8_t* buf, size_t len);
 
 // The FfiClient is used to communicate with the FFI interface of the Rust SDK
 // We use the generated protocol messages to facilitate the communication.
@@ -195,7 +194,7 @@ private:
   std::atomic<AsyncId> next_async_id_{1};
 
   void pushEvent(const proto::FfiEvent& event) const;
-  friend void LivekitFfiCallback(const uint8_t* buf, size_t len);
+  friend void ffiEventCallback(const uint8_t* buf, size_t len);
   std::atomic<bool> initialized_{false};
 };
 } // namespace livekit
