@@ -55,7 +55,6 @@ class PlatformAudioSource;
 ///
 ///  The track name provided during creation is visible to remote
 ///  participants and can be used for debugging or UI display.
-/// @note This operation is not thread-safe.
 class LIVEKIT_API LocalAudioTrack : public Track {
 public:
   /// Creates a new local audio track backed by the given `AudioSource`.

@@ -50,7 +50,11 @@ TEST_F(PlatformAudioTest, DeviceInfoStoresStableId) {
 
 TEST_F(PlatformAudioTest, CreateSourceAndTrackWhenAvailable) {
   std::unique_ptr<PlatformAudio> platform_audio;
-  EXPECT_NO_THROW(platform_audio = std::make_unique<PlatformAudio>());
+  try {
+    platform_audio = std::make_unique<PlatformAudio>();
+  } catch (const PlatformAudioError& error) {
+    GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
+  }
 
   const auto source = platform_audio->createAudioSource();
   ASSERT_NE(source, nullptr);
@@ -64,7 +68,11 @@ TEST_F(PlatformAudioTest, CreateSourceAndTrackWhenAvailable) {
 
 TEST_F(PlatformAudioTest, MovedFromManagerThrowsOnUseButCountsAreSafe) {
   std::unique_ptr<PlatformAudio> platform_audio;
-  EXPECT_NO_THROW(platform_audio = std::make_unique<PlatformAudio>());
+  try {
+    platform_audio = std::make_unique<PlatformAudio>();
+  } catch (const PlatformAudioError& error) {
+    GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
+  }
 
   PlatformAudio moved_to = std::move(*platform_audio);
   PlatformAudio& moved_from = *platform_audio;
@@ -86,7 +94,11 @@ TEST_F(PlatformAudioTest, MovedFromManagerThrowsOnUseButCountsAreSafe) {
 
 TEST_F(PlatformAudioTest, CopySharesHandleStateAndOutlivesOriginal) {
   std::unique_ptr<PlatformAudio> platform_audio;
-  EXPECT_NO_THROW(platform_audio = std::make_unique<PlatformAudio>());
+  try {
+    platform_audio = std::make_unique<PlatformAudio>();
+  } catch (const PlatformAudioError& error) {
+    GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
+  }
 
   // A copy shares the underlying handle, so the cached counts agree.
   PlatformAudio copy = *platform_audio;
@@ -105,7 +117,11 @@ TEST_F(PlatformAudioTest, CopySharesHandleStateAndOutlivesOriginal) {
 
 TEST_F(PlatformAudioTest, CreateSourceWithCustomOptions) {
   std::unique_ptr<PlatformAudio> platform_audio;
-  EXPECT_NO_THROW(platform_audio = std::make_unique<PlatformAudio>());
+  try {
+    platform_audio = std::make_unique<PlatformAudio>();
+  } catch (const PlatformAudioError& error) {
+    GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
+  }
 
   PlatformAudioOptions options;
   options.echo_cancellation = false;
@@ -120,7 +136,11 @@ TEST_F(PlatformAudioTest, CreateSourceWithCustomOptions) {
 
 TEST_F(PlatformAudioTest, EnumerateDevicesAndSelectWhenAvailable) {
   std::unique_ptr<PlatformAudio> platform_audio;
-  EXPECT_NO_THROW(platform_audio = std::make_unique<PlatformAudio>());
+  try {
+    platform_audio = std::make_unique<PlatformAudio>();
+  } catch (const PlatformAudioError& error) {
+    GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
+  }
 
   // Enumeration must succeed even on headless runners (it may return empty).
   std::vector<AudioDeviceInfo> recording_devices;
