@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_FFI_CLIENT_H
-#define LIVEKIT_FFI_CLIENT_H
+#pragma once
 
 #include <atomic>
 #include <cstdint>
@@ -31,6 +30,7 @@
 #include "data_track.pb.h"
 #include "livekit/data_track_error.h"
 #include "livekit/result.h"
+#include "livekit/room_event_types.h"
 #include "livekit/stats.h"
 #include "livekit/visibility.h"
 #include "lk_log.h"
@@ -75,10 +75,9 @@ public:
   FfiClient(FfiClient&&) = delete;
   FfiClient& operator=(FfiClient&&) = delete;
 
-  static FfiClient& instance() noexcept {
-    static FfiClient instance;
-    return instance;
-  }
+  // Access the singleton instance of the FfiClient
+  // Note: lazily created, not thread safe
+  static FfiClient& instance() noexcept;
 
   // Must be called before any other FFI usage
   bool initialize(bool capture_logs);
@@ -89,15 +88,19 @@ public:
 
   bool isInitialized() const noexcept;
 
-  ListenerId AddListener(const Listener& listener);
-  void RemoveListener(ListenerId id);
+  ListenerId addListener(const Listener& listener);
+  void removeListener(ListenerId id);
 
   // Room APIs
   std::future<proto::ConnectCallback> connectAsync(const std::string& url, const std::string& token,
                                                    const RoomOptions& options);
 
+  std::future<void> disconnectAsync(uintptr_t room_handle, DisconnectReason reason);
+
   // Track APIs
   std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);
+
+  std::future<SessionStats> getSessionStatsAsync(uintptr_t room_handle);
 
   // Participant APIs
   std::future<proto::OwnedTrackPublication> publishTrackAsync(std::uint64_t local_participant_handle,
@@ -191,10 +194,8 @@ private:
   mutable std::unordered_map<AsyncId, std::unique_ptr<PendingBase>> pending_by_id_;
   std::atomic<AsyncId> next_async_id_{1};
 
-  void PushEvent(const proto::FfiEvent& event) const;
+  void pushEvent(const proto::FfiEvent& event) const;
   friend void LivekitFfiCallback(const uint8_t* buf, size_t len);
   std::atomic<bool> initialized_{false};
 };
 } // namespace livekit
-
-#endif /* LIVEKIT_FFI_CLIENT_H */

@@ -465,7 +465,7 @@ int main(int argc, char* argv[]) {
   std::signal(SIGTERM, handleSignal);
 #endif
 
-  livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
+  livekit::initialize(livekit::LogLevel::Info);
 
   try {
     ThroughputConsumer consumer(options);
@@ -477,11 +477,11 @@ int main(int argc, char* argv[]) {
     room_options.dynacast = false;
 
     std::cout << "Connecting to " << options.url << std::endl;
-    if (!room.Connect(options.url, options.token, room_options)) {
+    if (!room.connect(options.url, options.token, room_options)) {
       throw std::runtime_error("Failed to connect to LiveKit room");
     }
 
-    auto* local_participant = room.localParticipant();
+    auto local_participant = room.localParticipant().lock();
     if (local_participant == nullptr) {
       throw std::runtime_error("Local participant unavailable after connect");
     }

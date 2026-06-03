@@ -18,8 +18,6 @@
 
 #include <condition_variable>
 #include <cstdint>
-#include <deque>
-#include <memory>
 #include <mutex>
 #include <optional>
 
@@ -32,30 +30,30 @@ namespace livekit {
 
 namespace proto {
 class FfiEvent;
-}
+class DataTrackStreamReadResponse;
+} // namespace proto
 
-/**
- * Represents a pull-based stream of frames from a remote data track.
- *
- * Provides a blocking read() interface similar to AudioStream / VideoStream.
- * Frames are delivered via FfiEvent callbacks and stored internally.
- *
- * Destroying the stream automatically unsubscribes from the remote track by
- * releasing the underlying FFI handle.
- *
- * Typical usage:
- *
- *   auto sub_result = remoteDataTrack->subscribe();
- *   if (sub_result) {
- *     auto sub = sub_result.value();
- *     DataTrackFrame frame;
- *     while (sub->read(frame)) {
- *       // process frame.payload
- *     }
- *   }
- */
+/// Represents a pull-based stream of frames from a remote data track.
+///
+/// Provides a blocking read() interface similar to AudioStream / VideoStream.
+/// Frames are delivered via FfiEvent callbacks and stored internally.
+///
+/// Destroying the stream automatically unsubscribes from the remote track by
+/// releasing the underlying FFI handle.
+///
+/// Typical usage:
+///
+///   auto sub_result = remoteDataTrack->subscribe();
+///   if (sub_result) {
+///     auto sub = sub_result.value();
+///     DataTrackFrame frame;
+///     while (sub->read(frame)) {
+///       // process frame.payload
+///     }
+///   }
 class LIVEKIT_API DataTrackStream {
 public:
+  /// @brief Options for subscribing to a remote data track stream.
   struct Options {
     /// Maximum frames buffered on the Rust side. Rust defaults to 16.
     std::optional<std::uint32_t> buffer_size{std::nullopt};
@@ -72,30 +70,24 @@ public:
   // support is not required by the current API.
   DataTrackStream& operator=(DataTrackStream&&) noexcept = delete;
 
-  /**
-   * Blocking read: waits until a DataTrackFrame is available, or the
-   * stream reaches EOS / is closed.
-   *
-   * @param out  On success, filled with the next data frame.
-   * @return true if a frame was delivered; false if the stream ended.
-   */
+  /// Blocking read: waits until a DataTrackFrame is available, or the
+  /// stream reaches EOS / is closed.
+  ///
+  /// @param out  On success, filled with the next data frame.
+  /// @return true if a frame was delivered; false if the stream ended.
   bool read(DataTrackFrame& out);
 
-  /**
-   * Returns the terminal subscription error reported by the FFI stream.
-   *
-   * This is set when read() returns false because subscription establishment
-   * failed before any frames were emitted. It remains empty for normal EOS or
-   * when close() ends the stream locally.
-   */
+  /// Returns the terminal subscription error reported by the FFI stream.
+  ///
+  /// This is set when read() returns false because subscription establishment
+  /// failed before any frames were emitted. It remains empty for normal EOS or
+  /// when close() ends the stream locally.
   std::optional<SubscribeDataTrackError> terminalError() const;
 
-  /**
-   * End the stream early.
-   *
-   * Releases the FFI handle (which unsubscribes from the remote track),
-   * unregisters the event listener, and wakes any blocking read().
-   */
+  /// End the stream early.
+  ///
+  /// Releases the FFI handle (which unsubscribes from the remote track),
+  /// unregisters the event listener, and wakes any blocking read().
   void close();
 
 private:
@@ -111,39 +103,43 @@ private:
   /// FFI event handler, called by FfiClient.
   void onFfiEvent(const proto::FfiEvent& event);
 
+  /// Handle the immediate response returned by a read request.
+  void handleReadResponse(const proto::DataTrackStreamReadResponse& response);
+
+  /// Mark the stream failed due to an invalid FFI protocol response.
+  void failProtocolError(const char* message);
+
   /// Push a received DataTrackFrame to the internal storage.
   void pushFrame(DataTrackFrame&& frame);
 
   /// Push an end-of-stream signal (EOS).
   void pushEos(std::optional<SubscribeDataTrackError> error = std::nullopt);
 
-  /** Protects all mutable state below. */
+  /// Protects all mutable state below.
   mutable std::mutex mutex_;
 
-  /** Signalled when a frame is pushed or the subscription ends. */
+  /// Signalled when a frame is pushed or the subscription ends.
   std::condition_variable cv_;
 
-  /**
-   * Received frame awaiting read().
-   * NOTE: the Rust side handles buffering, so we should only really ever have
-   * one item.
-   */
+  /// Received frame awaiting read().
+  /// NOTE: the Rust side handles buffering, so we should only really ever have
+  /// one item.
   std::optional<DataTrackFrame> frame_;
 
-  /** True once the remote side signals end-of-stream. */
+  /// True once the remote side signals end-of-stream.
   bool eof_{false};
 
-  /** True after close() has been called by the consumer. */
+  /// True after close() has been called by the consumer.
   bool closed_{false};
 
-  /** Typed terminal error reported with EOS, if subscription setup failed. */
+  /// Typed terminal error reported with EOS, if subscription setup failed.
   std::optional<SubscribeDataTrackError> terminal_error_;
 
-  /** RAII handle for the Rust-owned subscription resource. */
+  /// RAII handle for the Rust-owned subscription resource.
   FfiHandle subscription_handle_;
 
-  /** FfiClient listener id for routing FfiEvent callbacks to this object. */
-  std::int32_t listener_id_{0};
+  /// FfiClient listener id for routing FfiEvent callbacks to this object.
+  std::int32_t listener_id_{-1};
 };
 
 } // namespace livekit

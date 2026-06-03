@@ -47,6 +47,7 @@ endif()
 message(STATUS "LiveKit compile-time log level: ${_LK_LOG_LEVEL_UPPER} (SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL})")
 
 include(FetchContent)
+include(warnings)
 
 set(LIVEKIT_SPDLOG_VERSION "1.15.1" CACHE STRING "Vendored spdlog version")
 
@@ -61,6 +62,9 @@ endif()
 # ---------------------------------------------------------------------------
 if(WIN32 AND LIVEKIT_USE_VCPKG)
   find_package(spdlog CONFIG REQUIRED)
+  if(TARGET spdlog::spdlog)
+    livekit_treat_as_external(spdlog::spdlog)
+  endif()
   message(STATUS "Windows: using vcpkg spdlog")
   return()
 endif()
@@ -79,7 +83,11 @@ set(SPDLOG_BUILD_EXAMPLE OFF CACHE BOOL "" FORCE)
 set(SPDLOG_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(SPDLOG_INSTALL OFF CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(livekit_spdlog)
+livekit_fetchcontent_makeavailable(livekit_spdlog)
+livekit_collect_targets_in_directory(_livekit_spdlog_targets "${livekit_spdlog_BINARY_DIR}")
+foreach(_livekit_spdlog_target IN LISTS _livekit_spdlog_targets)
+  livekit_disable_warnings(${_livekit_spdlog_target})
+endforeach()
 
 # spdlog is linked PRIVATE into liblivekit and must not leak its symbols into
 # the SDK's exported ABI.  Force hidden visibility on the spdlog target so its

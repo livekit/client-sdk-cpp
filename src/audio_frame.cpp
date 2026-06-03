@@ -102,7 +102,7 @@ double AudioFrame::duration() const noexcept {
   return static_cast<double>(samples_per_channel_) / static_cast<double>(sample_rate_);
 }
 
-std::string AudioFrame::to_string() const {
+std::string AudioFrame::toString() const {
   std::ostringstream oss;
   oss << "rtc.AudioFrame(sample_rate=" << sample_rate_ << ", num_channels=" << num_channels_
       << ", samples_per_channel=" << samples_per_channel_ << ", duration=" << std::fixed << std::setprecision(3)

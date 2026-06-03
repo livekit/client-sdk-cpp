@@ -8,7 +8,7 @@ This is **client-sdk-cpp**, the official LiveKit C++ client SDK. It wraps a Rust
 
 ### Core Principle
 Rust owns as much of the business logic as possible. The C++ layer should be a thin wrapper around the Rust core. If a feature may be used by another SDK it should be implemented in Rust. Since this is an SDK,
-ensure backwards compatibility is maintained when possible.
+ensure backwards compatibility is maintained when possible. Do not update auto-generated code.
 
 ### Platform Support
 The SDK must be supported on the following platforms:
@@ -40,15 +40,15 @@ When making larger scale changes, check with the developer before committing to 
 
 The SDK has three categories of threads:
 
-**FFI callback thread** — The Rust FFI layer calls `LivekitFfiCallback` from a Rust-managed thread (typically a Tokio runtime thread). This single entry point deserializes the `FfiEvent` and calls `FfiClient::PushEvent`, which:
+**FFI callback thread** — The Rust FFI layer calls `LivekitFfiCallback` from a Rust-managed thread (typically a Tokio runtime thread). This single entry point deserializes the `FfiEvent` and calls `FfiClient::pushEvent`, which:
 1. Completes any pending async `std::promise` matched by `async_id`.
-2. Invokes all registered `FfiClient` listeners (including `Room::OnEvent`).
+2. Invokes all registered `FfiClient` listeners (including `Room::onEvent`).
 
 All `RoomDelegate` callbacks and stream handler callbacks (e.g., `registerTextStreamHandler`) are invoked on this FFI callback thread. **Handlers must not block**; spawn a background thread if synchronous work is needed.
 
 **Per-subscription reader threads** — `SubscriptionThreadDispatcher` creates a dedicated `std::thread` for each active audio, video, or data track subscription. These threads block on `AudioStream::read()`, `VideoStream::read()`, or `DataTrackStream::read()` and invoke the registered `AudioFrameCallback`, `VideoFrameCallback`, or `DataFrameCallback` on that reader thread — not on the FFI callback thread. A hard limit of 20 concurrent reader threads is enforced.
 
-**Application threads** — The calling thread for public API methods such as `Room::Connect`, `LocalParticipant::publishTrack`, `AudioSource::captureFrame`, etc. These may block while waiting for FFI responses or future completion.
+**Application threads** — The calling thread for public API methods such as `Room::connect`, `LocalParticipant::publishTrack`, `AudioSource::captureFrame`, etc. These may block while waiting for FFI responses or future completion.
 
 #### Thread-safety guarantees
 
@@ -74,12 +74,13 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `src/` | Implementation files and internal-only headers (`ffi_client.h`, `lk_log.h`, etc.) |
 | `src/tests/` | Google Test integration and stress tests |
 | `examples/` | In-tree example applications |
-| `bridge/` | **Deprecated** C-style bridge layer — do not add new functionality |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `LiveKitConfig.cmake.in`) |
 | `docker/` | Dockerfile for CI and SDK distribution images |
 | `scripts/` | Developer / CI helper scripts (e.g. `clang-tidy.sh`) |
+| `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
+| `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
 | `.github/workflows/` | GitHub Actions CI workflows |
 
 ### Key Types
@@ -146,6 +147,32 @@ All source files must have the LiveKit Apache 2.0 copyright header. Use the curr
 - `lk_log.h` lives under `src/` (internal). The public-facing logging API is `include/livekit/logging.h`.
 - spdlog must not appear in any public header or installed header.
 
+#### Deprecating a public API
+
+When superseding a public API (renaming, replacing, or removing in a future major
+version), every retained back-compat shim must carry **both** annotations:
+
+1. The C++11 `[[deprecated("...")]]` attribute so the compiler warns at every
+   call site. The message should name the replacement (e.g.
+   `"AudioFrame::sample_rate is deprecated; use AudioFrame::sampleRate instead"`).
+2. A Doxygen `/// @deprecated Use <newName>() instead.` line immediately above
+   the attribute so the generated docs render a deprecation callout and add the
+   symbol to Doxygen's auto-generated *Deprecated List* page. Doxygen does not
+   read the C++ attribute, so this line is required even though it duplicates
+   information.
+
+Example:
+
+```cpp
+/// @deprecated Use sampleRate() instead.
+[[deprecated("AudioFrame::sample_rate is deprecated; use AudioFrame::sampleRate instead")]]
+int sample_rate() const noexcept { return sampleRate(); }
+```
+
+Keep the prose consistent: `Use <newName>() instead.` Per-symbol deprecations
+must use `///` (not `//`); only section-level asides (e.g. "Deprecated public
+mutators" group headers) may stay as plain `//` comments.
+
 ### Include Conventions
 
 - **Public headers (`include/livekit/*.h`) must include other public headers
@@ -208,6 +235,74 @@ with the same library loaded elsewhere in the host process.
 
 - Use `LK_LOG_WARN` for non-fatal unexpected conditions.
 - Use `Result<T, E>` for operations that can fail with typed errors (e.g., data track publish/subscribe).
+
+### Public API Documentation (Doxygen)
+
+The public API (`include/livekit/*.h`) is what consumers read first and is also
+published as a Doxygen site (`docs/doxygen/Doxyfile`, `.github/workflows/publish-docs.yml`).
+Every doc comment in `include/livekit/` must use the rules below, and PRs that
+add or modify public symbols are gated on these rules during review.
+
+#### Comment style
+
+- Use triple-slash `///` Doxygen comments. Do **not** use `/** ... */` Javadoc
+  blocks or `/* ... */` block comments for documentation.
+- Apache license headers stay as `/* ... */` block comments — they are not
+  documentation.
+- Section organization comments (e.g. `// ---- Accessors ----`,
+  `// Read-only properties`) may stay as `//` since they do not document a
+  specific symbol.
+- Implementation comments inside `.cpp` files (non-Doxygen) may use `//`
+  freely.
+- Use Doxygen `@`-prefixed commands (`@param`, `@return`, `@throws`, `@note`,
+  `@brief`, `@deprecated`, `@ref`, `@p`, `@c`). Do not use the equivalent
+  `\`-prefixed forms in new code.
+
+#### Required tags
+
+- Document class/structs succinctly using `@brief Description.`
+- Document functions/methods/namespaces succinctly using `@brief Description.`
+- Document parameters using `@param name Description.`
+- Document non-void return values using `@return Description.`
+- Document thrown exceptions using `@throws ExceptionType When/why it's thrown.`
+  Operations that can fail without throwing should return `Result<T, E>`
+  (see Error Handling above) and the variants should be documented in the doc block.
+- Free-text "Parameters:", "Returns:", "Throws:" sections in legacy comments
+  must be converted to the corresponding `@param` / `@return` / `@throws`
+  tags when the comment is touched.
+
+#### Example
+
+```cpp
+/// Publish a local track to the room.
+///
+/// Blocks until the FFI publish response arrives.
+///
+/// @param track   Track to publish. Must be non-null.
+/// @param options Publish options (codec, simulcast, etc.).
+/// @throws std::runtime_error if the FFI reports an error.
+void publishTrack(const std::shared_ptr<Track>& track, const TrackPublishOptions& options);
+```
+
+#### Deprecation comments
+
+When superseding a public API, every retained back-compat shim must carry a
+Doxygen `/// @deprecated Use <newName>() instead.` line so the generated docs
+render a deprecation callout (see "Deprecating a public API" above).
+
+#### Verifying locally
+
+Run the docs build script from the repository root:
+
+```bash
+./scripts/generate-docs.sh
+```
+
+The output lands in `docs/doxygen/html/index.html`. The Doxyfile sets
+`WARN_IF_UNDOCUMENTED = NO` (the 400+ "X is not documented" warnings for
+internal symbols are too noisy to enforce) and `WARN_AS_ERROR = FAIL_ON_WARNINGS`,
+so any other warning (broken `@ref`, unknown `@command`, unsupported HTML tag,
+malformed table, missing `@param` on a documented function, …) fails the build.
 
 ### Integer Types
 
@@ -297,11 +392,6 @@ When adding new client facing functionality, add benchmarking to understand the 
 - Keep each function short (roughly ≤ 60 lines)
 - Declare all data objects at the smallest possible level of scope
 - Each calling function must check the return value of nonvoid functions, and each called function must check the validity of all parameters provided by the caller
-
-
-## Deprecated / Out of Scope
-
-- **`bridge/`** (`livekit_bridge`) is deprecated. Do not add new functionality to it.
 
 ## Common Pitfalls
 

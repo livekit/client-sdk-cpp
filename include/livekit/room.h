@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-#ifndef LIVEKIT_ROOM_H
-#define LIVEKIT_ROOM_H
+#pragma once
 
-#include <cstdint>
+#include <future>
 #include <memory>
 #include <mutex>
 
@@ -25,6 +24,7 @@
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
+#include "livekit/stats.h"
 #include "livekit/subscription_thread_dispatcher.h"
 #include "livekit/visibility.h"
 
@@ -41,51 +41,51 @@ class E2EEManager;
 class LocalParticipant;
 class RemoteParticipant;
 
-// Represents a single ICE server configuration.
+/// Represents a single ICE server configuration.
 struct IceServer {
-  // TURN/STUN server URL (e.g. "stun:stun.l.google.com:19302").
+  /// TURN/STUN server URL (e.g. "stun:stun.l.google.com:19302").
   std::string url;
 
-  // Optional username for TURN authentication.
+  /// Optional username for TURN authentication.
   std::string username;
 
-  // Optional credential (password) for TURN authentication.
+  /// Optional credential (password) for TURN authentication.
   std::string credential;
 };
 
-// WebRTC configuration (ICE, transport, etc.).
+/// WebRTC configuration (ICE, transport, etc.).
 struct RtcConfig {
-  // ICE transport type (e.g., ALL, RELAY). Maps to proto::IceTransportType.
+  /// ICE transport type (e.g., ALL, RELAY). Maps to proto::IceTransportType.
   int ice_transport_type = 0;
 
-  // Continuous or single ICE gathering. Maps to
-  // proto::ContinualGatheringPolicy.
+  /// Continuous or single ICE gathering. Maps to
+  /// proto::ContinualGatheringPolicy.
   int continual_gathering_policy = 0;
 
-  // List of STUN/TURN servers for ICE candidate generation.
+  /// List of STUN/TURN servers for ICE candidate generation.
   std::vector<IceServer> ice_servers;
 };
 
-// Top-level room connection options.
+/// Top-level room connection options.
 struct RoomOptions {
-  // If true (default), automatically subscribe to all remote tracks.
-  // This is CRITICAL. Without auto_subscribe, you will never receive:
-  //   - `track_subscribed` events
-  //   - remote audio/video frames
+  /// If true (default), automatically subscribe to all remote tracks.
+  /// This is CRITICAL. Without auto_subscribe, you will never receive:
+  ///   - `track_subscribed` events
+  ///   - remote audio/video frames
   bool auto_subscribe = true;
 
-  // Enable dynacast (server sends optimal layers depending on subscribers).
+  /// Enable dynacast (server sends optimal layers depending on subscribers).
   bool dynacast = false;
 
-  // Enable single peer connection mode. When true, uses one RTCPeerConnection
-  // for both publishing and subscribing instead of two separate connections.
-  // Falls back to dual peer connection if the server doesn't support single PC.
+  /// Enable single peer connection mode. When true, uses one RTCPeerConnection
+  /// for both publishing and subscribing instead of two separate connections.
+  /// Falls back to dual peer connection if the server doesn't support single PC.
   bool single_peer_connection = true;
 
-  // Optional WebRTC configuration (ICE policy, servers, etc.)
+  /// Optional WebRTC configuration (ICE policy, servers, etc.)
   std::optional<RtcConfig> rtc_config;
 
-  // Optional end-to-end encryption settings.
+  /// Optional end-to-end encryption settings.
   std::optional<E2EEOptions> encryption;
 };
 
@@ -100,203 +100,199 @@ public:
   Room();
   ~Room();
 
-  /* Assign a RoomDelegate that receives room lifecycle callbacks.
-   *
-   * The delegate must remain valid for the lifetime of the Room or until a
-   * different delegate is assigned. The Room does not take ownership.
-   * Typical usage:
-   *     class MyDelegate : public RoomDelegate { ... };
-   *     MyDelegate del;
-   *     Room room;
-   *     room.setDelegate(&del);
-   */
+  /// Assign a RoomDelegate that receives room lifecycle callbacks.
+  ///
+  /// The delegate must remain valid for the lifetime of the Room or until a
+  /// different delegate is assigned. The Room does not take ownership.
+  /// Typical usage:
+  ///     class MyDelegate : public RoomDelegate { ... };
+  ///     MyDelegate del;
+  ///     Room room;
+  ///     room.setDelegate(&del);
   void setDelegate(RoomDelegate* delegate);
 
-  /* Connect to a LiveKit room using the given URL and token,  applying the
-   * supplied connection options.
-   *
-   * Parameters:
-   *   url      — WebSocket URL of the LiveKit server.
-   *   token    — Access token for authentication.
-   *   options  — Connection options controlling auto-subscribe,
-   *               dynacast, E2EE, and WebRTC configuration.
-   * Behavior:
-   *   - Registers an FFI event listener *before* sending the connect request.
-   *   - Sends a proto::FfiRequest::Connect with the URL, token,
-   *     and the provided RoomOptions.
-   *   - Blocks until the FFI connect response arrives.
-   *   - Initializes local participant and remote participants.
-   *   - Emits room/participant/track events to the delegate.
-   * IMPORTANT:
-   *   RoomOptions defaults auto_subscribe = true.
-   *   Without auto_subscribe enabled, remote tracks will NOT be subscribed
-   *   automatically, and no remote audio/video will ever arrive.
-   */
-  bool Connect(const std::string& url, const std::string& token, const RoomOptions& options);
+  /// Connect to a LiveKit room using the given URL and token,  applying the
+  /// supplied connection options.
+  ///
+  /// @param url      WebSocket URL of the LiveKit server.
+  /// @param token    Access token for authentication.
+  /// @param options  Connection options controlling auto-subscribe,
+  ///                 dynacast, E2EE, and WebRTC configuration.
+  /// Behavior:
+  ///   - Registers an FFI event listener *before* sending the connect request.
+  ///   - Sends a proto::FfiRequest::Connect with the URL, token,
+  ///     and the provided RoomOptions.
+  ///   - Blocks until the FFI connect response arrives.
+  ///   - Initializes local participant and remote participants.
+  ///   - Emits room/participant/track events to the delegate.
+  /// IMPORTANT:
+  ///   RoomOptions defaults auto_subscribe = true.
+  ///   Without auto_subscribe enabled, remote tracks will NOT be subscribed
+  ///   automatically, and no remote audio/video will ever arrive.
+  bool connect(const std::string& url, const std::string& token, const RoomOptions& options);
+
+  /// Disconnect from the room.
+  ///
+  /// This method attempts a best-effort graceful disconnect of the room. If the room was connected prior, after @ref
+  /// disconnect() is called the room object is considered in a terminal state and should no longer be used. If @ref
+  /// disconnect() was called before @ref connect(), no operations are performed and the room object is still valid.
+  ///
+  /// @note `~Room()` invokes `disconnect()` automatically if the room is
+  ///       still connected, so explicit calls are optional.
+  /// @warning Safe to call from any thread, but **must not** be called from inside a
+  /// `RoomDelegate` callback — doing so will deadlock the event listener.
+  ///
+  /// @param reason  Reason reported to the server (default: ClientInitiated).
+  /// @returns true if the graceful disconnect succeeds; false if the
+  ///          room was already disconnected (no-op) or the graceful disconnect fails.
+  bool disconnect(DisconnectReason reason = DisconnectReason::ClientInitiated);
 
   // Accessors
 
-  /* Retrieve static metadata about the room.
-   * This contains fields such as:
-   *   - SID
-   *   - room name
-   *   - metadata
-   *   - participant counts
-   *   - creation timestamp
-   */
-  RoomInfoData room_info() const;
+  /// Retrieve static metadata about the room.
+  /// This contains fields such as:
+  ///   - SID
+  ///   - room name
+  ///   - metadata
+  ///   - participant counts
+  ///   - creation timestamp
+  RoomInfoData roomInfo() const;
 
-  /* Get the local participant.
-   *
-   * This object represents the current user, including:
-   *   - published tracks (audio/video/screen)
-   *   - identity, SID, metadata
-   *   - publishing/unpublishing operations
-   * Return value:
-   *   Non-null pointer after successful Connect().
-   */
-  LocalParticipant* localParticipant() const;
+  /// Get the local participant.
+  ///
+  /// This object represents the current user, including:
+  ///   - published tracks (audio/video/screen)
+  ///   - identity, SID, metadata
+  ///   - publishing/unpublishing operations
+  ///
+  /// The returned handle is non-owning. Call @c lock() to obtain a usable
+  /// @c weak_ptr; the result is empty (`lock() == nullptr`) before connect,
+  /// after room end-of-stream teardown, or once the room is destroyed. This
+  /// lets callers that cache the handle detect object lifetime instead of holding a
+  /// dangling pointer.
+  ///
+  /// @return Weak handle to the local participant.
+  std::weak_ptr<LocalParticipant> localParticipant() const;
 
-  /* Look up a remote participant by identity.
-   *
-   * Parameters:
-   *   identity — The participant’s identity string (not SID)
-   * Return value:
-   *   Pointer to RemoteParticipant if present, otherwise nullptr.
-   * RemoteParticipant contains:
-   *   - identity/name/metadata
-   *   - track publications
-   *  - callbacks for track subscribed/unsubscribed, muted/unmuted
-   */
-  RemoteParticipant* remoteParticipant(const std::string& identity) const;
+  /// Look up a remote participant by identity.
+  ///
+  /// @param identity The participant’s identity string (not SID).
+  /// @return Weak handle to the RemoteParticipant if present, otherwise an
+  ///   empty handle (`lock() == nullptr`). The handle also becomes empty once
+  ///   the participant disconnects, the room is torn down, or the room is
+  ///   destroyed. RemoteParticipant contains:
+  ///   - identity/name/metadata
+  ///   - track publications
+  ///   - callbacks for track subscribed/unsubscribed, muted/unmuted
+  std::weak_ptr<RemoteParticipant> remoteParticipant(const std::string& identity) const;
 
   /// Returns a snapshot of all current remote participants.
-  std::vector<std::shared_ptr<RemoteParticipant>> remoteParticipants() const;
+  ///
+  /// @return Vector of weak handles to the current remote participants. Each
+  ///   handle can be promoted with @c lock(); a handle becomes empty once the
+  ///   corresponding participant disconnects or the room is torn down.
+  std::vector<std::weak_ptr<RemoteParticipant>> remoteParticipants() const;
 
-  /* Register a handler for incoming text streams on a specific topic.
-   *
-   * When a remote participant opens a text stream with the given topic,
-   * the handler is invoked with:
-   *   - a shared_ptr<TextStreamReader> for consuming the stream
-   *   - the identity of the participant who sent the stream
-   *
-   * Notes:
-   *   - Only one handler may be registered per topic.
-   *   - If no handler is registered for a topic, incoming streams with that
-   *     topic are ignored.
-   *   - The handler is invoked on the Room event thread. The handler must
-   *     not block; spawn a background thread if synchronous reading is
-   *     required.
-   *
-   * Throws:
-   *   std::runtime_error if a handler is already registered for the topic.
-   */
+  /// Returns the current connection state of the room.
+  ConnectionState connectionState() const;
+
+  /// Retrieve aggregated WebRTC stats for this room session.
+  ///
+  /// Dispatches an async request to the server and returns a future that
+  /// resolves with the stats.
+  ///
+  /// @return Future of the room session stats.
+  ///
+  /// @throws std::runtime_error Synchronously, if the room is not currently
+  ///                            connected, or if the FFI request fails to
+  ///                            dispatch.
+  /// @throws std::runtime_error On `future.get()`, if the async request fails.
+  std::future<SessionStats> getStats() const;
+
+  /// Register a handler for incoming text streams on a specific topic.
+  ///
+  /// When a remote participant opens a text stream with the given topic,
+  /// the handler is invoked with:
+  ///   - a shared_ptr<TextStreamReader> for consuming the stream
+  ///   - the identity of the participant who sent the stream
+  ///
+  /// Notes:
+  ///   - Only one handler may be registered per topic.
+  ///   - If no handler is registered for a topic, incoming streams with that
+  ///     topic are ignored.
+  ///   - The handler is invoked on the Room event thread. The handler must
+  ///     not block; spawn a background thread if synchronous reading is
+  ///     required.
+  ///
+  /// @throws std::runtime_error if a handler is already registered for the topic.
   void registerTextStreamHandler(const std::string& topic, TextStreamHandler handler);
 
-  /* Unregister the text stream handler for the given topic.
-   *
-   * If no handler exists for the topic, this function is a no-op.
-   */
+  /// Unregister the text stream handler for the given topic.
+  ///
+  /// If no handler exists for the topic, this function is a no-op.
   void unregisterTextStreamHandler(const std::string& topic);
 
-  /* Register a handler for incoming byte streams on a specific topic.
-   *
-   * When a remote participant opens a byte stream with the given topic,
-   * the handler is invoked with:
-   *   - a shared_ptr<ByteStreamReader> for consuming the stream
-   *   - the identity of the participant who sent the stream
-   *
-   * Notes:
-   *   - Only one handler may be registered per topic.
-   *   - If no handler is registered for a topic, incoming streams with that
-   *     topic are ignored.
-   *   - The ByteStreamReader remains valid as long as the shared_ptr is held,
-   *     preventing lifetime-related crashes when reading asynchronously.
-   *
-   * Throws:
-   *   std::runtime_error if a handler is already registered for the topic.
-   */
+  /// Register a handler for incoming byte streams on a specific topic.
+  ///
+  /// When a remote participant opens a byte stream with the given topic,
+  /// the handler is invoked with:
+  ///   - a shared_ptr<ByteStreamReader> for consuming the stream
+  ///   - the identity of the participant who sent the stream
+  ///
+  /// Notes:
+  ///   - Only one handler may be registered per topic.
+  ///   - If no handler is registered for a topic, incoming streams with that
+  ///     topic are ignored.
+  ///   - The ByteStreamReader remains valid as long as the shared_ptr is held,
+  ///     preventing lifetime-related crashes when reading asynchronously.
+  ///
+  /// @throws std::runtime_error if a handler is already registered for the topic.
   void registerByteStreamHandler(const std::string& topic, ByteStreamHandler handler);
 
-  /* Unregister the byte stream handler for the given topic.
-   *
-   * If no handler exists for the topic, this function is a no-op.
-   */
+  /// Unregister the byte stream handler for the given topic.
+  ///
+  /// If no handler exists for the topic, this function is a no-op.
   void unregisterByteStreamHandler(const std::string& topic);
 
-  /**
-   * Returns the room's E2EE manager, or nullptr if E2EE was not enabled at
-   * connect time.
-   *
-   * Notes:
-   * - The manager is created after a successful Connect().
-   * - If E2EE was not configured in RoomOptions, this will return nullptr.
-   */
-  E2EEManager* e2eeManager() const;
+  /// Returns the room's E2EE manager as a weak handle, or an empty handle if
+  /// E2EE was not enabled at connect time.
+  ///
+  /// Notes:
+  /// - The manager is created after a successful connect().
+  /// - If E2EE was not configured in RoomOptions, @c lock() returns nullptr.
+  /// - The handle also becomes empty once the room is torn down or destroyed.
+  ///
+  /// @return Weak handle to the E2EE manager.
+  std::weak_ptr<E2EEManager> e2eeManager() const;
 
   // ---------------------------------------------------------------
   // Frame callbacks
   // ---------------------------------------------------------------
 
-  /**
-   * @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
-   */
-  void setOnAudioFrameCallback(const std::string& participant_identity, TrackSource source, AudioFrameCallback callback,
-                               const AudioStream::Options& opts = {});
-
-  /**
-   * @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
-   */
+  /// @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
   void setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                AudioFrameCallback callback, const AudioStream::Options& opts = {});
 
-  /**
-   * @brief Sets the video frame callback via SubscriptionThreadDispatcher.
-   */
-  void setOnVideoFrameCallback(const std::string& participant_identity, TrackSource source, VideoFrameCallback callback,
-                               const VideoStream::Options& opts = {});
-
-  /**
-   * @brief Sets the video frame callback via SubscriptionThreadDispatcher.
-   */
+  /// @brief Sets the video frame callback via SubscriptionThreadDispatcher.
   void setOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                VideoFrameCallback callback, const VideoStream::Options& opts = {});
 
-  /**
-   * @brief Sets the video frame event callback via
-   * SubscriptionThreadDispatcher.
-   */
+  /// @brief Sets the video frame event callback via
+  /// SubscriptionThreadDispatcher.
   void setOnVideoFrameEventCallback(const std::string& participant_identity, const std::string& track_name,
                                     VideoFrameEventCallback callback, const VideoStream::Options& opts = {});
 
-  /**
-   * @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
-   */
-  void clearOnAudioFrameCallback(const std::string& participant_identity, TrackSource source);
-  /**
-   * @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
-   */
+  /// @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
   void clearOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name);
 
-  /**
-   * @brief Clears the video frame callback via SubscriptionThreadDispatcher.
-   */
-  void clearOnVideoFrameCallback(const std::string& participant_identity, TrackSource source);
-
-  /**
-   * @brief Clears the video frame callback via SubscriptionThreadDispatcher.
-   */
+  /// @brief Clears the video frame callback via SubscriptionThreadDispatcher.
   void clearOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name);
 
-  /**
-   * @brief Adds a data frame callback via SubscriptionThreadDispatcher.
-   */
+  /// @brief Adds a data frame callback via SubscriptionThreadDispatcher.
   DataFrameCallbackId addOnDataFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                              DataFrameCallback callback);
 
-  /**
-   * @brief Removes the data frame callback via SubscriptionThreadDispatcher.
-   */
+  /// @brief Removes the data frame callback via SubscriptionThreadDispatcher.
   void removeOnDataFrameCallback(DataFrameCallbackId id);
 
 private:
@@ -307,22 +303,23 @@ private:
   RoomDelegate* delegate_ = nullptr; // Not owned
   RoomInfoData room_info_;
   std::shared_ptr<FfiHandle> room_handle_;
-  std::unique_ptr<LocalParticipant> local_participant_;
+  /// The local participant is owned by the room and is not shared with other objects.
+  /// It is a shared_ptr just to utilize the weak_ptr interface for the localParticipant() accessor.
+  std::shared_ptr<LocalParticipant> local_participant_;
   std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> remote_participants_;
   // Data stream
   std::unordered_map<std::string, TextStreamHandler> text_stream_handlers_;
   std::unordered_map<std::string, ByteStreamHandler> byte_stream_handlers_;
   std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> text_stream_readers_;
   std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> byte_stream_readers_;
-  // E2EE
-  std::unique_ptr<E2EEManager> e2ee_manager_;
+  // The E2EE manager is owned by the room and is not shared with other objects.
+  // It is a shared_ptr just to utilize the weak_ptr interface for the e2eeManager() accessor.
+  std::shared_ptr<E2EEManager> e2ee_manager_;
   std::shared_ptr<SubscriptionThreadDispatcher> subscription_thread_dispatcher_;
 
   // FfiClient listener ID (0 means no listener registered)
   int listener_id_{0};
 
-  void OnEvent(const proto::FfiEvent& event);
+  void onEvent(const proto::FfiEvent& event);
 };
 } // namespace livekit
-
-#endif /* LIVEKIT_ROOM_H */

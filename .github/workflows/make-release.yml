@@ -13,6 +13,11 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # sccache caches rustc invocations across runs. RUSTC_WRAPPER is exported
+  # only after the setup step verifies the GHA cache backend is reachable, so
+  # transient cache backend failures fall back to uncached rustc instead of
+  # failing the build.
+  SCCACHE_GHA_ENABLED: "true"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
@@ -135,15 +140,39 @@ jobs:
         if: matrix.name == 'macos-x64'
         run: rustup target add x86_64-apple-darwin
 
+      # ---------- Setup sccache ----------
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9 # v0.0.7
+
+      - name: Enable sccache wrapping (probe first)
+        shell: bash
+        run: |
+          if sccache --start-server >/dev/null 2>&1; then
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+            echo "::notice::sccache enabled (RUSTC_WRAPPER=sccache)"
+          else
+            echo "::warning::sccache backend unreachable; building without compile cache this run"
+          fi
+
       # ---------- Cache Cargo ----------
       - name: Cache Cargo registry
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-${{ matrix.name }}-cargo-reg-
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-registry-${{ hashFiles('client-sdk-rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.name }}-cargo-registry-
+
+      - name: Cache cargo target
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: client-sdk-rust/target/
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('client-sdk-rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.name }}-cargo-target-
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
@@ -181,6 +210,27 @@ jobs:
           # List bundle contents
           echo "Bundle contents:"
           find "$bundleDir" -type f | head -120
+
+      - name: Validate bundle version metadata (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}-${version}"
+          header="${bundleDir}/include/livekit/build.h"
+          buildInfo="${bundleDir}/share/livekit/build-info.json"
+
+          test -f "$header"
+          test -f "$buildInfo"
+          grep -F "#define LIVEKIT_BUILD_VERSION \"${version}\"" "$header"
+          if grep -F '#define LIVEKIT_BUILD_VERSION "0.0.0"' "$header"; then
+            echo "ERROR: bundle reports fallback SDK version"
+            exit 1
+          fi
+          grep -F "\"sdk_version\": \"${version}\"" "$buildInfo"
+          grep -Eq '"rust_submodule_commit": "[0-9a-f]{7,}"' "$buildInfo"
+          grep -Eq '"livekit_ffi_version": "[0-9]+\.[0-9]+\.[0-9]+' "$buildInfo"
 
       # ---------- Build + Bundle (Windows) ----------
       - name: Build and Bundle (Windows)
@@ -243,6 +293,39 @@ jobs:
           }
           python .github/scripts/check_no_private_symbols.py "$lib"
 
+      - name: Validate bundle version metadata (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-$version"
+          $header = Join-Path $bundleDir "include/livekit/build.h"
+          $buildInfo = Join-Path $bundleDir "share/livekit/build-info.json"
+
+          if (!(Test-Path $header)) { throw "Missing $header" }
+          if (!(Test-Path $buildInfo)) { throw "Missing $buildInfo" }
+
+          $headerText = Get-Content -Raw $header
+          $expectedHeaderVersion = "#define LIVEKIT_BUILD_VERSION `"$version`""
+          if (!$headerText.Contains($expectedHeaderVersion)) {
+            throw "Header does not report expected SDK version $version"
+          }
+          if ($headerText.Contains('#define LIVEKIT_BUILD_VERSION "0.0.0"')) {
+            throw "Bundle reports fallback SDK version"
+          }
+
+          $buildInfoText = Get-Content -Raw $buildInfo
+          $expectedBuildInfoVersion = "`"sdk_version`": `"$version`""
+          if (!$buildInfoText.Contains($expectedBuildInfoVersion)) {
+            throw "Build info does not report expected SDK version $version"
+          }
+          if ($buildInfoText -match '"rust_submodule_commit": "unknown"') {
+            throw "Build info is missing Rust submodule commit"
+          }
+          if ($buildInfoText -match '"livekit_ffi_version": "unknown"') {
+            throw "Build info is missing livekit-ffi version"
+          }
+
       # ---------- Upload artifact (raw directory, no pre-compression) ----------
       - name: Upload build artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -258,6 +341,8 @@ jobs:
     permissions:
       contents: write
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
 
     steps:
       - name: Checkout
@@ -351,4 +436,6 @@ jobs:
     name: Publish Documentation
     needs: release
     uses: ./.github/workflows/publish-docs.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
     secrets: inherit

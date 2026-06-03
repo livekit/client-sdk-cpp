@@ -31,27 +31,27 @@ class OwnedTrack;
 
 class VideoSource;
 
-/**
- * Represents a user-provided video track sourced from the local device.
- *
- *  `LocalVideoTrack` is used to publish camera video (or any custom
- *  video source) to a LiveKit room. It wraps a platform-specific video
- *  source and exposes simple controls such as `mute()` and `unmute()`.
- *
- *  Typical usage:
- *
- *    auto source = std::make_shared<VideoSource>(1280, 720);
- *    auto track = LocalVideoTrack::createLocalVideoTrack("cam", source);
- *    room->localParticipant()->publishTrack(track);
- *    // Capture frames on the video thread via `source`, not via the track.
- *
- *  Muting a local video track stops transmitting video to the room, but
- *  the underlying source may continue capturing depending on platform
- *  behavior.
- *
- *  The track name provided during creation is visible to remote
- *  participants and can be used for debugging or UI display.
- */
+/// Represents a user-provided video track sourced from the local device.
+///
+///  `LocalVideoTrack` is used to publish camera video (or any custom
+///  video source) to a LiveKit room. It wraps a platform-specific video
+///  source and exposes simple controls such as `mute()` and `unmute()`.
+///
+///  Typical usage:
+///
+///    auto source = std::make_shared<VideoSource>(1280, 720);
+///    auto track = LocalVideoTrack::createLocalVideoTrack("cam", source);
+///    if (auto lp = room->localParticipant().lock()) {
+///      lp->publishTrack(track);
+///    }
+///    // Capture frames on the video thread via `source`, not via the track.
+///
+///  Muting a local video track stops transmitting video to the room, but
+///  the underlying source may continue capturing depending on platform
+///  behavior.
+///
+///  The track name provided during creation is visible to remote
+///  participants and can be used for debugging or UI display.
 class LIVEKIT_API LocalVideoTrack : public Track {
 public:
   /// Creates a new local video track backed by the given `VideoSource`.
@@ -77,7 +77,7 @@ public:
 
   /// Returns a human-readable string representation of the track,
   /// including its SID and name. Useful for debugging and logging.
-  std::string to_string() const;
+  std::string toString() const;
 
   /// Returns the publication that owns this track, or nullptr if the track is
   /// not published.

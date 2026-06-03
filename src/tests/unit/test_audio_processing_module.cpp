@@ -32,7 +32,7 @@ namespace livekit::test {
 
 class AudioProcessingModuleTest : public ::testing::Test {
 protected:
-  void SetUp() override { livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole); }
+  void SetUp() override { livekit::initialize(livekit::LogLevel::Info); }
 
   void TearDown() override { livekit::shutdown(); }
 
@@ -45,9 +45,9 @@ protected:
   // Helper to fill frame with sine wave
   static void fillWithSineWave(AudioFrame& frame, double frequency, double amplitude = 10000.0) {
     auto& data = frame.data();
-    int sample_rate = frame.sample_rate();
-    int num_channels = frame.num_channels();
-    int samples_per_channel = frame.samples_per_channel();
+    int sample_rate = frame.sampleRate();
+    int num_channels = frame.numChannels();
+    int samples_per_channel = frame.samplesPerChannel();
 
     for (int i = 0; i < samples_per_channel; ++i) {
       double t = static_cast<double>(i) / sample_rate;
@@ -87,9 +87,9 @@ protected:
   // This is a simplified calculation for testing purposes
   static double calculateFrequencyBandEnergy(const AudioFrame& frame, double low_freq, double high_freq) {
     const auto& data = frame.data();
-    int sample_rate = frame.sample_rate();
-    int num_channels = frame.num_channels();
-    int samples_per_channel = frame.samples_per_channel();
+    int sample_rate = frame.sampleRate();
+    int num_channels = frame.numChannels();
+    int samples_per_channel = frame.samplesPerChannel();
 
     if (data.empty() || samples_per_channel == 0) {
       return 0.0;
@@ -515,8 +515,8 @@ TEST_F(AudioProcessingModuleTest, NoiseSuppressionPreservesSpeechLikeSignal) {
   for (int i = 0; i < kFrames; ++i) {
     AudioFrame frame = create10msFrame(48000, 1);
     auto& data = frame.data();
-    int sample_rate = frame.sample_rate();
-    int samples_per_channel = frame.samples_per_channel();
+    int sample_rate = frame.sampleRate();
+    int samples_per_channel = frame.samplesPerChannel();
 
     // Create speech-like signal with fundamental + harmonics (like voice)
     // Vary amplitude slightly to simulate natural speech variation
@@ -699,8 +699,8 @@ TEST_F(AudioProcessingModuleTest, AGCProcessesAudioWithoutError) {
   for (int i = 0; i < kFrames; ++i) {
     AudioFrame frame = create10msFrame(48000, 1);
     auto& data = frame.data();
-    int sample_rate = frame.sample_rate();
-    int samples_per_channel = frame.samples_per_channel();
+    int sample_rate = frame.sampleRate();
+    int samples_per_channel = frame.samplesPerChannel();
 
     // Speech-like signal with varying amplitude
     double amplitude = 2000.0 * (0.5 + 0.5 * std::sin(2.0 * M_PI * i / 50.0));

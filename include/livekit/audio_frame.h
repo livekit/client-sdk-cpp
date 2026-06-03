@@ -29,38 +29,30 @@ class AudioFrameBufferInfo;
 class OwnedAudioFrameBuffer;
 } // namespace proto
 
-/**
- * @brief Represents a raw PCM audio frame with interleaved int16 samples.
- *
- * AudioFrame holds decoded audio data along with metadata such as sample rate,
- * number of channels, and samples per channel. It is used for capturing and
- * processing audio in the LiveKit SDK.
- */
+/// @brief Represents a raw PCM audio frame with interleaved int16 samples.
+///
+/// AudioFrame holds decoded audio data along with metadata such as sample rate,
+/// number of channels, and samples per channel. It is used for capturing and
+/// processing audio in the LiveKit SDK.
 class LIVEKIT_API AudioFrame {
 public:
-  /**
-   * Construct an AudioFrame from raw PCM samples.
-   *
-   * @param data                Interleaved PCM samples (int16).
-   * @param sample_rate         Sample rate (Hz).
-   * @param num_channels        Number of channels.
-   * @param samples_per_channel Number of samples per channel.
-   *
-   * Throws std::invalid_argument if the data size is inconsistent with
-   * num_channels * samples_per_channel.
-   */
+  /// Construct an AudioFrame from raw PCM samples.
+  ///
+  /// @param data                Interleaved PCM samples (int16).
+  /// @param sample_rate         Sample rate (Hz).
+  /// @param num_channels        Number of channels.
+  /// @param samples_per_channel Number of samples per channel.
+  ///
+  /// @throws std::invalid_argument if the data size is inconsistent with
+  ///         num_channels * samples_per_channel.
   AudioFrame(std::vector<std::int16_t> data, int sample_rate, int num_channels, int samples_per_channel);
   AudioFrame(); // Default constructor
   virtual ~AudioFrame() = default;
 
-  /**
-   * Create a new zero-initialized AudioFrame instance.
-   */
+  /// Create a new zero-initialized AudioFrame instance.
   static AudioFrame create(int sample_rate, int num_channels, int samples_per_channel);
 
-  /**
-   * Construct an AudioFrame by copying data out of an OwnedAudioFrameBuffer.
-   */
+  /// Construct an AudioFrame by copying data out of an OwnedAudioFrameBuffer.
   static AudioFrame fromOwnedInfo(const proto::OwnedAudioFrameBuffer& owned);
 
   // ---- Accessors ----
@@ -69,22 +61,22 @@ public:
   std::vector<std::int16_t>& data() noexcept { return data_; }
 
   /// Number of samples in the buffer (per all channels).
-  std::size_t total_samples() const noexcept { return data_.size(); }
+  std::size_t totalSamples() const noexcept { return data_.size(); }
 
   /// Sample rate in Hz.
-  int sample_rate() const noexcept { return sample_rate_; }
+  int sampleRate() const noexcept { return sample_rate_; }
 
   /// Number of channels.
-  int num_channels() const noexcept { return num_channels_; }
+  int numChannels() const noexcept { return num_channels_; }
 
   /// Samples per channel.
-  int samples_per_channel() const noexcept { return samples_per_channel_; }
+  int samplesPerChannel() const noexcept { return samples_per_channel_; }
 
-  /// Duration in seconds (samples_per_channel / sample_rate).
+  /// Duration in seconds (samplesPerChannel / sampleRate).
   double duration() const noexcept;
 
   /// A human-readable description.
-  std::string to_string() const;
+  std::string toString() const;
 
 protected:
   // Build a proto AudioFrameBufferInfo pointing at this frame’s data.

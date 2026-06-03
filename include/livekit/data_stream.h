@@ -33,9 +33,9 @@ namespace livekit {
 
 class LocalParticipant;
 
-// Chunk size for data streams (matches Python STREAM_CHUNK_SIZE).
-// Chosen to balance throughput and latency, and to work well with WebRTC data
-// channels.
+/// Chunk size for data streams (matches Python STREAM_CHUNK_SIZE).
+/// Chosen to balance throughput and latency, and to work well with WebRTC data
+/// channels.
 constexpr std::size_t kStreamChunkSize = 15'000; // 15 KB
 
 /// Base metadata for any stream (text or bytes).
@@ -261,21 +261,19 @@ private:
   std::mutex write_mutex_;
 };
 
-/* Callback invoked when a new incoming text stream is opened.
- *
- * The TextStreamReader is provided as a shared_ptr to ensure it remains
- * alive for the duration of asynchronous reads (for example, when the
- * user spawns a background thread to consume the stream).
- */
+/// Callback invoked when a new incoming text stream is opened.
+///
+/// The TextStreamReader is provided as a shared_ptr to ensure it remains
+/// alive for the duration of asynchronous reads (for example, when the
+/// user spawns a background thread to consume the stream).
 using TextStreamHandler =
     std::function<void(std::shared_ptr<TextStreamReader>, const std::string& participant_identity)>;
 
-/* Callback invoked when a new incoming byte stream is opened.
- *
- * The ByteStreamReader is provided as a shared_ptr to ensure it remains
- * alive for the duration of asynchronous reads (for example, file writes
- * or background processing).
- */
+/// Callback invoked when a new incoming byte stream is opened.
+///
+/// The ByteStreamReader is provided as a shared_ptr to ensure it remains
+/// alive for the duration of asynchronous reads (for example, file writes
+/// or background processing).
 using ByteStreamHandler =
     std::function<void(std::shared_ptr<ByteStreamReader>, const std::string& participant_identity)>;
 

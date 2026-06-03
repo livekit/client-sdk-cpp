@@ -159,31 +159,32 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
-  auto receiver_info = receiver_room->room_info();
+  auto receiver_info = receiver_room->roomInfo();
   std::cout << "Receiver connected - Room: " << receiver_info.name << " (SID: " << receiver_info.sid.value_or("unknown")
             << ")" << std::endl;
 
-  std::string receiver_identity = receiver_room->localParticipant()->identity();
+  std::string receiver_identity = lockLocalParticipant(*receiver_room)->identity();
 
   std::atomic<int> total_received{0};
 
   // Register RPC handler that processes max payloads
-  receiver_room->localParticipant()->registerRpcMethod(
-      "max-payload-stress", [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
-        total_received++;
-        // Echo the payload back for round-trip verification
-        return data.payload;
-      });
+  lockLocalParticipant(*receiver_room)
+      ->registerRpcMethod("max-payload-stress",
+                          [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
+                            total_received++;
+                            // Echo the payload back for round-trip verification
+                            return data.payload;
+                          });
 
   // Create caller room
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
-  auto caller_info = caller_room->room_info();
+  auto caller_info = caller_room->roomInfo();
   std::cout << "Caller connected - Room: " << caller_info.name << " (SID: " << caller_info.sid.value_or("unknown")
             << ")" << std::endl;
 
@@ -202,6 +203,8 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
   auto start_time = std::chrono::steady_clock::now();
   auto duration = std::chrono::seconds(config_.stress_duration_seconds);
 
+  ASSERT_NO_THROW(lockLocalParticipant(*caller_room));
+
   // Create caller threads
   std::vector<std::thread> caller_threads;
   for (int t = 0; t < config_.num_caller_threads; ++t) {
@@ -219,8 +222,9 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
         auto call_start = std::chrono::high_resolution_clock::now();
 
         try {
-          std::string response =
-              caller_room->localParticipant()->performRpc(receiver_identity, "max-payload-stress", payload, 60.0);
+          auto caller_lp = lockLocalParticipant(*caller_room);
+          ASSERT_NE(caller_lp, nullptr);
+          std::string response = caller_lp->performRpc(receiver_identity, "max-payload-stress", payload, 60.0);
 
           auto call_end = std::chrono::high_resolution_clock::now();
           double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
@@ -314,7 +318,7 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
   double success_rate = (stats.totalCalls() > 0) ? (100.0 * stats.successfulCalls() / stats.totalCalls()) : 0.0;
   EXPECT_GT(success_rate, 95.0) << "Success rate below 95%";
 
-  receiver_room->localParticipant()->unregisterRpcMethod("max-payload-stress");
+  lockLocalParticipant(*receiver_room)->unregisterRpcMethod("max-payload-stress");
   caller_room.reset();
   receiver_room.reset();
 }
@@ -337,30 +341,31 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
-  auto receiver_info = receiver_room->room_info();
+  auto receiver_info = receiver_room->roomInfo();
   std::cout << "Receiver connected - Room: " << receiver_info.name << " (SID: " << receiver_info.sid.value_or("unknown")
             << ")" << std::endl;
 
-  std::string receiver_identity = receiver_room->localParticipant()->identity();
+  std::string receiver_identity = lockLocalParticipant(*receiver_room)->identity();
 
   std::atomic<int> total_received{0};
 
   // Register RPC handler
-  receiver_room->localParticipant()->registerRpcMethod(
-      "small-payload-stress", [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
-        total_received++;
-        return data.payload;
-      });
+  lockLocalParticipant(*receiver_room)
+      ->registerRpcMethod("small-payload-stress",
+                          [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
+                            total_received++;
+                            return data.payload;
+                          });
 
   // Create caller room
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
-  auto caller_info = caller_room->room_info();
+  auto caller_info = caller_room->roomInfo();
   std::cout << "Caller connected - Room: " << caller_info.name << " (SID: " << caller_info.sid.value_or("unknown")
             << ")" << std::endl;
 
@@ -379,6 +384,9 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   auto start_time = std::chrono::steady_clock::now();
   auto duration = std::chrono::seconds(config_.stress_duration_seconds);
 
+  // Hold the local participant alive for the lifetime of the caller threads.
+  ASSERT_NO_THROW(lockLocalParticipant(*caller_room));
+
   // Create caller threads
   std::vector<std::thread> caller_threads;
   for (int t = 0; t < config_.num_caller_threads; ++t) {
@@ -395,8 +403,9 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
         auto call_start = std::chrono::high_resolution_clock::now();
 
         try {
-          std::string response =
-              caller_room->localParticipant()->performRpc(receiver_identity, "small-payload-stress", payload, 60.0);
+          auto caller_lp = lockLocalParticipant(*caller_room);
+          ASSERT_NE(caller_lp, nullptr);
+          std::string response = caller_lp->performRpc(receiver_identity, "small-payload-stress", payload, 60.0);
 
           auto call_end = std::chrono::high_resolution_clock::now();
           double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
@@ -485,7 +494,7 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
   double success_rate = (stats.totalCalls() > 0) ? (100.0 * stats.successfulCalls() / stats.totalCalls()) : 0.0;
   EXPECT_GT(success_rate, 95.0) << "Success rate below 95%";
 
-  receiver_room->localParticipant()->unregisterRpcMethod("small-payload-stress");
+  lockLocalParticipant(*receiver_room)->unregisterRpcMethod("small-payload-stress");
   caller_room.reset();
   receiver_room.reset();
 }
@@ -502,14 +511,14 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool a_connected = room_a->Connect(config_.url, config_.token_a, options);
+  bool a_connected = room_a->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(a_connected) << "Room A failed to connect";
 
-  bool b_connected = room_b->Connect(config_.url, config_.token_b, options);
+  bool b_connected = room_b->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(b_connected) << "Room B failed to connect";
 
-  std::string identity_a = room_a->localParticipant()->identity();
-  std::string identity_b = room_b->localParticipant()->identity();
+  std::string identity_a = lockLocalParticipant(*room_a)->identity();
+  std::string identity_b = lockLocalParticipant(*room_b)->identity();
 
   ASSERT_TRUE(waitForParticipant(room_a.get(), identity_b, 10s)) << "Room B not visible to Room A";
   ASSERT_TRUE(waitForParticipant(room_b.get(), identity_a, 10s)) << "Room A not visible to Room B";
@@ -518,14 +527,14 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   std::atomic<int> b_received{0};
 
   // Register handlers on both sides - echo payload back for verification
-  room_a->localParticipant()->registerRpcMethod(
+  lockLocalParticipant(*room_a)->registerRpcMethod(
       "ping", [&a_received](const RpcInvocationData& data) -> std::optional<std::string> {
         a_received++;
         // Echo the payload back for round-trip verification
         return data.payload;
       });
 
-  room_b->localParticipant()->registerRpcMethod(
+  lockLocalParticipant(*room_b)->registerRpcMethod(
       "ping", [&b_received](const RpcInvocationData& data) -> std::optional<std::string> {
         b_received++;
         // Echo the payload back for round-trip verification
@@ -543,6 +552,9 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   auto start_time = std::chrono::steady_clock::now();
   auto duration = std::chrono::seconds(config_.stress_duration_seconds);
 
+  // Hold both local participants alive for the lifetime of the worker threads.
+  ASSERT_NO_THROW(lockLocalParticipant(*room_a));
+
   // A calling B
   std::thread thread_a_to_b([&]() {
     while (running.load()) {
@@ -557,7 +569,9 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
       auto call_start = std::chrono::high_resolution_clock::now();
 
       try {
-        std::string response = room_a->localParticipant()->performRpc(identity_b, "ping", payload, 60.0);
+        auto room_a_lp = lockLocalParticipant(*room_a);
+        ASSERT_NE(room_a_lp, nullptr);
+        std::string response = room_a_lp->performRpc(identity_b, "ping", payload, 60.0);
 
         auto call_end = std::chrono::high_resolution_clock::now();
         double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
@@ -588,6 +602,8 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
     }
   });
 
+  ASSERT_NO_THROW(lockLocalParticipant(*room_b));
+
   // B calling A
   std::thread thread_b_to_a([&]() {
     while (running.load()) {
@@ -602,7 +618,9 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
       auto call_start = std::chrono::high_resolution_clock::now();
 
       try {
-        std::string response = room_b->localParticipant()->performRpc(identity_a, "ping", payload, 60.0);
+        auto room_b_lp = lockLocalParticipant(*room_b);
+        ASSERT_NE(room_b_lp, nullptr);
+        std::string response = room_b_lp->performRpc(identity_a, "ping", payload, 60.0);
 
         auto call_end = std::chrono::high_resolution_clock::now();
         double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
@@ -676,8 +694,8 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
   EXPECT_GT(stats_a_to_b.successfulCalls(), 0);
   EXPECT_GT(stats_b_to_a.successfulCalls(), 0);
 
-  room_a->localParticipant()->unregisterRpcMethod("ping");
-  room_b->localParticipant()->unregisterRpcMethod("ping");
+  lockLocalParticipant(*room_a)->unregisterRpcMethod("ping");
+  lockLocalParticipant(*room_b)->unregisterRpcMethod("ping");
   room_a.reset();
   room_b.reset();
 }
@@ -694,22 +712,22 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   RoomOptions options;
   options.auto_subscribe = true;
 
-  bool receiver_connected = receiver_room->Connect(config_.url, config_.token_b, options);
+  bool receiver_connected = receiver_room->connect(config_.url, config_.token_b, options);
   ASSERT_TRUE(receiver_connected) << "Receiver failed to connect";
 
-  std::string receiver_identity = receiver_room->localParticipant()->identity();
+  std::string receiver_identity = lockLocalParticipant(*receiver_room)->identity();
 
   std::atomic<int> total_received{0};
 
-  receiver_room->localParticipant()->registerRpcMethod(
-      "burst-test", [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
+  lockLocalParticipant(*receiver_room)
+      ->registerRpcMethod("burst-test", [&total_received](const RpcInvocationData& data) -> std::optional<std::string> {
         total_received++;
         // Echo the payload back for round-trip verification
         return data.payload;
       });
 
   auto caller_room = std::make_unique<Room>();
-  bool caller_connected = caller_room->Connect(config_.url, config_.token_a, options);
+  bool caller_connected = caller_room->connect(config_.url, config_.token_a, options);
   ASSERT_TRUE(caller_connected) << "Caller failed to connect";
 
   bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
@@ -724,6 +742,9 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
 
   auto start_time = std::chrono::steady_clock::now();
   auto duration = std::chrono::seconds(config_.stress_duration_seconds);
+
+  // Hold the local participant alive for the lifetime of the burst threads.
+  ASSERT_NO_THROW(lockLocalParticipant(*caller_room));
 
   // Multiple threads sending as fast as possible
   std::vector<std::thread> burst_threads;
@@ -741,8 +762,9 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
         auto call_start = std::chrono::high_resolution_clock::now();
 
         try {
-          std::string response =
-              caller_room->localParticipant()->performRpc(receiver_identity, "burst-test", payload, 60.0);
+          auto caller_lp = lockLocalParticipant(*caller_room);
+          ASSERT_NE(caller_lp, nullptr);
+          std::string response = caller_lp->performRpc(receiver_identity, "burst-test", payload, 60.0);
 
           auto call_end = std::chrono::high_resolution_clock::now();
           double latency_ms = std::chrono::duration<double, std::milli>(call_end - call_start).count();
@@ -821,7 +843,7 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
 
   EXPECT_GT(stats.successfulCalls(), 0);
 
-  receiver_room->localParticipant()->unregisterRpcMethod("burst-test");
+  lockLocalParticipant(*receiver_room)->unregisterRpcMethod("burst-test");
   caller_room.reset();
   receiver_room.reset();
 }

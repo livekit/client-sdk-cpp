@@ -18,6 +18,8 @@
 
 #include <string>
 
+#include "e2ee.pb.h"
+#include "livekit/e2ee.h"
 #include "livekit/room_event_types.h"
 #include "livekit/visibility.h"
 #include "room.pb.h"
@@ -35,6 +37,7 @@ LIVEKIT_INTERNAL_API ConnectionQuality toConnectionQuality(proto::ConnectionQual
 LIVEKIT_INTERNAL_API ConnectionState toConnectionState(proto::ConnectionState in);
 LIVEKIT_INTERNAL_API DataPacketKind toDataPacketKind(proto::DataPacketKind in);
 LIVEKIT_INTERNAL_API DisconnectReason toDisconnectReason(proto::DisconnectReason in);
+LIVEKIT_INTERNAL_API proto::DisconnectReason toProto(DisconnectReason in);
 
 LIVEKIT_INTERNAL_API UserPacketData fromProto(const proto::UserPacket& in);
 LIVEKIT_INTERNAL_API SipDtmfData fromProto(const proto::SipDTMF& in);
@@ -68,6 +71,8 @@ LIVEKIT_INTERNAL_API RoomUpdatedEvent roomUpdatedFromProto(const proto::RoomInfo
 LIVEKIT_INTERNAL_API RoomMovedEvent roomMovedFromProto(const proto::RoomInfo& in);     // moved
 
 // --------- room options conversions ---------
+
+LIVEKIT_INTERNAL_API proto::KeyProviderOptions toProto(const KeyProviderOptions& in);
 
 LIVEKIT_INTERNAL_API proto::AudioEncoding toProto(const AudioEncodingOptions& in);
 LIVEKIT_INTERNAL_API AudioEncodingOptions fromProto(const proto::AudioEncoding& in);

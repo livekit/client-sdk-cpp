@@ -25,27 +25,26 @@
 
 namespace livekit {
 
-// Mirror of WebRTC video buffer type
+/// Mirror of WebRTC video buffer type
 enum class VideoBufferType { RGBA = 0, ABGR, ARGB, BGRA, RGB24, I420, I420A, I422, I444, I010, NV12 };
 
+/// @brief Plane layout metadata for a VideoFrame buffer.
 struct VideoPlaneInfo {
-  std::uintptr_t data_ptr; // pointer to plane data (for FFI)
-  std::uint32_t stride;    // bytes per row
-  std::uint32_t size;      // plane size in bytes
+  std::uintptr_t data_ptr; ///< pointer to plane data (for FFI)
+  std::uint32_t stride;    ///< bytes per row
+  std::uint32_t size;      ///< plane size in bytes
 };
 
 namespace proto {
 class OwnedVideoBuffer;
 }
 
-/**
- * Public SDK representation of a video frame.
- *
- * - Owns its pixel buffer (std::vector<uint8_t>).
- * - Developers can allocate and fill frames in C++ and pass them to the SDK.
- * - The SDK can expose the backing memory to Rust via data_ptr + layout for
- *   the duration of a blocking FFI call (similar to AudioFrame).
- */
+/// Public SDK representation of a video frame.
+///
+/// - Owns its pixel buffer (std::vector<uint8_t>).
+/// - Developers can allocate and fill frames in C++ and pass them to the SDK.
+/// - The SDK can expose the backing memory to Rust via data_ptr + layout for
+///   the duration of a blocking FFI call (similar to AudioFrame).
 class LIVEKIT_API VideoFrame {
 public:
   VideoFrame();
@@ -57,10 +56,8 @@ public:
   VideoFrame(VideoFrame&&) noexcept = default;
   VideoFrame& operator=(VideoFrame&&) noexcept = default;
 
-  /**
-   * Allocate a new frame with the correct buffer size for the given format.
-   * Data is zero-initialized.
-   */
+  /// Allocate a new frame with the correct buffer size for the given format.
+  /// Data is zero-initialized.
   static VideoFrame create(int width, int height, VideoBufferType type);
 
   // Basic properties
@@ -72,39 +69,35 @@ public:
   const std::uint8_t* data() const noexcept { return data_.data(); }
   std::size_t dataSize() const noexcept { return data_.size(); }
 
-  /**
-   * Compute plane layout for this frame (Y/U/V, UV, etc.), in terms of
-   * pointers & sizes relative to this frame's backing buffer.
-   *
-   * For packed formats (ARGB, RGB24) this will be either 1 plane or empty.
-   */
+  /// Compute plane layout for this frame (Y/U/V, UV, etc.), in terms of
+  /// pointers & sizes relative to this frame's backing buffer.
+  ///
+  /// For packed formats (ARGB, RGB24) this will be either 1 plane or empty.
   std::vector<VideoPlaneInfo> planeInfos() const;
 
-  /**
-   * Convert this frame into another pixel format.
-   *
-   * This uses the underlying FFI `video_convert` pipeline to transform the
-   * current frame into a new `VideoFrame` with the requested
-   * `dst` buffer type (e.g. ARGB → I420, BGRA → RGB24, etc.).
-   *
-   * @param dst     Desired output format (see VideoBufferType).
-   * @param flip_y  If true, the converted frame will be vertically flipped.
-   *
-   * @return A new VideoFrame containing the converted image data.
-   *
-   * Notes:
-   *  - This function allocates a new buffer and copies pixel data; it does
-   *    not modify the original frame.
-   *  - This function performs a full CPU-based pixel conversion**. Depending
-   *    on resolution and format, this may involve substantial computation
-   *    (e.g., color-space transforms, planar repacking, vertical flipping).
-   *    Avoid calling this inside tight real-time loops unless necessary.
-   *  - Throws std::runtime_error if the FFI conversion fails or if the
-   *    format combination is unsupported.
-   *
-   * Typical usage:
-   *        VideoFrame i420 = frame.convert(VideoBufferType::I420);
-   */
+  /// Convert this frame into another pixel format.
+  ///
+  /// This uses the underlying FFI `video_convert` pipeline to transform the
+  /// current frame into a new `VideoFrame` with the requested
+  /// `dst` buffer type (e.g. ARGB → I420, BGRA → RGB24, etc.).
+  ///
+  /// @param dst     Desired output format (see VideoBufferType).
+  /// @param flip_y  If true, the converted frame will be vertically flipped.
+  ///
+  /// @return A new VideoFrame containing the converted image data.
+  ///
+  /// Notes:
+  ///  - This function allocates a new buffer and copies pixel data; it does
+  ///    not modify the original frame.
+  ///  - This function performs a full CPU-based pixel conversion**. Depending
+  ///    on resolution and format, this may involve substantial computation
+  ///    (e.g., color-space transforms, planar repacking, vertical flipping).
+  ///    Avoid calling this inside tight real-time loops unless necessary.
+  ///  - Throws std::runtime_error if the FFI conversion fails or if the
+  ///    format combination is unsupported.
+  ///
+  /// Typical usage:
+  ///        VideoFrame i420 = frame.convert(VideoBufferType::I420);
   VideoFrame convert(VideoBufferType dst, bool flip_y = false) const;
 
 protected:

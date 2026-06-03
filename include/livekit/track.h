@@ -32,12 +32,14 @@ namespace livekit {
 
 class LocalTrackPublication;
 
+/// @brief Media kind for an audio or video track.
 enum class TrackKind {
   KIND_UNKNOWN = 0,
   KIND_AUDIO = 1,
   KIND_VIDEO = 2,
 };
 
+/// @brief Source category for a published track.
 enum class TrackSource {
   SOURCE_UNKNOWN = 0,
   SOURCE_CAMERA = 1,
@@ -46,12 +48,14 @@ enum class TrackSource {
   SOURCE_SCREENSHARE_AUDIO = 4,
 };
 
+/// @brief Stream state reported for a subscribed track.
 enum class StreamState {
   STATE_UNKNOWN = 0,
   STATE_ACTIVE = 1,
   STATE_PAUSED = 2,
 };
 
+/// @brief Optional audio processing or encoding feature advertised for a track.
 enum class AudioTrackFeature {
   TF_STEREO = 0,
   TF_NO_DTX = 1,
@@ -62,15 +66,14 @@ enum class AudioTrackFeature {
   TF_PRECONNECT_BUFFER = 6,
 };
 
+/// @brief Per-participant track subscription permission configuration.
 struct ParticipantTrackPermission {
   std::string participant_identity;
   std::optional<bool> allow_all;
   std::vector<std::string> allowed_track_sids;
 };
 
-// ============================================================
-// Base Track
-// ============================================================
+/// @brief Base class for local and remote media tracks.
 class LIVEKIT_API Track {
 public:
   virtual ~Track() = default;
@@ -79,7 +82,7 @@ public:
   const std::string& sid() const noexcept { return sid_; }
   const std::string& name() const noexcept { return name_; }
   TrackKind kind() const noexcept { return kind_; }
-  StreamState stream_state() const noexcept { return state_; }
+  StreamState streamState() const noexcept { return state_; }
   bool muted() const noexcept { return muted_; }
   bool remote() const noexcept { return remote_; }
 
@@ -91,16 +94,16 @@ public:
   // std::string can actually throw, suppressing for now to maintain API
   // compatibility
   // NOLINTNEXTLINE(bugprone-exception-escape)
-  std::optional<std::string> mime_type() const noexcept { return mime_type_; }
+  std::optional<std::string> mimeType() const noexcept { return mime_type_; }
 
   // Handle access
-  bool has_handle() const noexcept { return handle_.valid(); }
-  uintptr_t ffi_handle_id() const noexcept { return handle_.get(); }
+  bool hasHandle() const noexcept { return handle_.valid(); }
+  uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
 
   // Async get stats
   std::future<std::vector<RtcStats>> getStats() const;
 
-  /// After publishing a local track, associates the \ref LocalTrackPublication
+  /// After publishing a local track, associates the @ref LocalTrackPublication
   /// with this track. Default implementation is a no-op (e.g. remote tracks).
   virtual void setPublication(const std::shared_ptr<LocalTrackPublication>& publication) noexcept { (void)publication; }
 

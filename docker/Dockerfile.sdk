@@ -20,6 +20,7 @@
 ARG BASE_IMAGE=livekit-cpp-sdk-base
 FROM ${BASE_IMAGE}
 
+ARG LIVEKIT_VERSION=0.0.0
 ENV SDK_INSTALL_PREFIX=/opt/livekit-sdk
 
 # Copy project source (build context = repo root)
@@ -27,7 +28,6 @@ WORKDIR /client-sdk-cpp
 RUN mkdir -p /client-sdk-cpp
 COPY src /client-sdk-cpp/src
 COPY include /client-sdk-cpp/include
-COPY bridge /client-sdk-cpp/bridge
 COPY build.sh /client-sdk-cpp/build.sh
 COPY CMakePresets.json /client-sdk-cpp/CMakePresets.json
 COPY build.cmd /client-sdk-cpp/build.cmd
@@ -36,6 +36,7 @@ COPY data /client-sdk-cpp/data
 COPY cmake /client-sdk-cpp/cmake
 COPY CMakeLists.txt /client-sdk-cpp/CMakeLists.txt
 COPY build.h.in /client-sdk-cpp/build.h.in
+COPY .build-info.json.in /client-sdk-cpp/.build-info.json.in
 
 # Configure Rust linker: use full GCC path so liblto_plugin.so is found (not /home/installs/ which has no plugin)
 RUN mkdir -p /client-sdk-cpp/client-sdk-rust/.cargo \
@@ -50,5 +51,5 @@ RUN LLVM_VERSION="$(llvm-config --version | cut -d. -f1)" \
     && export CFLAGS="-Wno-deprecated-declarations" \
     && chmod +x /client-sdk-cpp/build.sh \
     && cd /client-sdk-cpp \
-    && ./build.sh release --bundle --prefix "${SDK_INSTALL_PREFIX}" \
+    && ./build.sh release --version "${LIVEKIT_VERSION}" --bundle --prefix "${SDK_INSTALL_PREFIX}" \
     && test -f "${SDK_INSTALL_PREFIX}/lib/cmake/LiveKit/LiveKitConfig.cmake"

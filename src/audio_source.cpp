@@ -94,14 +94,14 @@ void AudioSource::captureFrame(const AudioFrame& frame, int timeout_ms) {
     return;
   }
 
-  if (frame.samples_per_channel() == 0) {
+  if (frame.samplesPerChannel() == 0) {
     return;
   }
 
   // Queue tracking, same logic as before
   const double now = now_seconds();
   const double elapsed = (last_capture_ == 0.0) ? 0.0 : (now - last_capture_);
-  const double frame_duration = static_cast<double>(frame.samples_per_channel()) / static_cast<double>(sample_rate_);
+  const double frame_duration = static_cast<double>(frame.samplesPerChannel()) / static_cast<double>(sample_rate_);
   q_size_ += frame_duration - elapsed;
   if (q_size_ < 0.0) {
     q_size_ = 0.0; // clamp

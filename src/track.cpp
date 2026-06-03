@@ -44,7 +44,7 @@ void Track::setPublicationFields(std::optional<TrackSource> source, std::optiona
 }
 
 std::future<std::vector<RtcStats>> Track::getStats() const {
-  auto id = ffi_handle_id();
+  auto id = ffiHandleId();
   if (!id) {
     // make a ready future with an empty vector
     std::promise<std::vector<RtcStats>> pr;

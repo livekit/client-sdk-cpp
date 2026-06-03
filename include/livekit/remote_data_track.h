@@ -32,25 +32,23 @@ namespace proto {
 class OwnedRemoteDataTrack;
 }
 
-/**
- * Represents a data track published by a remote participant.
- *
- * Discovered via the DataTrackPublishedEvent room event. Unlike
- * audio/video tracks, remote data tracks require an explicit subscribe()
- * call to begin receiving frames.
- *
- * Typical usage:
- *
- *   // In RoomDelegate::onDataTrackPublished callback:
- *   auto sub_result = remoteDataTrack->subscribe();
- *   if (sub_result) {
- *     auto sub = sub_result.value();
- *     DataTrackFrame frame;
- *     while (sub->read(frame)) {
- *       // process frame
- *     }
- *   }
- */
+/// Represents a data track published by a remote participant.
+///
+/// Discovered via the DataTrackPublishedEvent room event. Unlike
+/// audio/video tracks, remote data tracks require an explicit subscribe()
+/// call to begin receiving frames.
+///
+/// Typical usage:
+///
+///   // In RoomDelegate::onDataTrackPublished callback:
+///   auto sub_result = remoteDataTrack->subscribe();
+///   if (sub_result) {
+///     auto sub = sub_result.value();
+///     DataTrackFrame frame;
+///     while (sub->read(frame)) {
+///       // process frame
+///     }
+///   }
 class RemoteDataTrack {
 public:
   ~RemoteDataTrack() = default;
@@ -69,15 +67,13 @@ public:
 
 #ifdef LIVEKIT_TEST_ACCESS
   /// Test-only accessor for exercising lower-level FFI subscription paths.
-  uintptr_t testFfiHandleId() const noexcept { return ffi_handle_id(); }
+  uintptr_t testFfiHandleId() const noexcept { return ffiHandleId(); }
 #endif
 
-  /**
-   * Subscribe to this remote data track.
-   *
-   * Returns a DataTrackStream that delivers frames via blocking
-   * read(). Destroy the stream to unsubscribe.
-   */
+  /// Subscribe to this remote data track.
+  ///
+  /// Returns a DataTrackStream that delivers frames via blocking
+  /// read(). Destroy the stream to unsubscribe.
   LIVEKIT_API Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> subscribe(
       const DataTrackStream::Options& options = {});
 
@@ -86,14 +82,14 @@ private:
 
   explicit RemoteDataTrack(const proto::OwnedRemoteDataTrack& owned);
 
-  uintptr_t ffi_handle_id() const noexcept { return handle_.get(); }
-  /** RAII wrapper for the Rust-owned FFI resource. */
+  uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
+  /// RAII wrapper for the Rust-owned FFI resource.
   FfiHandle handle_;
 
-  /** Metadata snapshot taken at construction time. */
+  /// Metadata snapshot taken at construction time.
   DataTrackInfo info_;
 
-  /** Identity string of the remote participant who published this track. */
+  /// Identity string of the remote participant who published this track.
   std::string publisher_identity_;
 };
 

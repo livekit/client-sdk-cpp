@@ -27,7 +27,6 @@
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"
-#include "livekit/track.h"
 #include "livekit_ffi.h"
 #include "lk_log.h"
 #include "room.pb.h"
@@ -36,11 +35,6 @@
 namespace livekit {
 
 namespace {
-
-std::string bytesToString(const std::vector<std::uint8_t>& b) {
-  return std::string(reinterpret_cast<const char*>(b.data()), b.size());
-}
-
 inline void logAndThrow(const std::string& error_msg) {
   LK_LOG_ERROR("LiveKit SDK Error: {}", error_msg);
   throw std::runtime_error(error_msg);
@@ -146,6 +140,11 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
 
 } // namespace
 
+FfiClient& FfiClient::instance() noexcept {
+  static FfiClient instance;
+  return instance;
+}
+
 // clang-tidy flags this as a trivial destructor in release mode
 // due to the assert being pre-processed out
 // NOLINTNEXTLINE(modernize-use-equals-default)
@@ -168,25 +167,32 @@ bool FfiClient::initialize(bool capture_logs) {
     return false;
   }
   initialized_.store(true, std::memory_order_release);
-  livekit_ffi_initialize(&LivekitFfiCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION_FULL);
+  livekit_ffi_initialize(&LivekitFfiCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION);
   return true;
 }
 
 bool FfiClient::isInitialized() const noexcept { return initialized_.load(std::memory_order_acquire); }
 
-FfiClient::ListenerId FfiClient::AddListener(const FfiClient::Listener& listener) {
+FfiClient::ListenerId FfiClient::addListener(const FfiClient::Listener& listener) {
   const std::scoped_lock<std::mutex> guard(lock_);
   const FfiClient::ListenerId id = next_listener_id++;
   listeners_[id] = listener;
   return id;
 }
 
-void FfiClient::RemoveListener(ListenerId id) {
+void FfiClient::removeListener(ListenerId id) {
   const std::scoped_lock<std::mutex> guard(lock_);
   listeners_.erase(id);
 }
 
 proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) const {
+  // The Rust FFI will lazily initialize the FFI client when the first request is sent,
+  // but if not initialized none of the async operations will work. Guarding against that here.
+  // Improvement ticket added to the Rust SDK to discuss this
+  if (!isInitialized()) {
+    throw std::runtime_error("FfiClient::sendRequest failed: LiveKit is not initialized");
+  }
+
   std::string bytes;
   if (!request.SerializeToString(&bytes) || bytes.empty()) {
     throw std::runtime_error("failed to serialize FfiRequest");
@@ -212,7 +218,7 @@ proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) cons
   return response;
 }
 
-void FfiClient::PushEvent(const proto::FfiEvent& event) const {
+void FfiClient::pushEvent(const proto::FfiEvent& event) const {
   std::unique_ptr<PendingBase> to_complete;
   std::vector<Listener> listeners_copy;
   {
@@ -249,7 +255,7 @@ void LivekitFfiCallback(const uint8_t* buf, size_t len) {
   event.ParseFromArray(buf,
                        static_cast<int>(len)); // TODO: this fixes for now, what if len exceeds int?
 
-  FfiClient::instance().PushEvent(event);
+  FfiClient::instance().pushEvent(event);
 }
 
 FfiClient::AsyncId FfiClient::generateAsyncId() { return next_async_id_.fetch_add(1, std::memory_order_relaxed); }
@@ -333,35 +339,7 @@ std::future<proto::ConnectCallback> FfiClient::connectAsync(const std::string& u
 
     auto* enc = opts->mutable_encryption();
     enc->set_encryption_type(static_cast<proto::EncryptionType>(e2ee.encryption_type));
-    auto* kp = enc->mutable_key_provider_options();
-    // shared_key is optional. If not set, leave the field unset/cleared.
-    if (kpo.shared_key && !kpo.shared_key->empty()) {
-      kp->set_shared_key(bytesToString(*kpo.shared_key));
-    } else {
-      kp->clear_shared_key();
-    }
-    // Only set ratchet_salt if caller overrides. Otherwise clear so Rust side
-    // uses default.
-    if (!kpo.ratchet_salt.empty() &&
-        kpo.ratchet_salt !=
-            std::vector<std::uint8_t>(kDefaultRatchetSalt,
-                                      kDefaultRatchetSalt + std::char_traits<char>::length(kDefaultRatchetSalt))) {
-      kp->set_ratchet_salt(bytesToString(kpo.ratchet_salt));
-    } else {
-      kp->clear_ratchet_salt();
-    }
-    // Same idea for window size / tolerance: set only on override; otherwise
-    // clear.
-    if (kpo.ratchet_window_size != kDefaultRatchetWindowSize) {
-      kp->set_ratchet_window_size(kpo.ratchet_window_size);
-    } else {
-      kp->clear_ratchet_window_size();
-    }
-    if (kpo.failure_tolerance != kDefaultFailureTolerance) {
-      kp->set_failure_tolerance(kpo.failure_tolerance);
-    } else {
-      kp->clear_failure_tolerance();
-    }
+    enc->mutable_key_provider_options()->CopyFrom(toProto(kpo));
   }
 
   // --- RTC configuration (optional) ---
@@ -393,6 +371,37 @@ std::future<proto::ConnectCallback> FfiClient::connectAsync(const std::string& u
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_connect()) {
       logAndThrow("FfiResponse missing connect");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+std::future<void> FfiClient::disconnectAsync(uintptr_t room_handle, DisconnectReason reason) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<void>(
+      async_id,
+      // match: this DisconnectCallback's async_id
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_disconnect() && event.disconnect().async_id() == async_id;
+      },
+      // handler: nothing to extract; the callback is signal-only
+      [](const proto::FfiEvent& /*event*/, std::promise<void>& pr) { pr.set_value(); });
+
+  proto::FfiRequest req;
+  auto* disconnect = req.mutable_disconnect();
+  disconnect->set_room_handle(room_handle);
+  disconnect->set_request_async_id(async_id);
+  disconnect->set_reason(toProto(reason));
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_disconnect()) {
+      logAndThrow("FfiResponse missing disconnect");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
@@ -441,6 +450,59 @@ std::future<std::vector<RtcStats>> FfiClient::getTrackStatsAsync(uintptr_t track
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_get_stats()) {
       logAndThrow("FfiResponse missing get_stats");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+std::future<SessionStats> FfiClient::getSessionStatsAsync(uintptr_t room_handle) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<SessionStats>(
+      async_id,
+      // match
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_get_session_stats() && event.get_session_stats().async_id() == async_id;
+      },
+      // handler
+      [](const proto::FfiEvent& event, std::promise<SessionStats>& pr) {
+        const auto& cb = event.get_session_stats();
+        if (cb.has_error()) {
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
+          return;
+        }
+        if (!cb.has_result()) {
+          pr.set_exception(
+              std::make_exception_ptr(std::runtime_error("GetSessionStatsCallback missing result and error")));
+          return;
+        }
+
+        const auto& result = cb.result();
+        SessionStats stats;
+        stats.publisher_stats.reserve(result.publisher_stats_size());
+        for (const auto& ps : result.publisher_stats()) {
+          stats.publisher_stats.push_back(fromProto(ps));
+        }
+        stats.subscriber_stats.reserve(result.subscriber_stats_size());
+        for (const auto& ps : result.subscriber_stats()) {
+          stats.subscriber_stats.push_back(fromProto(ps));
+        }
+        pr.set_value(std::move(stats));
+      });
+
+  proto::FfiRequest req;
+  auto* get_session_stats_req = req.mutable_get_session_stats();
+  get_session_stats_req->set_room_handle(room_handle);
+  get_session_stats_req->set_request_async_id(async_id);
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_get_session_stats()) {
+      logAndThrow("FfiResponse missing get_session_stats");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);

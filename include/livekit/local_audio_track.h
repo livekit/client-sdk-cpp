@@ -32,26 +32,26 @@ class OwnedTrack;
 
 class AudioSource;
 
-/**
- * Represents a user-provided audio track sourced from the local device.
- *
- *  `LocalAudioTrack` is used to publish microphone audio (or any custom
- *  audio source) to a LiveKit room. It wraps a platform-specific audio
- *  source and exposes simple controls such as `mute()` and `unmute()`.
- *
- *  Typical usage:
- *
- *    auto source = AudioSource::create(...);
- *    auto track = LocalAudioTrack::createLocalAudioTrack("mic", source);
- *    room->localParticipant()->publishTrack(track);
- *
- *  Muting a local audio track stops transmitting audio to the room, but
- *  the underlying source may continue capturing depending on platform
- *  behavior.
- *
- *  The track name provided during creation is visible to remote
- *  participants and can be used for debugging or UI display.
- */
+/// Represents a user-provided audio track sourced from the local device.
+///
+///  `LocalAudioTrack` is used to publish microphone audio (or any custom
+///  audio source) to a LiveKit room. It wraps a platform-specific audio
+///  source and exposes simple controls such as `mute()` and `unmute()`.
+///
+///  Typical usage:
+///
+///    auto source = AudioSource::create(...);
+///    auto track = LocalAudioTrack::createLocalAudioTrack("mic", source);
+///    if (auto lp = room->localParticipant().lock()) {
+///      lp->publishTrack(track);
+///    }
+///
+///  Muting a local audio track stops transmitting audio to the room, but
+///  the underlying source may continue capturing depending on platform
+///  behavior.
+///
+///  The track name provided during creation is visible to remote
+///  participants and can be used for debugging or UI display.
 class LIVEKIT_API LocalAudioTrack : public Track {
 public:
   /// Creates a new local audio track backed by the given `AudioSource`.
@@ -77,7 +77,7 @@ public:
 
   /// Returns a human-readable string representation of the track,
   /// including its SID and name. Useful for debugging and logging.
-  std::string to_string() const;
+  std::string toString() const;
 
   /// Returns the publication that owns this track, or nullptr if the track is
   /// not published.
@@ -86,7 +86,7 @@ public:
   /// Sets the publication that owns this track.
   /// Note: std::move on a const& silently falls back to a copy, so we assign
   /// directly. Changing the virtual signature to take by value would enable
-  /// a true move but is an API-breaking change left for a future revision.
+  /// a true move but is an API-breaking change hence left for a future revision.
   void setPublication(const std::shared_ptr<LocalTrackPublication>& publication) noexcept override {
     local_publication_ = publication;
   }

@@ -20,10 +20,11 @@
 #
 # Usage (from anywhere; the script self-anchors to the repo root):
 #   ./scripts/clang-tidy.sh                    # run on full src/ tree
+#   ./scripts/clang-tidy.sh src/room.cpp       # run on a single file
 #   ./scripts/clang-tidy.sh -j 4               # override parallelism
 #   ./scripts/clang-tidy.sh --github-actions   # force GitHub Actions annotation mode
 #   ./scripts/clang-tidy.sh --fail-on-warning  # exit non-zero on any finding (warning OR error)
-#   ./scripts/clang-tidy.sh -fix               # forwarded to run-clang-tidy
+#   ./scripts/clang-tidy.sh --fix              # apply fixes in place
 #
 # Every run prints a concise stdout summary at the end with the warning and
 # error counts (and a per-check breakdown when there are findings).
@@ -60,7 +61,7 @@ cd "${script_dir}/.."
 # users who hit a pre-flight error or a bad argument get pointed at this.
 usage() {
   cat <<'EOF'
-Usage: ./scripts/clang-tidy.sh [OPTIONS] [run-clang-tidy args...]
+Usage: ./scripts/clang-tidy.sh [OPTIONS] [FILE...] [run-clang-tidy args...]
 
 Run clang-tidy locally or in CI using the same file set and config that the
 repo's CI workflow uses. Picks up checks from the repo-root .clang-tidy.
@@ -68,6 +69,8 @@ repo's CI workflow uses. Picks up checks from the repo-root .clang-tidy.
 Options:
   -h, --help, -?
         Show this help and exit.
+  --fix
+        Apply fixes in place (forwarded to run-clang-tidy as -fix).
   --github-actions, --gh
         Force GitHub Actions annotation + step-summary mode.
         Auto-detected when GITHUB_ACTIONS=true.
@@ -76,17 +79,24 @@ Options:
         non-zero on their own). Off by default for local edit/run cycles;
         CI opts in via the workflow file.
 
+Positional arguments:
+  FILE...
+        Explicit list of files to analyze. When omitted, the script walks
+        the tracked first-party src/ tree (excluding src/tests/). Pass paths
+        to scope the run to a single file or a curated set, e.g.:
+            ./scripts/clang-tidy.sh <path-to-file.cpp>
+
 Any other arguments are forwarded verbatim to run-clang-tidy. Common ones:
   -j N        worker count (defaults to nproc / sysctl hw.ncpu)
-  -fix        apply fixes in place
   -checks=... override the .clang-tidy check list for this run
 
 Examples:
   ./scripts/clang-tidy.sh                    # full src/ tree
+  ./scripts/clang-tidy.sh <path-to-file.cpp> # single file
   ./scripts/clang-tidy.sh -j 4               # override parallelism
   ./scripts/clang-tidy.sh --github-actions   # force CI annotation mode
   ./scripts/clang-tidy.sh --fail-on-warning  # exit non-zero on any finding
-  ./scripts/clang-tidy.sh -fix               # forwarded to run-clang-tidy
+  ./scripts/clang-tidy.sh --fix              # apply fixes in place
 
 Pre-requisites:
   CMake must have generated build-release/compile_commands.json AND the
@@ -113,7 +123,7 @@ BUILD_DIR="build-release"
 # Positive match for top-level src/*.{c,cpp,cc,cxx}; negative lookahead excludes
 # dep paths (_deps/, build-*/, -src/src/) and every other top-level dir. Python
 # regex (PCRE-ish) supports lookahead; this regex is evaluated by run-clang-tidy.
-FILE_REGEX='^(?!.*/(_deps|build-[^/]*|bridge|examples|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$'
+FILE_REGEX='^(?!.*/(_deps|build-[^/]*|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$'
 
 CI_MODE=0
 # Automatically detect CI mode if in GitHub actions environment
@@ -127,12 +137,20 @@ fi
 FAIL_ON_WARNING=0
 
 forward_args=()
+explicit_files=()
 while (($#)); do
   case "$1" in
     -h|--help|-\?)
       usage
       __tidy_hint_active=0
       exit 0
+      ;;
+    --fix)
+      # Unify with clang-format.sh's --fix spelling. run-clang-tidy only
+      # understands the single-dash -fix, so normalize every accepted form
+      # to that when forwarding.
+      forward_args+=("-fix")
+      shift
       ;;
     --github-actions|--gh)
       CI_MODE=1
@@ -158,7 +176,16 @@ while (($#)); do
       exit 2
       ;;
     *)
-      forward_args+=("$1")
+      # A positional arg naming an existing file is an explicit target to
+      # analyze; anything else (e.g. the value after -j, a -checks=... flag)
+      # is forwarded verbatim to run-clang-tidy. When explicit files are
+      # given they replace the default src/ FILE_REGEX below so the run is
+      # scoped to exactly those files.
+      if [[ -f "$1" ]]; then
+        explicit_files+=("$1")
+      else
+        forward_args+=("$1")
+      fi
       shift
       ;;
   esac
@@ -206,7 +233,9 @@ fi
 # SDK and we forward it to every clang-tidy invocation via --extra-arg. Linux
 # CI doesn't need this -- the system clang-tidy already finds libstdc++/libc++
 # through its built-in resource dir.
-extra_args=()
+# Match the Clang build's variadic macro diagnostic suppression when clang-tidy
+# is driven from GCC compile commands in Linux CI.
+extra_args=(-extra-arg=-Wno-gnu-zero-variadic-macro-arguments)
 if [[ "$(uname)" == "Darwin" ]]; then
   sdk_path="$(xcrun --show-sdk-path 2>/dev/null || true)"
   if [[ -n "${sdk_path}" ]]; then
@@ -345,17 +374,21 @@ write_step_summary() {
   }
 
   {
-    echo "## Analysis results"
+    echo "## clang-tidy results"
     echo
-    echo "| Severity | Count |"
-    echo "|----------|-------|"
-    # Same GFM shortcodes used in the detailed findings table below, so the
-    # count summary and per-finding severity column read consistently.
-    echo "| :x: Error | ${errors} |"
-    echo "| :warning: Warning | ${warnings} |"
-    echo
+    if (( total == 0 )); then
+      # Mirror clang-format.sh's clean-run summary exactly so both CI jobs
+      # surface the same green check line.
+      echo ":white_check_mark: All files passed the configured checks."
+    else
+      echo "| Severity | Count |"
+      echo "|----------|-------|"
+      # Same GFM shortcodes used in the detailed findings table below, so the
+      # count summary and per-finding severity column read consistently.
+      echo "| :x: Error | ${errors} |"
+      echo "| :warning: Warning | ${warnings} |"
+      echo
 
-    if (( total > 0 )); then
       echo "### Top checks"
       echo
       echo '| Check | Count |'
@@ -476,6 +509,16 @@ log="clang-tidy.log"
 # so suppress the "see --help" hint installed via the EXIT trap above.
 __tidy_hint_active=0
 
+# Scope the run to the user's explicit files when any were passed; otherwise
+# fall back to the default src/ tree regex. run-clang-tidy treats each
+# positional argument as a regex matched against compile_commands.json paths,
+# so a plain path like src/room.cpp narrows the run to that translation unit.
+if (( ${#explicit_files[@]} > 0 )); then
+  tidy_targets=("${explicit_files[@]}")
+else
+  tidy_targets=("${FILE_REGEX}")
+fi
+
 set +e
 # run-clang-tidy is a Python script that doesn't flush stdout in its per-file
 # loop; it only flushes once at exit. When its stdout is a pipe (the `| tee`
@@ -494,7 +537,7 @@ PYTHONUNBUFFERED=1 run-clang-tidy \
   -j "${jobs}" \
   ${extra_args[@]+"${extra_args[@]}"} \
   ${forward_args[@]+"${forward_args[@]}"} \
-  "${FILE_REGEX}" \
+  "${tidy_targets[@]}" \
   2>&1 | tee "${log}"
 rc="${PIPESTATUS[0]}"
 set -e

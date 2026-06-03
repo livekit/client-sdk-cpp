@@ -1,0 +1,265 @@
+/*
+ * Copyright 2026 LiveKit
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/// @file test_result.cpp
+/// @brief Unit tests for the Result<T, E> and Result<void, E> types.
+///
+/// Covers the invariants documented in result.h:
+///   - ok() / hasError() / bool conversion correctness
+///   - value() and error() accessor semantics for lvalue, rvalue, and const
+///     overloads
+///   - Move construction and forwarding behaviour
+///   - void specialization
+
+#include <gtest/gtest.h>
+#include <livekit/result.h>
+
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <utility>
+
+namespace livekit {
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+struct SimpleError {
+  int code{0};
+  std::string message;
+};
+
+// ---------------------------------------------------------------------------
+// Result<T, E> — success path
+// ---------------------------------------------------------------------------
+
+TEST(ResultTest, Int_SuccessOkIsTrue) {
+  auto r = Result<int, SimpleError>::success(42);
+  EXPECT_TRUE(r.ok());
+}
+
+TEST(ResultTest, Int_SuccessHasErrorIsFalse) {
+  auto r = Result<int, SimpleError>::success(42);
+  EXPECT_FALSE(r.hasError());
+}
+
+TEST(ResultTest, Int_SuccessBoolConversionIsTrue) {
+  auto r = Result<int, SimpleError>::success(42);
+  EXPECT_TRUE(r);
+}
+
+TEST(ResultTest, Int_SuccessValueMatchesInput) {
+  auto r = Result<int, SimpleError>::success(99);
+  EXPECT_EQ(r.value(), 99);
+}
+
+TEST(ResultTest, Int_SuccessConstValueMatchesInput) {
+  const auto r = Result<int, SimpleError>::success(7);
+  EXPECT_EQ(r.value(), 7);
+}
+
+TEST(ResultTest, Int_SuccessValueCanBeMutated) {
+  auto r = Result<int, SimpleError>::success(1);
+  r.value() = 100;
+  EXPECT_EQ(r.value(), 100);
+}
+
+TEST(ResultTest, Int_SuccessStringValue) {
+  auto r = Result<std::string, SimpleError>::success("hello");
+  EXPECT_EQ(r.value(), "hello");
+}
+
+TEST(ResultTest, Int_SuccessMoveValueTransfersOwnership) {
+  auto r = Result<std::unique_ptr<int>, SimpleError>::success(std::make_unique<int>(55));
+  auto ptr = std::move(r).value();
+  ASSERT_NE(ptr, nullptr);
+  EXPECT_EQ(*ptr, 55);
+}
+
+// ---------------------------------------------------------------------------
+// Result<T, E> — failure path
+// ---------------------------------------------------------------------------
+
+TEST(ResultTest, Int_FailureOkIsFalse) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_FALSE(r.ok());
+}
+
+TEST(ResultTest, Int_FailureHasErrorIsTrue) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_TRUE(r.hasError());
+}
+
+TEST(ResultTest, Int_FailureBoolConversionIsFalse) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_FALSE(r);
+}
+
+TEST(ResultTest, Int_FailureErrorCodeMatchesInput) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{42, "bad"});
+  EXPECT_EQ(r.error().code, 42);
+  EXPECT_EQ(r.error().message, "bad");
+}
+
+TEST(ResultTest, Int_FailureConstErrorMatchesInput) {
+  const auto r = Result<int, SimpleError>::failure(SimpleError{3, "err"});
+  EXPECT_EQ(r.error().code, 3);
+}
+
+TEST(ResultTest, Int_FailureMoveErrorTransfersOwnership) {
+  auto r = Result<int, std::unique_ptr<SimpleError>>::failure(std::make_unique<SimpleError>(SimpleError{9, "moved"}));
+  auto err = std::move(r).error();
+  ASSERT_NE(err, nullptr);
+  EXPECT_EQ(err->code, 9);
+}
+
+TEST(ResultTest, Int_FailureStringError) {
+  auto r = Result<int, std::string>::failure("something went wrong");
+  EXPECT_EQ(r.error(), "something went wrong");
+}
+
+// ---------------------------------------------------------------------------
+// Result<T, E> — precondition violations throw std::logic_error
+// ---------------------------------------------------------------------------
+
+TEST(ResultTest, ValueOnFailureThrowsLogicError) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(r.value(), std::logic_error);
+}
+
+TEST(ResultTest, ConstValueOnFailureThrowsLogicError) {
+  const auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(r.value(), std::logic_error);
+}
+
+TEST(ResultTest, MoveValueOnFailureThrowsLogicError) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(std::move(r).value(), std::logic_error);
+}
+
+TEST(ResultTest, ErrorOnSuccessThrowsLogicError) {
+  auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(r.error(), std::logic_error);
+}
+
+TEST(ResultTest, ConstErrorOnSuccessThrowsLogicError) {
+  const auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(r.error(), std::logic_error);
+}
+
+TEST(ResultTest, MoveErrorOnSuccessThrowsLogicError) {
+  auto r = Result<int, SimpleError>::success(42);
+  EXPECT_THROW(std::move(r).error(), std::logic_error);
+}
+
+// ---------------------------------------------------------------------------
+// Result<void, E> — success path
+// ---------------------------------------------------------------------------
+
+TEST(ResultTest, Void_SuccessOkIsTrue) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_TRUE(r.ok());
+}
+
+TEST(ResultTest, Void_SuccessHasErrorIsFalse) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_FALSE(r.hasError());
+}
+
+TEST(ResultTest, Void_SuccessBoolConversionIsTrue) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_TRUE(r);
+}
+
+TEST(ResultTest, Void_SuccessValueIsCallable) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_NO_THROW(r.value());
+}
+
+// ---------------------------------------------------------------------------
+// Result<void, E> — failure path
+// ---------------------------------------------------------------------------
+
+TEST(ResultTest, Void_FailureOkIsFalse) {
+  auto r = Result<void, SimpleError>::failure(SimpleError{5, "void fail"});
+  EXPECT_FALSE(r.ok());
+}
+
+TEST(ResultTest, Void_FailureHasErrorIsTrue) {
+  auto r = Result<void, SimpleError>::failure(SimpleError{5, "void fail"});
+  EXPECT_TRUE(r.hasError());
+}
+
+TEST(ResultTest, Void_FailureBoolConversionIsFalse) {
+  auto r = Result<void, SimpleError>::failure(SimpleError{5, "void fail"});
+  EXPECT_FALSE(r);
+}
+
+TEST(ResultTest, Void_FailureErrorMatchesInput) {
+  auto r = Result<void, SimpleError>::failure(SimpleError{7, "nope"});
+  EXPECT_EQ(r.error().code, 7);
+  EXPECT_EQ(r.error().message, "nope");
+}
+
+TEST(ResultTest, Void_FailureMoveError) {
+  auto r = Result<void, std::string>::failure("void error");
+  auto msg = std::move(r).error();
+  EXPECT_EQ(msg, "void error");
+}
+
+// ---------------------------------------------------------------------------
+// Result<void, E> — precondition violations throw std::logic_error
+// ---------------------------------------------------------------------------
+
+TEST(ResultVoidTest, ValueOnFailureThrowsLogicError) {
+  auto r = Result<void, SimpleError>::failure(SimpleError{1, "oops"});
+  EXPECT_THROW(r.value(), std::logic_error);
+}
+
+TEST(ResultVoidTest, ErrorOnSuccessThrowsLogicError) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_THROW(r.error(), std::logic_error);
+}
+
+TEST(ResultVoidTest, MoveErrorOnSuccessThrowsLogicError) {
+  auto r = Result<void, SimpleError>::success();
+  EXPECT_THROW(std::move(r).error(), std::logic_error);
+}
+
+// ---------------------------------------------------------------------------
+// if-result idiom
+// ---------------------------------------------------------------------------
+
+TEST(ResultTest, IfResultIdiomSuccessEntersBranch) {
+  auto r = Result<int, SimpleError>::success(1);
+  bool entered = false;
+  if (r) {
+    entered = true;
+  }
+  EXPECT_TRUE(entered);
+}
+
+TEST(ResultTest, IfResultIdiomFailureSkipsBranch) {
+  auto r = Result<int, SimpleError>::failure(SimpleError{});
+  bool entered = false;
+  if (r) {
+    entered = true;
+  }
+  EXPECT_FALSE(entered);
+}
+
+} // namespace livekit

@@ -6,12 +6,12 @@ on:
     paths:
       - src/**
       - include/**
-      - bridge/**
       - client-sdk-rust/**
       - CMakeLists.txt
       - build.sh
       - build.cmd
       - build.h.in
+      - .build-info.json.in
       - CMakePresets.json
       - cmake/**
       - data/**
@@ -89,7 +89,7 @@ jobs:
             fi
 
             case "${path}" in
-              docker/Dockerfile.sdk|src/*|include/*|bridge/*|client-sdk-rust/*|cmake/*|data/*|CMakeLists.txt|build.sh|build.cmd|build.h.in|CMakePresets.json)
+              docker/Dockerfile.sdk|src/*|include/*|client-sdk-rust/*|cmake/*|data/*|CMakeLists.txt|build.sh|build.cmd|build.h.in|.build-info.json.in|CMakePresets.json)
                 sdk_changed=true
                 ;;
             esac

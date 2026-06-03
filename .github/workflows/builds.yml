@@ -7,13 +7,13 @@ on:
       - src/**
       - include/**
       - cpp-example-collection/**
-      - bridge/**
       - client-sdk-rust/**
       - cmake/**
       - scripts/**
       - CMakeLists.txt
       - build.sh
       - build.cmd
+      - .build-info.json.in
       - vcpkg.json
       - CMakePresets.json
       - docker/Dockerfile.base
@@ -27,13 +27,13 @@ on:
       - src/**
       - include/**
       - cpp-example-collection/**
-      - bridge/**
       - client-sdk-rust/**
       - cmake/**
       - scripts/**
       - CMakeLists.txt
       - build.sh
       - build.cmd
+      - .build-info.json.in
       - vcpkg.json
       - CMakePresets.json
       - docker/Dockerfile.base
@@ -50,8 +50,13 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # sccache caches rustc invocations across runs. RUSTC_WRAPPER is exported
+  # only after the setup step verifies the GHA cache backend is reachable, so
+  # transient cache backend failures fall back to uncached rustc instead of
+  # failing the build.
+  SCCACHE_GHA_ENABLED: "true"
   # Pinned commit for cpp-example-collection smoke build (https://github.com/livekit-examples/cpp-example-collection)
-  CPP_EXAMPLE_COLLECTION_REF: f231c0c75028d1dcf13edcecd369d030d2c7c8d4
+  CPP_EXAMPLE_COLLECTION_REF: bbf0fdf72dac2239117213475449565686f8c58b
   # vcpkg binary caching for Windows
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
@@ -156,11 +161,39 @@ jobs:
         if: matrix.name == 'macos-x64'
         run: rustup target add x86_64-apple-darwin
 
+      # ---------- Setup sccache ----------
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9 # v0.0.7
+
+      - name: Enable sccache wrapping (probe first)
+        shell: bash
+        run: |
+          if sccache --start-server >/dev/null 2>&1; then
+            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+            echo "::notice::sccache enabled (RUSTC_WRAPPER=sccache)"
+          else
+            echo "::warning::sccache backend unreachable; building without compile cache this run"
+          fi
+
       # ---------- Cache Cargo ----------
-      - name: Cache Cargo
-        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: Cache cargo registry
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          workspaces: client-sdk-rust -> target
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-registry-${{ hashFiles('client-sdk-rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.name }}-cargo-registry-
+
+      - name: Cache cargo target
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: client-sdk-rust/target/
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('client-sdk-rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.name }}-cargo-target-
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment

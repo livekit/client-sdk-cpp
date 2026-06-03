@@ -18,14 +18,11 @@
 
 #include <functional>
 
-#include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit/audio_stream.h"
 #include "livekit/e2ee.h"
-#include "livekit/local_data_track.h"
 #include "livekit/local_participant.h"
-#include "livekit/local_track_publication.h"
 #include "livekit/remote_audio_track.h"
 #include "livekit/remote_data_track.h"
 #include "livekit/remote_participant.h"
@@ -65,36 +62,28 @@ std::shared_ptr<livekit::RemoteParticipant> createRemoteParticipant(const proto:
                                                       pinfo.metadata(), std::move(attrs), kind, reason);
 }
 
+void readyForRoomEvent(std::uint64_t room_handle) {
+  FfiRequest req;
+  req.mutable_ready_for_room_event()->set_room_handle(room_handle);
+
+  const auto resp = FfiClient::instance().sendRequest(req);
+  if (!resp.has_ready_for_room_event()) {
+    throw std::runtime_error("FfiResponse missing ready_for_room_event");
+  }
+}
+
 } // namespace
 Room::Room() : subscription_thread_dispatcher_(std::make_unique<SubscriptionThreadDispatcher>()) {}
 
 Room::~Room() {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->stopAll();
+  // disconnect() handles all destruction/graceful teardown functionality, simply call it here
+  try {
+    (void)disconnect(); // Don't need return value
+  } catch (const std::exception& e) {
+    LK_LOG_ERROR("Room::~Room: graceful disconnect failed: {}", e.what());
+  } catch (...) {
+    LK_LOG_ERROR("Room::~Room: graceful disconnect failed: unknown exception");
   }
-
-  int listener_to_remove = 0;
-  std::unique_ptr<LocalParticipant> local_participant_to_cleanup;
-  {
-    const std::scoped_lock<std::mutex> g(lock_);
-    listener_to_remove = listener_id_;
-    listener_id_ = 0;
-    // Move local participant out for cleanup outside the lock
-    local_participant_to_cleanup = std::move(local_participant_);
-  }
-
-  // Shutdown local participant (unregisters RPC handlers, etc.) before
-  // removing the listener. This prevents in-flight RPC responses from
-  // trying to use destroyed handles.
-  if (local_participant_to_cleanup) {
-    local_participant_to_cleanup->shutdown();
-  }
-
-  if (listener_to_remove != 0) {
-    FfiClient::instance().RemoveListener(listener_to_remove);
-  }
-
-  // local_participant_to_cleanup is destroyed here after listener is removed
 }
 
 void Room::setDelegate(RoomDelegate* delegate) {
@@ -102,8 +91,13 @@ void Room::setDelegate(RoomDelegate* delegate) {
   delegate_ = delegate;
 }
 
-bool Room::Connect(const std::string& url, const std::string& token, const RoomOptions& options) {
-  TRACE_EVENT0("livekit", "Room::Connect");
+bool Room::connect(const std::string& url, const std::string& token, const RoomOptions& options) {
+  TRACE_EVENT0("livekit", "Room::connect");
+
+  if (!FfiClient::instance().isInitialized()) {
+    LK_LOG_ERROR("Room::connect failed: LiveKit is not initialized");
+    return false;
+  }
 
   {
     const std::scoped_lock<std::mutex> g(lock_);
@@ -112,16 +106,25 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
     }
     connection_state_ = ConnectionState::Reconnecting;
   }
-  auto fut = FfiClient::instance().connectAsync(url, token, options);
+
+  FfiClient::ListenerId listenerId = 0;
   try {
+    listenerId = FfiClient::instance().addListener([this](const proto::FfiEvent& e) { onEvent(e); });
+    {
+      const std::scoped_lock<std::mutex> g(lock_);
+      listener_id_ = listenerId;
+    }
+
+    auto fut = FfiClient::instance().connectAsync(url, token, options);
     auto connectCb = fut.get(); // fut will throw if it fails to connect to the room
 
     const auto& owned_room = connectCb.result().room();
     auto new_room_handle = std::make_shared<FfiHandle>(owned_room.handle().id());
+    const auto room_handle_id = static_cast<std::uint64_t>(new_room_handle->get());
     auto new_room_info = fromProto(owned_room.info());
 
     // Setup local particpant
-    std::unique_ptr<LocalParticipant> new_local_participant;
+    std::shared_ptr<LocalParticipant> new_local_participant;
     {
       const auto& owned_local = connectCb.result().local_participant();
       const auto& pinfo = owned_local.info();
@@ -138,9 +141,10 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
       // Participant base stores a weak_ptr<FfiHandle>, so share the room handle
       FfiHandle participant_handle(static_cast<uintptr_t>(owned_local.handle().id()));
       new_local_participant =
-          std::make_unique<LocalParticipant>(std::move(participant_handle), pinfo.sid(), pinfo.name(), pinfo.identity(),
+          std::make_shared<LocalParticipant>(std::move(participant_handle), pinfo.sid(), pinfo.name(), pinfo.identity(),
                                              pinfo.metadata(), std::move(attrs), kind, reason);
     }
+
     // Setup remote participants
     std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> new_remote_participants;
     {
@@ -160,11 +164,11 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
     }
 
     // Setup e2eeManager
-    std::unique_ptr<E2EEManager> new_e2ee_manager;
+    std::shared_ptr<E2EEManager> new_e2ee_manager;
     if (options.encryption) {
       LK_LOG_INFO("creating E2eeManager");
       new_e2ee_manager =
-          std::unique_ptr<E2EEManager>(new E2EEManager(new_room_handle->get(), options.encryption.value()));
+          std::shared_ptr<E2EEManager>(new E2EEManager(new_room_handle->get(), options.encryption.value()));
     }
 
     // Publish all state atomically under lock
@@ -178,41 +182,137 @@ bool Room::Connect(const std::string& url, const std::string& token, const RoomO
       connection_state_ = ConnectionState::Connected;
     }
 
-    // Install listener (Room is fully initialized)
-    auto listenerId = FfiClient::instance().AddListener([this](const proto::FfiEvent& e) { OnEvent(e); });
-    {
-      const std::scoped_lock<std::mutex> g(lock_);
-      listener_id_ = listenerId;
-    }
-
+    readyForRoomEvent(room_handle_id);
     return true;
   } catch (const std::exception& e) {
-    // On error, set the connection_state_ to Disconnected
-    connection_state_ = ConnectionState::Disconnected;
-    LK_LOG_ERROR("Room::Connect failed: {}", e.what());
+    int listener_to_remove = 0;
+    std::shared_ptr<LocalParticipant> local_participant_to_cleanup;
+    {
+      const std::scoped_lock<std::mutex> g(lock_);
+      connection_state_ = ConnectionState::Disconnected;
+      if (listener_id_ == listenerId) {
+        listener_to_remove = listener_id_;
+        listener_id_ = 0;
+      }
+      local_participant_to_cleanup = std::move(local_participant_);
+      remote_participants_.clear();
+      room_handle_.reset();
+      e2ee_manager_.reset();
+      text_stream_readers_.clear();
+      byte_stream_readers_.clear();
+    }
+    if (local_participant_to_cleanup) {
+      local_participant_to_cleanup->shutdown();
+    }
+    if (listener_to_remove != 0) {
+      FfiClient::instance().removeListener(listener_to_remove);
+    }
+    LK_LOG_ERROR("Room::connect failed: {}", e.what());
     return false;
   }
 }
 
-RoomInfoData Room::room_info() const {
+bool Room::disconnect(DisconnectReason reason) {
+  TRACE_EVENT0("livekit", "Room::disconnect");
+
+  std::shared_ptr<FfiHandle> handle;
+  RoomDelegate* delegate_snapshot = nullptr;
+  std::shared_ptr<LocalParticipant> local_participant_to_cleanup;
+  std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> remote_participants_to_clear;
+  std::shared_ptr<E2EEManager> e2ee_manager_to_clear;
+  std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> text_stream_readers_to_clear;
+  std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> byte_stream_readers_to_clear;
+  int listener_to_remove = 0;
+
+  {
+    const std::scoped_lock<std::mutex> g(lock_);
+    if (connection_state_ == ConnectionState::Disconnected) {
+      // Already torn down (or never connected). Nothing to do.
+      return false;
+    }
+    handle = room_handle_;
+    delegate_snapshot = delegate_;
+    // Take ownership of everything under the lock so the kEos handler (which
+    // also tries to move it out) loses any race here — only one teardown
+    // path operates on this state.
+    local_participant_to_cleanup = std::move(local_participant_);
+    remote_participants_to_clear = std::move(remote_participants_);
+    e2ee_manager_to_clear = std::move(e2ee_manager_);
+    text_stream_readers_to_clear = std::move(text_stream_readers_);
+    byte_stream_readers_to_clear = std::move(byte_stream_readers_);
+    listener_to_remove = listener_id_;
+    listener_id_ = 0;
+    room_handle_.reset();
+    // Flip state immediately so the in-flight Disconnected room-event we'll
+    // get back doesn't double-fire onDisconnected. Mirrors Python's
+    // Room.disconnect()
+    connection_state_ = ConnectionState::Disconnected;
+  }
+
+  // Drain in-flight RPC handlers BEFORE telling Rust to tear down the room.
+  // Mirrors client-sdk-python's Room.disconnect() ordering
+  if (local_participant_to_cleanup) {
+    local_participant_to_cleanup->shutdown();
+  }
+
+  // Tell the FFI to close the room and wait for the callback. If this fails
+  // we still complete local-side teardown below
+  bool ffi_ok = true;
+  if (handle) {
+    try {
+      FfiClient::instance().disconnectAsync(handle->get(), reason).get();
+    } catch (const std::exception& e) {
+      LK_LOG_ERROR("Room::disconnect: FFI disconnect failed (continuing local teardown): {}", e.what());
+      ffi_ok = false;
+    }
+  }
+
+  // Stop dispatcher so no track callbacks fire mid-teardown.
+  if (subscription_thread_dispatcher_) {
+    subscription_thread_dispatcher_->stopAll();
+  }
+
+  if (listener_to_remove != 0) {
+    FfiClient::instance().removeListener(listener_to_remove);
+  }
+
+  // Fire onDisconnected exactly once, with the reason the caller passed.
+  if (delegate_snapshot) {
+    DisconnectedEvent ev;
+    ev.reason = reason;
+    try {
+      delegate_snapshot->onDisconnected(*this, ev);
+    } catch (const std::exception& e) {
+      LK_LOG_ERROR("Room::disconnect: onDisconnected threw: {}", e.what());
+    } catch (...) {
+      LK_LOG_ERROR("Room::disconnect: onDisconnected threw: unknown exception");
+    }
+  }
+
+  // Moved-out state (local participant, remote participants, e2ee manager,
+  // stream readers) destructs here, releasing FFI handles.
+  return ffi_ok;
+}
+
+RoomInfoData Room::roomInfo() const {
   const std::scoped_lock<std::mutex> g(lock_);
   return room_info_;
 }
 
-LocalParticipant* Room::localParticipant() const {
+std::weak_ptr<LocalParticipant> Room::localParticipant() const {
   const std::scoped_lock<std::mutex> g(lock_);
-  return local_participant_.get();
+  return local_participant_;
 }
 
-RemoteParticipant* Room::remoteParticipant(const std::string& identity) const {
+std::weak_ptr<RemoteParticipant> Room::remoteParticipant(const std::string& identity) const {
   const std::scoped_lock<std::mutex> g(lock_);
   auto it = remote_participants_.find(identity);
-  return it == remote_participants_.end() ? nullptr : it->second.get();
+  return it == remote_participants_.end() ? std::weak_ptr<RemoteParticipant>{} : it->second;
 }
 
-std::vector<std::shared_ptr<RemoteParticipant>> Room::remoteParticipants() const {
+std::vector<std::weak_ptr<RemoteParticipant>> Room::remoteParticipants() const {
   const std::scoped_lock<std::mutex> guard(lock_);
-  std::vector<std::shared_ptr<RemoteParticipant>> out;
+  std::vector<std::weak_ptr<RemoteParticipant>> out;
   out.reserve(remote_participants_.size());
   for (const auto& kv : remote_participants_) {
     out.push_back(kv.second);
@@ -220,9 +320,26 @@ std::vector<std::shared_ptr<RemoteParticipant>> Room::remoteParticipants() const
   return out;
 }
 
-E2EEManager* Room::e2eeManager() const {
+ConnectionState Room::connectionState() const {
   const std::scoped_lock<std::mutex> g(lock_);
-  return e2ee_manager_.get();
+  return connection_state_;
+}
+
+std::future<SessionStats> Room::getStats() const {
+  std::shared_ptr<FfiHandle> handle;
+  {
+    const std::scoped_lock<std::mutex> g(lock_);
+    handle = room_handle_;
+  }
+  if (!handle) {
+    throw std::runtime_error("Room::getStats called on a disconnected room");
+  }
+  return FfiClient::instance().getSessionStatsAsync(handle->get());
+}
+
+std::weak_ptr<E2EEManager> Room::e2eeManager() const {
+  const std::scoped_lock<std::mutex> g(lock_);
+  return e2ee_manager_;
 }
 
 void Room::registerTextStreamHandler(const std::string& topic, TextStreamHandler handler) {
@@ -255,25 +372,11 @@ void Room::unregisterByteStreamHandler(const std::string& topic) {
 // Frame callback registration
 // -------------------------------------------------------------------
 
-void Room::setOnAudioFrameCallback(const std::string& participant_identity, TrackSource source,
-                                   AudioFrameCallback callback, const AudioStream::Options& opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnAudioFrameCallback(participant_identity, source, std::move(callback), opts);
-  }
-}
-
 void Room::setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                    AudioFrameCallback callback, const AudioStream::Options& opts) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->setOnAudioFrameCallback(participant_identity, track_name, std::move(callback),
                                                              opts);
-  }
-}
-
-void Room::setOnVideoFrameCallback(const std::string& participant_identity, TrackSource source,
-                                   VideoFrameCallback callback, const VideoStream::Options& opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnVideoFrameCallback(participant_identity, source, std::move(callback), opts);
   }
 }
 
@@ -293,21 +396,9 @@ void Room::setOnVideoFrameEventCallback(const std::string& participant_identity,
   }
 }
 
-void Room::clearOnAudioFrameCallback(const std::string& participant_identity, TrackSource source) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->clearOnAudioFrameCallback(participant_identity, source);
-  }
-}
-
 void Room::clearOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name) {
   if (subscription_thread_dispatcher_) {
     subscription_thread_dispatcher_->clearOnAudioFrameCallback(participant_identity, track_name);
-  }
-}
-
-void Room::clearOnVideoFrameCallback(const std::string& participant_identity, TrackSource source) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->clearOnVideoFrameCallback(participant_identity, source);
   }
 }
 
@@ -332,7 +423,7 @@ void Room::removeOnDataFrameCallback(DataFrameCallbackId id) {
   }
 }
 
-void Room::OnEvent(const FfiEvent& event) {
+void Room::onEvent(const FfiEvent& event) {
   // Take a snapshot of the delegate under lock, but do NOT call it under the
   // lock.
   RoomDelegate* delegate_snapshot = nullptr;
@@ -609,8 +700,7 @@ void Room::OnEvent(const FfiEvent& event) {
           }
 
           if (subscription_thread_dispatcher_ && remote_track && rpublication) {
-            subscription_thread_dispatcher_->handleTrackSubscribed(identity, rpublication->source(),
-                                                                   rpublication->name(), remote_track);
+            subscription_thread_dispatcher_->handleTrackSubscribed(identity, rpublication->name(), remote_track);
           }
           break;
         }
@@ -863,7 +953,7 @@ void Room::OnEvent(const FfiEvent& event) {
               break;
             }
             const std::string old_metadata = participant->metadata();
-            participant->set_metadata(pm.metadata());
+            participant->metadata_ = pm.metadata();
             ev.participant = participant;
             ev.old_metadata = old_metadata;
             ev.new_metadata = participant->metadata();
@@ -894,7 +984,7 @@ void Room::OnEvent(const FfiEvent& event) {
               break;
             }
             const std::string old_name = participant->name();
-            participant->set_name(pn.name());
+            participant->name_ = pn.name();
             ev.participant = participant;
             ev.old_name = old_name;
             ev.new_name = participant->name();
@@ -928,7 +1018,7 @@ void Room::OnEvent(const FfiEvent& event) {
             for (const auto& entry : pa.attributes()) {
               attrs.emplace(entry.key(), entry.value());
             }
-            participant->set_attributes(attrs);
+            participant->attributes_ = std::move(attrs);
 
             // Build changed_attributes map
             for (const auto& entry : pa.changed_attributes()) {
@@ -1080,6 +1170,17 @@ void Room::OnEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kDisconnected: {
+          // If disconnect() was driven from our side, it already flipped state
+          // to Disconnected and fired the delegate; skip the duplicate here.
+          bool already_disconnected = false;
+          {
+            const std::scoped_lock<std::mutex> guard(lock_);
+            already_disconnected = (connection_state_ == ConnectionState::Disconnected);
+            connection_state_ = ConnectionState::Disconnected;
+          }
+          if (already_disconnected) {
+            break;
+          }
           DisconnectedEvent ev;
           ev.reason = toDisconnectReason(re.disconnected().reason());
           if (delegate_snapshot) {
@@ -1110,10 +1211,10 @@ void Room::OnEvent(const FfiEvent& event) {
 
           // Move state out of lock scope before destroying to avoid holding lock
           // during potentially long destructors
-          std::unique_ptr<LocalParticipant> old_local_participant;
+          std::shared_ptr<LocalParticipant> old_local_participant;
           std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> old_remote_participants;
           std::shared_ptr<FfiHandle> old_room_handle;
-          std::unique_ptr<E2EEManager> old_e2ee_manager;
+          std::shared_ptr<E2EEManager> old_e2ee_manager;
           std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> old_text_readers;
           std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> old_byte_readers;
 
@@ -1134,12 +1235,24 @@ void Room::OnEvent(const FfiEvent& event) {
             old_byte_readers = std::move(byte_stream_readers_);
           }
 
-          // Remove listener outside lock
-          if (listener_to_remove != 0) {
-            FfiClient::instance().RemoveListener(listener_to_remove);
+          // Drain in-flight RPC invocations before destroying the local
+          // participant's FFI handle. Mirrors the ordering in disconnect();
+          // without this, a listener-thread RPC handler can race with handle
+          // disposal and send to a dead handle → INVALID_HANDLE → terminate.
+          if (old_local_participant) {
+            old_local_participant->shutdown();
           }
 
-          // Old state will be destroyed here when going out of scope
+          // Remove listener outside lock
+          if (listener_to_remove != 0) {
+            FfiClient::instance().removeListener(listener_to_remove);
+          }
+
+          if (old_local_participant) {
+            old_local_participant->shutdown();
+          }
+
+          // old_* state is destroyed here when going out of scope
 
           const RoomEosEvent ev;
           if (delegate_snapshot) {
@@ -1319,17 +1432,17 @@ void Room::OnEvent(const FfiEvent& event) {
                 continue;
               }
 
-              participant->set_name(info.name());
-              participant->set_metadata(info.metadata());
+              participant->name_ = info.name();
+              participant->metadata_ = info.metadata();
 
               std::unordered_map<std::string, std::string> attrs;
               attrs.reserve(info.attributes_size());
               for (const auto& kv : info.attributes()) {
                 attrs.emplace(kv.first, kv.second);
               }
-              participant->set_attributes(std::move(attrs));
-              participant->set_kind(fromProto(info.kind()));
-              participant->set_disconnect_reason(toDisconnectReason(info.disconnect_reason()));
+              participant->attributes_ = std::move(attrs);
+              participant->kind_ = fromProto(info.kind());
+              participant->reason_ = toDisconnectReason(info.disconnect_reason());
 
               ev.participants.push_back(participant);
             }

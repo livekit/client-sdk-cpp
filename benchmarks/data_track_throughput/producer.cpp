@@ -200,13 +200,15 @@ std::string waitForConsumerIdentity(Room& room, const std::string& requested_ide
   const auto deadline = std::chrono::steady_clock::now() + timeout;
   while (g_running.load() && std::chrono::steady_clock::now() < deadline) {
     if (!requested_identity.empty()) {
-      if (room.remoteParticipant(requested_identity) != nullptr) {
+      if (!room.remoteParticipant(requested_identity).expired()) {
         return requested_identity;
       }
     } else {
       const auto participants = room.remoteParticipants();
-      if (participants.size() == 1 && participants.front() != nullptr) {
-        return participants.front()->identity();
+      if (participants.size() == 1) {
+        if (auto participant = participants.front().lock()) {
+          return participant->identity();
+        }
       }
     }
 
@@ -303,7 +305,7 @@ int main(int argc, char* argv[]) {
   std::signal(SIGTERM, handleSignal);
 #endif
 
-  livekit::initialize(livekit::LogLevel::Info, livekit::LogSink::kConsole);
+  livekit::initialize(livekit::LogLevel::Info);
 
   try {
     Room room;
@@ -312,11 +314,11 @@ int main(int argc, char* argv[]) {
     room_options.dynacast = false;
 
     std::cout << "Connecting to " << options.url << std::endl;
-    if (!room.Connect(options.url, options.token, room_options)) {
+    if (!room.connect(options.url, options.token, room_options)) {
       throw std::runtime_error("Failed to connect to LiveKit room");
     }
 
-    auto* local_participant = room.localParticipant();
+    auto local_participant = room.localParticipant().lock();
     if (local_participant == nullptr) {
       throw std::runtime_error("Local participant unavailable after connect");
     }

@@ -408,8 +408,12 @@ void StopTracing() {
   // Disable tracing first to stop new events
   g_tracing_enabled.store(false, std::memory_order_release);
 
-  // Signal writer thread to shut down
-  g_shutdown_requested.store(true);
+  // Signal writer thread to shut down. The shutdown flag must be set while
+  // holding g_mutex so the writer thread cannot miss the notification
+  {
+    const std::scoped_lock<std::mutex> lock(g_mutex);
+    g_shutdown_requested.store(true);
+  }
   g_cv.notify_one();
 
   // Wait for writer thread to finish
