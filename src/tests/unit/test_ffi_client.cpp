@@ -177,6 +177,8 @@ TEST_F(FfiClientTest, NotInitialized_PublishTrackAsyncThrows) {
   EXPECT_THROW(FfiClient::instance().publishTrackAsync(1, 2, options), std::runtime_error);
 }
 
+// Test comment
+
 TEST_F(FfiClientTest, NotInitialized_UnpublishTrackAsyncThrows) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
 
