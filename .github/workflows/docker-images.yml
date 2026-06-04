@@ -139,6 +139,8 @@ jobs:
           set -euxo pipefail
           docker buildx build \
             --platform linux/amd64 \
+            --cache-from type=registry,ref="${{ needs.detect-changes.outputs.base_image }}:buildcache-base-amd64" \
+            --cache-to type=registry,ref="${{ needs.detect-changes.outputs.base_image }}:buildcache-base-amd64",mode=max \
             --push \
             -t "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-amd64" \
             -t "${{ needs.detect-changes.outputs.base_image }}:base-main-amd64" \
@@ -183,6 +185,8 @@ jobs:
           set -euxo pipefail
           docker buildx build \
             --platform linux/arm64 \
+            --cache-from type=registry,ref="${{ needs.detect-changes.outputs.base_image }}:buildcache-base-arm64" \
+            --cache-to type=registry,ref="${{ needs.detect-changes.outputs.base_image }}:buildcache-base-arm64",mode=max \
             --push \
             -t "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-arm64" \
             -t "${{ needs.detect-changes.outputs.base_image }}:base-main-arm64" \
@@ -268,6 +272,8 @@ jobs:
           docker buildx build \
             --platform linux/amd64 \
             --build-arg BASE_IMAGE="${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-amd64" \
+            --cache-from type=registry,ref="${{ needs.detect-changes.outputs.sdk_image }}:buildcache-sdk-amd64" \
+            --cache-to type=registry,ref="${{ needs.detect-changes.outputs.sdk_image }}:buildcache-sdk-amd64",mode=max \
             --push \
             -t "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}-amd64" \
             -t "${{ needs.detect-changes.outputs.sdk_image }}:main-amd64" \
@@ -322,6 +328,8 @@ jobs:
           docker buildx build \
             --platform linux/arm64 \
             --build-arg BASE_IMAGE="${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-arm64" \
+            --cache-from type=registry,ref="${{ needs.detect-changes.outputs.sdk_image }}:buildcache-sdk-arm64" \
+            --cache-to type=registry,ref="${{ needs.detect-changes.outputs.sdk_image }}:buildcache-sdk-arm64",mode=max \
             --push \
             -t "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}-arm64" \
             -t "${{ needs.detect-changes.outputs.sdk_image }}:main-arm64" \
