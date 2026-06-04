@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
   actions: read
-  packages: read
+  packages: write
 
 jobs:
   # Compute once which path groups changed; every other job references these
@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       builds: ${{ steps.filter.outputs.builds }}
+      docker: ${{ steps.filter.outputs.docker }}
       tests:  ${{ steps.filter.outputs.tests }}
       docs:   ${{ steps.filter.outputs.docs }}
       cpp_checks: ${{ steps.filter.outputs.cpp_checks }}
@@ -41,7 +42,6 @@ jobs:
               - cpp-example-collection/**
               - client-sdk-rust/**
               - cmake/**
-              - docker/**
               - CMakeLists.txt
               - CMakePresets.json
               - build*
@@ -49,6 +49,16 @@ jobs:
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
+            docker:
+              - docker/**
+              - .dockerignore
+              - CMakeLists.txt
+              - CMakePresets.json
+              - build*
+              - .build*
+              - cmake/**
+              - .github/workflows/ci.yml
+              - .github/workflows/docker-images.yml
             tests:
               - src/**
               - include/**
@@ -92,6 +102,13 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.builds == 'true' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/builds.yml
+    secrets: inherit
+
+  docker-images:
+    name: Docker Images
+    needs: changes
+    if: ${{ needs.changes.outputs.docker == 'true' || github.event_name == 'workflow_dispatch' }}
+    uses: ./.github/workflows/docker-images.yml
     secrets: inherit
 
   tests:
@@ -142,6 +159,7 @@ jobs:
     needs:
       - changes
       - builds
+      - docker-images
       - tests
       - license-check
       - cpp-checks
