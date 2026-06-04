@@ -15,8 +15,11 @@ on:
       - CMakePresets.json
       - cmake/**
       - data/**
+      - cpp-example-collection
       - docker/Dockerfile.base
       - docker/Dockerfile.sdk
+      - .github/workflows/docker-images.yml
+      - .github/workflows/docker-validate.yml
 
 permissions:
   contents: read
@@ -89,7 +92,7 @@ jobs:
             fi
 
             case "${path}" in
-              docker/Dockerfile.sdk|src/*|include/*|client-sdk-rust/*|cmake/*|data/*|CMakeLists.txt|build.sh|build.cmd|build.h.in|.build-info.json.in|CMakePresets.json)
+              docker/Dockerfile.sdk|src/*|include/*|client-sdk-rust/*|cmake/*|data/*|cpp-example-collection|CMakeLists.txt|build.sh|build.cmd|build.h.in|.build-info.json.in|CMakePresets.json|.github/workflows/docker-images.yml|.github/workflows/docker-validate.yml)
                 sdk_changed=true
                 ;;
             esac

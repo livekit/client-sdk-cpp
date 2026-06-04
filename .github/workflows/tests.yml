@@ -1,33 +1,9 @@
 name: Tests
 
+# Called by top-level ci.yml
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - src/**
-      - include/**
-      - client-sdk-rust/**
-      - CMakeLists.txt
-      - CMakePresets.json
-      - build.sh
-      - build.cmd
-      - vcpkg.json
-      - .token_helpers/**
-      - .github/workflows/tests.yml
-  pull_request:
-    branches: ["main"]
-    paths:
-      - src/**
-      - include/**
-      - client-sdk-rust/**
-      - CMakeLists.txt
-      - CMakePresets.json
-      - build.sh
-      - build.cmd
-      - vcpkg.json
-      - .token_helpers/**
-      - .github/workflows/tests.yml
-  workflow_dispatch:
+  workflow_call: {}
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -36,12 +12,17 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # sccache caches rustc invocations across runs. RUSTC_WRAPPER is exported
-  # only after the setup step verifies the GHA cache backend is reachable, so
-  # transient cache backend failures fall back to uncached rustc instead of
-  # failing the build.
-  SCCACHE_GHA_ENABLED: "true"
-  # vcpkg binary caching for Windows (mirrors builds.yml)
+  # Disable Cargo incremental artifacts. The Rust FFI is built once per
+  # submodule SHA and cached whole (see the cargo target cache below), so
+  # incremental dirs add nothing but bloat the cached target/ directory and
+  # slow the cache upload/download.
+  CARGO_INCREMENTAL: "0"
+  # vcpkg binary caching for Windows (mirrors builds.yml). The x-gha backend
+  # was removed from vcpkg, so use vcpkg's files provider and persist that
+  # directory with actions/cache.
+  VCPKG_GIT_COMMIT: fb87e2bb3fe69e16c224989acb5a61349166c782
+  VCPKG_BINARY_CACHE_DIR: ${{ github.workspace }}/.vcpkg-binary-cache
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-binary-cache,readwrite"
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
   VCPKG_TARGET_TRIPLET: x64-windows-static-md
@@ -86,20 +67,36 @@ jobs:
       - name: Pull LFS files
         run: git lfs pull
 
-      # ---------- vcpkg caching for Windows (mirrors builds.yml) ----------
-      - name: Export GitHub Actions cache environment variables
+      # Cargo's freshness check is mtime-based. A fresh `actions/checkout`
+      # stamps every submodule source file with the checkout time, which is
+      # newer than the cached target/ artifacts — so cargo rebuilds the whole
+      # client-sdk-rust workspace (~6 min) even on an exact cargo-target cache
+      # hit. Pin all submodule source files to a fixed, deterministic
+      # timestamp (older than any cached artifact) so cargo treats them as
+      # unchanged across runs and reuses the cached FFI build. Runs before the
+      # cargo target cache is restored, so target/ does not yet exist and is
+      # never touched. shell: bash so this also runs under Git Bash on Windows.
+      - name: Stabilize Rust source mtimes for cargo freshness
+        shell: bash
+        run: |
+          find client-sdk-rust -type f -not -path '*/.git/*' -exec touch -t 202001010000 {} +
+
+      # ---------- vcpkg for Windows (mirrors builds.yml) ----------
+      - name: Restore vcpkg binary cache
         if: runner.os == 'Windows'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        id: cache-vcpkg-binary
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          script: |
-            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
-            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+          path: ${{ env.VCPKG_BINARY_CACHE_DIR }}
+          key: ${{ runner.os }}-${{ matrix.name }}-vcpkg-binary-${{ env.VCPKG_TARGET_TRIPLET }}-${{ env.VCPKG_GIT_COMMIT }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.name }}-vcpkg-binary-${{ env.VCPKG_TARGET_TRIPLET }}-${{ env.VCPKG_GIT_COMMIT }}-
 
       - name: Setup vcpkg (Windows only)
         if: runner.os == 'Windows'
         uses: lukka/run-vcpkg@6fe69898af670ac05f4a8427cc5cff4fb361cee5 # v11.5
         with:
-          vcpkgGitCommitId: 'fb87e2bb3fe69e16c224989acb5a61349166c782'
+          vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT }}
 
       # ---------- OS-specific deps ----------
       - name: Install deps (Ubuntu)
@@ -137,21 +134,16 @@ jobs:
         if: matrix.name == 'macos-x64'
         run: rustup target add x86_64-apple-darwin
 
-      # ---------- Setup sccache ----------
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9 # v0.0.7
-
-      - name: Enable sccache wrapping (probe first)
-        shell: bash
-        run: |
-          if sccache --start-server >/dev/null 2>&1; then
-            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-            echo "::notice::sccache enabled (RUSTC_WRAPPER=sccache)"
-          else
-            echo "::warning::sccache backend unreachable; building without compile cache this run"
-          fi
-
       # ---------- Cache Cargo ----------
+      # See builds.yml for the rationale: the Rust FFI output only changes with
+      # the client-sdk-rust submodule commit, so key the target cache on the
+      # submodule SHA. Only main pushes save this cache; tests are restore-only
+      # to avoid same-key save races and PR-scoped cache churn.
+      - name: Resolve Rust submodule SHA
+        id: rust_sha
+        shell: bash
+        run: echo "sha=$(git -C client-sdk-rust rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Cache cargo registry
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -163,11 +155,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-registry-
 
-      - name: Cache cargo target
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      - name: Restore cargo target
+        id: cache-cargo-target
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: client-sdk-rust/target/
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ hashFiles('client-sdk-rust/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-target-
 
@@ -175,10 +168,10 @@ jobs:
       - name: Set Linux build environment
         if: runner.os == 'Linux'
         run: |
-          echo "CXXFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
-          echo "CFLAGS=-Wno-deprecated-declarations" >> $GITHUB_ENV
+          echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
+          echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
-          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
 
       # ---------- Build (release-tests: tests on, examples off) ----------
       - name: Build tests (Unix)
@@ -245,7 +238,7 @@ jobs:
           echo $! > livekit-server.pid
           # Port 7880 is a WebSocket endpoint, so a TCP-connect probe is the
           # most reliable readiness signal.
-          for i in $(seq 1 30); do
+          for _ in {1..30}; do
             if nc -z 127.0.0.1 7880 >/dev/null 2>&1; then
               echo "livekit-server is ready"
               exit 0
@@ -303,6 +296,10 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    # A debug build instrumented with --coverage is far heavier (RAM + disk)
+    # than the release builds. Cap the wall-clock so a stuck/OOM build fails
+    # fast and visibly instead of hanging toward the 6h default.
+    timeout-minutes: 45
 
     steps:
       - name: Checkout (with submodules)
@@ -313,6 +310,19 @@ jobs:
 
       - name: Pull LFS files
         run: git lfs pull
+
+      # Reclaim ~30GB on the runner. The debug+coverage object tree plus gcov
+      # data is large; prior runs died mid-build from disk/memory pressure.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
 
       # ---------- OS deps ----------
       - name: Install deps
@@ -338,21 +348,10 @@ jobs:
         with:
           toolchain: stable
 
-      # ---------- Setup sccache ----------
-      - name: Setup sccache
-        uses: mozilla-actions/sccache-action@054db53350805f83040bf3e6e9b8cf5a139aa7c9 # v0.0.7
-
-      - name: Enable sccache wrapping (probe first)
-        shell: bash
-        run: |
-          if sccache --start-server >/dev/null 2>&1; then
-            echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
-            echo "::notice::sccache enabled (RUSTC_WRAPPER=sccache)"
-          else
-            echo "::warning::sccache backend unreachable; building without compile cache this run"
-          fi
-
       # ---------- Cache Cargo ----------
+      # Only the cargo registry (downloaded crate sources, ~60 MB) is cached
+      # here. The compiled target/ is intentionally not cached for coverage —
+      # see the note below the registry cache step.
       - name: Cache cargo registry
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -364,21 +363,22 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-coverage-cargo-registry-
 
-      - name: Cache cargo target
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: client-sdk-rust/target/
-          key: ${{ runner.os }}-coverage-cargo-target-${{ hashFiles('client-sdk-rust/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-coverage-cargo-target-
+      # NOTE: we deliberately do NOT cache client-sdk-rust/target/ here. The
+      # coverage job builds the FFI in debug mode, so its target/ was ~2.8 GB —
+      # the single largest entry in the repo's 10 GB Actions cache budget. That
+      # one cache crowded out the release build/test caches (and the Windows
+      # vcpkg binaries), causing repo-wide LRU eviction and cold rebuilds
+      # elsewhere. Coverage runs once per PR off the critical path, so eating a
+      # cold FFI build here is cheaper than the eviction it caused. The cargo
+      # registry cache above is tiny (~60 MB) and stays.
 
       # ---------- Build environment setup ----------
       - name: Set build environment
         run: |
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
-          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> $GITHUB_ENV
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
           GCC_VER=$(gcc -dumpversion | cut -d. -f1)
-          echo "GCOV_EXECUTABLE=gcov-${GCC_VER}" >> $GITHUB_ENV
+          echo "GCOV_EXECUTABLE=gcov-${GCC_VER}" >> "$GITHUB_ENV"
 
       # ---------- Configure with upstream preset + coverage flag overrides ----------
       - name: Configure (linux-debug-tests preset + coverage flags)
@@ -389,8 +389,13 @@ jobs:
             -DCMAKE_EXE_LINKER_FLAGS="--coverage" \
             -DCMAKE_SHARED_LINKER_FLAGS="--coverage"
 
+      # Cap parallelism: a debug build with --coverage instrumentation has a
+      # much larger per-TU memory footprint, and unbounded --parallel (one job
+      # per core) is what OOM-killed prior runs (failure surfaced only as an
+      # abandoned "Build" step). 2 keeps peak RAM in check on the standard
+      # runner; bump if/when this moves to a larger runner.
       - name: Build
-        run: cmake --build build-debug --parallel
+        run: cmake --build build-debug --parallel 2
 
       # ---------- Run unit tests ----------
       - name: Run unit tests
@@ -398,6 +403,16 @@ jobs:
         run: |
           build-debug/bin/livekit_unit_tests \
             --gtest_output=xml:build-debug/unit-test-results.xml
+
+      # Make resource-exhaustion failures visible instead of silent. Runs only
+      # if an earlier step failed (e.g. OOM during Build).
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          echo "===== disk ====="; df -h || true
+          echo "===== memory ====="; free -h || true
+          echo "===== dmesg (OOM killer) ====="
+          sudo dmesg 2>/dev/null | grep -iE 'killed process|out of memory|oom' | tail -20 || true
 
       # ---------- Generate coverage reports ----------
       - name: Generate coverage reports
@@ -438,7 +453,3 @@ jobs:
           path: coverage-html/
           retention-days: 14
 
-      - name: Upload coverage to Codecov
-        uses: getsentry/codecov-action@03112cc3b486a3397dc8d17a58680008721fc86f # v0.3.7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
