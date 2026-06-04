@@ -391,18 +391,18 @@ all filtered stages; normal pull requests and pushes use the path filters.
 - `.github/workflows/generate-docs.yml` — Reusable Doxygen docs validation.
 - `.github/workflows/license_check.yml` — Cheap license check, run on every CI
   invocation.
-- `.github/workflows/docker-images.yml` — Docker image build/publish workflow,
-  outside PR-review aggregation.
-- `.github/workflows/docker-validate.yml` — Docker image validation workflow,
-  outside PR-review aggregation.
+- `.github/workflows/docker-images.yml` — Reusable Docker packaging workflow.
+  Called by `ci.yml` when the `docker` filter matches; validates on PRs and
+  publishes images on `main`.
 
 When adding or renaming files that affect a CI stage, update the matching
 `ci.yml` `changes` filter in the same PR. For example, new build scripts,
 CMake files, package manifests, or reusable build workflows should be added to
-the `builds` filter; test-only helpers to `tests`; formatting/static-analysis
-configuration to `cpp_checks`; and docs generation inputs to `docs`.
+the `builds` filter; Docker packaging inputs to `docker`; test-only helpers to
+`tests`; formatting/static-analysis configuration to `cpp_checks`; and docs
+generation inputs to `docs`.
 
 Keep broad agent guidance files such as `AGENTS.md` out of the expensive
-`builds`, `tests`, `cpp_checks`, and `docs` filters unless they start affecting
-generated docs or build artifacts. An `AGENTS.md`-only change should not trigger
-those stages; only the always-on cheap checks should run.
+`builds`, `docker`, `tests`, `cpp_checks`, and `docs` filters unless they start
+affecting generated docs or build artifacts. An `AGENTS.md`-only change should
+not trigger those stages; only the always-on cheap checks should run.
