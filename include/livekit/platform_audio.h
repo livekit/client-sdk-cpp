@@ -219,6 +219,9 @@ public:
 
   /// Create an automatically captured microphone source for LocalAudioTrack.
   ///
+  /// Each call returns a new track source handle backed by the shared platform
+  /// Audio Device Module; it does not create a separate ADM instance.
+  ///
   /// @param options  Audio processing options for the platform microphone path.
   /// @return Platform-backed audio source suitable for LocalAudioTrack.
   /// @throws PlatformAudioError  If the FFI response is malformed or source
