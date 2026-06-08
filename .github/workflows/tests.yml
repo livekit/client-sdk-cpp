@@ -114,7 +114,8 @@ jobs:
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
             libabsl-dev \
-            libwayland-dev libdecor-0-dev
+            libwayland-dev libdecor-0-dev \
+            jq
 
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
@@ -213,8 +214,19 @@ jobs:
         uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
         with:
           github-token: ${{ github.token }}
-          config: |
-            enable_data_tracks: true
+
+      # Needed by token helper script
+      - name: Install livekit-cli
+        if: matrix.e2e-testing
+        shell: bash
+        run: |
+          set -euxo pipefail
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            curl -sSL https://get.livekit.io/cli | bash
+          else
+            brew install livekit-cli
+          fi
+          lk --version
 
       - name: Run integration tests
         if: matrix.e2e-testing
