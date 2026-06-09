@@ -71,6 +71,7 @@ jobs:
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/tests.yml
+              - .github/workflows/nightly.yml
             docs:
               - README.md
               - include/**
@@ -101,12 +102,12 @@ jobs:
     uses: ./.github/workflows/builds.yml
     secrets: inherit
 
-  # docker-images:
-  #   name: Docker Images
-  #   needs: changes
-  #   if: ${{ needs.changes.outputs.docker == 'true' || github.event_name == 'workflow_dispatch' }}
-  #   uses: ./.github/workflows/docker-images.yml
-  #   secrets: inherit
+  docker-images:
+    name: Docker Images
+    needs: changes
+    if: ${{ needs.changes.outputs.docker == 'true' || github.event_name == 'workflow_dispatch' }}
+    uses: ./.github/workflows/docker-images.yml
+    secrets: inherit
 
   tests:
     name: Tests
@@ -142,7 +143,7 @@ jobs:
     needs:
       - changes
       - builds
-      # - docker-images
+      - docker-images
       - tests
       - license-check
       - cpp-checks
