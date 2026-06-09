@@ -79,7 +79,6 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/generate-docs.yml
               - .github/workflows/publish-docs.yml
-              - "!AGENTS.md"
             cpp_checks:
               - src/**
               - include/**

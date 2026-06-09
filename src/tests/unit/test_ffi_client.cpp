@@ -17,13 +17,28 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
+#include <csignal>
 #include <stdexcept>
+#include <string>
 #include <unordered_set>
 
 #include "ffi.pb.h"
 #include "ffi_client.h"
 
 namespace livekit::test {
+
+namespace {
+
+volatile bool g_sigterm_received = false;
+
+// Has to be registered globally per csignal API
+void handleSignal(int signal) {
+  if (signal == SIGTERM) {
+    g_sigterm_received = true;
+  }
+}
+
+} // namespace
 
 class FfiClientTest : public ::testing::Test {
 protected:
@@ -138,6 +153,36 @@ TEST_F(FfiClientTest, ListenerRegistrationSurvivesShutdownReinitCycle) {
   // contract here so a future refactor that changes it is a deliberate choice.
   FfiClient::instance().shutdown();
   EXPECT_NO_THROW(FfiClient::instance().removeListener(id));
+}
+
+TEST_F(FfiClientTest, PanicEvent) {
+  // Wire up a signal handler to ensure the panic event raises SIGTERM
+  // (and that users can handle it)
+  g_sigterm_received = false;
+  auto previous_handler = std::signal(SIGTERM, handleSignal);
+  ASSERT_NE(previous_handler, SIG_ERR);
+
+  // Wire up a listener to ensure the panic event doesn't make it through
+  // (matches Python SDK)
+  bool listener_called = false;
+  const auto id =
+      FfiClient::instance().addListener([&listener_called](const proto::FfiEvent&) { listener_called = true; });
+
+  proto::FfiEvent event;
+  event.mutable_panic()->set_message("rust panic");
+  std::string bytes;
+  ASSERT_TRUE(event.SerializeToString(&bytes));
+
+  testing::internal::CaptureStderr();
+  ffiEventCallback(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+  const std::string stderr_output = testing::internal::GetCapturedStderr();
+
+  ASSERT_NE(std::signal(SIGTERM, previous_handler), SIG_ERR);
+  FfiClient::instance().removeListener(id);
+
+  EXPECT_TRUE(g_sigterm_received);
+  EXPECT_FALSE(listener_called);
+  EXPECT_NE(stderr_output.find("FFI Panic: rust panic"), std::string::npos);
 }
 
 // ---------------------------------------------------------------------------
