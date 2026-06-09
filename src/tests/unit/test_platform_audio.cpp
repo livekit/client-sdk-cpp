@@ -66,7 +66,7 @@ TEST_F(PlatformAudioTest, CreateSourceAndTrackWhenAvailable) {
   EXPECT_EQ(track->kind(), TrackKind::KIND_AUDIO);
 }
 
-TEST_F(PlatformAudioTest, MovedFromManagerThrowsOnUseButCountsAreSafe) {
+TEST_F(PlatformAudioTest, MovedFromManagerThrowsOnUse) {
   std::unique_ptr<PlatformAudio> platform_audio;
   try {
     platform_audio = std::make_unique<PlatformAudio>();
@@ -80,12 +80,10 @@ TEST_F(PlatformAudioTest, MovedFromManagerThrowsOnUseButCountsAreSafe) {
   // The moved-to manager keeps the FFI handle and remains usable.
   EXPECT_NO_THROW({ (void)moved_to.recordingDevices(); });
 
-  // The noexcept count accessors fall back to 0 on the emptied state.
-  EXPECT_EQ(moved_from.recordingDeviceCount(), 0);
-  EXPECT_EQ(moved_from.playoutDeviceCount(), 0);
-
   // Device operations on the emptied state must surface a clear error rather
   // than dereferencing a null handle.
+  EXPECT_THROW((void)moved_from.recordingDeviceCount(), PlatformAudioError);
+  EXPECT_THROW((void)moved_from.playoutDeviceCount(), PlatformAudioError);
   EXPECT_THROW((void)moved_from.recordingDevices(), PlatformAudioError);
   EXPECT_THROW((void)moved_from.playoutDevices(), PlatformAudioError);
   EXPECT_THROW(moved_from.setRecordingDevice("device-id"), PlatformAudioError);
@@ -100,7 +98,7 @@ TEST_F(PlatformAudioTest, CopySharesHandleStateAndOutlivesOriginal) {
     GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
   }
 
-  // A copy shares the underlying handle, so the cached counts agree.
+  // A copy shares the underlying handle, so live device counts agree.
   PlatformAudio copy = *platform_audio;
   EXPECT_EQ(copy.recordingDeviceCount(), platform_audio->recordingDeviceCount());
   EXPECT_EQ(copy.playoutDeviceCount(), platform_audio->playoutDeviceCount());

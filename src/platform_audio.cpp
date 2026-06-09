@@ -25,8 +25,6 @@ namespace livekit {
 
 struct PlatformAudioState {
   FfiHandle handle;
-  std::int32_t recording_device_count = 0;
-  std::int32_t playout_device_count = 0;
 };
 
 namespace {
@@ -64,6 +62,22 @@ proto::AudioSourceOptions toProto(const PlatformAudioOptions& options) {
   return out;
 }
 
+proto::GetAudioDevicesResponse getAudioDevices(const std::shared_ptr<PlatformAudioState>& state) {
+  proto::FfiRequest req;
+  req.mutable_get_audio_devices()->set_platform_audio_handle(requireHandle(state));
+
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  if (!resp.has_get_audio_devices()) {
+    throw PlatformAudioError("FfiResponse missing get_audio_devices");
+  }
+
+  const auto& devices = resp.get_audio_devices();
+  if (devices.has_error() && !devices.error().empty()) {
+    throw PlatformAudioError(devices.error());
+  }
+  return devices;
+}
+
 } // namespace
 
 PlatformAudioSource::PlatformAudioSource(FfiHandle handle, std::shared_ptr<PlatformAudioState> platform_audio) noexcept
@@ -89,46 +103,22 @@ PlatformAudio::PlatformAudio() {
   const auto& owned = platform_audio.platform_audio();
   state_ = std::make_shared<PlatformAudioState>();
   state_->handle = FfiHandle(static_cast<uintptr_t>(owned.handle().id()));
-  state_->recording_device_count = owned.info().recording_device_count();
-  state_->playout_device_count = owned.info().playout_device_count();
 }
 
-std::int32_t PlatformAudio::recordingDeviceCount() const noexcept {
-  return state_ ? state_->recording_device_count : 0;
+std::int32_t PlatformAudio::recordingDeviceCount() const {
+  return static_cast<std::int32_t>(getAudioDevices(state_).recording_devices_size());
 }
 
-std::int32_t PlatformAudio::playoutDeviceCount() const noexcept { return state_ ? state_->playout_device_count : 0; }
+std::int32_t PlatformAudio::playoutDeviceCount() const {
+  return static_cast<std::int32_t>(getAudioDevices(state_).playout_devices_size());
+}
 
 std::vector<AudioDeviceInfo> PlatformAudio::recordingDevices() const {
-  proto::FfiRequest req;
-  req.mutable_get_audio_devices()->set_platform_audio_handle(requireHandle(state_));
-
-  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-  if (!resp.has_get_audio_devices()) {
-    throw PlatformAudioError("FfiResponse missing get_audio_devices");
-  }
-
-  const auto& devices = resp.get_audio_devices();
-  if (devices.has_error() && !devices.error().empty()) {
-    throw PlatformAudioError(devices.error());
-  }
-  return convertDevices(devices.recording_devices());
+  return convertDevices(getAudioDevices(state_).recording_devices());
 }
 
 std::vector<AudioDeviceInfo> PlatformAudio::playoutDevices() const {
-  proto::FfiRequest req;
-  req.mutable_get_audio_devices()->set_platform_audio_handle(requireHandle(state_));
-
-  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-  if (!resp.has_get_audio_devices()) {
-    throw PlatformAudioError("FfiResponse missing get_audio_devices");
-  }
-
-  const auto& devices = resp.get_audio_devices();
-  if (devices.has_error() && !devices.error().empty()) {
-    throw PlatformAudioError(devices.error());
-  }
-  return convertDevices(devices.playout_devices());
+  return convertDevices(getAudioDevices(state_).playout_devices());
 }
 
 void PlatformAudio::setRecordingDevice(const std::string& device_id) const {

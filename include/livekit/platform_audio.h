@@ -171,15 +171,21 @@ public:
   /// @note This operation is not thread-safe.
   PlatformAudio& operator=(PlatformAudio&& other) noexcept = default;
 
-  /// Return the number of recording devices reported when this instance was created.
+  /// Return the current number of recording devices.
+  ///
+  /// @throws PlatformAudioError  If the FFI response is malformed or device
+  /// enumeration fails.
   ///
   /// @note This operation is thread-safe.
-  std::int32_t recordingDeviceCount() const noexcept;
+  std::int32_t recordingDeviceCount() const;
 
-  /// Return the number of playout devices reported when this instance was created.
+  /// Return the current number of playout devices.
+  ///
+  /// @throws PlatformAudioError  If the FFI response is malformed or device
+  /// enumeration fails.
   ///
   /// @note This operation is thread-safe.
-  std::int32_t playoutDeviceCount() const noexcept;
+  std::int32_t playoutDeviceCount() const;
 
   /// Enumerate available microphones.
   ///
