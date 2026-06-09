@@ -26,6 +26,7 @@ jobs:
       tests:  ${{ steps.filter.outputs.tests }}
       docs:   ${{ steps.filter.outputs.docs }}
       cpp_checks: ${{ steps.filter.outputs.cpp_checks }}
+      rust_submodule: ${{ steps.filter.outputs.rust_submodule }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d  # v4.0.1
@@ -83,6 +84,8 @@ jobs:
               - .clang-tidy
               - .github/workflows/ci.yml
               - .github/workflows/cpp-checks.yml
+            rust_submodule:
+              - client-sdk-rust
 
   builds:
     name: Builds
@@ -116,6 +119,15 @@ jobs:
     if: ${{ needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/generate-docs.yml
 
+  # Only runs on a client-sdk-rust submodule bump. Runs in parallel and is not a
+  # dependency of builds/tests, so developer iteration against an unreleased
+  # Rust commit still gets full build feedback in CI.
+  rust-release-check:
+    name: Rust Release Check
+    needs: changes
+    if: ${{ needs.changes.outputs.rust_submodule == 'true' || github.event_name == 'workflow_dispatch' }}
+    uses: ./.github/workflows/rust-release-check.yml
+
   # Context: GitHub repository rulesets "required checks" actually need a job name to list.
   # This job is an aggregate job
   ci:
@@ -129,6 +141,7 @@ jobs:
       - license-check
       - cpp-checks
       - generate-docs
+      - rust-release-check
     if: always()
     steps:
       - name: Verify required CI jobs
