@@ -1,8 +1,40 @@
 name: Docker Images
 
 on:
-  workflow_call: {}
-  workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      publish_images:
+        description: Publish built Docker images.
+        required: false
+        type: boolean
+        default: false
+      cleanup_nightly_images:
+        description: Delete old nightly Docker image versions after publishing.
+        required: false
+        type: boolean
+        default: false
+      nightly_retention_days:
+        description: Number of days to retain nightly Docker image versions.
+        required: false
+        type: number
+        default: 7
+  workflow_dispatch:
+    inputs:
+      publish_images:
+        description: Publish built Docker images.
+        required: false
+        type: boolean
+        default: false
+      cleanup_nightly_images:
+        description: Delete old nightly Docker image versions after publishing.
+        required: false
+        type: boolean
+        default: false
+      nightly_retention_days:
+        description: Number of days to retain nightly Docker image versions.
+        required: false
+        type: number
+        default: 7
 
 permissions:
   contents: read
@@ -18,6 +50,10 @@ jobs:
       base_hash: ${{ steps.hash.outputs.base_hash }}
       base_image: ${{ steps.refs.outputs.base_image }}
       sdk_image: ${{ steps.refs.outputs.sdk_image }}
+      publish_main: ${{ steps.mode.outputs.publish_main }}
+      publish_nightly: ${{ steps.mode.outputs.publish_nightly }}
+      nightly_tag: ${{ steps.mode.outputs.nightly_tag }}
+      sdk_validation_tag: ${{ steps.mode.outputs.sdk_validation_tag }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -42,6 +78,30 @@ jobs:
           set -euo pipefail
           base_hash="$(shasum -a 256 docker/Dockerfile.base | awk '{print substr($1,1,12)}')"
           echo "base_hash=${base_hash}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve publish mode
+        id: mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          publish_main=false
+          publish_nightly=false
+          nightly_tag="nightly-${GITHUB_RUN_ID}"
+          sdk_validation_tag="sha-${GITHUB_SHA}"
+
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            publish_main=true
+          elif [[ "${{ inputs.publish_images }}" == "true" ]]; then
+            publish_nightly=true
+            sdk_validation_tag="${nightly_tag}"
+          fi
+
+          {
+            echo "publish_main=${publish_main}"
+            echo "publish_nightly=${publish_nightly}"
+            echo "nightly_tag=${nightly_tag}"
+            echo "sdk_validation_tag=${sdk_validation_tag}"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Detect changed inputs
         id: changes
@@ -80,7 +140,7 @@ jobs:
             fi
 
             case "${path}" in
-              docker/*|.dockerignore|src/*|include/*|client-sdk-rust/*|cmake/*|data/*|cpp-example-collection|CMakeLists.txt|CMakePresets.json|build*|.build*|.github/workflows/docker-images.yml)
+              docker/*|.dockerignore|cmake/*|CMakeLists.txt|CMakePresets.json|build*|.build*|.github/workflows/ci.yml|.github/workflows/docker-images.yml)
                 sdk_changed=true
                 ;;
             esac
@@ -191,8 +251,7 @@ jobs:
       - metadata
       - validate
     if: |
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
+      (needs.metadata.outputs.publish_main == 'true' || needs.metadata.outputs.publish_nightly == 'true') &&
       needs.metadata.outputs.base_changed == 'true' &&
       needs.validate.result == 'success'
     permissions:
@@ -240,13 +299,20 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          if [[ "${{ needs.metadata.outputs.publish_main }}" == "true" ]]; then
+            tag_args=(-t "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-${{ matrix.arch }}")
+            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:base-main-${{ matrix.arch }}")
+          else
+            tag_args=()
+            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:${{ needs.metadata.outputs.nightly_tag }}-base-${{ matrix.arch }}")
+            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:nightly-latest-base-${{ matrix.arch }}")
+          fi
           docker buildx build \
             --platform linux/${{ matrix.arch }} \
             --cache-from type=registry,ref="${{ needs.metadata.outputs.base_image }}:buildcache-base-${{ matrix.arch }}" \
             --cache-to type=registry,ref="${{ needs.metadata.outputs.base_image }}:buildcache-base-${{ matrix.arch }}",mode=max \
             --push \
-            -t "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-${{ matrix.arch }}" \
-            -t "${{ needs.metadata.outputs.base_image }}:base-main-${{ matrix.arch }}" \
+            "${tag_args[@]}" \
             -f docker/Dockerfile.base \
             docker
 
@@ -257,8 +323,7 @@ jobs:
       - publish-base
     if: |
       always() &&
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
+      (needs.metadata.outputs.publish_main == 'true' || needs.metadata.outputs.publish_nightly == 'true') &&
       needs.metadata.outputs.base_changed == 'true' &&
       needs.publish-base.result == 'success'
     permissions:
@@ -282,11 +347,25 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          if [[ "${{ needs.metadata.outputs.publish_main }}" == "true" ]]; then
+            tag_args=(-t "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}")
+            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:base-main")
+            refs=(
+              "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-amd64"
+              "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-arm64"
+            )
+          else
+            tag_args=()
+            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:${{ needs.metadata.outputs.nightly_tag }}-base")
+            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:nightly-latest-base")
+            refs=(
+              "${{ needs.metadata.outputs.base_image }}:${{ needs.metadata.outputs.nightly_tag }}-base-amd64"
+              "${{ needs.metadata.outputs.base_image }}:${{ needs.metadata.outputs.nightly_tag }}-base-arm64"
+            )
+          fi
           docker buildx imagetools create \
-            -t "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}" \
-            -t "${{ needs.metadata.outputs.base_image }}:base-main" \
-            "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-amd64" \
-            "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-arm64"
+            "${tag_args[@]}" \
+            "${refs[@]}"
 
   publish-sdk:
     name: Publish SDK image (${{ matrix.name }})
@@ -297,8 +376,7 @@ jobs:
       - publish-base-manifest
     if: |
       always() &&
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
+      (needs.metadata.outputs.publish_main == 'true' || needs.metadata.outputs.publish_nightly == 'true') &&
       needs.metadata.outputs.sdk_changed == 'true' &&
       needs.validate.result == 'success' &&
       needs.publish-base.result != 'failure' &&
@@ -354,9 +432,20 @@ jobs:
         run: |
           set -euxo pipefail
           if [[ "${{ needs.metadata.outputs.base_changed }}" == "true" ]]; then
-            base_ref="${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-${{ matrix.arch }}"
+            if [[ "${{ needs.metadata.outputs.publish_nightly }}" == "true" ]]; then
+              base_ref="${{ needs.metadata.outputs.base_image }}:${{ needs.metadata.outputs.nightly_tag }}-base-${{ matrix.arch }}"
+            else
+              base_ref="${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-${{ matrix.arch }}"
+            fi
           else
             base_ref="${{ needs.metadata.outputs.base_image }}:base-main-${{ matrix.arch }}"
+          fi
+
+          tag_args=(-t "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}-${{ matrix.arch }}")
+          if [[ "${{ needs.metadata.outputs.publish_main }}" == "true" ]]; then
+            tag_args+=(-t "${{ needs.metadata.outputs.sdk_image }}:main-${{ matrix.arch }}")
+          else
+            tag_args+=(-t "${{ needs.metadata.outputs.sdk_image }}:nightly-latest-${{ matrix.arch }}")
           fi
 
           docker buildx build \
@@ -365,8 +454,7 @@ jobs:
             --cache-from type=registry,ref="${{ needs.metadata.outputs.sdk_image }}:buildcache-sdk-${{ matrix.arch }}" \
             --cache-to type=registry,ref="${{ needs.metadata.outputs.sdk_image }}:buildcache-sdk-${{ matrix.arch }}",mode=max \
             --push \
-            -t "${{ needs.metadata.outputs.sdk_image }}:sha-${{ github.sha }}-${{ matrix.arch }}" \
-            -t "${{ needs.metadata.outputs.sdk_image }}:main-${{ matrix.arch }}" \
+            "${tag_args[@]}" \
             . \
             -f docker/Dockerfile.sdk
 
@@ -377,8 +465,7 @@ jobs:
       - publish-sdk
     if: |
       always() &&
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
+      (needs.metadata.outputs.publish_main == 'true' || needs.metadata.outputs.publish_nightly == 'true') &&
       needs.metadata.outputs.sdk_changed == 'true' &&
       needs.publish-sdk.result == 'success'
     permissions:
@@ -402,11 +489,16 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          tag_args=(-t "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}")
+          if [[ "${{ needs.metadata.outputs.publish_main }}" == "true" ]]; then
+            tag_args+=(-t "${{ needs.metadata.outputs.sdk_image }}:main")
+          else
+            tag_args+=(-t "${{ needs.metadata.outputs.sdk_image }}:nightly-latest")
+          fi
           docker buildx imagetools create \
-            -t "${{ needs.metadata.outputs.sdk_image }}:sha-${{ github.sha }}" \
-            -t "${{ needs.metadata.outputs.sdk_image }}:main" \
-            "${{ needs.metadata.outputs.sdk_image }}:sha-${{ github.sha }}-amd64" \
-            "${{ needs.metadata.outputs.sdk_image }}:sha-${{ github.sha }}-arm64"
+            "${tag_args[@]}" \
+            "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}-amd64" \
+            "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}-arm64"
 
   validate-published:
     name: Validate published Docker image (${{ matrix.name }})
@@ -415,8 +507,7 @@ jobs:
       - publish-sdk-manifest
     if: |
       always() &&
-      github.event_name == 'push' &&
-      github.ref == 'refs/heads/main' &&
+      (needs.metadata.outputs.publish_main == 'true' || needs.metadata.outputs.publish_nightly == 'true') &&
       needs.metadata.outputs.sdk_changed == 'true' &&
       needs.publish-sdk-manifest.result == 'success'
     permissions:
@@ -450,13 +541,13 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          time docker pull "${{ needs.metadata.outputs.sdk_image }}:sha-${{ github.sha }}"
+          time docker pull "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}"
 
       - name: Verify installed SDK inside image
         shell: bash
         run: |
           set -euxo pipefail
-          docker run --rm "${{ needs.metadata.outputs.sdk_image }}:sha-${{ github.sha }}" bash -c \
+          docker run --rm "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}" bash -c \
             'test -f /opt/livekit-sdk/lib/cmake/LiveKit/LiveKitConfig.cmake'
 
       - name: Build cpp-example-collection against installed SDK
@@ -464,7 +555,7 @@ jobs:
         run: |
           set -euxo pipefail
           cpp_ex_ref="$(git rev-parse HEAD:cpp-example-collection)"
-          docker run -e CPP_EX_REF="${cpp_ex_ref}" --rm "${{ needs.metadata.outputs.sdk_image }}:sha-${{ github.sha }}" bash -lc '
+          docker run -e CPP_EX_REF="${cpp_ex_ref}" --rm "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}" bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
@@ -473,3 +564,52 @@ jobs:
             cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
             cmake --build build --parallel
           '
+
+  cleanup-nightly:
+    name: Cleanup nightly Docker images
+    needs:
+      - metadata
+      - validate-published
+    if: |
+      always() &&
+      inputs.cleanup_nightly_images &&
+      needs.metadata.outputs.publish_nightly == 'true' &&
+      needs.validate-published.result == 'success'
+    permissions:
+      packages: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Delete old nightly package versions
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          RETENTION_DAYS: ${{ inputs.nightly_retention_days }}
+        run: |
+          set -euo pipefail
+
+          cutoff="$(date -u -d "${RETENTION_DAYS} days ago" +%s)"
+          packages=(client-sdk-cpp-base client-sdk-cpp)
+
+          for package in "${packages[@]}"; do
+            echo "Checking ${package} for nightly image versions older than ${RETENTION_DAYS} days"
+            gh api --paginate "/orgs/${OWNER}/packages/container/${package}/versions?per_page=100" \
+              --jq '.[] | [.id, .created_at, ((.metadata.container.tags // []) | join(","))] | @tsv' |
+              while IFS=$'\t' read -r version_id created_at tags; do
+                [[ -n "$version_id" ]] || continue
+                if [[ ",${tags}," != *,nightly-* && ",${tags}," != *,nightly-latest* ]]; then
+                  continue
+                fi
+
+                created_epoch="$(date -u -d "${created_at}" +%s)"
+                if (( created_epoch >= cutoff )); then
+                  continue
+                fi
+
+                echo "Deleting ${package} version ${version_id} (${created_at}; tags=${tags})"
+                gh api \
+                  --method DELETE \
+                  "/orgs/${OWNER}/packages/container/${package}/versions/${version_id}"
+              done
+          done
