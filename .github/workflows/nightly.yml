@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "23 7 * * *"
   workflow_dispatch:
+  # TEMPORARY: enables validating this new workflow from the PR before it exists
+  # on the default branch. Remove this pull_request trigger before merging.
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: ["main"]
 
 permissions:
   contents: read
