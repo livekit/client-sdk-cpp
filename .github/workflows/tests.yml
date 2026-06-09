@@ -19,6 +19,16 @@ on:
         required: false
         type: number
         default: 1
+      run_stress_tests:
+        description: Run stress tests that require LiveKit server setup.
+        required: false
+        type: boolean
+        default: false
+      stress_repeat:
+        description: Number of times to repeat stress tests.
+        required: false
+        type: number
+        default: 1
       unit_timeout_minutes:
         description: Unit test step timeout in minutes.
         required: false
@@ -29,6 +39,11 @@ on:
         required: false
         type: number
         default: 5
+      stress_timeout_minutes:
+        description: Stress test step timeout in minutes.
+        required: false
+        type: number
+        default: 20
       job_timeout_minutes:
         description: Matrix test job timeout in minutes.
         required: false
@@ -64,6 +79,16 @@ on:
         required: false
         type: number
         default: 1
+      run_stress_tests:
+        description: Run stress tests that require LiveKit server setup.
+        required: false
+        type: boolean
+        default: false
+      stress_repeat:
+        description: Number of times to repeat stress tests.
+        required: false
+        type: number
+        default: 1
       unit_timeout_minutes:
         description: Unit test step timeout in minutes.
         required: false
@@ -74,6 +99,11 @@ on:
         required: false
         type: number
         default: 5
+      stress_timeout_minutes:
+        description: Stress test step timeout in minutes.
+        required: false
+        type: number
+        default: 20
       job_timeout_minutes:
         description: Matrix test job timeout in minutes.
         required: false
@@ -298,7 +328,7 @@ jobs:
 
       # ---------- Start livekit-server for integration tests ----------
       - name: Start livekit-server
-        if: matrix.e2e-testing
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         id: livekit_server
         uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
         continue-on-error: true
@@ -306,7 +336,7 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Start livekit-server fallback
-        if: matrix.e2e-testing && steps.livekit_server.outcome == 'failure'
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests) && steps.livekit_server.outcome == 'failure'
         id: livekit_server_fallback
         shell: bash
         env:
@@ -377,7 +407,7 @@ jobs:
           exit 1
 
       - name: Resolve livekit-server log path
-        if: always() && matrix.e2e-testing
+        if: always() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         id: livekit_server_log
         shell: bash
         run: |
@@ -389,7 +419,7 @@ jobs:
 
       # Needed by token helper script
       - name: Install livekit-cli
-        if: matrix.e2e-testing
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         shell: bash
         run: |
           set -euxo pipefail
@@ -401,7 +431,7 @@ jobs:
           lk --version
 
       - name: Run integration tests
-        if: matrix.e2e-testing
+        if: matrix.e2e-testing && inputs.integration_repeat > 0
         timeout-minutes: ${{ inputs.integration_timeout_minutes }}
         shell: bash
         env:
@@ -414,8 +444,22 @@ jobs:
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_output=xml:${{ env.BUILD_DIR }}/integration-test-results.xml
 
+      - name: Run stress tests
+        if: matrix.e2e-testing && inputs.run_stress_tests
+        timeout-minutes: ${{ inputs.stress_timeout_minutes }}
+        shell: bash
+        env:
+          RUST_LOG: "metrics=debug"
+        run: |
+          set -euo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          ${{ env.BUILD_DIR }}/bin/livekit_stress_tests \
+            --gtest_repeat=${{ inputs.stress_repeat }} \
+            --gtest_recreate_environments_when_repeating=1 \
+            --gtest_output=xml:${{ env.BUILD_DIR }}/stress-test-results.xml
+
       - name: Dump livekit-server log on failure
-        if: failure() && matrix.e2e-testing
+        if: failure() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         shell: bash
         run: tail -n 500 "${{ steps.livekit_server_log.outputs.log-path }}" || true
 
@@ -428,6 +472,7 @@ jobs:
           path: |
             ${{ env.BUILD_DIR }}/unit-test-results.xml
             ${{ env.BUILD_DIR }}/integration-test-results.xml
+            ${{ env.BUILD_DIR }}/stress-test-results.xml
             ${{ steps.livekit_server_log.outputs.log-path }}
           if-no-files-found: ignore
           retention-days: ${{ inputs.artifact_retention_days }}
