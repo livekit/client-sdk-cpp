@@ -51,13 +51,13 @@ TEST_F(RoomTest, RoomOptionsDefaults) {
   RoomOptions options;
 
   EXPECT_TRUE(options.auto_subscribe) << "auto_subscribe should default to true";
-  EXPECT_FALSE(options.adaptive_stream) << "adaptive_stream should default to false";
+  EXPECT_FALSE(options.adaptive_stream.has_value()) << "adaptive_stream should defer to Rust default";
   EXPECT_FALSE(options.dynacast) << "dynacast should default to false";
   EXPECT_FALSE(options.encryption.has_value()) << "encryption should not have a value by default";
   EXPECT_FALSE(options.rtc_config.has_value()) << "rtc_config should not have a value by default";
-  EXPECT_EQ(options.join_retries, 3U) << "join_retries should default to Rust SDK behavior";
+  EXPECT_FALSE(options.join_retries.has_value()) << "join_retries should defer to Rust default";
   EXPECT_TRUE(options.single_peer_connection) << "single_peer_connection should default to true";
-  EXPECT_EQ(options.connect_timeout, std::chrono::seconds(5)) << "connect_timeout should default to Rust SDK behavior";
+  EXPECT_FALSE(options.connect_timeout.has_value()) << "connect_timeout should defer to Rust default";
 }
 
 TEST_F(RoomTest, RoomOptionsToProtoSerializesDefaults) {
@@ -65,18 +65,15 @@ TEST_F(RoomTest, RoomOptionsToProtoSerializesDefaults) {
 
   EXPECT_TRUE(proto_options.has_auto_subscribe());
   EXPECT_TRUE(proto_options.auto_subscribe());
-  EXPECT_TRUE(proto_options.has_adaptive_stream());
-  EXPECT_FALSE(proto_options.adaptive_stream());
+  EXPECT_FALSE(proto_options.has_adaptive_stream());
   EXPECT_TRUE(proto_options.has_dynacast());
   EXPECT_FALSE(proto_options.dynacast());
   EXPECT_FALSE(proto_options.has_encryption());
   EXPECT_FALSE(proto_options.has_rtc_config());
-  EXPECT_TRUE(proto_options.has_join_retries());
-  EXPECT_EQ(proto_options.join_retries(), 3U);
+  EXPECT_FALSE(proto_options.has_join_retries());
   EXPECT_TRUE(proto_options.has_single_peer_connection());
   EXPECT_TRUE(proto_options.single_peer_connection());
-  EXPECT_TRUE(proto_options.has_connect_timeout_ms());
-  EXPECT_EQ(proto_options.connect_timeout_ms(), 5000U);
+  EXPECT_FALSE(proto_options.has_connect_timeout_ms());
 }
 
 TEST_F(RoomTest, RoomOptionsProtoConverter) {

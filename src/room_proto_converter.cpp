@@ -406,7 +406,9 @@ proto::KeyProviderOptions toProto(const KeyProviderOptions& in) {
 proto::RoomOptions toProto(const RoomOptions& in) {
   proto::RoomOptions out;
   out.set_auto_subscribe(in.auto_subscribe);
-  out.set_adaptive_stream(in.adaptive_stream);
+  if (in.adaptive_stream) {
+    out.set_adaptive_stream(*in.adaptive_stream);
+  }
   out.set_dynacast(in.dynacast);
 
   if (in.encryption) {
@@ -435,9 +437,13 @@ proto::RoomOptions toProto(const RoomOptions& in) {
     }
   }
 
-  out.set_join_retries(in.join_retries);
+  if (in.join_retries) {
+    out.set_join_retries(*in.join_retries);
+  }
   out.set_single_peer_connection(in.single_peer_connection);
-  out.set_connect_timeout_ms(static_cast<std::uint64_t>(in.connect_timeout.count()));
+  if (in.connect_timeout) {
+    out.set_connect_timeout_ms(static_cast<std::uint64_t>(in.connect_timeout->count()));
+  }
   return out;
 }
 

@@ -76,8 +76,17 @@ struct RoomOptions {
   ///   - remote audio/video frames
   bool auto_subscribe = true;
 
-  /// Enable adaptive stream so the server optimizes subscribed video layers.
-  bool adaptive_stream = false;
+  /// Enable adaptive stream for subscribed video tracks.
+  ///
+  /// When enabled, the SDK tells the server it may adjust the video layers sent
+  /// to this client based on what the application is currently rendering. This
+  /// lets the server pause or downscale subscribed video that is off-screen,
+  /// hidden, or only needed at a smaller size, reducing downstream bandwidth and
+  /// decode work. This affects media received by this room; use @ref dynacast
+  /// to control how this client publishes layers to others.
+  ///
+  /// If unset, the Rust SDK default is used.
+  std::optional<bool> adaptive_stream;
 
   /// Enable dynacast (server sends optimal layers depending on subscribers).
   bool dynacast = false;
@@ -89,7 +98,9 @@ struct RoomOptions {
   std::optional<RtcConfig> rtc_config;
 
   /// Number of retries for the initial room join after the first attempt.
-  std::uint32_t join_retries = 3;
+  ///
+  /// If unset, the Rust SDK default is used.
+  std::optional<std::uint32_t> join_retries;
 
   /// Enable single peer connection mode. When true, uses one RTCPeerConnection
   /// for both publishing and subscribing instead of two separate connections.
@@ -97,7 +108,9 @@ struct RoomOptions {
   bool single_peer_connection = true;
 
   /// Timeout for each individual signal connection attempt.
-  std::chrono::milliseconds connect_timeout = std::chrono::seconds(5);
+  ///
+  /// If unset, the Rust SDK default is used.
+  std::optional<std::chrono::milliseconds> connect_timeout;
 };
 
 /// Represents a LiveKit room session.

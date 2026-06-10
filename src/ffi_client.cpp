@@ -18,6 +18,8 @@
 
 #include <cassert>
 #include <csignal>
+#include <string>
+#include <type_traits>
 
 #include "data_track.pb.h"
 #include "ffi.pb.h"
@@ -34,10 +36,26 @@
 namespace livekit {
 
 namespace {
+
 inline void logAndThrow(const std::string& error_msg) {
   LK_LOG_ERROR("LiveKit SDK Error: {}", error_msg);
   throw std::runtime_error(error_msg);
 }
+
+// Helper for debug logging of optional values
+const auto optional_to_string = [](const auto& value) -> std::string {
+  if (!value) {
+    return "<unset>";
+  }
+  using Value = std::decay_t<decltype(*value)>;
+  if constexpr (std::is_same_v<Value, bool>) {
+    return *value ? "true" : "false";
+  } else if constexpr (std::is_same_v<Value, std::chrono::milliseconds>) {
+    return std::to_string(value->count());
+  } else {
+    return std::to_string(*value);
+  }
+};
 
 Result<proto::OwnedDataTrackStream, SubscribeDataTrackError> subscribeDataTrackFailure(SubscribeDataTrackErrorCode code,
                                                                                        const std::string& message) {
@@ -334,8 +352,9 @@ std::future<proto::ConnectCallback> FfiClient::connectAsync(const std::string& u
   LK_LOG_DEBUG(
       "[FfiClient] connectAsync: auto_subscribe={}, adaptive_stream={}, dynacast={}, "
       "single_peer_connection={}, join_retries={}, connect_timeout_ms={}",
-      options.auto_subscribe, options.adaptive_stream, options.dynacast, options.single_peer_connection,
-      options.join_retries, options.connect_timeout.count());
+      options.auto_subscribe, optional_to_string(options.adaptive_stream), options.dynacast,
+      options.single_peer_connection, optional_to_string(options.join_retries),
+      optional_to_string(options.connect_timeout));
 
   try {
     const proto::FfiResponse resp = sendRequest(req);
