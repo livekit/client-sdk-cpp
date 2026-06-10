@@ -28,6 +28,7 @@
 #include "livekit/local_video_track.h"
 #include "livekit/logging.h"
 #include "livekit/participant.h"
+#include "livekit/platform_audio.h"
 #include "livekit/remote_participant.h"
 #include "livekit/remote_track_publication.h"
 #include "livekit/room.h"
