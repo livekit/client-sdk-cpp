@@ -1,0 +1,130 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+  # TEMPORARY: enables validating this new workflow from the PR before it exists
+  # on the default branch. Remove this pull_request trigger before merging.
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: ["main"]
+
+permissions:
+  contents: read
+  actions: read
+  packages: write
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  debug-tests:
+    name: Debug Tests
+    uses: ./.github/workflows/tests.yml
+    with:
+      build_type: debug
+      unit_repeat: 100
+      integration_repeat: 20
+      run_stress_tests: true
+      stress_repeat: 1
+      unit_timeout_minutes: 60
+      integration_timeout_minutes: 120
+      stress_timeout_minutes: 120
+      job_timeout_minutes: 180
+      artifact_retention_days: 14
+      run_coverage: false
+    secrets: inherit
+
+  cpp-checks:
+    name: C++ Checks
+    uses: ./.github/workflows/cpp-checks.yml
+
+  generate-docs:
+    name: Generate Docs
+    uses: ./.github/workflows/generate-docs.yml
+    with:
+      upload_artifact: false
+
+  docker-images:
+    name: Docker Images
+    uses: ./.github/workflows/docker-images.yml
+    with:
+      publish_images: true
+      cleanup_nightly_images: true
+      nightly_retention_days: 7
+    secrets: inherit
+
+  sanitizer:
+    name: Sanitizer Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      ASAN_OPTIONS: detect_leaks=0:halt_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Pull LFS files
+        run: git lfs pull
+
+      - name: Install deps
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            llvm-dev libclang-dev clang \
+            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+            libxrandr-dev libxi-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev \
+            libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libabsl-dev \
+            libwayland-dev libdecor-0-dev
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
+
+      - name: Set build environment
+        run: |
+          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
+
+      - name: Configure sanitizer build
+        run: |
+          cmake --preset linux-debug-tests \
+            -DCMAKE_C_FLAGS="-Wno-deprecated-declarations -fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build sanitizer unit tests
+        run: cmake --build build-debug --target livekit_unit_tests --parallel 2
+
+      - name: Run sanitizer unit tests
+        timeout-minutes: 20
+        run: |
+          build-debug/bin/livekit_unit_tests \
+            --gtest_brief=1 \
+            --gtest_output=xml:build-debug/sanitizer-unit-test-results.xml
+
+      - name: Upload sanitizer test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sanitizer-test-results
+          path: build-debug/sanitizer-unit-test-results.xml
+          if-no-files-found: ignore
+          retention-days: 14

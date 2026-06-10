@@ -17,9 +17,13 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
+#include <atomic>
+#include <chrono>
 #include <csignal>
+#include <future>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <unordered_set>
 
 #include "ffi.pb.h"
@@ -36,6 +40,18 @@ void handleSignal(int signal) {
   if (signal == SIGTERM) {
     g_sigterm_received = true;
   }
+}
+
+void emitLogEvent() {
+  proto::FfiEvent event;
+  auto* record = event.mutable_logs()->add_records();
+  record->set_level(proto::LOG_INFO);
+  record->set_target("test");
+  record->set_message("listener event");
+
+  std::string bytes;
+  ASSERT_TRUE(event.SerializeToString(&bytes));
+  ffiEventCallback(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
 }
 
 } // namespace
@@ -144,15 +160,99 @@ TEST_F(FfiClientTest, RemoveListenerIsIdempotent) {
   EXPECT_NO_THROW(FfiClient::instance().removeListener(id));
 }
 
-TEST_F(FfiClientTest, ListenerRegistrationSurvivesShutdownReinitCycle) {
+TEST_F(FfiClientTest, ShutdownClearsListenerRegistrations) {
   FfiClient::instance().initialize(false);
-  const auto id = FfiClient::instance().addListener([](const proto::FfiEvent&) {});
+  std::atomic<int> listener_calls{0};
+  const auto id = FfiClient::instance().addListener([&listener_calls](const proto::FfiEvent&) { ++listener_calls; });
   EXPECT_NE(id, 0);
 
-  // shutdown() does not clear the C++-side listener map today; document that
-  // contract here so a future refactor that changes it is a deliberate choice.
   FfiClient::instance().shutdown();
-  EXPECT_NO_THROW(FfiClient::instance().removeListener(id));
+  ASSERT_FALSE(FfiClient::instance().isInitialized());
+
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+  emitLogEvent();
+  EXPECT_EQ(listener_calls.load(), 0);
+}
+
+TEST_F(FfiClientTest, RemoveListenerWaitsForInFlightCallback) {
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+
+  std::promise<void> callback_entered;
+  auto callback_entered_future = callback_entered.get_future();
+  std::promise<void> release_callback;
+  auto release_callback_future = release_callback.get_future();
+  std::atomic<bool> callback_completed{false};
+
+  const auto id = FfiClient::instance().addListener([&](const proto::FfiEvent&) {
+    callback_entered.set_value();
+    release_callback_future.wait();
+    callback_completed.store(true);
+  });
+
+  std::thread callback_thread([] { emitLogEvent(); });
+  ASSERT_EQ(callback_entered_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+
+  auto remove_future = std::async(std::launch::async, [&] { FfiClient::instance().removeListener(id); });
+  EXPECT_EQ(remove_future.wait_for(std::chrono::milliseconds(50)), std::future_status::timeout);
+  EXPECT_FALSE(callback_completed.load());
+
+  release_callback.set_value();
+  callback_thread.join();
+
+  EXPECT_EQ(remove_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  EXPECT_TRUE(callback_completed.load());
+}
+
+TEST_F(FfiClientTest, ShutdownFromListenerDoesNotDeadlock) {
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+
+  std::atomic<bool> shutdown_returned{false};
+  const auto id = FfiClient::instance().addListener([&shutdown_returned](const proto::FfiEvent&) {
+    FfiClient::instance().shutdown();
+    shutdown_returned.store(true);
+  });
+  ASSERT_NE(id, 0);
+
+  auto callback_future = std::async(std::launch::async, [] { emitLogEvent(); });
+  EXPECT_EQ(callback_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  EXPECT_TRUE(shutdown_returned.load());
+  EXPECT_FALSE(FfiClient::instance().isInitialized());
+}
+
+TEST_F(FfiClientTest, ShutdownRejectsReinitializeAndDropsNewEventsWhileDraining) {
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+
+  std::promise<void> callback_entered;
+  auto callback_entered_future = callback_entered.get_future();
+  std::promise<void> release_callback;
+  auto release_callback_future = release_callback.get_future();
+  std::atomic<int> listener_calls{0};
+
+  const auto id = FfiClient::instance().addListener([&](const proto::FfiEvent&) {
+    ++listener_calls;
+    callback_entered.set_value();
+    release_callback_future.wait();
+  });
+  ASSERT_NE(id, 0);
+
+  std::thread callback_thread([] { emitLogEvent(); });
+  ASSERT_EQ(callback_entered_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+
+  auto shutdown_future = std::async(std::launch::async, [] { FfiClient::instance().shutdown(); });
+  for (int i = 0; i < 5000 && FfiClient::instance().isInitialized(); ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  ASSERT_FALSE(FfiClient::instance().isInitialized());
+  EXPECT_EQ(shutdown_future.wait_for(std::chrono::milliseconds(50)), std::future_status::timeout);
+  EXPECT_FALSE(FfiClient::instance().initialize(false));
+
+  emitLogEvent();
+  EXPECT_EQ(listener_calls.load(), 1);
+
+  release_callback.set_value();
+  callback_thread.join();
+  EXPECT_EQ(shutdown_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  EXPECT_FALSE(FfiClient::instance().isInitialized());
 }
 
 TEST_F(FfiClientTest, PanicEvent) {
