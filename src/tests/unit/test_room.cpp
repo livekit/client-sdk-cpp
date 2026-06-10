@@ -18,14 +18,42 @@
 #include <livekit/livekit.h>
 
 #include <chrono>
+#include <cstdlib>
+#include <iostream>
+#include <string>
 
 #include "room_proto_converter.h"
 
 namespace livekit::test {
 
+namespace {
+
+void setRustLogForRetryTest() {
+#ifdef _WIN32
+  _putenv_s("RUST_LOG", "warn");
+#else
+  setenv("RUST_LOG", "warn", 1);
+#endif
+}
+
+std::size_t countOccurrences(const std::string& haystack, const std::string& needle) {
+  std::size_t count = 0;
+  std::size_t pos = 0;
+  while ((pos = haystack.find(needle, pos)) != std::string::npos) {
+    ++count;
+    pos += needle.size();
+  }
+  return count;
+}
+
+} // namespace
+
 class RoomTest : public ::testing::Test {
 protected:
-  void SetUp() override { livekit::initialize(livekit::LogLevel::Info); }
+  void SetUp() override {
+    setRustLogForRetryTest();
+    livekit::initialize(livekit::LogLevel::Info);
+  }
 
   void TearDown() override { livekit::shutdown(); }
 };
@@ -35,6 +63,8 @@ TEST_F(RoomTest, ConnectWithoutInitialize) {
   livekit::shutdown();
 
   Room room;
+
+  // Default room options okay here, will return before FFI layer since not initialized
   bool result = room.connect("wss://localhost:7880", "test", livekit::RoomOptions());
   EXPECT_FALSE(result) << "Connecting without initializing should return false";
   EXPECT_TRUE(room.localParticipant().expired()) << "Local participant should be empty after failed connect";
@@ -121,6 +151,36 @@ TEST_F(RoomTest, RoomOptionsProtoConverter) {
   EXPECT_FALSE(proto_options.single_peer_connection());
   EXPECT_TRUE(proto_options.has_connect_timeout_ms());
   EXPECT_EQ(proto_options.connect_timeout_ms(), 750U);
+}
+
+// This test validates the join retries behavior when connecting to an invalid URL
+// It sets the RUST_LOG env variable to capture the retry logs
+TEST_F(RoomTest, RoomOptionsJoinRetries) {
+  constexpr std::uint32_t kJoinRetries = 10;
+
+  Room room;
+  RoomOptions options;
+  options.join_retries = kJoinRetries;
+
+  testing::internal::CaptureStderr();
+  const bool result = room.connect("not-a-livekit-url", "test-token", options);
+  const std::string stderr_output = testing::internal::GetCapturedStderr();
+
+  EXPECT_FALSE(result) << "Connecting with an invalid URL should fail";
+  EXPECT_TRUE(room.localParticipant().expired()) << "Local participant should be empty after failed connect";
+  EXPECT_TRUE(room.remoteParticipants().empty()) << "Remote participants should be empty after failed connect";
+
+  // Do the below that way we can print stderr only once if there was a string change to the output
+  const bool has_failure = HasFailure();
+
+  EXPECT_NE(stderr_output.find("Room::connect failed:"), std::string::npos);
+  EXPECT_EQ(countOccurrences(stderr_output, "retrying..."), kJoinRetries);
+  EXPECT_NE(stderr_output.find("retrying... (10/10)"), std::string::npos);
+
+  if (!has_failure && HasFailure()) {
+    std::cerr << "### One or more checks failed due to log format changing. Captured stderr output below ###\n";
+    std::cerr << stderr_output << "\n";
+  }
 }
 
 TEST_F(RoomTest, RtcConfigDefaults) {
