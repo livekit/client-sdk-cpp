@@ -203,6 +203,58 @@ TEST_F(FfiClientTest, RemoveListenerWaitsForInFlightCallback) {
   EXPECT_TRUE(callback_completed.load());
 }
 
+TEST_F(FfiClientTest, ShutdownFromListenerDoesNotDeadlock) {
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+
+  std::atomic<bool> shutdown_returned{false};
+  const auto id = FfiClient::instance().addListener([&shutdown_returned](const proto::FfiEvent&) {
+    FfiClient::instance().shutdown();
+    shutdown_returned.store(true);
+  });
+  ASSERT_NE(id, 0);
+
+  auto callback_future = std::async(std::launch::async, [] { emitLogEvent(); });
+  EXPECT_EQ(callback_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  EXPECT_TRUE(shutdown_returned.load());
+  EXPECT_FALSE(FfiClient::instance().isInitialized());
+}
+
+TEST_F(FfiClientTest, ShutdownRejectsReinitializeAndDropsNewEventsWhileDraining) {
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+
+  std::promise<void> callback_entered;
+  auto callback_entered_future = callback_entered.get_future();
+  std::promise<void> release_callback;
+  auto release_callback_future = release_callback.get_future();
+  std::atomic<int> listener_calls{0};
+
+  const auto id = FfiClient::instance().addListener([&](const proto::FfiEvent&) {
+    ++listener_calls;
+    callback_entered.set_value();
+    release_callback_future.wait();
+  });
+  ASSERT_NE(id, 0);
+
+  std::thread callback_thread([] { emitLogEvent(); });
+  ASSERT_EQ(callback_entered_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+
+  auto shutdown_future = std::async(std::launch::async, [] { FfiClient::instance().shutdown(); });
+  for (int i = 0; i < 5000 && FfiClient::instance().isInitialized(); ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  ASSERT_FALSE(FfiClient::instance().isInitialized());
+  EXPECT_EQ(shutdown_future.wait_for(std::chrono::milliseconds(50)), std::future_status::timeout);
+  EXPECT_FALSE(FfiClient::instance().initialize(false));
+
+  emitLogEvent();
+  EXPECT_EQ(listener_calls.load(), 1);
+
+  release_callback.set_value();
+  callback_thread.join();
+  EXPECT_EQ(shutdown_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  EXPECT_FALSE(FfiClient::instance().isInitialized());
+}
+
 TEST_F(FfiClientTest, PanicEvent) {
   // Wire up a signal handler to ensure the panic event raises SIGTERM
   // (and that users can handle it)

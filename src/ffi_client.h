@@ -150,6 +150,13 @@ public:
 private:
   FfiClient() = default;
 
+  enum class LifecycleState : std::uint8_t {
+    Uninitialized,
+    Initializing,
+    Initialized,
+    ShuttingDown,
+  };
+
   // Base class for type-erased pending ops
   struct PendingBase {
     AsyncId async_id = 0; // Client-generated async ID for cancellation
@@ -209,6 +216,6 @@ private:
 
   void pushEvent(const proto::FfiEvent& event) const;
   friend void ffiEventCallback(const uint8_t* buf, size_t len);
-  std::atomic<bool> initialized_{false};
+  std::atomic<LifecycleState> lifecycle_state_{LifecycleState::Uninitialized};
 };
 } // namespace livekit

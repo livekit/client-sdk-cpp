@@ -18,6 +18,7 @@
 
 #include <cassert>
 #include <csignal>
+#include <cstdio>
 
 #include "data_track.pb.h"
 #include "e2ee.pb.h"
@@ -146,72 +147,110 @@ FfiClient& FfiClient::instance() noexcept {
   return instance;
 }
 
-// clang-tidy flags this as a trivial destructor in release mode
-// due to the assert being pre-processed out
-// NOLINTNEXTLINE(modernize-use-equals-default)
 FfiClient::~FfiClient() {
-  assert(!initialized_.load() &&
-         "LiveKit SDK was not shut down before process exit. "
-         "Call livekit::shutdown().");
+  if (lifecycle_state_.load() == LifecycleState::Initialized) {
+    // Explicitly use this over spdlog
+    // spdlog can throw, and wrapping in try/catch also flags "empty catch" clang-tidy check
+    std::fputs(
+        "LiveKit SDK was not shut down before process exit. "
+        "Call livekit::shutdown().\n",
+        stderr);
+    std::fflush(stderr);
+  }
 }
 
 void FfiClient::shutdown() noexcept {
-  const bool was_initialized = initialized_.exchange(false, std::memory_order_acq_rel);
+  bool dispose_ffi = false;
+  try {
+    // Atomically claim shutdown ownership; only the caller that transitions
+    // Initialized -> ShuttingDown may drain callbacks and dispose the FFI.
+    LifecycleState expected = LifecycleState::Initialized;
+    // Note: compare_exchange_strong transitions Initialized -> ShuttingDown
+    if (!lifecycle_state_.compare_exchange_strong(expected, LifecycleState::ShuttingDown, std::memory_order_acq_rel)) {
+      return;
+    }
+    dispose_ffi = true;
 
-  std::vector<std::shared_ptr<ListenerSlot>> listeners_to_drain;
-  std::vector<std::unique_ptr<PendingBase>> pending_to_cancel;
-  {
-    const std::scoped_lock<std::mutex> guard(lock_);
-    listeners_to_drain.reserve(listeners_.size());
-    for (auto& [id, slot] : listeners_) {
-      (void)id;
-      if (slot) {
-        {
-          const std::scoped_lock<std::mutex> slot_guard(slot->mutex);
-          slot->removed = true;
+    std::vector<std::shared_ptr<ListenerSlot>> listeners_to_drain;
+    std::vector<std::unique_ptr<PendingBase>> pending_to_cancel;
+    {
+      const std::scoped_lock<std::mutex> guard(lock_);
+      listeners_to_drain.reserve(listeners_.size());
+      for (auto& [id, slot] : listeners_) {
+        (void)id;
+        if (slot) {
+          {
+            const std::scoped_lock<std::mutex> slot_guard(slot->mutex);
+            slot->removed = true;
+          }
+          listeners_to_drain.push_back(std::move(slot));
         }
-        listeners_to_drain.push_back(std::move(slot));
       }
-    }
-    listeners_.clear();
+      listeners_.clear();
 
-    pending_to_cancel.reserve(pending_by_id_.size());
-    for (auto& [async_id, pending] : pending_by_id_) {
-      (void)async_id;
-      if (pending) {
-        pending_to_cancel.push_back(std::move(pending));
+      pending_to_cancel.reserve(pending_by_id_.size());
+      for (auto& [async_id, pending] : pending_by_id_) {
+        (void)async_id;
+        if (pending) {
+          pending_to_cancel.push_back(std::move(pending));
+        }
       }
+      pending_by_id_.clear();
     }
-    pending_by_id_.clear();
-  }
 
-  for (auto& pending : pending_to_cancel) {
-    pending->cancel();
-  }
+    for (auto& pending : pending_to_cancel) {
+      pending->cancel();
+    }
 
-  for (const auto& slot : listeners_to_drain) {
-    std::unique_lock<std::mutex> slot_lock(slot->mutex);
-    slot->cv.wait(slot_lock, [&slot] { return slot->active_callbacks == 0; });
-  }
+    const auto this_thread = std::this_thread::get_id();
+    for (const auto& slot : listeners_to_drain) {
+      std::unique_lock<std::mutex> slot_lock(slot->mutex);
+      slot->cv.wait(slot_lock, [&slot, this_thread] {
+        const auto thread_it = slot->active_threads.find(this_thread);
+        const int self_active = thread_it == slot->active_threads.end() ? 0 : thread_it->second;
+        return slot->active_callbacks == self_active;
+      });
+    }
 
-  if (was_initialized) {
     livekit_ffi_dispose();
+    dispose_ffi = false;
+    lifecycle_state_.store(LifecycleState::Uninitialized, std::memory_order_release);
+  } catch (...) {
+    if (dispose_ffi) {
+      livekit_ffi_dispose();
+      lifecycle_state_.store(LifecycleState::Uninitialized, std::memory_order_release);
+    }
+    (void)std::fputs("LiveKit SDK shutdown failed during local cleanup.\n", stderr);
+    (void)std::fflush(stderr);
   }
 }
 
 bool FfiClient::initialize(bool capture_logs) {
-  if (isInitialized()) {
+  LifecycleState expected = LifecycleState::Uninitialized;
+  if (!lifecycle_state_.compare_exchange_strong(expected, LifecycleState::Initializing, std::memory_order_acq_rel)) {
     return false;
   }
-  initialized_.store(true, std::memory_order_release);
-  livekit_ffi_initialize(&ffiEventCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION);
+
+  try {
+    livekit_ffi_initialize(&ffiEventCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION);
+  } catch (...) {
+    lifecycle_state_.store(LifecycleState::Uninitialized, std::memory_order_release);
+    throw;
+  }
+
+  lifecycle_state_.store(LifecycleState::Initialized, std::memory_order_release);
   return true;
 }
 
-bool FfiClient::isInitialized() const noexcept { return initialized_.load(std::memory_order_acquire); }
+bool FfiClient::isInitialized() const noexcept {
+  return lifecycle_state_.load(std::memory_order_acquire) == LifecycleState::Initialized;
+}
 
 FfiClient::ListenerId FfiClient::addListener(const FfiClient::Listener& listener) {
   const std::scoped_lock<std::mutex> guard(lock_);
+  if (lifecycle_state_.load(std::memory_order_acquire) == LifecycleState::ShuttingDown) {
+    logAndThrow("FfiClient::addListener failed: LiveKit is shutting down");
+  }
   const FfiClient::ListenerId id = next_listener_id++;
   listeners_[id] = std::make_shared<ListenerSlot>(listener);
   return id;
@@ -276,7 +315,7 @@ void FfiClient::pushEvent(const proto::FfiEvent& event) const {
   std::vector<std::shared_ptr<ListenerSlot>> listeners_copy;
   {
     const std::scoped_lock<std::mutex> guard(lock_);
-    if (!initialized_.load(std::memory_order_acquire)) {
+    if (lifecycle_state_.load(std::memory_order_acquire) != LifecycleState::Initialized) {
       return;
     }
 
