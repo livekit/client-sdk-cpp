@@ -390,6 +390,12 @@ all filtered stages; normal pull requests and pushes use the path filters.
 - `.github/workflows/cpp-checks.yml` — Reusable `clang-format` and
   `clang-tidy` checks.
 - `.github/workflows/generate-docs.yml` — Reusable Doxygen docs validation.
+- `.github/workflows/rust-release-check.yml` — Reusable check that the pinned
+ `client-sdk-rust` submodule commit maps to a published release. Gated by the
+ `rust_submodule` path filter so it only runs on a submodule bump, runs in
+ parallel, and is intentionally not a dependency of `builds`/`tests` so
+ developer iteration against an unreleased Rust commit still gets build
+ feedback.
 - `.github/workflows/license_check.yml` — Cheap license check, run on every CI
   invocation.
 - `.github/workflows/docker-images.yml` — Docker image build/publish workflow,

@@ -1,0 +1,61 @@
+name: Rust Release Check
+
+# Called by top-level ci.yml. Verifies that the pinned client-sdk-rust
+# submodule commit corresponds to a published release in the Rust SDK repo,
+# so the C++ SDK is never released on a stray (unreleased) Rust commit.
+on:
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  rust-release-check:
+    name: Rust Release Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Resolve Rust submodule SHA
+        id: rust_sha
+        shell: bash
+        run: echo "sha=$(git -C client-sdk-rust rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Rust commit has an associated release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUST_REPO: livekit/client-sdk-rust
+          RUST_SHA: ${{ steps.rust_sha.outputs.sha }}
+        run: |
+          set -euo pipefail
+          echo "Pinned client-sdk-rust commit: ${RUST_SHA}"
+
+          # Published (non-draft) releases -> their tag names.
+          gh api --paginate "repos/${RUST_REPO}/releases" \
+            --jq '.[] | select(.draft == false) | .tag_name' \
+            | sort -u > release_tags.txt
+
+          # All tags -> "tag<TAB>commit_sha"; .commit.sha is the dereferenced
+          # target commit, so annotated and lightweight tags are handled alike.
+          gh api --paginate "repos/${RUST_REPO}/tags" \
+            --jq '.[] | [.name, .commit.sha] | @tsv' > all_tags.tsv
+
+          # A match is a tag that points at the pinned commit AND is released.
+          match="$(awk -v sha="${RUST_SHA}" '
+            NR == FNR { released[$0] = 1; next }
+            ($2 == sha) && ($1 in released) { print $1 }
+          ' release_tags.txt all_tags.tsv | head -n 1)"
+
+          if [[ -z "${match}" ]]; then
+            echo "::error::client-sdk-rust commit ${RUST_SHA} is not associated with any published release in ${RUST_REPO}."
+            echo "Bump the submodule to a released commit before merging; the C++ SDK must not release on a stray Rust commit."
+            exit 1
+          fi
+
+          echo "client-sdk-rust commit ${RUST_SHA} is covered by release tag '${match}'."
