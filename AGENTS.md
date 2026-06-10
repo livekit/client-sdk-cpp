@@ -326,54 +326,11 @@ malformed table, missing `@param` on a documented function, …) fails the build
 
 Code should be easy to read and understand. If a sacrifice is made for performance or readability, it should be documented.
 
-#### Formatting (clang-format)
+Adhere to clang-format checks configured in `.clang-format`. After C++ code changes, run `./scripts/clang-format.sh` to confirm styling, or `./scripts/clang-format.sh --fix` to auto-format.
 
-The repo enforces `.clang-format` in CI (see `.github/workflows/builds.yml` →
-`clang-format` job). Any divergence fails the build.
+### Static Analysis
 
-**Required workflow when generating or editing C/C++ code:**
-
-1. After completing a set of edits to any `.c`, `.cc`, `.cpp`, `.cxx`, `.h`,
-   `.hpp`, or `.hxx` file under `src/`, `include/`, or `benchmarks/`, run:
-
-   ```bash
-   ./scripts/clang-format.sh --fix <paths-you-edited>
-   ```
-
-   Pass the explicit paths so the run is fast; omit them only when doing a
-   sweep over the entire tree.
-2. If clang-format reports any rewrites, treat the rewritten contents as the
-   final state and re-read the file before doing any further edits to it.
-3. Do not commit, hand off, or declare a task complete with un-formatted
-   code. CI will reject it and the round-trip wastes time.
-
-`./scripts/clang-format.sh` (no `--fix`) runs in dry-run / `--Werror` mode and
-is what CI uses; it exits non-zero on any divergence.
-
-#### Static Analysis (clang-tidy)
-
-The repo enforces `.clang-tidy` in CI (see `.github/workflows/builds.yml` →
-`clang-tidy` job, run with `--fail-on-warning`). Any new warning fails the
-build.
-
-**Required workflow when generating or editing C/C++ code:**
-
-1. After substantive C/C++ edits — especially anything that adds new
-   identifiers, new enums, new public API, new free functions, or that
-   touches the FFI / threading boundary — run:
-
-   ```bash
-   ./scripts/clang-tidy.sh
-   ```
-
-   This requires a prior `./build.sh release` (or
-   `./build.sh release-tests` / `release-all`) so that
-   `build-release/compile_commands.json` and the generated protobuf headers
-   exist.
-2. Address any new findings introduced by your edits. Do not introduce new
-   `// NOLINT` suppressions without a one-line comment explaining *why*.
-3. Pre-existing findings in code you did not touch are out of scope unless
-   the user explicitly asks for a sweep.
+Adhere to clang-tidy checks configured in `.clang-tidy`. After C++ code changes, run `./scripts/clang-tidy.sh` to confirm code quality.
 
 ## Dependencies
 
