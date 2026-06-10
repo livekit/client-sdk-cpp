@@ -156,11 +156,47 @@ FfiClient::~FfiClient() {
 }
 
 void FfiClient::shutdown() noexcept {
-  if (!isInitialized()) {
-    return;
+  const bool was_initialized = initialized_.exchange(false, std::memory_order_acq_rel);
+
+  std::vector<std::shared_ptr<ListenerSlot>> listeners_to_drain;
+  std::vector<std::unique_ptr<PendingBase>> pending_to_cancel;
+  {
+    const std::scoped_lock<std::mutex> guard(lock_);
+    listeners_to_drain.reserve(listeners_.size());
+    for (auto& [id, slot] : listeners_) {
+      (void)id;
+      if (slot) {
+        {
+          const std::scoped_lock<std::mutex> slot_guard(slot->mutex);
+          slot->removed = true;
+        }
+        listeners_to_drain.push_back(std::move(slot));
+      }
+    }
+    listeners_.clear();
+
+    pending_to_cancel.reserve(pending_by_id_.size());
+    for (auto& [async_id, pending] : pending_by_id_) {
+      (void)async_id;
+      if (pending) {
+        pending_to_cancel.push_back(std::move(pending));
+      }
+    }
+    pending_by_id_.clear();
   }
-  initialized_.store(false, std::memory_order_release);
-  livekit_ffi_dispose();
+
+  for (auto& pending : pending_to_cancel) {
+    pending->cancel();
+  }
+
+  for (const auto& slot : listeners_to_drain) {
+    std::unique_lock<std::mutex> slot_lock(slot->mutex);
+    slot->cv.wait(slot_lock, [&slot] { return slot->active_callbacks == 0; });
+  }
+
+  if (was_initialized) {
+    livekit_ffi_dispose();
+  }
 }
 
 bool FfiClient::initialize(bool capture_logs) {
@@ -177,13 +213,29 @@ bool FfiClient::isInitialized() const noexcept { return initialized_.load(std::m
 FfiClient::ListenerId FfiClient::addListener(const FfiClient::Listener& listener) {
   const std::scoped_lock<std::mutex> guard(lock_);
   const FfiClient::ListenerId id = next_listener_id++;
-  listeners_[id] = listener;
+  listeners_[id] = std::make_shared<ListenerSlot>(listener);
   return id;
 }
 
 void FfiClient::removeListener(ListenerId id) {
-  const std::scoped_lock<std::mutex> guard(lock_);
-  listeners_.erase(id);
+  std::shared_ptr<ListenerSlot> slot;
+  {
+    const std::scoped_lock<std::mutex> guard(lock_);
+    auto it = listeners_.find(id);
+    if (it == listeners_.end()) {
+      return;
+    }
+    slot = std::move(it->second);
+    listeners_.erase(it);
+  }
+
+  const auto this_thread = std::this_thread::get_id();
+  std::unique_lock<std::mutex> slot_lock(slot->mutex);
+  slot->removed = true;
+  slot->cv.wait(slot_lock, [&slot, this_thread] {
+    const auto self_active = slot->active_threads.count(this_thread) != 0;
+    return slot->active_callbacks == 0 || (self_active && slot->active_callbacks == 1);
+  });
 }
 
 proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) const {
@@ -221,9 +273,12 @@ proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) cons
 
 void FfiClient::pushEvent(const proto::FfiEvent& event) const {
   std::unique_ptr<PendingBase> to_complete;
-  std::vector<Listener> listeners_copy;
+  std::vector<std::shared_ptr<ListenerSlot>> listeners_copy;
   {
     const std::scoped_lock<std::mutex> guard(lock_);
+    if (!initialized_.load(std::memory_order_acquire)) {
+      return;
+    }
 
     // Complete pending future if this event is a callback with async_id
     if (auto async_id = ExtractAsyncId(event)) {
@@ -246,8 +301,39 @@ void FfiClient::pushEvent(const proto::FfiEvent& event) const {
   }
 
   // Notify listeners outside lock
-  for (auto& listener : listeners_copy) {
-    listener(event);
+  for (const auto& slot : listeners_copy) {
+    Listener listener;
+    const auto this_thread = std::this_thread::get_id();
+    {
+      const std::scoped_lock<std::mutex> slot_guard(slot->mutex);
+      if (slot->removed) {
+        continue;
+      }
+      ++slot->active_callbacks;
+      ++slot->active_threads[this_thread];
+      listener = slot->listener;
+    }
+
+    try {
+      listener(event);
+    } catch (const std::exception& e) {
+      LK_LOG_ERROR("FfiClient listener threw: {}", e.what());
+    } catch (...) {
+      LK_LOG_ERROR("FfiClient listener threw: unknown exception");
+    }
+
+    {
+      const std::scoped_lock<std::mutex> slot_guard(slot->mutex);
+      const auto thread_it = slot->active_threads.find(this_thread);
+      if (thread_it != slot->active_threads.end()) {
+        --thread_it->second;
+        if (thread_it->second == 0) {
+          slot->active_threads.erase(thread_it);
+        }
+      }
+      --slot->active_callbacks;
+    }
+    slot->cv.notify_all();
   }
 }
 

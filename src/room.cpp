@@ -436,7 +436,7 @@ void Room::onEvent(const FfiEvent& event) {
   if (event.message_case() == FfiEvent::kRpcMethodInvocation) {
     const auto& rpc = event.rpc_method_invocation();
 
-    LocalParticipant* lp = nullptr;
+    std::shared_ptr<LocalParticipant> lp;
     {
       const std::scoped_lock<std::mutex> guard(lock_);
       if (!local_participant_) {
@@ -448,7 +448,7 @@ void Room::onEvent(const FfiEvent& event) {
         // RPC is not targeted at this room's local participant; ignore.
         return;
       }
-      lp = local_participant_.get();
+      lp = local_participant_;
     }
 
     // Call outside the lock to avoid deadlocks / re-entrancy issues.
