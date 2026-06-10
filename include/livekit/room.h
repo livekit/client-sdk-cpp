@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <chrono>
+#include <cstdint>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -74,19 +76,28 @@ struct RoomOptions {
   ///   - remote audio/video frames
   bool auto_subscribe = true;
 
+  /// Enable adaptive stream so the server optimizes subscribed video layers.
+  bool adaptive_stream = false;
+
   /// Enable dynacast (server sends optimal layers depending on subscribers).
   bool dynacast = false;
+
+  /// Optional end-to-end encryption settings.
+  std::optional<E2EEOptions> encryption;
+
+  /// Optional WebRTC configuration (ICE policy, servers, etc.)
+  std::optional<RtcConfig> rtc_config;
+
+  /// Number of retries for the initial room join after the first attempt.
+  std::uint32_t join_retries = 3;
 
   /// Enable single peer connection mode. When true, uses one RTCPeerConnection
   /// for both publishing and subscribing instead of two separate connections.
   /// Falls back to dual peer connection if the server doesn't support single PC.
   bool single_peer_connection = true;
 
-  /// Optional WebRTC configuration (ICE policy, servers, etc.)
-  std::optional<RtcConfig> rtc_config;
-
-  /// Optional end-to-end encryption settings.
-  std::optional<E2EEOptions> encryption;
+  /// Timeout for each individual signal connection attempt.
+  std::chrono::milliseconds connect_timeout = std::chrono::seconds(5);
 };
 
 /// Represents a LiveKit room session.

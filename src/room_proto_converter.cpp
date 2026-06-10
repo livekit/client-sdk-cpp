@@ -17,6 +17,7 @@
 #include "room_proto_converter.h"
 
 #include "livekit/data_stream.h"
+#include "livekit/room.h"
 #include "room.pb.h"
 
 namespace livekit {
@@ -399,6 +400,44 @@ proto::KeyProviderOptions toProto(const KeyProviderOptions& in) {
   out.set_failure_tolerance(in.failure_tolerance);
   out.set_key_ring_size(in.key_ring_size);
   out.set_key_derivation_function(static_cast<proto::KeyDerivationFunction>(in.key_derivation_function));
+  return out;
+}
+
+proto::RoomOptions toProto(const RoomOptions& in) {
+  proto::RoomOptions out;
+  out.set_auto_subscribe(in.auto_subscribe);
+  out.set_adaptive_stream(in.adaptive_stream);
+  out.set_dynacast(in.dynacast);
+
+  if (in.encryption) {
+    auto* encryption = out.mutable_encryption();
+    encryption->set_encryption_type(static_cast<proto::EncryptionType>(in.encryption->encryption_type));
+    encryption->mutable_key_provider_options()->CopyFrom(toProto(in.encryption->key_provider_options));
+  }
+
+  if (in.rtc_config) {
+    auto* rtc = out.mutable_rtc_config();
+    rtc->set_ice_transport_type(static_cast<proto::IceTransportType>(in.rtc_config->ice_transport_type));
+    rtc->set_continual_gathering_policy(
+        static_cast<proto::ContinualGatheringPolicy>(in.rtc_config->continual_gathering_policy));
+
+    for (const IceServer& ice : in.rtc_config->ice_servers) {
+      auto* server = rtc->add_ice_servers();
+      if (!ice.url.empty()) {
+        server->add_urls(ice.url);
+      }
+      if (!ice.username.empty()) {
+        server->set_username(ice.username);
+      }
+      if (!ice.credential.empty()) {
+        server->set_password(ice.credential);
+      }
+    }
+  }
+
+  out.set_join_retries(in.join_retries);
+  out.set_single_peer_connection(in.single_peer_connection);
+  out.set_connect_timeout_ms(static_cast<std::uint64_t>(in.connect_timeout.count()));
   return out;
 }
 
