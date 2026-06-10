@@ -61,7 +61,7 @@ cd "${script_dir}/.."
 # users who hit a pre-flight error or a bad argument get pointed at this.
 usage() {
   cat <<'EOF'
-Usage: ./scripts/clang-tidy.sh [OPTIONS] [FILE...] [run-clang-tidy args...]
+Usage: ./scripts/clang-tidy.sh [OPTIONS] [FILE...]
 
 Run clang-tidy locally or in CI using the same file set and config that the
 repo's CI workflow uses. Picks up checks from the repo-root .clang-tidy.
@@ -70,7 +70,7 @@ Options:
   -h, --help, -?
         Show this help and exit.
   --fix
-        Apply fixes in place (forwarded to run-clang-tidy as -fix).
+        Apply fixes in place.
   --github-actions, --gh
         Force GitHub Actions annotation + step-summary mode.
         Auto-detected when GITHUB_ACTIONS=true.
@@ -78,6 +78,8 @@ Options:
         Exit non-zero when any warning is emitted (errors already exit
         non-zero on their own). Off by default for local edit/run cycles;
         CI opts in via the workflow file.
+  -j N
+        Override the clang-tidy worker count. Defaults to nproc / hw.ncpu.
 
 Positional arguments:
   FILE...
@@ -85,10 +87,6 @@ Positional arguments:
         the tracked first-party src/ tree (excluding src/tests/). Pass paths
         to scope the run to a single file or a curated set, e.g.:
             ./scripts/clang-tidy.sh <path-to-file.cpp>
-
-Any other arguments are forwarded verbatim to run-clang-tidy. Common ones:
-  -j N        worker count (defaults to nproc / sysctl hw.ncpu)
-  -checks=... override the .clang-tidy check list for this run
 
 Examples:
   ./scripts/clang-tidy.sh                    # full src/ tree
@@ -135,8 +133,8 @@ fi
 # not just on errors. Off by default so local edit/run cycles aren't blocked
 # by in-progress code; CI opts in via the workflow file.
 FAIL_ON_WARNING=0
+FIX_MODE=0
 
-forward_args=()
 explicit_files=()
 while (($#)); do
   case "$1" in
@@ -146,10 +144,7 @@ while (($#)); do
       exit 0
       ;;
     --fix)
-      # Unify with clang-format.sh's --fix spelling. run-clang-tidy only
-      # understands the single-dash -fix, so normalize every accepted form
-      # to that when forwarding.
-      forward_args+=("-fix")
+      FIX_MODE=1
       shift
       ;;
     --github-actions|--gh)
@@ -160,35 +155,43 @@ while (($#)); do
       FAIL_ON_WARNING=1
       shift
       ;;
+    -j)
+      if [[ $# -lt 2 || ! "$2" =~ ^[1-9][0-9]*$ ]]; then
+        echo "ERROR: -j requires a positive integer worker count." >&2
+        usage >&2
+        exit 2
+      fi
+      jobs="$2"
+      shift 2
+      ;;
     --)
-      # Explicit forwarding separator: everything after `--` goes straight
-      # to run-clang-tidy without further interpretation.
+      # Explicit positional separator: everything after `--` is a file path.
       shift
-      forward_args+=("$@")
+      explicit_files+=("$@")
       break
       ;;
-    --*)
-      # Long options we don't recognize are user typos far more often than
-      # genuine run-clang-tidy long options (run-clang-tidy uses single-dash
-      # long options like -fix, -j, -checks=...). Reject and surface usage.
+    --*|-*)
       echo "ERROR: unknown option: $1" >&2
       usage >&2
       exit 2
       ;;
     *)
-      # A positional arg naming an existing file is an explicit target to
-      # analyze; anything else (e.g. the value after -j, a -checks=... flag)
-      # is forwarded verbatim to run-clang-tidy. When explicit files are
-      # given they replace the default src/ FILE_REGEX below so the run is
-      # scoped to exactly those files.
-      if [[ -f "$1" ]]; then
-        explicit_files+=("$1")
-      else
-        forward_args+=("$1")
-      fi
+      explicit_files+=("$1")
       shift
       ;;
   esac
+done
+
+for path in "${explicit_files[@]}"; do
+  if [[ -f "${path}" ]]; then
+    continue
+  fi
+  if [[ -e "${path}" ]]; then
+    echo "ERROR: clang-tidy target is not a regular file: ${path}" >&2
+  else
+    echo "ERROR: clang-tidy target does not exist: ${path}" >&2
+  fi
+  exit 2
 done
 
 if [[ ! -f "${BUILD_DIR}/compile_commands.json" ]]; then
@@ -248,10 +251,17 @@ fi
 # coreutils tool; macOS doesn't ship it, so fall back to `sysctl hw.ncpu`,
 # and finally to a conservative 4 if neither is available (e.g. a minimal
 # container).
-if command -v nproc >/dev/null 2>&1; then
-  jobs=$(nproc)
-else
-  jobs=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
+if [[ -z "${jobs:-}" ]]; then
+  if command -v nproc >/dev/null 2>&1; then
+    jobs=$(nproc)
+  else
+    jobs=$(sysctl -n hw.ncpu 2>/dev/null || echo 4)
+  fi
+fi
+
+tidy_args=()
+if (( FIX_MODE == 1 )); then
+  tidy_args+=("-fix")
 fi
 
 # -------- Begin GitHub Actions annotations --------
@@ -536,7 +546,7 @@ PYTHONUNBUFFERED=1 run-clang-tidy \
   -quiet \
   -j "${jobs}" \
   ${extra_args[@]+"${extra_args[@]}"} \
-  ${forward_args[@]+"${forward_args[@]}"} \
+  ${tidy_args[@]+"${tidy_args[@]}"} \
   "${tidy_targets[@]}" \
   2>&1 | tee "${log}"
 rc="${PIPESTATUS[0]}"
