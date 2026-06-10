@@ -41,73 +41,52 @@ permissions:
   packages: write
 
 jobs:
-  metadata:
-    name: Docker Metadata
-    runs-on: ubuntu-latest
-    outputs:
-      base_changed: ${{ steps.changes.outputs.base_changed }}
-      sdk_changed: ${{ steps.changes.outputs.sdk_changed }}
-      base_hash: ${{ steps.hash.outputs.base_hash }}
-      base_image: ${{ steps.refs.outputs.base_image }}
-      sdk_image: ${{ steps.refs.outputs.sdk_image }}
-      publish_main: ${{ steps.mode.outputs.publish_main }}
-      publish_nightly: ${{ steps.mode.outputs.publish_nightly }}
-      nightly_tag: ${{ steps.mode.outputs.nightly_tag }}
-      sdk_validation_tag: ${{ steps.mode.outputs.sdk_validation_tag }}
+  build:
+    name: Build Docker Images (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x64
+            runner: ubuntu-latest
+            arch: amd64
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+
     steps:
-      - name: Checkout
+      - name: Checkout (with submodules)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          submodules: recursive
           fetch-depth: 0
 
-      - name: Resolve GHCR image names
-        id: refs
+      - name: Resolve Docker metadata
+        id: meta
         shell: bash
         run: |
           set -euo pipefail
+
           owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          {
-            echo "base_image=ghcr.io/${owner}/client-sdk-cpp-base"
-            echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Hash base Dockerfile
-        id: hash
-        shell: bash
-        run: |
-          set -euo pipefail
+          base_image="ghcr.io/${owner}/client-sdk-cpp-base"
+          sdk_image="ghcr.io/${owner}/client-sdk-cpp"
           base_hash="$(shasum -a 256 docker/Dockerfile.base | awk '{print substr($1,1,12)}')"
-          echo "base_hash=${base_hash}" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve publish mode
-        id: mode
-        shell: bash
-        run: |
-          set -euo pipefail
           publish_main=false
           publish_nightly=false
+          publish_images=false
           nightly_tag="nightly-${GITHUB_RUN_ID}"
           sdk_validation_tag="sha-${GITHUB_SHA}"
 
           if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
             publish_main=true
+            publish_images=true
           elif [[ "${{ inputs.publish_images }}" == "true" ]]; then
             publish_nightly=true
+            publish_images=true
             sdk_validation_tag="${nightly_tag}"
           fi
-
-          {
-            echo "publish_main=${publish_main}"
-            echo "publish_nightly=${publish_nightly}"
-            echo "nightly_tag=${nightly_tag}"
-            echo "sdk_validation_tag=${sdk_validation_tag}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Detect changed inputs
-        id: changes
-        shell: bash
-        run: |
-          set -euo pipefail
 
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             changed_files="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
@@ -130,7 +109,6 @@ jobs:
 
           base_changed=false
           sdk_changed=false
-
           while IFS= read -r path; do
             [[ -z "${path}" ]] && continue
 
@@ -149,32 +127,18 @@ jobs:
           {
             echo "base_changed=${base_changed}"
             echo "sdk_changed=${sdk_changed}"
+            echo "base_hash=${base_hash}"
+            echo "base_image=${base_image}"
+            echo "sdk_image=${sdk_image}"
+            echo "publish_images=${publish_images}"
+            echo "publish_main=${publish_main}"
+            echo "publish_nightly=${publish_nightly}"
+            echo "nightly_tag=${nightly_tag}"
+            echo "sdk_validation_tag=${sdk_validation_tag}"
           } >> "$GITHUB_OUTPUT"
 
-  validate:
-    name: Validate Docker image (${{ matrix.name }})
-    needs: metadata
-    if: needs.metadata.outputs.sdk_changed == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: linux-x64
-            runner: ubuntu-latest
-            arch: amd64
-          - name: linux-arm64
-            runner: ubuntu-24.04-arm
-            arch: arm64
-    runs-on: ${{ matrix.runner }}
-
-    steps:
-      - name: Checkout (with submodules)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
       - name: Free disk space
+        if: steps.meta.outputs.sdk_changed == 'true'
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
         with:
           tool-cache: false
@@ -186,6 +150,7 @@ jobs:
           swap-storage: true
 
       - name: Login to GHCR
+        if: steps.meta.outputs.sdk_changed == 'true'
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -194,16 +159,16 @@ jobs:
           echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Pull base image from GHCR
-        if: needs.metadata.outputs.base_changed == 'false'
+        if: steps.meta.outputs.sdk_changed == 'true' && steps.meta.outputs.base_changed == 'false'
         shell: bash
         run: |
           set -euxo pipefail
-          docker pull "${{ needs.metadata.outputs.base_image }}:base-main-${{ matrix.arch }}"
-          docker tag "${{ needs.metadata.outputs.base_image }}:base-main-${{ matrix.arch }}" \
+          docker pull "${{ steps.meta.outputs.base_image }}:base-main-${{ matrix.arch }}"
+          docker tag "${{ steps.meta.outputs.base_image }}:base-main-${{ matrix.arch }}" \
             "livekit-cpp-sdk-base-${{ matrix.arch }}:${{ github.sha }}"
 
       - name: Build base Docker image
-        if: needs.metadata.outputs.base_changed == 'true'
+        if: steps.meta.outputs.sdk_changed == 'true' && steps.meta.outputs.base_changed == 'true'
         shell: bash
         run: |
           set -euxo pipefail
@@ -214,6 +179,7 @@ jobs:
             docker
 
       - name: Build SDK Docker image
+        if: steps.meta.outputs.sdk_changed == 'true'
         shell: bash
         run: |
           set -euxo pipefail
@@ -224,6 +190,7 @@ jobs:
             -f docker/Dockerfile.sdk
 
       - name: Verify installed SDK inside image
+        if: steps.meta.outputs.sdk_changed == 'true'
         shell: bash
         run: |
           set -euxo pipefail
@@ -231,6 +198,7 @@ jobs:
             'test -f /opt/livekit-sdk/lib/cmake/LiveKit/LiveKitConfig.cmake'
 
       - name: Build cpp-example-collection against installed SDK
+        if: steps.meta.outputs.sdk_changed == 'true'
         shell: bash
         run: |
           set -euxo pipefail
@@ -245,239 +213,115 @@ jobs:
             cmake --build build --parallel
           '
 
-  publish-base:
-    name: Publish base image (${{ matrix.name }})
-    needs:
-      - metadata
-      - validate
-    if: |
-      (needs.metadata.outputs.publish_main == 'true' || needs.metadata.outputs.publish_nightly == 'true') &&
-      needs.metadata.outputs.base_changed == 'true' &&
-      needs.validate.result == 'success'
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: linux-x64
-            runner: ubuntu-latest
-            arch: amd64
-          - name: linux-arm64
-            runner: ubuntu-24.04-arm
-            arch: arm64
-    runs-on: ${{ matrix.runner }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Login to GHCR
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Build and push base image
+      - name: Export images for push
+        if: steps.meta.outputs.sdk_changed == 'true' && steps.meta.outputs.publish_images == 'true'
         shell: bash
         run: |
           set -euxo pipefail
-          if [[ "${{ needs.metadata.outputs.publish_main }}" == "true" ]]; then
-            tag_args=(-t "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-${{ matrix.arch }}")
-            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:base-main-${{ matrix.arch }}")
-          else
-            tag_args=()
-            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:${{ needs.metadata.outputs.nightly_tag }}-base-${{ matrix.arch }}")
-            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:nightly-latest-base-${{ matrix.arch }}")
+          mkdir -p docker-artifacts
+          if [[ "${{ steps.meta.outputs.base_changed }}" == "true" ]]; then
+            docker save \
+              "livekit-cpp-sdk-base-${{ matrix.arch }}:${{ github.sha }}" \
+              -o "docker-artifacts/base-${{ matrix.arch }}.tar"
           fi
-          docker buildx build \
-            --platform linux/${{ matrix.arch }} \
-            --cache-from type=registry,ref="${{ needs.metadata.outputs.base_image }}:buildcache-base-${{ matrix.arch }}" \
-            --cache-to type=registry,ref="${{ needs.metadata.outputs.base_image }}:buildcache-base-${{ matrix.arch }}",mode=max \
-            --push \
-            "${tag_args[@]}" \
-            -f docker/Dockerfile.base \
-            docker
+          docker save \
+            "livekit-cpp-sdk-${{ matrix.arch }}:${{ github.sha }}" \
+            -o "docker-artifacts/sdk-${{ matrix.arch }}.tar"
 
-  publish-base-manifest:
-    name: Publish base manifest
-    needs:
-      - metadata
-      - publish-base
-    if: |
-      always() &&
-      (needs.metadata.outputs.publish_main == 'true' || needs.metadata.outputs.publish_nightly == 'true') &&
-      needs.metadata.outputs.base_changed == 'true' &&
-      needs.publish-base.result == 'success'
-    permissions:
-      contents: read
-      packages: write
+      - name: Upload images for push
+        if: steps.meta.outputs.sdk_changed == 'true' && steps.meta.outputs.publish_images == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: docker-images-${{ matrix.arch }}
+          path: docker-artifacts/*.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  push:
+    name: Push Docker Images
+    needs: build
+    if: inputs.publish_images || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
 
     steps:
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Login to GHCR
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Publish base manifest tags
-        shell: bash
-        run: |
-          set -euxo pipefail
-          if [[ "${{ needs.metadata.outputs.publish_main }}" == "true" ]]; then
-            tag_args=(-t "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}")
-            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:base-main")
-            refs=(
-              "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-amd64"
-              "${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-arm64"
-            )
-          else
-            tag_args=()
-            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:${{ needs.metadata.outputs.nightly_tag }}-base")
-            tag_args+=(-t "${{ needs.metadata.outputs.base_image }}:nightly-latest-base")
-            refs=(
-              "${{ needs.metadata.outputs.base_image }}:${{ needs.metadata.outputs.nightly_tag }}-base-amd64"
-              "${{ needs.metadata.outputs.base_image }}:${{ needs.metadata.outputs.nightly_tag }}-base-arm64"
-            )
-          fi
-          docker buildx imagetools create \
-            "${tag_args[@]}" \
-            "${refs[@]}"
-
-  publish-sdk:
-    name: Publish SDK image (${{ matrix.name }})
-    needs:
-      - metadata
-      - validate
-      - publish-base
-      - publish-base-manifest
-    if: |
-      always() &&
-      (needs.metadata.outputs.publish_main == 'true' || needs.metadata.outputs.publish_nightly == 'true') &&
-      needs.metadata.outputs.sdk_changed == 'true' &&
-      needs.validate.result == 'success' &&
-      needs.publish-base.result != 'failure' &&
-      needs.publish-base.result != 'cancelled' &&
-      needs.publish-base-manifest.result != 'failure' &&
-      needs.publish-base-manifest.result != 'cancelled'
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: linux-x64
-            runner: ubuntu-latest
-            arch: amd64
-          - name: linux-arm64
-            runner: ubuntu-24.04-arm
-            arch: arm64
-    runs-on: ${{ matrix.runner }}
-
-    steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          submodules: recursive
           fetch-depth: 0
 
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-
-      - name: Login to GHCR
+      - name: Resolve Docker metadata
+        id: meta
         shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Build and push SDK image
-        shell: bash
-        run: |
-          set -euxo pipefail
-          if [[ "${{ needs.metadata.outputs.base_changed }}" == "true" ]]; then
-            if [[ "${{ needs.metadata.outputs.publish_nightly }}" == "true" ]]; then
-              base_ref="${{ needs.metadata.outputs.base_image }}:${{ needs.metadata.outputs.nightly_tag }}-base-${{ matrix.arch }}"
-            else
-              base_ref="${{ needs.metadata.outputs.base_image }}:base-${{ needs.metadata.outputs.base_hash }}-${{ matrix.arch }}"
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          base_image="ghcr.io/${owner}/client-sdk-cpp-base"
+          sdk_image="ghcr.io/${owner}/client-sdk-cpp"
+          base_hash="$(shasum -a 256 docker/Dockerfile.base | awk '{print substr($1,1,12)}')"
+
+          publish_main=false
+          publish_nightly=false
+          nightly_tag="nightly-${GITHUB_RUN_ID}"
+          sdk_validation_tag="sha-${GITHUB_SHA}"
+
+          if [[ "${{ github.event_name }}" == "push" && "${{ github.ref }}" == "refs/heads/main" ]]; then
+            publish_main=true
+          else
+            publish_nightly=true
+            sdk_validation_tag="${nightly_tag}"
+          fi
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            changed_files="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
+          elif [[ "${{ github.event_name }}" == "push" &&
+                  "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]]; then
+            changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
+          else
+            changed_files="$(git ls-tree -r --name-only "${{ github.sha }}")"
+          fi
+
+          base_changed=false
+          sdk_changed=false
+          while IFS= read -r path; do
+            [[ -z "${path}" ]] && continue
+            if [[ "${path}" == "docker/Dockerfile.base" ]]; then
+              base_changed=true
+              sdk_changed=true
             fi
-          else
-            base_ref="${{ needs.metadata.outputs.base_image }}:base-main-${{ matrix.arch }}"
-          fi
+            case "${path}" in
+              docker/*|.dockerignore|cmake/*|CMakeLists.txt|CMakePresets.json|build*|.build*|.github/workflows/ci.yml|.github/workflows/docker-images.yml)
+                sdk_changed=true
+                ;;
+            esac
+          done <<< "${changed_files}"
 
-          tag_args=(-t "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}-${{ matrix.arch }}")
-          if [[ "${{ needs.metadata.outputs.publish_main }}" == "true" ]]; then
-            tag_args+=(-t "${{ needs.metadata.outputs.sdk_image }}:main-${{ matrix.arch }}")
-          else
-            tag_args+=(-t "${{ needs.metadata.outputs.sdk_image }}:nightly-latest-${{ matrix.arch }}")
-          fi
+          {
+            echo "base_changed=${base_changed}"
+            echo "sdk_changed=${sdk_changed}"
+            echo "base_hash=${base_hash}"
+            echo "base_image=${base_image}"
+            echo "sdk_image=${sdk_image}"
+            echo "publish_main=${publish_main}"
+            echo "publish_nightly=${publish_nightly}"
+            echo "nightly_tag=${nightly_tag}"
+            echo "sdk_validation_tag=${sdk_validation_tag}"
+          } >> "$GITHUB_OUTPUT"
 
-          docker buildx build \
-            --platform linux/${{ matrix.arch }} \
-            --build-arg BASE_IMAGE="${base_ref}" \
-            --cache-from type=registry,ref="${{ needs.metadata.outputs.sdk_image }}:buildcache-sdk-${{ matrix.arch }}" \
-            --cache-to type=registry,ref="${{ needs.metadata.outputs.sdk_image }}:buildcache-sdk-${{ matrix.arch }}",mode=max \
-            --push \
-            "${tag_args[@]}" \
-            . \
-            -f docker/Dockerfile.sdk
+      - name: Download images
+        if: steps.meta.outputs.sdk_changed == 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: docker-images-*
+          path: docker-artifacts
+          merge-multiple: true
 
-  publish-sdk-manifest:
-    name: Publish SDK manifest
-    needs:
-      - metadata
-      - publish-sdk
-    if: |
-      always() &&
-      (needs.metadata.outputs.publish_main == 'true' || needs.metadata.outputs.publish_nightly == 'true') &&
-      needs.metadata.outputs.sdk_changed == 'true' &&
-      needs.publish-sdk.result == 'success'
-    permissions:
-      contents: read
-      packages: write
-    runs-on: ubuntu-latest
-
-    steps:
       - name: Set up Docker Buildx
+        if: steps.meta.outputs.sdk_changed == 'true'
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
       - name: Login to GHCR
+        if: steps.meta.outputs.sdk_changed == 'true'
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -485,77 +329,132 @@ jobs:
           set -euo pipefail
           echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Publish SDK manifest tags
+      - name: Load images
+        if: steps.meta.outputs.sdk_changed == 'true'
         shell: bash
         run: |
           set -euxo pipefail
-          tag_args=(-t "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}")
-          if [[ "${{ needs.metadata.outputs.publish_main }}" == "true" ]]; then
-            tag_args+=(-t "${{ needs.metadata.outputs.sdk_image }}:main")
-          else
-            tag_args+=(-t "${{ needs.metadata.outputs.sdk_image }}:nightly-latest")
+          for image in docker-artifacts/*.tar; do
+            docker load -i "${image}"
+          done
+
+      - name: Push architecture images
+        if: steps.meta.outputs.sdk_changed == 'true'
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          for arch in amd64 arm64; do
+            if [[ "${{ steps.meta.outputs.base_changed }}" == "true" ]]; then
+              base_local="livekit-cpp-sdk-base-${arch}:${{ github.sha }}"
+              if [[ "${{ steps.meta.outputs.publish_main }}" == "true" ]]; then
+                base_tags=(
+                  "${{ steps.meta.outputs.base_image }}:base-${{ steps.meta.outputs.base_hash }}-${arch}"
+                  "${{ steps.meta.outputs.base_image }}:base-main-${arch}"
+                )
+              else
+                base_tags=(
+                  "${{ steps.meta.outputs.base_image }}:${{ steps.meta.outputs.nightly_tag }}-base-${arch}"
+                  "${{ steps.meta.outputs.base_image }}:nightly-latest-base-${arch}"
+                )
+              fi
+
+              for tag in "${base_tags[@]}"; do
+                docker tag "${base_local}" "${tag}"
+                docker push "${tag}"
+              done
+            fi
+
+            sdk_local="livekit-cpp-sdk-${arch}:${{ github.sha }}"
+            if [[ "${{ steps.meta.outputs.publish_main }}" == "true" ]]; then
+              sdk_tags=(
+                "${{ steps.meta.outputs.sdk_image }}:${{ steps.meta.outputs.sdk_validation_tag }}-${arch}"
+                "${{ steps.meta.outputs.sdk_image }}:main-${arch}"
+              )
+            else
+              sdk_tags=(
+                "${{ steps.meta.outputs.sdk_image }}:${{ steps.meta.outputs.sdk_validation_tag }}-${arch}"
+                "${{ steps.meta.outputs.sdk_image }}:nightly-latest-${arch}"
+              )
+            fi
+
+            for tag in "${sdk_tags[@]}"; do
+              docker tag "${sdk_local}" "${tag}"
+              docker push "${tag}"
+            done
+          done
+
+      - name: Publish manifest tags
+        if: steps.meta.outputs.sdk_changed == 'true'
+        shell: bash
+        run: |
+          set -euxo pipefail
+
+          if [[ "${{ steps.meta.outputs.base_changed }}" == "true" ]]; then
+            if [[ "${{ steps.meta.outputs.publish_main }}" == "true" ]]; then
+              base_tag_args=(
+                -t "${{ steps.meta.outputs.base_image }}:base-${{ steps.meta.outputs.base_hash }}"
+                -t "${{ steps.meta.outputs.base_image }}:base-main"
+              )
+              base_refs=(
+                "${{ steps.meta.outputs.base_image }}:base-${{ steps.meta.outputs.base_hash }}-amd64"
+                "${{ steps.meta.outputs.base_image }}:base-${{ steps.meta.outputs.base_hash }}-arm64"
+              )
+            else
+              base_tag_args=(
+                -t "${{ steps.meta.outputs.base_image }}:${{ steps.meta.outputs.nightly_tag }}-base"
+                -t "${{ steps.meta.outputs.base_image }}:nightly-latest-base"
+              )
+              base_refs=(
+                "${{ steps.meta.outputs.base_image }}:${{ steps.meta.outputs.nightly_tag }}-base-amd64"
+                "${{ steps.meta.outputs.base_image }}:${{ steps.meta.outputs.nightly_tag }}-base-arm64"
+              )
+            fi
+
+            docker buildx imagetools create \
+              "${base_tag_args[@]}" \
+              "${base_refs[@]}"
           fi
+
+          tag_args=(-t "${{ steps.meta.outputs.sdk_image }}:${{ steps.meta.outputs.sdk_validation_tag }}")
+          if [[ "${{ steps.meta.outputs.publish_main }}" == "true" ]]; then
+            tag_args+=(-t "${{ steps.meta.outputs.sdk_image }}:main")
+          else
+            tag_args+=(-t "${{ steps.meta.outputs.sdk_image }}:nightly-latest")
+          fi
+
           docker buildx imagetools create \
             "${tag_args[@]}" \
-            "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}-amd64" \
-            "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}-arm64"
-
-  validate-published:
-    name: Validate published Docker image (${{ matrix.name }})
-    needs:
-      - metadata
-      - publish-sdk-manifest
-    if: |
-      always() &&
-      (needs.metadata.outputs.publish_main == 'true' || needs.metadata.outputs.publish_nightly == 'true') &&
-      needs.metadata.outputs.sdk_changed == 'true' &&
-      needs.publish-sdk-manifest.result == 'success'
-    permissions:
-      contents: read
-      packages: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: linux-x64
-            runner: ubuntu-latest
-          - name: linux-arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          fetch-depth: 1
-
-      - name: Login to GHCR
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            "${{ steps.meta.outputs.sdk_image }}:${{ steps.meta.outputs.sdk_validation_tag }}-amd64" \
+            "${{ steps.meta.outputs.sdk_image }}:${{ steps.meta.outputs.sdk_validation_tag }}-arm64"
 
       - name: Pull SDK image
+        if: steps.meta.outputs.sdk_changed == 'true'
         shell: bash
         run: |
           set -euxo pipefail
-          time docker pull "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}"
+          time docker pull "${{ steps.meta.outputs.sdk_image }}:${{ steps.meta.outputs.sdk_validation_tag }}"
+
+      - name: Inspect SDK manifest
+        if: steps.meta.outputs.sdk_changed == 'true'
+        shell: bash
+        run: docker buildx imagetools inspect "${{ steps.meta.outputs.sdk_image }}:${{ steps.meta.outputs.sdk_validation_tag }}"
 
       - name: Verify installed SDK inside image
+        if: steps.meta.outputs.sdk_changed == 'true'
         shell: bash
         run: |
           set -euxo pipefail
-          docker run --rm "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}" bash -c \
+          docker run --rm "${{ steps.meta.outputs.sdk_image }}:${{ steps.meta.outputs.sdk_validation_tag }}" bash -c \
             'test -f /opt/livekit-sdk/lib/cmake/LiveKit/LiveKitConfig.cmake'
 
       - name: Build cpp-example-collection against installed SDK
+        if: steps.meta.outputs.sdk_changed == 'true'
         shell: bash
         run: |
           set -euxo pipefail
           cpp_ex_ref="$(git rev-parse HEAD:cpp-example-collection)"
-          docker run -e CPP_EX_REF="${cpp_ex_ref}" --rm "${{ needs.metadata.outputs.sdk_image }}:${{ needs.metadata.outputs.sdk_validation_tag }}" bash -lc '
+          docker run -e CPP_EX_REF="${cpp_ex_ref}" --rm "${{ steps.meta.outputs.sdk_image }}:${{ steps.meta.outputs.sdk_validation_tag }}" bash -lc '
             set -euxo pipefail
             git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
             cd /tmp/cpp-example-collection
@@ -565,22 +464,8 @@ jobs:
             cmake --build build --parallel
           '
 
-  cleanup-nightly:
-    name: Cleanup nightly Docker images
-    needs:
-      - metadata
-      - validate-published
-    if: |
-      always() &&
-      inputs.cleanup_nightly_images &&
-      needs.metadata.outputs.publish_nightly == 'true' &&
-      needs.validate-published.result == 'success'
-    permissions:
-      packages: write
-    runs-on: ubuntu-latest
-
-    steps:
       - name: Delete old nightly package versions
+        if: inputs.cleanup_nightly_images && steps.meta.outputs.publish_nightly == 'true' && steps.meta.outputs.sdk_changed == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
