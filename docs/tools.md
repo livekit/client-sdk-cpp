@@ -10,8 +10,9 @@ are also enforced in CI on PRs.
 root `.clang-tidy` and `.clang-format` files are symlinks into that submodule
 so editor integrations can still discover them automatically.
 The shared CI workflow source of truth is
-`cpp-tools/.github/workflows/cpp-tools.yml`; this repo's `cpp-checks.yml`
-passes repo-specific inputs such as `clang_tidy: true` and `doxygen: false`.
+`cpp-tools/.github/workflows/cpp-tools.yml`; this repo's `ci.yml` calls it
+directly with repo-specific inputs such as `clang_tidy: true` and
+`doxygen: false`.
 
 - **`clang-tidy`** — static analysis. See
   [`.clang-tidy`](https://github.com/livekit/client-sdk-cpp/blob/main/.clang-tidy)
