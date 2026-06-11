@@ -28,13 +28,22 @@ namespace livekit::test {
 
 namespace {
 
+constexpr const char* kRustRetryLogFilter = "livekit::rtc_engine=warn,livekit_ffi::server::room=error";
+
 void setRustLogForRetryTest() {
 #ifdef _WIN32
-  _putenv_s("RUST_LOG", "warn");
+  _putenv_s("RUST_LOG", kRustRetryLogFilter);
 #else
-  setenv("RUST_LOG", "warn", 1);
+  setenv("RUST_LOG", kRustRetryLogFilter, 1);
 #endif
 }
+
+// Configure RUST_LOG during static initialization, before any test can initialize
+// the Rust FFI logger (which reads env vars once at construction time).
+const bool kRustLogConfiguredBeforeTests = [] {
+  setRustLogForRetryTest();
+  return true;
+}();
 
 std::size_t countOccurrences(const std::string& haystack, const std::string& needle) {
   std::size_t count = 0;
