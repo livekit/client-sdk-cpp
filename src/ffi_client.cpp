@@ -130,6 +130,7 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
     case E::kByteStreamReaderEvent:
     case E::kTextStreamReaderEvent:
     case E::kDataTrackStreamEvent:
+    case E::kEncodedVideoSourceEvent:
     case E::kRpcMethodInvocation:
     case E::kLogs:
     case E::kPanic:

@@ -34,7 +34,14 @@ class LocalTrackPublication;
 class RemoteTrackPublication;
 class TrackPublication;
 
-enum class VideoCodec;
+enum class VideoCodec {
+  VP8 = 0,
+  H264 = 1,
+  AV1 = 2,
+  VP9 = 3,
+  H265 = 4,
+};
+
 enum class TrackSource;
 
 /// Overall quality of a participant's connection.
