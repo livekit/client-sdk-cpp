@@ -168,14 +168,14 @@ void VideoSource::registerEncodedListener() {
     }
   }
   encoded_listener_id_ =
-      FfiClient::instance().AddListener([this](const proto::FfiEvent& event) { handleEncodedEvent(event); });
+      FfiClient::instance().addListener([this](const proto::FfiEvent& event) { handleEncodedEvent(event); });
 }
 
 void VideoSource::unregisterEncodedListener() noexcept {
   if (encoded_listener_id_ == 0) {
     return;
   }
-  FfiClient::instance().RemoveListener(encoded_listener_id_);
+  FfiClient::instance().removeListener(encoded_listener_id_);
   encoded_listener_id_ = 0;
 }
 

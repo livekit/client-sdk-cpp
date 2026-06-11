@@ -24,9 +24,14 @@
 #include <vector>
 
 #include "livekit/ffi_handle.h"
+#include "livekit/room_event_types.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
+
+namespace proto {
+class FfiEvent;
+}
 
 class VideoFrame;
 
@@ -74,8 +79,7 @@ public:
   virtual ~EncodedVideoSourceObserver() = default;
 
   virtual void onKeyframeRequested() {}
-  virtual void onTargetBitrate(std::uint32_t bitrate_bps,
-                               double framerate_fps) {
+  virtual void onTargetBitrate(std::uint32_t bitrate_bps, double framerate_fps) {
     (void)bitrate_bps;
     (void)framerate_fps;
   }
@@ -95,8 +99,7 @@ public:
   /// @throws std::runtime_error if the FFI call fails or the response
   ///         does not contain the expected new_video_source field.
   VideoSource(int width, int height);
-  VideoSource(int width, int height,
-              const EncodedVideoSourceOptions &encoded_options);
+  VideoSource(int width, int height, const EncodedVideoSourceOptions& encoded_options);
   virtual ~VideoSource();
 
   VideoSource(const VideoSource&) = delete;
@@ -128,21 +131,18 @@ public:
    * true when the frame was queued by the Rust/WebRTC layer and false when it
    * was dropped because the internal queue was full.
    */
-  bool captureEncodedFrame(const std::uint8_t *data, std::size_t size,
-                           const EncodedVideoFrameInfo &info);
+  bool captureEncodedFrame(const std::uint8_t* data, std::size_t size, const EncodedVideoFrameInfo& info);
 
-  bool captureEncodedFrame(const std::vector<std::uint8_t> &data,
-                           const EncodedVideoFrameInfo &info) {
+  bool captureEncodedFrame(const std::vector<std::uint8_t>& data, const EncodedVideoFrameInfo& info) {
     return captureEncodedFrame(data.data(), data.size(), info);
   }
 
-  void setEncodedObserver(
-      std::shared_ptr<EncodedVideoSourceObserver> observer);
+  void setEncodedObserver(std::shared_ptr<EncodedVideoSourceObserver> observer);
 
 private:
   void registerEncodedListener();
   void unregisterEncodedListener() noexcept;
-  void handleEncodedEvent(const proto::FfiEvent &event) const;
+  void handleEncodedEvent(const proto::FfiEvent& event) const;
 
   FfiHandle handle_; // owned FFI handle
   int width_{0};
