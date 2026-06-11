@@ -18,13 +18,13 @@
 
 #include <cassert>
 #include <csignal>
+#include <string>
+#include <type_traits>
 
 #include "data_track.pb.h"
-#include "e2ee.pb.h"
 #include "ffi.pb.h"
 #include "livekit/build.h"
 #include "livekit/data_track_error.h"
-#include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"
@@ -36,10 +36,26 @@
 namespace livekit {
 
 namespace {
+
 inline void logAndThrow(const std::string& error_msg) {
   LK_LOG_ERROR("LiveKit SDK Error: {}", error_msg);
   throw std::runtime_error(error_msg);
 }
+
+// Helper for debug logging of optional values
+const auto optional_to_string = [](const auto& value) -> std::string {
+  if (!value) {
+    return "<unset>";
+  }
+  using Value = std::decay_t<decltype(*value)>;
+  if constexpr (std::is_same_v<Value, bool>) {
+    return *value ? "true" : "false";
+  } else if constexpr (std::is_same_v<Value, std::chrono::milliseconds>) {
+    return std::to_string(value->count());
+  } else {
+    return std::to_string(*value);
+  }
+};
 
 Result<proto::OwnedDataTrackStream, SubscribeDataTrackError> subscribeDataTrackFailure(SubscribeDataTrackErrorCode code,
                                                                                        const std::string& message) {
@@ -331,50 +347,14 @@ std::future<proto::ConnectCallback> FfiClient::connectAsync(const std::string& u
   connect->set_url(url);
   connect->set_token(token);
   connect->set_request_async_id(async_id);
-  auto* opts = connect->mutable_options();
-  opts->set_auto_subscribe(options.auto_subscribe);
-  opts->set_dynacast(options.dynacast);
-  opts->set_single_peer_connection(options.single_peer_connection);
+  connect->mutable_options()->CopyFrom(toProto(options));
 
   LK_LOG_DEBUG(
-      "[FfiClient] connectAsync: auto_subscribe={}, dynacast={}, "
-      "single_peer_connection={}",
-      options.auto_subscribe, options.dynacast, options.single_peer_connection);
-
-  // --- E2EE / encryption (optional) ---
-  if (options.encryption.has_value()) {
-    const E2EEOptions& e2ee = *options.encryption;
-    const auto& kpo = e2ee.key_provider_options;
-
-    auto* enc = opts->mutable_encryption();
-    enc->set_encryption_type(static_cast<proto::EncryptionType>(e2ee.encryption_type));
-    enc->mutable_key_provider_options()->CopyFrom(toProto(kpo));
-  }
-
-  // --- RTC configuration (optional) ---
-  if (options.rtc_config.has_value()) {
-    const RtcConfig& rc = *options.rtc_config;
-    auto* rtc = opts->mutable_rtc_config();
-
-    rtc->set_ice_transport_type(static_cast<proto::IceTransportType>(rc.ice_transport_type));
-    rtc->set_continual_gathering_policy(static_cast<proto::ContinualGatheringPolicy>(rc.continual_gathering_policy));
-
-    for (const IceServer& ice : rc.ice_servers) {
-      auto* s = rtc->add_ice_servers();
-
-      // proto: repeated string urls = 1
-      if (!ice.url.empty()) {
-        s->add_urls(ice.url);
-      }
-      if (!ice.username.empty()) {
-        s->set_username(ice.username);
-      }
-      if (!ice.credential.empty()) {
-        // proto: password = 3
-        s->set_password(ice.credential);
-      }
-    }
-  }
+      "[FfiClient] connectAsync: auto_subscribe={}, adaptive_stream={}, dynacast={}, "
+      "single_peer_connection={}, join_retries={}, connect_timeout_ms={}",
+      options.auto_subscribe, optional_to_string(options.adaptive_stream), options.dynacast,
+      options.single_peer_connection, optional_to_string(options.join_retries),
+      optional_to_string(options.connect_timeout));
 
   try {
     const proto::FfiResponse resp = sendRequest(req);
