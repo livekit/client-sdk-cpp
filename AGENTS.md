@@ -76,10 +76,11 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `src/tests/` | Google Test integration and stress tests |
 | `examples/` | In-tree example applications |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
+| `cpp-tools/` | Git submodule holding shared LiveKit C++ clang-format / clang-tidy configs, scripts, and docs |
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `LiveKitConfig.cmake.in`) |
 | `docker/` | Dockerfile for CI and SDK distribution images |
-| `scripts/` | Developer / CI helper scripts (e.g. `clang-tidy.sh`) |
+| `scripts/` | Local helper scripts and transition wrappers that delegate shared clang tooling to `cpp-tools/` |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
 | `.github/workflows/` | GitHub Actions CI workflows |
@@ -326,11 +327,11 @@ malformed table, missing `@param` on a documented function, …) fails the build
 
 Code should be easy to read and understand. If a sacrifice is made for performance or readability, it should be documented.
 
-Adhere to clang-format checks configured in `.clang-format`. Run `./scripts/clang-format.sh` if needed to confirm code styling, and `./scripts/clang-format.sh --fix` to auto-format generated code created.
+Adhere to clang-format checks configured in `.clang-format`, which is a symlink to `cpp-tools/configs/.clang-format`. Run `./cpp-tools/scripts/clang-format.sh --path src --path include --path benchmarks` if needed to confirm code styling. During the transition, `./scripts/clang-format.sh` and `./scripts/clang-format.sh --fix` remain compatibility wrappers.
 
 ### Static Analysis
 
-Adhere to clang-tidy checks configured in `.clang-tidy`. Run `./scripts/clang-tidy.sh` if needed to confirm code quality.
+Adhere to clang-tidy checks configured in `.clang-tidy`, which is a symlink to `cpp-tools/configs/.clang-tidy`. Run `./scripts/clang-tidy.sh` if needed to confirm code quality; the wrapper supplies this repo's build directory, file regex, and header filters to the shared `cpp-tools` script.
 
 ## Dependencies
 
@@ -339,6 +340,7 @@ Adhere to clang-tidy checks configured in `.clang-tidy`. Run `./scripts/clang-ti
 | protobuf | Private (built-in) | Vendored via FetchContent (Unix) or vcpkg (Windows) |
 | spdlog | **Private** | FetchContent or system package; must NOT leak into public API |
 | client-sdk-rust | Build-time | Git submodule, built via cargo during CMake build |
+| cpp-tools | Developer / CI | Git submodule containing shared LiveKit C++ formatting and static-analysis tooling |
 | Google Test | Test only | FetchContent in `src/tests/CMakeLists.txt` |
 
 When adding a new private/vendored dependency to this table, also add a
@@ -387,8 +389,8 @@ all filtered stages; normal pull requests and pushes use the path filters.
 - `.github/workflows/builds.yml` — Reusable SDK and example-collection build
   matrix.
 - `.github/workflows/tests.yml` — Reusable unit/integration test matrix.
-- `.github/workflows/cpp-checks.yml` — Reusable `clang-format` and
-  `clang-tidy` checks.
+- `livekit/cpp-tools/.github/workflows/cpp-tools.yml` — Shared reusable
+  workflow called directly by `ci.yml` for `clang-format` and `clang-tidy`.
 - `.github/workflows/generate-docs.yml` — Reusable Doxygen docs validation.
 - `.github/workflows/rust-release-check.yml` — Reusable check that the pinned
  `client-sdk-rust` submodule commit maps to a published release. Gated by the
@@ -407,7 +409,8 @@ When adding or renaming files that affect a CI stage, update the matching
 `ci.yml` `changes` filter in the same PR. For example, new build scripts,
 CMake files, package manifests, or reusable build workflows should be added to
 the `builds` filter; test-only helpers to `tests`; formatting/static-analysis
-configuration to `cpp_checks`; and docs generation inputs to `docs`.
+configuration (including `cpp-tools` submodule bumps) to `cpp_checks`; and docs
+generation inputs to `docs`.
 
 Keep broad agent guidance files such as `AGENTS.md` out of the expensive
 `builds`, `tests`, `cpp_checks`, and `docs` filters unless they start affecting

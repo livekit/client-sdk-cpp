@@ -25,7 +25,7 @@ jobs:
       builds: ${{ steps.filter.outputs.builds }}
       tests:  ${{ steps.filter.outputs.tests }}
       docs:   ${{ steps.filter.outputs.docs }}
-      cpp_checks: ${{ steps.filter.outputs.cpp_checks }}
+      cpp_tools: ${{ steps.filter.outputs.cpp_tools }}
       rust_release_check: ${{ steps.filter.outputs.rust_release_check }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -70,7 +70,7 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/generate-docs.yml
               - .github/workflows/publish-docs.yml
-            cpp_checks:
+            cpp_tools:
               - src/**
               - include/**
               - benchmarks/**
@@ -78,12 +78,15 @@ jobs:
               - cmake/**
               - CMakeLists.txt
               - CMakePresets.json
+              - cpp-tools
+              - cpp-tools/**
               - scripts/clang-format.sh
               - scripts/clang-tidy.sh
+              - scripts/install-pre-commit.sh
               - .clang-format
               - .clang-tidy
+              - .gitmodules
               - .github/workflows/ci.yml
-              - .github/workflows/cpp-checks.yml
             rust_release_check:
               - client-sdk-rust
 
@@ -107,11 +110,30 @@ jobs:
     name: License Check
     uses: ./.github/workflows/license_check.yml
 
-  cpp-checks:
-    name: C++ Checks
+  cpp-tools:
+    name: C++ Tools
     needs: changes
-    if: ${{ needs.changes.outputs.cpp_checks == 'true' || github.event_name == 'workflow_dispatch' }}
-    uses: ./.github/workflows/cpp-checks.yml
+    if: ${{ needs.changes.outputs.cpp_tools == 'true' || github.event_name == 'workflow_dispatch' }}
+    uses: livekit/cpp-tools/.github/workflows/cpp-tools.yml@alan/bootstrap-cpp-tools
+    with:
+      clang_format: true
+      clang_tidy: true
+      doxygen: true
+      checkout_submodules: recursive
+      clang_format_paths: src include benchmarks
+      clang_tidy_install_rust: true
+      clang_tidy_setup_command: |
+        echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
+        echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
+        LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+        echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
+      clang_tidy_configure_command: cmake --preset linux-release
+      clang_tidy_generate_command: cmake --build build-release --target livekit_proto
+      clang_tidy_build_dir: build-release
+      clang_tidy_file_regex: '^(?!.*/(_deps|build-[^/]*|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$'
+      clang_tidy_header_filter: '.*/(include/livekit|src)/.*\.(h|hpp)$'
+      clang_tidy_exclude_header_filter: '(.*/src/tests/.*)|(.*/_deps/.*)|(.*/build-[^/]*/.*)'
+      clang_tidy_require_generated_protobuf: build-release/generated
 
   generate-docs:
     name: Generate Docs
@@ -139,7 +161,7 @@ jobs:
       - builds
       - tests
       - license-check
-      - cpp-checks
+      - cpp-tools
       - generate-docs
       - rust-release-check
     if: always()
