@@ -18,7 +18,6 @@ include(warnings)
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 option(LIVEKIT_BUILD_TESTS "Build LiveKit tests" OFF)
-option(LIVEKIT_ENABLE_ENCODED_VIDEO "Enable encoded video support in the Rust FFI" OFF)
 
 # vcpkg is only used on Windows; Linux/macOS use system package managers
 if(WIN32)
@@ -353,11 +352,6 @@ file(GLOB_RECURSE RUST_SOURCES
   "${RUST_ROOT}/livekit-ffi/Cargo.toml"
 )
 
-set(LIVEKIT_RUST_FFI_FEATURES "")
-if(LIVEKIT_ENABLE_ENCODED_VIDEO)
-  set(LIVEKIT_RUST_FFI_FEATURES "livekit-ffi/encoded-video")
-endif()
-
 add_custom_command(
   OUTPUT "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
   COMMAND "${CMAKE_COMMAND}"
@@ -367,7 +361,6 @@ add_custom_command(
           -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
           -DRUST_TARGET=${RUST_TARGET_TRIPLE}
           -DGCC_LIB_DIR=${GCC_LIB_DIR}
-          -DCARGO_FEATURES=${LIVEKIT_RUST_FFI_FEATURES}
           -P "${RUN_CARGO_SCRIPT}"
   WORKING_DIRECTORY "${RUST_ROOT}"
   DEPENDS ${RUST_SOURCES}

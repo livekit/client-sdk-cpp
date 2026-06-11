@@ -9,7 +9,6 @@ set "PRESET=windows-release"
 set "LIVEKIT_VERSION="
 set "CMAKE_EXTRA_ARGS="
 set "BUILD_PARALLEL_JOBS="
-set "CMAKE_EXTRA_ARGS=-DLIVEKIT_ENABLE_ENCODED_VIDEO=ON"
 
 REM ============================================================
 REM Auto-detect LIBCLANG_PATH if not already set
