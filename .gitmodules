@@ -4,3 +4,6 @@
 [submodule "cpp-example-collection"]
 	path = cpp-example-collection
 	url = https://github.com/livekit-examples/cpp-example-collection.git
+[submodule "cpp-tools"]
+	path = cpp-tools
+	url = https://github.com/livekit/cpp-tools.git

@@ -18,7 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          # No submodules: scripts/clang-format.sh only walks our own src/ tree
+          submodules: recursive
           fetch-depth: 1
 
       - name: Install clang-format 22
@@ -41,7 +41,12 @@ jobs:
       - name: Run clang-format
         env:
           FORMAT_BLOB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: ./scripts/clang-format.sh
+        run: |
+          ./cpp-tools/scripts/clang-format.sh \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --path src \
+            --path include \
+            --path benchmarks
 
   clang-tidy:
     name: clang-tidy
@@ -108,4 +113,12 @@ jobs:
         # This script is intended to be run locally and in CI. It will auto-detect
         # the GHA environment and add PR annotations and a run summary.
         # As of writing all warnings are treateded as errors to avoid tech debt build up
-        run: ./scripts/clang-tidy.sh --fail-on-warning
+        run: |
+          ./cpp-tools/scripts/clang-tidy.sh \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --build-dir build-release \
+            --file-regex '^(?!.*/(_deps|build-[^/]*|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$' \
+            --header-filter '.*/(include/livekit|src)/.*\.(h|hpp)$' \
+            --exclude-header-filter '(.*/src/tests/.*)|(.*/_deps/.*)|(.*/build-[^/]*/.*)' \
+            --require-generated-protobuf build-release/generated \
+            --fail-on-warning

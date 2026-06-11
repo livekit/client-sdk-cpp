@@ -78,10 +78,14 @@ jobs:
               - cmake/**
               - CMakeLists.txt
               - CMakePresets.json
+              - cpp-tools
+              - cpp-tools/**
               - scripts/clang-format.sh
               - scripts/clang-tidy.sh
+              - scripts/install-pre-commit.sh
               - .clang-format
               - .clang-tidy
+              - .gitmodules
               - .github/workflows/ci.yml
               - .github/workflows/cpp-checks.yml
             rust_release_check:
