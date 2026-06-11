@@ -19,7 +19,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <vector>
 
@@ -140,17 +139,18 @@ public:
   void setEncodedObserver(std::shared_ptr<EncodedVideoSourceObserver> observer);
 
 private:
+  struct EncodedListenerState;
+
   void registerEncodedListener();
   void unregisterEncodedListener() noexcept;
-  void handleEncodedEvent(const proto::FfiEvent& event) const;
+  static void handleEncodedEvent(const std::weak_ptr<EncodedListenerState>& state, const proto::FfiEvent& event);
 
   FfiHandle handle_; // owned FFI handle
   int width_{0};
   int height_{0};
   bool encoded_{false};
   int encoded_listener_id_{0};
-  mutable std::mutex encoded_observer_lock_;
-  std::shared_ptr<EncodedVideoSourceObserver> encoded_observer_;
+  std::shared_ptr<EncodedListenerState> encoded_listener_state_;
 };
 
 } // namespace livekit

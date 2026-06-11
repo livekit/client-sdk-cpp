@@ -118,25 +118,25 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
     case E::kSendBytes:
       return event.send_bytes().async_id();
 
-// data track async completions
-case E::kPublishDataTrack:
-  return event.publish_data_track().async_id();
+    // data track async completions
+    case E::kPublishDataTrack:
+      return event.publish_data_track().async_id();
 
-// NOT async completion:
-case E::kRoomEvent:
-case E::kTrackEvent:
-case E::kVideoStreamEvent:
-case E::kAudioStreamEvent:
-case E::kByteStreamReaderEvent:
-case E::kTextStreamReaderEvent:
-case E::kDataTrackStreamEvent:
-case E::kEncodedVideoSourceEvent:
-case E::kRpcMethodInvocation:
-case E::kLogs:
-case E::kPanic:
-case E::MESSAGE_NOT_SET:
-default:
-  return std::nullopt;
+    // NOT async completion:
+    case E::kRoomEvent:
+    case E::kTrackEvent:
+    case E::kVideoStreamEvent:
+    case E::kAudioStreamEvent:
+    case E::kByteStreamReaderEvent:
+    case E::kTextStreamReaderEvent:
+    case E::kDataTrackStreamEvent:
+    case E::kEncodedVideoSourceEvent:
+    case E::kRpcMethodInvocation:
+    case E::kLogs:
+    case E::kPanic:
+    case E::MESSAGE_NOT_SET:
+    default:
+      return std::nullopt;
   }
 }
 

@@ -16,6 +16,7 @@
 
 #include "livekit/video_source.h"
 
+#include <mutex>
 #include <stdexcept>
 #include <utility>
 
@@ -33,6 +34,20 @@ proto::VideoCodec toProto(VideoCodec codec) { return static_cast<proto::VideoCod
 
 } // namespace
 
+struct VideoSource::EncodedListenerState {
+  void reset() {
+    std::scoped_lock const guard(lock);
+    active = false;
+    source_handle = 0;
+    observer.reset();
+  }
+
+  mutable std::mutex lock;
+  std::uint64_t source_handle{0};
+  bool active{false};
+  std::shared_ptr<EncodedVideoSourceObserver> observer;
+};
+
 VideoSource::VideoSource(int width, int height) : width_(width), height_(height) {
   proto::FfiRequest req;
   auto* msg = req.mutable_new_video_source();
@@ -49,7 +64,10 @@ VideoSource::VideoSource(int width, int height) : width_(width), height_(height)
 }
 
 VideoSource::VideoSource(int width, int height, const EncodedVideoSourceOptions& encoded_options)
-    : width_(width), height_(height), encoded_(true) {
+    : width_(width),
+      height_(height),
+      encoded_(true),
+      encoded_listener_state_(std::make_shared<EncodedListenerState>()) {
   proto::FfiRequest req;
   auto* msg = req.mutable_new_video_source();
   msg->set_type(proto::VideoSourceType::VIDEO_SOURCE_ENCODED);
@@ -65,7 +83,12 @@ VideoSource::VideoSource(int width, int height, const EncodedVideoSourceOptions&
   handle_ = FfiHandle(resp.new_video_source().source().handle().id());
 }
 
-VideoSource::~VideoSource() { unregisterEncodedListener(); }
+VideoSource::~VideoSource() {
+  if (encoded_listener_state_) {
+    encoded_listener_state_->reset();
+  }
+  unregisterEncodedListener();
+}
 
 VideoSource::VideoSource(VideoSource&& other) noexcept { *this = std::move(other); }
 
@@ -75,16 +98,24 @@ VideoSource& VideoSource::operator=(VideoSource&& other) noexcept {
   }
 
   unregisterEncodedListener();
+  other.unregisterEncodedListener();
   handle_ = std::move(other.handle_);
   width_ = other.width_;
   height_ = other.height_;
   encoded_ = other.encoded_;
-  {
-    std::lock_guard<std::mutex> lock(encoded_observer_lock_);
-    std::lock_guard<std::mutex> other_lock(other.encoded_observer_lock_);
-    encoded_observer_ = std::move(other.encoded_observer_);
+  if (encoded_listener_state_ && other.encoded_listener_state_) {
+    std::scoped_lock const lock(encoded_listener_state_->lock, other.encoded_listener_state_->lock);
+    encoded_listener_state_->observer = std::move(other.encoded_listener_state_->observer);
+    encoded_listener_state_->source_handle = handle_.get();
+    encoded_listener_state_->active = false;
+    other.encoded_listener_state_->source_handle = 0;
+    other.encoded_listener_state_->active = false;
+  } else if (encoded_listener_state_) {
+    encoded_listener_state_->reset();
+  } else {
+    encoded_listener_state_ = std::move(other.encoded_listener_state_);
   }
-  other.unregisterEncodedListener();
+  other.encoded_ = false;
   registerEncodedListener();
   return *this;
 }
@@ -146,11 +177,16 @@ void VideoSource::setEncodedObserver(std::shared_ptr<EncodedVideoSourceObserver>
   if (!encoded_) {
     throw std::runtime_error("setEncodedObserver requires an encoded VideoSource");
   }
-  {
-    std::lock_guard<std::mutex> lock(encoded_observer_lock_);
-    encoded_observer_ = std::move(observer);
+  if (!encoded_listener_state_) {
+    encoded_listener_state_ = std::make_shared<EncodedListenerState>();
   }
-  if (encoded_observer_) {
+  bool has_observer = false;
+  {
+    std::scoped_lock const lock(encoded_listener_state_->lock);
+    encoded_listener_state_->observer = std::move(observer);
+    has_observer = encoded_listener_state_->observer != nullptr;
+  }
+  if (has_observer) {
     registerEncodedListener();
   } else {
     unregisterEncodedListener();
@@ -161,17 +197,28 @@ void VideoSource::registerEncodedListener() {
   if (!encoded_ || !handle_ || encoded_listener_id_ != 0) {
     return;
   }
+  if (!encoded_listener_state_) {
+    encoded_listener_state_ = std::make_shared<EncodedListenerState>();
+  }
   {
-    std::lock_guard<std::mutex> lock(encoded_observer_lock_);
-    if (!encoded_observer_) {
+    std::scoped_lock const lock(encoded_listener_state_->lock);
+    if (!encoded_listener_state_->observer) {
       return;
     }
+    encoded_listener_state_->source_handle = handle_.get();
+    encoded_listener_state_->active = true;
   }
-  encoded_listener_id_ =
-      FfiClient::instance().addListener([this](const proto::FfiEvent& event) { handleEncodedEvent(event); });
+  const std::weak_ptr<EncodedListenerState> state(encoded_listener_state_);
+  encoded_listener_id_ = FfiClient::instance().addListener(
+      [state](const proto::FfiEvent& event) { VideoSource::handleEncodedEvent(state, event); });
 }
 
 void VideoSource::unregisterEncodedListener() noexcept {
+  if (encoded_listener_state_) {
+    std::scoped_lock const lock(encoded_listener_state_->lock);
+    encoded_listener_state_->active = false;
+    encoded_listener_state_->source_handle = 0;
+  }
   if (encoded_listener_id_ == 0) {
     return;
   }
@@ -179,20 +226,24 @@ void VideoSource::unregisterEncodedListener() noexcept {
   encoded_listener_id_ = 0;
 }
 
-void VideoSource::handleEncodedEvent(const proto::FfiEvent& event) const {
+void VideoSource::handleEncodedEvent(const std::weak_ptr<EncodedListenerState>& weak_state,
+                                     const proto::FfiEvent& event) {
   if (!event.has_encoded_video_source_event()) {
+    return;
+  }
+  const auto state = weak_state.lock();
+  if (!state) {
     return;
   }
 
   const auto& source_event = event.encoded_video_source_event();
-  if (source_event.source_handle() != static_cast<std::uint64_t>(handle_.get())) {
-    return;
-  }
-
   std::shared_ptr<EncodedVideoSourceObserver> observer;
   {
-    std::lock_guard<std::mutex> lock(encoded_observer_lock_);
-    observer = encoded_observer_;
+    std::scoped_lock const lock(state->lock);
+    if (!state->active || source_event.source_handle() != state->source_handle) {
+      return;
+    }
+    observer = state->observer;
   }
   if (!observer) {
     return;
