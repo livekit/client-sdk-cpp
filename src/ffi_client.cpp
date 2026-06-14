@@ -151,10 +151,7 @@ FfiClient::~FfiClient() {
   if (lifecycle_state_.load() == LifecycleState::Initialized) {
     // Explicitly use this over spdlog
     // spdlog can throw, and wrapping in try/catch also flags "empty catch" clang-tidy check
-    std::fputs(
-        "LiveKit SDK was not shut down before process exit. "
-        "Call livekit::shutdown().\n",
-        stderr);
+    std::fputs("[livekit] [warning] SDK was not shut down before process exit. Use livekit::shutdown()\n", stderr);
     std::fflush(stderr);
   }
 }
@@ -165,10 +162,12 @@ void FfiClient::shutdown() noexcept {
     // Atomically claim shutdown ownership; only the caller that transitions
     // Initialized -> ShuttingDown may drain callbacks and dispose the FFI.
     LifecycleState expected = LifecycleState::Initialized;
-    // Note: compare_exchange_strong transitions Initialized -> ShuttingDown
     if (!lifecycle_state_.compare_exchange_strong(expected, LifecycleState::ShuttingDown, std::memory_order_acq_rel)) {
+      // If not Initialized, return early to avoid unnecessary cleanup
       return;
     }
+
+    // Initialized, proceed with cleanup
     dispose_ffi = true;
 
     std::vector<std::shared_ptr<ListenerSlot>> listeners_to_drain;
@@ -179,15 +178,18 @@ void FfiClient::shutdown() noexcept {
       for (auto& [id, slot] : listeners_) {
         (void)id;
         if (slot) {
+          // Mark the listener as removed to prevent race conditions
           {
             const std::scoped_lock<std::mutex> slot_guard(slot->mutex);
             slot->removed = true;
           }
+          // Add the listener to the list of listeners to drain
           listeners_to_drain.push_back(std::move(slot));
         }
       }
       listeners_.clear();
 
+      // Add the pending operations to the list of pending operations to cancel
       pending_to_cancel.reserve(pending_by_id_.size());
       for (auto& [async_id, pending] : pending_by_id_) {
         (void)async_id;
@@ -198,13 +200,19 @@ void FfiClient::shutdown() noexcept {
       pending_by_id_.clear();
     }
 
+    // Cancel the pending operations
     for (auto& pending : pending_to_cancel) {
       pending->cancel();
     }
 
     const auto this_thread = std::this_thread::get_id();
+    // Wait for all in-flight listener callbacks to complete
     for (const auto& slot : listeners_to_drain) {
       std::unique_lock<std::mutex> slot_lock(slot->mutex);
+
+      // When shutdown() isn't on a listener thread, self_active is 0 and we wait for active_callbacks == 0. When it's
+      // called from inside a listener (e.g. ShutdownFromListenerDoesNotDeadlock), self_active is 1 and the wait
+      // succeeds immediately with active_callbacks == 1, so we don't wait on our own in-flight callback.
       slot->cv.wait(slot_lock, [&slot, this_thread] {
         const auto thread_it = slot->active_threads.find(this_thread);
         const int self_active = thread_it == slot->active_threads.end() ? 0 : thread_it->second;
@@ -215,12 +223,15 @@ void FfiClient::shutdown() noexcept {
     livekit_ffi_dispose();
     dispose_ffi = false;
     lifecycle_state_.store(LifecycleState::Uninitialized, std::memory_order_release);
-  } catch (...) {
+  } catch (const std::exception& e) {
     if (dispose_ffi) {
       livekit_ffi_dispose();
       lifecycle_state_.store(LifecycleState::Uninitialized, std::memory_order_release);
     }
-    (void)std::fputs("LiveKit SDK shutdown failed during local cleanup.\n", stderr);
+    // Explicitly use this over spdlog (method is noexcept)
+    (void)std::fputs("[livekit] [error] SDK shutdown failed during local cleanup: ", stderr);
+    (void)std::fputs(e.what(), stderr);
+    (void)std::fputs("\n", stderr);
     (void)std::fflush(stderr);
   }
 }
