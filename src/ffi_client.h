@@ -17,6 +17,7 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <cstdint>
 #include <functional>
 #include <future>
@@ -24,7 +25,9 @@
 #include <mutex>
 #include <optional>
 #include <stdexcept>
+#include <thread>
 #include <unordered_map>
+#include <utility>
 
 #include "data_track.pb.h"
 #include "livekit/data_track_error.h"
@@ -147,6 +150,13 @@ public:
 private:
   FfiClient() = default;
 
+  enum class LifecycleState : std::uint8_t {
+    Uninitialized,
+    Initializing,
+    Initialized,
+    ShuttingDown,
+  };
+
   // Base class for type-erased pending ops
   struct PendingBase {
     AsyncId async_id = 0; // Client-generated async ID for cancellation
@@ -176,6 +186,17 @@ private:
     }
   };
 
+  struct ListenerSlot {
+    explicit ListenerSlot(Listener cb) : listener(std::move(cb)) {}
+
+    Listener listener;
+    std::mutex mutex;
+    std::condition_variable cv;
+    std::unordered_map<std::thread::id, int> active_threads;
+    int active_callbacks = 0;
+    bool removed = false;
+  };
+
   template <typename T>
   std::future<T> registerAsync(AsyncId async_id, std::function<bool(const proto::FfiEvent&)> match,
                                std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler);
@@ -187,7 +208,7 @@ private:
   // removed.
   bool cancelPendingByAsyncId(AsyncId async_id);
 
-  std::unordered_map<ListenerId, Listener> listeners_;
+  std::unordered_map<ListenerId, std::shared_ptr<ListenerSlot>> listeners_;
   std::atomic<ListenerId> next_listener_id{1};
   mutable std::mutex lock_;
   mutable std::unordered_map<AsyncId, std::unique_ptr<PendingBase>> pending_by_id_;
@@ -195,6 +216,6 @@ private:
 
   void pushEvent(const proto::FfiEvent& event) const;
   friend void ffiEventCallback(const uint8_t* buf, size_t len);
-  std::atomic<bool> initialized_{false};
+  std::atomic<LifecycleState> lifecycle_state_{LifecycleState::Uninitialized};
 };
 } // namespace livekit
