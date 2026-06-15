@@ -149,8 +149,8 @@ FfiClient& FfiClient::instance() noexcept {
 
 FfiClient::~FfiClient() {
   if (lifecycle_state_.load() == LifecycleState::Initialized) {
-    // Explicitly use this over spdlog
-    // spdlog can throw, and wrapping in try/catch also flags "empty catch" clang-tidy check
+    // Explicitly use this over spdlog/std::cerr which can throw
+    // Wrapping spdlog try/catch also flags "empty catch" clang-tidy check
     std::fputs("[livekit] [warning] SDK was not shut down before process exit. Use livekit::shutdown()\n", stderr);
     std::fflush(stderr);
   }
@@ -161,11 +161,13 @@ void FfiClient::shutdown() noexcept {
   // (Also cleaner with exception.what() and printing)
   const char* shutdown_error = nullptr;
   try {
-    // Atomically claim shutdown ownership; only the caller that transitions
-    // Initialized -> ShuttingDown may drain callbacks and dispose the FFI.
+    // compare_exchange_strong atomically claims Initialized -> ShuttingDown so only one
+    // concurrent shutdown() drains listeners and disposes the FFI.
     LifecycleState expected = LifecycleState::Initialized;
     if (!lifecycle_state_.compare_exchange_strong(expected, LifecycleState::ShuttingDown, std::memory_order_acq_rel)) {
       // If not Initialized, return early to avoid unnecessary cleanup
+      std::fputs("[livekit] [warning] SDK was shutdown while not initialized\n", stderr);
+      std::fflush(stderr);
       return;
     }
 
@@ -281,11 +283,11 @@ void FfiClient::removeListener(ListenerId id) {
 
   const auto this_thread = std::this_thread::get_id();
   std::unique_lock<std::mutex> slot_lock(slot->mutex);
-  slot->removed = true;
   slot->cv.wait(slot_lock, [&slot, this_thread] {
     const auto self_active = slot->active_threads.count(this_thread) != 0;
     return slot->active_callbacks == 0 || (self_active && slot->active_callbacks == 1);
   });
+  slot->removed = true;
 }
 
 proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) const {
@@ -383,6 +385,8 @@ void FfiClient::pushEvent(const proto::FfiEvent& event) const {
       }
       --slot->active_callbacks;
     }
+
+    // Notify in case this listener was marked for removal during the callback (will be waiting on this)
     slot->cv.notify_all();
   }
 }

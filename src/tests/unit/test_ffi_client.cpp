@@ -35,6 +35,10 @@ namespace {
 
 volatile bool g_sigterm_received = false;
 
+// Waits for listener entry or drain completion should finish in milliseconds
+// This is a generous anti-hang bound for CI thread scheduling, not expected latency
+constexpr auto kListenerSyncTimeout = std::chrono::seconds(5);
+
 // Has to be registered globally per csignal API
 void handleSignal(int signal) {
   if (signal == SIGTERM) {
@@ -42,7 +46,8 @@ void handleSignal(int signal) {
   }
 }
 
-void emitLogEvent() {
+// Simple helper to emit a test event
+void emitEvent() {
   proto::FfiEvent event;
   auto* record = event.mutable_logs()->add_records();
   record->set_level(proto::LOG_INFO);
@@ -228,7 +233,7 @@ TEST_F(FfiClientTest, ShutdownClearsListenerRegistrations) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
 
   ASSERT_TRUE(FfiClient::instance().initialize(false));
-  emitLogEvent();
+  emitEvent();
   EXPECT_EQ(listener_calls.load(), 0);
 }
 
@@ -247,8 +252,8 @@ TEST_F(FfiClientTest, RemoveListenerWaitsForInFlightCallback) {
     callback_completed.store(true);
   });
 
-  std::thread callback_thread([] { emitLogEvent(); });
-  ASSERT_EQ(callback_entered_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  std::thread callback_thread([] { emitEvent(); });
+  ASSERT_EQ(callback_entered_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
 
   auto remove_future = std::async(std::launch::async, [&] { FfiClient::instance().removeListener(id); });
   EXPECT_EQ(remove_future.wait_for(std::chrono::milliseconds(50)), std::future_status::timeout);
@@ -257,7 +262,7 @@ TEST_F(FfiClientTest, RemoveListenerWaitsForInFlightCallback) {
   release_callback.set_value();
   callback_thread.join();
 
-  EXPECT_EQ(remove_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  EXPECT_EQ(remove_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
   EXPECT_TRUE(callback_completed.load());
 }
 
@@ -286,8 +291,8 @@ TEST_F(FfiClientTest, RoomDestructionRace) {
 
   // FFI thread dispatches an event; FakeRoom::onEvent is now parked inside the
   // callback holding `this`, waiting on the release gate.
-  std::thread ffi_thread([] { emitLogEvent(); });
-  ASSERT_EQ(callback_entered_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  std::thread ffi_thread([] { emitEvent(); });
+  ASSERT_EQ(callback_entered_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
 
   // Destroy the owner on a different thread while the callback is in flight.
   std::atomic<bool> destroyed{false};
@@ -319,7 +324,7 @@ TEST_F(FfiClientTest, RoomDestructionRaceFloodEvents) {
   std::atomic<bool> stop{false};
   std::thread emitter([&] {
     while (!stop.load(std::memory_order_relaxed)) {
-      emitLogEvent();
+      emitEvent();
     }
   });
 
@@ -346,8 +351,8 @@ TEST_F(FfiClientTest, ShutdownFromListenerDoesNotDeadlock) {
   });
   ASSERT_NE(id, 0);
 
-  auto callback_future = std::async(std::launch::async, [] { emitLogEvent(); });
-  EXPECT_EQ(callback_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  auto callback_future = std::async(std::launch::async, [] { emitEvent(); });
+  EXPECT_EQ(callback_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
   EXPECT_TRUE(shutdown_returned.load());
   EXPECT_FALSE(FfiClient::instance().isInitialized());
 }
@@ -368,8 +373,8 @@ TEST_F(FfiClientTest, ShutdownRejectsReinitializeAndDropsNewEventsWhileDraining)
   });
   ASSERT_NE(id, 0);
 
-  std::thread callback_thread([] { emitLogEvent(); });
-  ASSERT_EQ(callback_entered_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  std::thread callback_thread([] { emitEvent(); });
+  ASSERT_EQ(callback_entered_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
 
   auto shutdown_future = std::async(std::launch::async, [] { FfiClient::instance().shutdown(); });
   for (int i = 0; i < 5000 && FfiClient::instance().isInitialized(); ++i) {
@@ -379,12 +384,12 @@ TEST_F(FfiClientTest, ShutdownRejectsReinitializeAndDropsNewEventsWhileDraining)
   EXPECT_EQ(shutdown_future.wait_for(std::chrono::milliseconds(50)), std::future_status::timeout);
   EXPECT_FALSE(FfiClient::instance().initialize(false));
 
-  emitLogEvent();
+  emitEvent();
   EXPECT_EQ(listener_calls.load(), 1);
 
   release_callback.set_value();
   callback_thread.join();
-  EXPECT_EQ(shutdown_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  EXPECT_EQ(shutdown_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
   EXPECT_FALSE(FfiClient::instance().isInitialized());
 }
 
