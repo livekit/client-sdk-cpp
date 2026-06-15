@@ -183,6 +183,13 @@ jobs:
       - name: Pull LFS files
         run: git lfs pull
 
+      - name: Prepare CI test scripts
+        if: runner.os != 'Windows' && inputs.build_type == 'debug'
+        shell: bash
+        run: |
+          chmod +x .github/scripts/run_tests_with_backtrace.sh
+          chmod +x .github/scripts/stage_crash_diagnostics.sh
+
       # Cargo's freshness check is mtime-based. A fresh `actions/checkout`
       # stamps every submodule source file with the checkout time, which is
       # newer than the cached target/ artifacts — so cargo rebuilds the whole
@@ -284,10 +291,20 @@ jobs:
       - name: Set Linux build environment
         if: runner.os == 'Linux'
         run: |
-          echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
-          echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
+          flags="-Wno-deprecated-declarations"
+          if [[ "${{ inputs.build_type }}" == "debug" ]]; then
+            flags="${flags} -fno-omit-frame-pointer"
+          fi
+          echo "CXXFLAGS=${flags}" >> "$GITHUB_ENV"
+          echo "CFLAGS=${flags}" >> "$GITHUB_ENV"
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
           echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
+
+      - name: Set macOS debug backtrace flags
+        if: runner.os == 'macOS' && inputs.build_type == 'debug'
+        run: |
+          echo "CXXFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
+          echo "CFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
 
       # ---------- Build (release-tests: tests on, examples off) ----------
       - name: Build tests (Unix)
@@ -312,11 +329,21 @@ jobs:
         if: runner.os != 'Windows'
         timeout-minutes: ${{ inputs.unit_timeout_minutes }}
         shell: bash
+        env:
+          RUST_BACKTRACE: full
         run: |
-          ${{ env.BUILD_DIR }}/bin/livekit_unit_tests \
-            --gtest_repeat=${{ inputs.unit_repeat }} \
-            --gtest_brief=1 \
+          set -euo pipefail
+          bin="${{ env.BUILD_DIR }}/bin/livekit_unit_tests"
+          args=(
+            --gtest_repeat=${{ inputs.unit_repeat }}
+            --gtest_brief=1
             --gtest_output=xml:${{ env.BUILD_DIR }}/unit-test-results.xml
+          )
+          if [[ "${{ inputs.build_type }}" == "debug" ]]; then
+            .github/scripts/run_tests_with_backtrace.sh "$bin" "${args[@]}"
+          else
+            "$bin" "${args[@]}"
+          fi
 
       - name: Run unit tests (Windows)
         if: runner.os == 'Windows'
@@ -457,13 +484,21 @@ jobs:
         shell: bash
         env:
           RUST_LOG: "metrics=debug"
+          RUST_BACKTRACE: full
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
-          ${{ env.BUILD_DIR }}/bin/livekit_integration_tests \
-            --gtest_repeat=${{ inputs.integration_repeat }} \
-            --gtest_recreate_environments_when_repeating=1 \
+          bin="${{ env.BUILD_DIR }}/bin/livekit_integration_tests"
+          args=(
+            --gtest_repeat=${{ inputs.integration_repeat }}
+            --gtest_recreate_environments_when_repeating=1
             --gtest_output=xml:${{ env.BUILD_DIR }}/integration-test-results.xml
+          )
+          if [[ "${{ inputs.build_type }}" == "debug" ]]; then
+            .github/scripts/run_tests_with_backtrace.sh "$bin" "${args[@]}"
+          else
+            "$bin" "${args[@]}"
+          fi
 
       - name: Run stress tests
         if: matrix.e2e-testing && inputs.run_stress_tests
@@ -471,18 +506,40 @@ jobs:
         shell: bash
         env:
           RUST_LOG: "metrics=debug"
+          RUST_BACKTRACE: full
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
-          ${{ env.BUILD_DIR }}/bin/livekit_stress_tests \
-            --gtest_repeat=${{ inputs.stress_repeat }} \
-            --gtest_recreate_environments_when_repeating=1 \
+          bin="${{ env.BUILD_DIR }}/bin/livekit_stress_tests"
+          args=(
+            --gtest_repeat=${{ inputs.stress_repeat }}
+            --gtest_recreate_environments_when_repeating=1
             --gtest_output=xml:${{ env.BUILD_DIR }}/stress-test-results.xml
+          )
+          if [[ "${{ inputs.build_type }}" == "debug" ]]; then
+            .github/scripts/run_tests_with_backtrace.sh "$bin" "${args[@]}"
+          else
+            "$bin" "${args[@]}"
+          fi
 
       - name: Dump livekit-server log on failure
         if: failure() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         shell: bash
         run: tail -n 500 "${{ steps.livekit_server_log.outputs.log-path }}" || true
+
+      - name: Stage crash diagnostics
+        if: failure() && inputs.build_type == 'debug' && runner.os != 'Windows'
+        shell: bash
+        run: .github/scripts/stage_crash_diagnostics.sh "${{ env.BUILD_DIR }}"
+
+      - name: Upload crash diagnostics
+        if: failure() && inputs.build_type == 'debug' && runner.os != 'Windows'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crash-diagnostics-${{ matrix.name }}
+          path: ${{ runner.temp }}/crash-diagnostics/
+          if-no-files-found: ignore
+          retention-days: ${{ inputs.artifact_retention_days }}
 
       # ---------- Upload results ----------
       - name: Upload test results
