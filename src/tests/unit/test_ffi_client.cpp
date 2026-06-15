@@ -267,7 +267,7 @@ TEST_F(FfiClientTest, RemoveListenerWaitsForInFlightCallback) {
 // removeListener() must block until the in-flight callback returns, so the
 // callback never touches freed memory. Without the ListenerSlot handshake the
 // destroy thread would free the FakeRoom while onEvent() is still running.
-TEST_F(FfiClientTest, RoomEventRoomDestructionRace) {
+TEST_F(FfiClientTest, RoomDestructionRace) {
   ASSERT_TRUE(FfiClient::instance().initialize(false));
 
   std::promise<void> callback_entered;
@@ -313,7 +313,7 @@ TEST_F(FfiClientTest, RoomEventRoomDestructionRace) {
 // before, during, or after dispatch, sweeping the (A) copy-pointer / (B)
 // invoke-onEvent window the report describes. Any use-after-free trips the
 // magic-sentinel assertions in FakeRoom::onEvent (and ASan, if enabled).
-TEST_F(FfiClientTest, ConcurrentEventAndOwnerDestructionStressIsSafe) {
+TEST_F(FfiClientTest, RoomDestructionRaceFloodEvents) {
   ASSERT_TRUE(FfiClient::instance().initialize(false));
 
   std::atomic<bool> stop{false};

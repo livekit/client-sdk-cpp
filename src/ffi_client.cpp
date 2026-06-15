@@ -157,7 +157,9 @@ FfiClient::~FfiClient() {
 }
 
 void FfiClient::shutdown() noexcept {
-  bool dispose_ffi = false;
+  // Don't use string to avoid exceptions
+  // (Also cleaner with exception.what() and printing)
+  const char* shutdown_error = nullptr;
   try {
     // Atomically claim shutdown ownership; only the caller that transitions
     // Initialized -> ShuttingDown may drain callbacks and dispose the FFI.
@@ -166,9 +168,6 @@ void FfiClient::shutdown() noexcept {
       // If not Initialized, return early to avoid unnecessary cleanup
       return;
     }
-
-    // Initialized, proceed with cleanup
-    dispose_ffi = true;
 
     std::vector<std::shared_ptr<ListenerSlot>> listeners_to_drain;
     std::vector<std::unique_ptr<PendingBase>> pending_to_cancel;
@@ -211,26 +210,27 @@ void FfiClient::shutdown() noexcept {
       std::unique_lock<std::mutex> slot_lock(slot->mutex);
 
       // When shutdown() isn't on a listener thread, self_active is 0 and we wait for active_callbacks == 0. When it's
-      // called from inside a listener (e.g. ShutdownFromListenerDoesNotDeadlock), self_active is 1 and the wait
-      // succeeds immediately with active_callbacks == 1, so we don't wait on our own in-flight callback.
+      // called from inside a listener, self_active is 1 and the wait succeeds immediately with active_callbacks == 1,
+      // so we don't wait on our own in-flight callback
       slot->cv.wait(slot_lock, [&slot, this_thread] {
         const auto thread_it = slot->active_threads.find(this_thread);
         const int self_active = thread_it == slot->active_threads.end() ? 0 : thread_it->second;
         return slot->active_callbacks == self_active;
       });
     }
-
-    livekit_ffi_dispose();
-    dispose_ffi = false;
-    lifecycle_state_.store(LifecycleState::Uninitialized, std::memory_order_release);
   } catch (const std::exception& e) {
-    if (dispose_ffi) {
-      livekit_ffi_dispose();
-      lifecycle_state_.store(LifecycleState::Uninitialized, std::memory_order_release);
-    }
+    shutdown_error = e.what();
+  } catch (...) {
+    shutdown_error = "unknown exception";
+  }
+
+  livekit_ffi_dispose();
+  lifecycle_state_.store(LifecycleState::Uninitialized, std::memory_order_release);
+
+  if (shutdown_error != nullptr) {
     // Explicitly use this over spdlog (method is noexcept)
     (void)std::fputs("[livekit] [error] SDK shutdown failed during local cleanup: ", stderr);
-    (void)std::fputs(e.what(), stderr);
+    (void)std::fputs(shutdown_error, stderr);
     (void)std::fputs("\n", stderr);
     (void)std::fflush(stderr);
   }

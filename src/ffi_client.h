@@ -150,6 +150,8 @@ public:
 private:
   FfiClient() = default;
 
+  /// Lifecycle state of the FfiClient
+  /// This is used to prevent race conditions/use-after-free scenarios
   enum class LifecycleState : std::uint8_t {
     Uninitialized,
     Initializing,
