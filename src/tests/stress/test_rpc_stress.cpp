@@ -848,4 +848,96 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
   receiver_room.reset();
 }
 
+// Integration test: Run for approximately 1 minute
+TEST_F(RpcStressTest, OneMinuteIntegration) {
+  EXPECT_TRUE(config_.available) << "Missing integration configuration";
+
+  auto receiver_room = std::make_unique<Room>();
+  RoomOptions options;
+  options.auto_subscribe = true;
+
+  ASSERT_TRUE(receiver_room->connect(config_.url, config_.token_b, options)) << "Receiver failed to connect";
+
+  std::string receiver_identity = lockLocalParticipant(*receiver_room)->identity();
+
+  std::atomic<int> total_received{0};
+  std::atomic<size_t> total_bytes_received{0};
+
+  lockLocalParticipant(*receiver_room)
+      ->registerRpcMethod("integration-test", [&](const RpcInvocationData& data) -> std::optional<std::string> {
+        total_received++;
+        total_bytes_received += data.payload.size();
+        return "ack:" + std::to_string(data.payload.size());
+      });
+
+  auto caller_room = std::make_unique<Room>();
+  ASSERT_TRUE(caller_room->connect(config_.url, config_.token_a, options)) << "Caller failed to connect";
+
+  bool receiver_visible = waitForParticipant(caller_room.get(), receiver_identity, 10s);
+  ASSERT_TRUE(receiver_visible) << "Receiver not visible to caller";
+
+  // Hold the local participant alive for the duration of the sender thread so
+  // it cannot expire mid-call while RPCs are in flight.
+  ASSERT_NO_THROW(lockLocalParticipant(*caller_room));
+
+  // Run for 1 minute
+  const auto test_duration = 60s;
+  const auto start_time = std::chrono::steady_clock::now();
+
+  std::atomic<int> total_sent{0};
+  std::atomic<int> successful_calls{0};
+  std::atomic<int> failed_calls{0};
+  std::atomic<bool> running{true};
+
+  // Sender thread
+  std::thread sender([&]() {
+    std::vector<size_t> payload_sizes = {100, 1024, 5 * 1024, 10 * 1024, kMaxRpcPayloadSize};
+    int size_index = 0;
+
+    while (running.load()) {
+      size_t payload_size = payload_sizes[size_index % payload_sizes.size()];
+      std::string payload = generateRandomPayload(payload_size);
+
+      try {
+        auto caller_lp = lockLocalParticipant(*caller_room);
+        ASSERT_NE(caller_lp, nullptr);
+        std::string response = caller_lp->performRpc(receiver_identity, "integration-test", payload, 30.0);
+        if (response == "ack:" + std::to_string(payload_size)) {
+          successful_calls++;
+        }
+      } catch (const std::exception& e) {
+        failed_calls++;
+      }
+
+      total_sent++;
+      size_index++;
+      std::this_thread::sleep_for(100ms); // Rate limit
+    }
+  });
+
+  // Wait for test duration
+  while (std::chrono::steady_clock::now() - start_time < test_duration) {
+    std::this_thread::sleep_for(1s);
+    std::cout << "Progress: sent=" << total_sent.load() << " successful=" << successful_calls.load()
+              << " failed=" << failed_calls.load() << " received=" << total_received.load() << std::endl;
+  }
+
+  running.store(false);
+  sender.join();
+
+  std::cout << "\n=== Integration Test Results (1 minute) ===" << std::endl;
+  std::cout << "Total sent: " << total_sent.load() << std::endl;
+  std::cout << "Successful: " << successful_calls.load() << std::endl;
+  std::cout << "Failed: " << failed_calls.load() << std::endl;
+  std::cout << "Total received: " << total_received.load() << std::endl;
+  std::cout << "Total bytes received: " << total_bytes_received.load() << std::endl;
+
+  EXPECT_GT(successful_calls.load(), 0);
+  EXPECT_EQ(total_sent.load(), total_received.load());
+
+  lockLocalParticipant(*receiver_room)->unregisterRpcMethod("integration-test");
+  caller_room.reset();
+  receiver_room.reset();
+}
+
 } // namespace livekit::test
