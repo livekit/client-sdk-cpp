@@ -522,7 +522,7 @@ jobs:
         timeout-minutes: ${{ inputs.integration_timeout_minutes }}
         shell: bash
         env:
-          RUST_LOG: "metrics=debug"
+          RUST_LOG: debug
           RUST_BACKTRACE: full
         run: |
           set -euo pipefail
