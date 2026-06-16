@@ -17,9 +17,13 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
+#include <atomic>
+#include <chrono>
 #include <csignal>
+#include <future>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <unordered_set>
 
 #include "ffi.pb.h"
@@ -31,12 +35,87 @@ namespace {
 
 volatile bool g_sigterm_received = false;
 
+// Waits for listener entry or drain completion should finish in milliseconds
+// This is a generous anti-hang bound for CI thread scheduling, not expected latency
+constexpr auto kListenerSyncTimeout = std::chrono::seconds(5);
+
 // Has to be registered globally per csignal API
 void handleSignal(int signal) {
   if (signal == SIGTERM) {
     g_sigterm_received = true;
   }
 }
+
+// Simple helper to emit a test event
+void emitEvent() {
+  proto::FfiEvent event;
+  auto* record = event.mutable_logs()->add_records();
+  record->set_level(proto::LOG_INFO);
+  record->set_target("test");
+  record->set_message("listener event");
+
+  std::string bytes;
+  ASSERT_TRUE(event.SerializeToString(&bytes));
+  ffiEventCallback(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+}
+
+// Minimal stand-in for Room that mirrors its relationship to FfiClient:
+//   - it registers an FFI listener whose callback dereferences `this`
+//     (like Room's `[this](const FfiEvent& e){ onEvent(e); }`), and
+//   - it tears that listener down in its destructor
+//     (like ~Room -> disconnect -> removeListener).
+//
+// This is the object the user's bug report is about: if the FFI thread is
+// dispatching an event into the listener while the object is destroyed,
+// the callback must never touch freed memory. `magic_` is a liveness
+// sentinel so a use-after-free is observable even without a sanitizer.
+class FakeRoom {
+public:
+  static constexpr std::uint32_t kAlive = 0xA11ECAFEU;
+  static constexpr std::uint32_t kDead = 0xDEADBEEFU;
+
+  FakeRoom() {
+    listener_id_ = FfiClient::instance().addListener([this](const proto::FfiEvent& e) { onEvent(e); });
+  }
+
+  ~FakeRoom() {
+    // Mirror ~Room: removeListener() blocks until any in-flight callback
+    // for this listener finishes, so onEvent() below can never run against
+    // a destroyed FakeRoom.
+    FfiClient::instance().removeListener(listener_id_);
+    magic_ = kDead;
+  }
+
+  FakeRoom(const FakeRoom&) = delete;
+  FakeRoom& operator=(const FakeRoom&) = delete;
+  FakeRoom(FakeRoom&&) = delete;
+  FakeRoom& operator=(FakeRoom&&) = delete;
+
+  void setOnEntered(std::function<void()> fn) { on_entered_ = std::move(fn); }
+  void setReleaseGate(std::shared_future<void> gate) { gate_ = std::move(gate); }
+  int events() const { return events_.load(); }
+
+private:
+  void onEvent(const proto::FfiEvent&) {
+    // If `this` were freed mid-dispatch, these reads would observe kDead or
+    // garbage (and trip ASan); the listener handshake must keep us alive.
+    EXPECT_EQ(magic_, kAlive) << "onEvent ran against a destroyed FakeRoom (use-after-free)";
+    if (on_entered_) {
+      on_entered_();
+    }
+    if (gate_.valid()) {
+      gate_.wait();
+    }
+    EXPECT_EQ(magic_, kAlive) << "FakeRoom freed while onEvent was still running";
+    ++events_;
+  }
+
+  std::uint32_t magic_ = kAlive;
+  FfiClient::ListenerId listener_id_ = 0;
+  std::function<void()> on_entered_;
+  std::shared_future<void> gate_;
+  std::atomic<int> events_{0};
+};
 
 } // namespace
 
@@ -144,15 +223,174 @@ TEST_F(FfiClientTest, RemoveListenerIsIdempotent) {
   EXPECT_NO_THROW(FfiClient::instance().removeListener(id));
 }
 
-TEST_F(FfiClientTest, ListenerRegistrationSurvivesShutdownReinitCycle) {
+TEST_F(FfiClientTest, ShutdownClearsListenerRegistrations) {
   FfiClient::instance().initialize(false);
-  const auto id = FfiClient::instance().addListener([](const proto::FfiEvent&) {});
+  std::atomic<int> listener_calls{0};
+  const auto id = FfiClient::instance().addListener([&listener_calls](const proto::FfiEvent&) { ++listener_calls; });
   EXPECT_NE(id, 0);
 
-  // shutdown() does not clear the C++-side listener map today; document that
-  // contract here so a future refactor that changes it is a deliberate choice.
   FfiClient::instance().shutdown();
-  EXPECT_NO_THROW(FfiClient::instance().removeListener(id));
+  ASSERT_FALSE(FfiClient::instance().isInitialized());
+
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+  emitEvent();
+  EXPECT_EQ(listener_calls.load(), 0);
+}
+
+TEST_F(FfiClientTest, RemoveListenerWaitsForInFlightCallback) {
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+
+  std::promise<void> callback_entered;
+  auto callback_entered_future = callback_entered.get_future();
+  std::promise<void> release_callback;
+  auto release_callback_future = release_callback.get_future();
+  std::atomic<bool> callback_completed{false};
+
+  const auto id = FfiClient::instance().addListener([&](const proto::FfiEvent&) {
+    callback_entered.set_value();
+    release_callback_future.wait();
+    callback_completed.store(true);
+  });
+
+  std::thread callback_thread([] { emitEvent(); });
+  ASSERT_EQ(callback_entered_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
+
+  auto remove_future = std::async(std::launch::async, [&] { FfiClient::instance().removeListener(id); });
+  EXPECT_EQ(remove_future.wait_for(std::chrono::milliseconds(50)), std::future_status::timeout);
+  EXPECT_FALSE(callback_completed.load());
+
+  release_callback.set_value();
+  callback_thread.join();
+
+  EXPECT_EQ(remove_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
+  EXPECT_TRUE(callback_completed.load());
+}
+
+// Reproduces the reported "Room event vs. Room destruction" race: the FFI
+// thread is inside the listener callback (dereferencing `this`) at the exact
+// moment the owning object is destroyed on another thread. ~FakeRoom() ->
+// removeListener() must block until the in-flight callback returns, so the
+// callback never touches freed memory. Without the ListenerSlot handshake the
+// destroy thread would free the FakeRoom while onEvent() is still running.
+TEST_F(FfiClientTest, RoomDestructionRace) {
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+
+  std::promise<void> callback_entered;
+  auto callback_entered_future = callback_entered.get_future();
+  std::promise<void> release_callback;
+  const std::shared_future<void> release_callback_future = release_callback.get_future().share();
+  std::atomic<bool> entered_once{false};
+
+  auto room = std::make_unique<FakeRoom>();
+  room->setReleaseGate(release_callback_future);
+  room->setOnEntered([&] {
+    if (!entered_once.exchange(true)) {
+      callback_entered.set_value();
+    }
+  });
+
+  // FFI thread dispatches an event; FakeRoom::onEvent is now parked inside the
+  // callback holding `this`, waiting on the release gate.
+  std::thread ffi_thread([] { emitEvent(); });
+  ASSERT_EQ(callback_entered_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
+
+  // Destroy the owner on a different thread while the callback is in flight.
+  std::atomic<bool> destroyed{false};
+  std::thread destroy_thread([&] {
+    room.reset();
+    destroyed.store(true);
+  });
+
+  // The destructor (removeListener) must block while the callback holds the
+  // slot; the FakeRoom must still be alive.
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  EXPECT_FALSE(destroyed.load()) << "destruction completed while a callback was still running";
+
+  // Let the callback finish; destruction should now unblock and complete.
+  release_callback.set_value();
+  ffi_thread.join();
+  destroy_thread.join();
+  EXPECT_TRUE(destroyed.load());
+}
+
+// Same race exercised under contention: repeatedly create a FakeRoom while a
+// background thread floods events, then destroy it. The destroy can land
+// before, during, or after dispatch, sweeping the (A) copy-pointer / (B)
+// invoke-onEvent window the report describes. Any use-after-free trips the
+// magic-sentinel assertions in FakeRoom::onEvent (and ASan, if enabled).
+TEST_F(FfiClientTest, RoomDestructionRaceFloodEvents) {
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+
+  std::atomic<bool> stop{false};
+  std::thread emitter([&] {
+    while (!stop.load(std::memory_order_relaxed)) {
+      emitEvent();
+    }
+  });
+
+  constexpr int kIterations = 500;
+  for (int i = 0; i < kIterations; ++i) {
+    auto room = std::make_unique<FakeRoom>();
+    // Give the emitter a chance to dispatch into this listener before we tear
+    // it down, so destruction races against an active/just-finishing callback.
+    std::this_thread::yield();
+    room.reset(); // ~FakeRoom -> removeListener must drain safely.
+  }
+
+  stop.store(true, std::memory_order_relaxed);
+  emitter.join();
+}
+
+TEST_F(FfiClientTest, ShutdownFromListenerDoesNotDeadlock) {
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+
+  std::atomic<bool> shutdown_returned{false};
+  const auto id = FfiClient::instance().addListener([&shutdown_returned](const proto::FfiEvent&) {
+    FfiClient::instance().shutdown();
+    shutdown_returned.store(true);
+  });
+  ASSERT_NE(id, 0);
+
+  auto callback_future = std::async(std::launch::async, [] { emitEvent(); });
+  EXPECT_EQ(callback_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
+  EXPECT_TRUE(shutdown_returned.load());
+  EXPECT_FALSE(FfiClient::instance().isInitialized());
+}
+
+TEST_F(FfiClientTest, ShutdownRejectsReinitializeAndDropsNewEventsWhileDraining) {
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+
+  std::promise<void> callback_entered;
+  auto callback_entered_future = callback_entered.get_future();
+  std::promise<void> release_callback;
+  auto release_callback_future = release_callback.get_future();
+  std::atomic<int> listener_calls{0};
+
+  const auto id = FfiClient::instance().addListener([&](const proto::FfiEvent&) {
+    ++listener_calls;
+    callback_entered.set_value();
+    release_callback_future.wait();
+  });
+  ASSERT_NE(id, 0);
+
+  std::thread callback_thread([] { emitEvent(); });
+  ASSERT_EQ(callback_entered_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
+
+  auto shutdown_future = std::async(std::launch::async, [] { FfiClient::instance().shutdown(); });
+  for (int i = 0; i < 5000 && FfiClient::instance().isInitialized(); ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  ASSERT_FALSE(FfiClient::instance().isInitialized());
+  EXPECT_EQ(shutdown_future.wait_for(std::chrono::milliseconds(50)), std::future_status::timeout);
+  EXPECT_FALSE(FfiClient::instance().initialize(false));
+
+  emitEvent();
+  EXPECT_EQ(listener_calls.load(), 1);
+
+  release_callback.set_value();
+  callback_thread.join();
+  EXPECT_EQ(shutdown_future.wait_for(kListenerSyncTimeout), std::future_status::ready);
+  EXPECT_FALSE(FfiClient::instance().isInitialized());
 }
 
 TEST_F(FfiClientTest, PanicEvent) {

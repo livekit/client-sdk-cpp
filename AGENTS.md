@@ -326,11 +326,11 @@ malformed table, missing `@param` on a documented function, …) fails the build
 
 Code should be easy to read and understand. If a sacrifice is made for performance or readability, it should be documented.
 
-Adhere to clang-format checks configured in `.clang-format`. Run `./scripts/clang-format.sh` if needed to confirm code styling, and `./scripts/clang-format.sh --fix` to auto-format generated code created.
+Adhere to clang-format checks configured in `.clang-format`. After C++ code changes, run `./scripts/clang-format.sh` to confirm styling, or `./scripts/clang-format.sh --fix` to auto-format.
 
 ### Static Analysis
 
-Adhere to clang-tidy checks configured in `.clang-tidy`. Run `./scripts/clang-tidy.sh` if needed to confirm code quality.
+Adhere to clang-tidy checks configured in `.clang-tidy`. After C++ code changes, run `./scripts/clang-tidy.sh` to confirm code quality.
 
 ## Dependencies
 
