@@ -36,6 +36,27 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   sudo chmod 1777 /cores 2>/dev/null || true
 fi
 
+dump_macos_crash_reports() {
+  local binary_name
+  binary_name=$(basename "${binary_abs}")
+  echo "=== macOS DiagnosticReports for ${binary_name} ==="
+  local found=0
+  for report_dir in "${HOME}/Library/Logs/DiagnosticReports" "/Library/Logs/DiagnosticReports"; do
+    if [[ ! -d "${report_dir}" ]]; then
+      continue
+    fi
+    while IFS= read -r report; do
+      found=1
+      echo "Crash report: ${report}"
+      # .ips files are JSON-ish; print the first 200 lines for the CI log.
+      head -n 200 "${report}" || true
+    done < <(find "${report_dir}" -maxdepth 1 -name "${binary_name}*.ips" -type f -print 2>/dev/null | sort -r | head -3)
+  done
+  if ((found == 0)); then
+    echo "No DiagnosticReports .ips found for ${binary_name}"
+  fi
+}
+
 dump_backtraces() {
   local test_pid=$1
   local status=$2
@@ -89,6 +110,7 @@ dump_backtraces() {
     else
       echo "No core file found under /cores for pid ${test_pid}"
     fi
+    dump_macos_crash_reports
   fi
 }
 
@@ -100,61 +122,11 @@ run_test() {
   fi
 }
 
-parse_lldb_exit() {
-  local lldb_log=$1
-  local exit_line=""
-  exit_line=$(grep -E 'Process [0-9]+ (exited with status|stopped with signal|exited with signal)' "${lldb_log}" | tail -1 || true)
-  if [[ -z "${exit_line}" ]]; then
-    return 1
-  fi
-
-  if [[ "${exit_line}" == *"exited with status = "* ]]; then
-    grep -Eo 'exited with status = [0-9]+' <<<"${exit_line}" | grep -Eo '[0-9]+$'
-    return 0
-  fi
-
-  if [[ "${exit_line}" == *"signal = SIGSEGV"* ]] || [[ "${exit_line}" == *"(11)"* ]]; then
-    echo 139
-    return 0
-  fi
-
-  if [[ "${exit_line}" == *"signal = SIGABRT"* ]] || [[ "${exit_line}" == *"(6)"* ]]; then
-    echo 134
-    return 0
-  fi
-
-  return 1
-}
-
-parse_lldb_pid() {
-  local lldb_log=$1
-  grep -Eo 'Process [0-9]+' "${lldb_log}" | tail -1 | grep -Eo '[0-9]+'
-}
-
 set +e
-if [[ "$(uname -s)" == "Darwin" ]] && command -v lldb >/dev/null 2>&1; then
-  # GHA macOS runners rarely write /cores dumps; run under lldb so a backtrace
-  # appears in the log even when no core file is produced.
-  lldb_log="${core_dir}/lldb-last.log"
-  lldb -b \
-    -o run \
-    -o 'thread backtrace all' \
-    -o quit \
-    -- "${binary_abs}" "$@" 2>&1 | tee "${lldb_log}"
-  test_pid=$(parse_lldb_pid "${lldb_log}")
-  status=$(parse_lldb_exit "${lldb_log}")
-  if [[ -z "${status}" ]]; then
-    status=1
-  fi
-  if [[ -z "${test_pid}" ]]; then
-    test_pid=0
-  fi
-else
-  run_test "$@" &
-  test_pid=$!
-  wait "${test_pid}"
-  status=$?
-fi
+run_test "$@" &
+test_pid=$!
+wait "${test_pid}"
+status=$?
 set -e
 
 if ((status > 128)); then
