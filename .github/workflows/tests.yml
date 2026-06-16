@@ -14,6 +14,11 @@ on:
         required: false
         type: number
         default: 1
+      unit_gtest_brief:
+        description: Pass --gtest_brief=1 to hide passing unit test output.
+        required: false
+        type: boolean
+        default: true
       integration_repeat:
         description: Number of times to repeat integration tests.
         required: false
@@ -74,6 +79,11 @@ on:
         required: false
         type: number
         default: 1
+      unit_gtest_brief:
+        description: Pass --gtest_brief=1 to hide passing unit test output.
+        required: false
+        type: boolean
+        default: true
       integration_repeat:
         description: Number of times to repeat integration tests.
         required: false
@@ -336,9 +346,11 @@ jobs:
           bin="${{ env.BUILD_DIR }}/bin/livekit_unit_tests"
           args=(
             --gtest_repeat=${{ inputs.unit_repeat }}
-            --gtest_brief=1
             --gtest_output=xml:${{ env.BUILD_DIR }}/unit-test-results.xml
           )
+          if [[ "${{ inputs.unit_gtest_brief }}" == "true" ]]; then
+            args+=(--gtest_brief=1)
+          fi
           if [[ "${{ inputs.build_type }}" == "debug" ]]; then
             .github/scripts/run_tests_with_backtrace.sh "$bin" "${args[@]}"
           else
@@ -350,10 +362,14 @@ jobs:
         timeout-minutes: ${{ inputs.unit_timeout_minutes }}
         shell: pwsh
         run: |
-          ${{ env.BUILD_DIR }}\bin\livekit_unit_tests.exe `
-            --gtest_repeat=${{ inputs.unit_repeat }} `
-            --gtest_brief=1 `
-            --gtest_output="xml:${{ env.BUILD_DIR }}\unit-test-results.xml"
+          $unitArgs = @(
+            "--gtest_repeat=${{ inputs.unit_repeat }}"
+            "--gtest_output=xml:${{ env.BUILD_DIR }}\unit-test-results.xml"
+          )
+          if ("${{ inputs.unit_gtest_brief }}" -eq "true") {
+            $unitArgs += "--gtest_brief=1"
+          }
+          & "${{ env.BUILD_DIR }}\bin\livekit_unit_tests.exe" @unitArgs
 
       # ---------- Start livekit-server for integration tests ----------
       - name: Start livekit-server
