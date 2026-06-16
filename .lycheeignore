@@ -8,8 +8,22 @@ cpp-example-collection/
 # Generated Doxygen output (source inputs are checked instead).
 docs/doxygen/html/
 
+# Doxygen theme templates use $relpath^$variable placeholders, not real URLs.
+docs/doxygen/
+
 # Local/dev-only URLs.
 http://localhost:*
 https://localhost:*
 ws://localhost:*
 wss://localhost:*
+
+# Apache license header URLs in copyright blocks (not user-facing doc links).
+http://www.apache.org/licenses/LICENSE-2.0
+https://www.apache.org/licenses/LICENSE-2.0
+
+# Ecosystem footer links that reject automated checks (403/405) but work in browsers.
+https://docs.livekit.io/mcp
+https://livekit.io/join-slack
+https://livekit.com/join-slack
+https://join.slack.com/*
+https://livekit-users.slack.com/*

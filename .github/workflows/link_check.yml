@@ -31,7 +31,8 @@ jobs:
             --no-progress
             --cache
             --max-cache-age 1d
-            include/livekit
-            docs
+            --root-dir .
+            'include/livekit/**/*.h'
+            'docs/**/*.md'
             README.md
           fail: true
