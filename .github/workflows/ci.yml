@@ -69,9 +69,7 @@ jobs:
               - scripts/generate-docs.sh
               - .github/workflows/ci.yml
               - .github/workflows/generate-docs.yml
-              - .github/workflows/link_check.yml
               - .github/workflows/publish-docs.yml
-              - .lycheeignore
             cpp_checks:
               - src/**
               - include/**
@@ -109,6 +107,12 @@ jobs:
     name: License Check
     uses: ./.github/workflows/license_check.yml
 
+  # link-check is cheap (seconds) and should run on every PR so @see URLs in
+  # public headers and docs do not rot.
+  link-check:
+    name: Link Check
+    uses: ./.github/workflows/link_check.yml
+
   cpp-checks:
     name: C++ Checks
     needs: changes
@@ -120,12 +124,6 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/generate-docs.yml
-
-  link-check:
-    name: Link Check
-    needs: changes
-    if: ${{ needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' }}
-    uses: ./.github/workflows/link_check.yml
 
   # Only runs on a client-sdk-rust submodule bump. Runs in parallel and is not a
   # dependency of builds/tests, so developer iteration against an unreleased
