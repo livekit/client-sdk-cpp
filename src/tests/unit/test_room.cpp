@@ -18,10 +18,10 @@
 #include <livekit/livekit.h>
 
 #include <chrono>
-#include <cstdlib>
 #include <iostream>
 #include <string>
 
+#include "../common/test_common.h"
 #include "room_proto_converter.h"
 
 namespace livekit::test {
@@ -30,20 +30,9 @@ namespace {
 
 constexpr const char* kRustRetryLogFilter = "livekit::rtc_engine=warn,livekit_ffi::server::room=error";
 
-void setRustLogForRetryTest() {
-#ifdef _WIN32
-  _putenv_s("RUST_LOG", kRustRetryLogFilter);
-#else
-  setenv("RUST_LOG", kRustRetryLogFilter, 1);
-#endif
-}
-
 // Configure RUST_LOG during static initialization, before any test can initialize
 // the Rust FFI logger (which reads env vars once at construction time).
-const bool kRustLogConfiguredBeforeTests = [] {
-  setRustLogForRetryTest();
-  return true;
-}();
+const ScopedEnv kRustLogEnv("RUST_LOG", kRustRetryLogFilter);
 
 std::size_t countOccurrences(const std::string& haystack, const std::string& needle) {
   std::size_t count = 0;
@@ -59,10 +48,7 @@ std::size_t countOccurrences(const std::string& haystack, const std::string& nee
 
 class RoomTest : public ::testing::Test {
 protected:
-  void SetUp() override {
-    setRustLogForRetryTest();
-    livekit::initialize(livekit::LogLevel::Info);
-  }
+  void SetUp() override { livekit::initialize(livekit::LogLevel::Info); }
 
   void TearDown() override { livekit::shutdown(); }
 };
