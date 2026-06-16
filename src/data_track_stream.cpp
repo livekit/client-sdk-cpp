@@ -52,22 +52,28 @@ void DataTrackStream::init(FfiHandle subscription_handle) {
 bool DataTrackStream::read(DataTrackFrame& out) {
   proto::DataTrackStreamReadResponse read_response;
   bool missing_read_response = false;
+  std::uint64_t subscription_handle = 0;
 
   {
     const std::scoped_lock<std::mutex> lock(mutex_);
     if (closed_ || eof_) {
       return false;
     }
+    subscription_handle = static_cast<std::uint64_t>(subscription_handle_.get());
+  }
 
-    const auto subscription_handle = static_cast<std::uint64_t>(subscription_handle_.get());
+  // Do not hold mutex_ across sendRequest: readFrameWithTimeout may call close()
+  // from another thread on timeout, and close() also needs mutex_.
+  proto::FfiRequest req;
+  auto* msg = req.mutable_data_track_stream_read();
+  msg->set_stream_handle(subscription_handle);
+  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
 
-    // Signal the Rust side that we're ready to receive the next frame.
-    // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
-    // from the underlying stream until notified via this request.
-    proto::FfiRequest req;
-    auto* msg = req.mutable_data_track_stream_read();
-    msg->set_stream_handle(subscription_handle);
-    const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+  {
+    const std::scoped_lock<std::mutex> lock(mutex_);
+    if (closed_ || eof_) {
+      return false;
+    }
     if (!resp.has_data_track_stream_read()) {
       missing_read_response = true;
     } else {
