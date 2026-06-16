@@ -15,9 +15,9 @@ permissions:
   actions: read
   packages: write
 
-concurrency:
-  group: nightly-${{ github.ref }}
-  cancel-in-progress: false
+# concurrency:
+#   group: nightly-${{ github.ref }}
+#   cancel-in-progress: false
 
 jobs:
   debug-tests:
