@@ -34,5 +34,14 @@ if [[ "$(uname -s)" == "Darwin" && -d /cores ]]; then
   find /cores -maxdepth 1 -name 'core.*' -type f -exec cp -a {} "${staging}/cores/" \; 2>/dev/null || true
 fi
 
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  mkdir -p "${staging}/crash-reports"
+  for report_dir in "${HOME}/Library/Logs/DiagnosticReports" "/Library/Logs/DiagnosticReports"; do
+    if [[ -d "${report_dir}" ]]; then
+      find "${report_dir}" -maxdepth 1 -name '*.ips' -type f -exec cp -a {} "${staging}/crash-reports/" \; 2>/dev/null || true
+    fi
+  done
+fi
+
 echo "Staged crash diagnostics under ${staging}:"
 find "${staging}" -type f -print
