@@ -107,8 +107,7 @@ jobs:
     name: License Check
     uses: ./.github/workflows/license_check.yml
 
-  # link-check is cheap (seconds) and should run on every PR so @see URLs in
-  # public headers and docs do not rot.
+  # link-check is cheap (seconds) and should run on every PR
   link-check:
     name: Link Check
     uses: ./.github/workflows/link_check.yml
