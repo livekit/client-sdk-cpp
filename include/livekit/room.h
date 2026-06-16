@@ -74,6 +74,8 @@ struct RoomOptions {
   /// This is CRITICAL. Without auto_subscribe, you will never receive:
   ///   - `track_subscribed` events
   ///   - remote audio/video frames
+  ///
+  /// @see https://docs.livekit.io/transport/media/subscribe/#selective-subscription
   bool auto_subscribe = true;
 
   /// Enable adaptive stream for subscribed video tracks.
@@ -85,16 +87,24 @@ struct RoomOptions {
   /// decode work. This affects media received by this room; use @ref dynacast
   /// to control how this client publishes layers to others.
   ///
+  /// @see https://docs.livekit.io/transport/media/subscribe/#adaptive-stream
+  ///
   /// If unset, the Rust SDK default is used.
   std::optional<bool> adaptive_stream;
 
   /// Enable dynacast (server sends optimal layers depending on subscribers).
+  ///
+  /// @see https://docs.livekit.io/transport/media/publish/#dynacast
   bool dynacast = false;
 
   /// Optional end-to-end encryption settings.
+  ///
+  /// @see https://docs.livekit.io/transport/encryption/
   std::optional<E2EEOptions> encryption;
 
   /// Optional WebRTC configuration (ICE policy, servers, etc.)
+  ///
+  /// @see https://docs.livekit.io/intro/basics/connect/#connection-reliability
   std::optional<RtcConfig> rtc_config;
 
   /// Number of retries for the initial room join after the first attempt.
