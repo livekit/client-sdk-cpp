@@ -28,6 +28,7 @@ jobs:
       unit_repeat: ${{ github.event_name == 'pull_request' && 1 || 100 }}
       unit_gtest_brief: ${{ github.event_name != 'pull_request' }}
       integration_repeat: 10
+      integration_rust_log: info,livekit_ffi::server=debug
       run_stress_tests: true
       stress_repeat: 1
       unit_timeout_minutes: 60

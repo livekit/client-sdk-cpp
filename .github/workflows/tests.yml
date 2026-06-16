@@ -24,6 +24,11 @@ on:
         required: false
         type: number
         default: 1
+      integration_rust_log:
+        description: RUST_LOG value for the integration test step.
+        required: false
+        type: string
+        default: metrics=debug
       run_stress_tests:
         description: Run stress tests that require LiveKit server setup.
         required: false
@@ -89,6 +94,11 @@ on:
         required: false
         type: number
         default: 1
+      integration_rust_log:
+        description: RUST_LOG value for the integration test step.
+        required: false
+        type: string
+        default: metrics=debug
       run_stress_tests:
         description: Run stress tests that require LiveKit server setup.
         required: false
@@ -499,7 +509,7 @@ jobs:
         timeout-minutes: ${{ inputs.integration_timeout_minutes }}
         shell: bash
         env:
-          RUST_LOG: "metrics=debug"
+          RUST_LOG: ${{ inputs.integration_rust_log }}
           RUST_BACKTRACE: full
         run: |
           set -euo pipefail
