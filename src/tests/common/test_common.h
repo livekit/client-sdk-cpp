@@ -33,12 +33,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
-
-#ifdef _WIN32
-#include <stdlib.h>
-#endif
 
 // Include benchmark utilities for trace file analysis
 #include "../benchmark/benchmark_utils.h"
@@ -122,84 +117,6 @@ struct TestRoomConnectionOptions {
 };
 
 // =============================================================================
-// Environment Variable Helpers
-// =============================================================================
-
-/// RAII helper that captures an environment variable's value and restores it
-/// when the scope ends. Optionally sets a new value for the scope duration.
-///
-/// Example:
-///   ScopedEnv log_filter("RUST_LOG", "livekit=debug");
-///   livekit::initialize(...);
-class ScopedEnv {
-public:
-  /// Capture the current value of @p name without changing it.
-  explicit ScopedEnv(std::string name) : name_(std::move(name)) { capture(); }
-
-  /// Capture the current value of @p name and set it to @p value.
-  ScopedEnv(std::string name, std::string value) : name_(std::move(name)) {
-    capture();
-    set(std::move(value));
-  }
-
-  ScopedEnv(const ScopedEnv&) = delete;
-  ScopedEnv& operator=(const ScopedEnv&) = delete;
-
-  ~ScopedEnv() { reset(); }
-
-  /// Set @p name to @p value for the remainder of this scope.
-  void set(const std::string& value) {
-    setEnvVar(name_, value);
-    restored_ = false;
-  }
-
-  /// Restore @p name to its original captured value.
-  void reset() {
-    if (restored_) {
-      return;
-    }
-
-    if (had_value_) {
-      setEnvVar(name_, original_value_);
-    } else {
-      unsetEnvVar(name_);
-    }
-    restored_ = true;
-  }
-
-  const std::string& name() const noexcept { return name_; }
-
-private:
-  static void setEnvVar(const std::string& name, const std::string& value) {
-#ifdef _WIN32
-    _putenv_s(name.c_str(), value.c_str());
-#else
-    setenv(name.c_str(), value.c_str(), 1);
-#endif
-  }
-
-  static void unsetEnvVar(const std::string& name) {
-#ifdef _WIN32
-    _putenv_s(name.c_str(), nullptr);
-#else
-    unsetenv(name.c_str());
-#endif
-  }
-
-  void capture() {
-    if (const char* value = std::getenv(name_.c_str())) {
-      had_value_ = true;
-      original_value_ = value;
-    }
-  }
-
-  std::string name_;
-  bool had_value_ = false;
-  bool restored_ = true;
-  std::string original_value_;
-};
-
-// =============================================================================
 // Utility Functions
 // =============================================================================
 
@@ -207,18 +124,6 @@ private:
 inline uint64_t getTimestampUs() {
   return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch())
       .count();
-}
-
-/// Count non-overlapping occurrences of @p target_str within @p source_str.
-/// @note This is mainly useful for counting occurrences in log statement captures
-inline std::size_t countOccurrences(const std::string& source_str, const std::string& target_str) {
-  std::size_t count = 0;
-  std::size_t pos = 0;
-  while ((pos = source_str.find(target_str, pos)) != std::string::npos) {
-    ++count;
-    pos += target_str.size();
-  }
-  return count;
 }
 
 /// Wait for a remote participant to appear in the room

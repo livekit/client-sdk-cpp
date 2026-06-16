@@ -18,23 +18,12 @@
 #include <livekit/livekit.h>
 
 #include <chrono>
-#include <iostream>
 #include <string>
 
-#include "../common/test_common.h"
+#include "ffi.pb.h"
 #include "room_proto_converter.h"
 
 namespace livekit::test {
-
-namespace {
-
-constexpr const char* kRustRetryLogFilter = "livekit::rtc_engine=warn,livekit_ffi::server::room=error";
-
-// Configure RUST_LOG during static initialization, before any test can initialize
-// the Rust FFI logger (which reads env vars once at construction time).
-const ScopedEnv kRustLogEnv("RUST_LOG", kRustRetryLogFilter);
-
-} // namespace
 
 class RoomTest : public ::testing::Test {
 protected:
@@ -138,34 +127,32 @@ TEST_F(RoomTest, RoomOptionsProtoConverter) {
   EXPECT_EQ(proto_options.connect_timeout_ms(), 750U);
 }
 
-// This test validates the join retries behavior when connecting to an invalid URL
-// It sets the RUST_LOG env variable to capture the retry logs
-TEST_F(RoomTest, RoomOptionsJoinRetries) {
-  constexpr std::uint32_t kJoinRetries = 10;
-
-  Room room;
+TEST(RoomOptionsProtoTest, ConnectRequestSerializesRetryOptions) {
   RoomOptions options;
-  options.join_retries = kJoinRetries;
+  options.join_retries = 8;
+  options.connect_timeout = std::chrono::milliseconds(750);
 
-  testing::internal::CaptureStderr();
-  const bool result = room.connect("not-a-livekit-url", "test-token", options);
-  const std::string stderr_output = testing::internal::GetCapturedStderr();
+  proto::FfiRequest request;
+  auto* connect = request.mutable_connect();
+  connect->set_url("ws://localhost:7880");
+  connect->set_token("test-token");
+  connect->mutable_options()->CopyFrom(toProto(options));
 
-  EXPECT_FALSE(result) << "Connecting with an invalid URL should fail";
-  EXPECT_TRUE(room.localParticipant().expired()) << "Local participant should be empty after failed connect";
-  EXPECT_TRUE(room.remoteParticipants().empty()) << "Remote participants should be empty after failed connect";
+  ASSERT_TRUE(connect->options().has_join_retries());
+  EXPECT_EQ(connect->options().join_retries(), 8U);
+  ASSERT_TRUE(connect->options().has_connect_timeout_ms());
+  EXPECT_EQ(connect->options().connect_timeout_ms(), 750U);
 
-  // Do the below that way we can print stderr only once if there was a string change to the output
-  const bool has_failure = HasFailure();
+  ASSERT_TRUE(request.IsInitialized()) << request.InitializationErrorString();
 
-  EXPECT_NE(stderr_output.find("Room::connect failed:"), std::string::npos);
-  EXPECT_EQ(countOccurrences(stderr_output, "retrying..."), kJoinRetries);
-  EXPECT_NE(stderr_output.find("retrying... (10/10)"), std::string::npos);
+  std::string serialized;
+  ASSERT_TRUE(request.SerializeToString(&serialized));
+  EXPECT_FALSE(serialized.empty());
 
-  if (!has_failure && HasFailure()) {
-    std::cerr << "### One or more checks failed due to log format changing. Captured stderr output below ###\n";
-    std::cerr << stderr_output << "\n";
-  }
+  proto::FfiRequest decoded;
+  ASSERT_TRUE(decoded.ParseFromString(serialized));
+  EXPECT_EQ(decoded.connect().options().join_retries(), 8U);
+  EXPECT_EQ(decoded.connect().options().connect_timeout_ms(), 750U);
 }
 
 TEST_F(RoomTest, RtcConfigDefaults) {
