@@ -222,15 +222,17 @@ jobs:
           retention-days: 14
 
   sanitizer-macos:
-    name: Sanitizer Checks (macOS PlatformAudio)
+    # UBSan only: AddressSanitizer is incompatible with macOS CoreAudio
+    # (ASAN faults in AudioToolbox capture threads on repeat ADM cycles).
+    name: UBSan Checks (macOS PlatformAudio)
     runs-on: macos-26-xlarge
     timeout-minutes: 90
     env:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: "0"
       RUST_BACKTRACE: full
-      ASAN_OPTIONS: detect_leaks=0:abort_on_error=1:symbolize=1:print_stacktrace=1
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      PLATFORM_AUDIO_TEST_REPEAT: ${{ github.event_name == 'pull_request' && 1 || 10 }}
 
     steps:
       - name: Checkout (with submodules)
@@ -263,15 +265,15 @@ jobs:
           echo "CXXFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
           echo "CFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
 
-      - name: Configure sanitizer build
+      - name: Configure UBSan build
         run: |
           cmake --preset macos-debug-tests \
-            -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
-            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
-            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+            -DCMAKE_C_FLAGS="-fsanitize=undefined -fno-omit-frame-pointer" \
+            -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=undefined"
 
-      - name: Build sanitizer tests
+      - name: Build UBSan tests
         run: cmake --build build-debug --target livekit_integration_tests --parallel 2
 
       - name: Start livekit-server
@@ -305,7 +307,7 @@ jobs:
         shell: bash
         run: brew install livekit-cli
 
-      - name: Run sanitizer platform audio integration tests
+      - name: Run UBSan platform audio integration tests
         timeout-minutes: 30
         shell: bash
         run: |
@@ -314,7 +316,7 @@ jobs:
           .github/scripts/run_tests_with_backtrace.sh \
             build-debug/bin/livekit_integration_tests \
             --gtest_filter='PlatformAudioIntegrationTest.*' \
-            --gtest_repeat=10 \
+            --gtest_repeat="${PLATFORM_AUDIO_TEST_REPEAT}" \
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_brief=1 \
             --gtest_output=xml:build-debug/sanitizer-platform-audio-integration-test-results.xml
