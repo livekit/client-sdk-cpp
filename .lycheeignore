@@ -1,0 +1,15 @@
+# Build artifacts and vendored trees are not documentation sources.
+build*/
+build-*/
+local-install/
+client-sdk-rust/
+cpp-example-collection/
+
+# Generated Doxygen output (source inputs are checked instead).
+docs/doxygen/html/
+
+# Local/dev-only URLs.
+http://localhost:*
+https://localhost:*
+ws://localhost:*
+wss://localhost:*
