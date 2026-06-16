@@ -36,3 +36,4 @@ jobs:
             'docs/**/*.md'
             README.md
           fail: true
+          jobSummary: false
