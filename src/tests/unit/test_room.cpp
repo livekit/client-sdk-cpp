@@ -34,16 +34,6 @@ constexpr const char* kRustRetryLogFilter = "livekit::rtc_engine=warn,livekit_ff
 // the Rust FFI logger (which reads env vars once at construction time).
 const ScopedEnv kRustLogEnv("RUST_LOG", kRustRetryLogFilter);
 
-std::size_t countOccurrences(const std::string& haystack, const std::string& needle) {
-  std::size_t count = 0;
-  std::size_t pos = 0;
-  while ((pos = haystack.find(needle, pos)) != std::string::npos) {
-    ++count;
-    pos += needle.size();
-  }
-  return count;
-}
-
 } // namespace
 
 class RoomTest : public ::testing::Test {

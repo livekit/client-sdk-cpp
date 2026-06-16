@@ -209,6 +209,18 @@ inline uint64_t getTimestampUs() {
       .count();
 }
 
+/// Count non-overlapping occurrences of @p target_str within @p source_str.
+/// @note This is mainly useful for counting occurrences in log statement captures
+inline std::size_t countOccurrences(const std::string& source_str, const std::string& target_str) {
+  std::size_t count = 0;
+  std::size_t pos = 0;
+  while ((pos = source_str.find(target_str, pos)) != std::string::npos) {
+    ++count;
+    pos += target_str.size();
+  }
+  return count;
+}
+
 /// Wait for a remote participant to appear in the room
 inline bool waitForParticipant(Room* room, const std::string& identity, std::chrono::milliseconds timeout) {
   auto start = std::chrono::steady_clock::now();
