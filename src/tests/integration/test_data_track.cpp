@@ -21,6 +21,7 @@
 // and run:
 //   ./build-debug/bin/livekit_integration_tests
 
+#include <livekit/data_track_options.h>
 #include <livekit/data_track_schema.h>
 #include <livekit/data_track_stream.h>
 #include <livekit/e2ee.h>
@@ -566,6 +567,49 @@ TEST_F(DataTrackE2ETest, GetUndefinedSchemaFails) {
   const DataTrackSchemaId schema_id{"undefined", DataTrackSchemaEncoding::JsonSchema};
 
   EXPECT_THROW((void)lockLocalParticipant(*room)->getSchema(schema_id, identity), std::runtime_error);
+}
+
+TEST_F(DataTrackE2ETest, PublishWithSchemaAndFrameEncodingMetadata) {
+  const auto track_name = makeTrackName("schema_meta");
+
+  DataTrackPublishedDelegate subscriber_delegate;
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[1].delegate = &subscriber_delegate;
+
+  auto rooms = testRooms(room_configs);
+  auto& publisher_room = rooms[0];
+
+  DataTrackPublishOptions options;
+  options.name = track_name;
+  options.schema = DataTrackSchemaId{"sensor_msgs/Image", DataTrackSchemaEncoding::Ros2Msg};
+  options.frame_encoding = DataTrackFrameEncoding::Cdr;
+
+  auto publish_result = lockLocalParticipant(*publisher_room)->publishDataTrack(options);
+  if (!publish_result) {
+    FAIL() << describeDataTrackError(publish_result.error());
+  }
+  auto local_track = publish_result.value();
+  ASSERT_TRUE(local_track->isPublished());
+
+  const auto& local_info = local_track->info();
+  ASSERT_TRUE(local_info.schema.has_value());
+  EXPECT_EQ(local_info.schema->name, "sensor_msgs/Image");
+  EXPECT_EQ(local_info.schema->encoding, DataTrackSchemaEncoding::Ros2Msg);
+  ASSERT_TRUE(local_info.frame_encoding.has_value());
+  EXPECT_EQ(*local_info.frame_encoding, DataTrackFrameEncoding::Cdr);
+
+  auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
+  ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
+  EXPECT_EQ(remote_track->info().name, track_name);
+
+  const auto& remote_info = remote_track->info();
+  ASSERT_TRUE(remote_info.schema.has_value());
+  EXPECT_EQ(remote_info.schema->name, "sensor_msgs/Image");
+  EXPECT_EQ(remote_info.schema->encoding, DataTrackSchemaEncoding::Ros2Msg);
+  ASSERT_TRUE(remote_info.frame_encoding.has_value());
+  EXPECT_EQ(*remote_info.frame_encoding, DataTrackFrameEncoding::Cdr);
+
+  local_track->unpublishDataTrack();
 }
 
 TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) {
