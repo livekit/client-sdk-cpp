@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "livekit/data_track_options.h"
 #include "livekit/data_track_schema.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/local_audio_track.h"
@@ -172,6 +173,18 @@ public:
   /// @return The published track on success, or a typed error describing why
   ///         publication failed.
   Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> publishDataTrack(const std::string& name);
+
+  /// Publish a data track to the room with explicit options.
+  ///
+  /// Like publishDataTrack(const std::string&), but also lets the publisher
+  /// advertise an optional schema and frame encoding as metadata. These are
+  /// surfaced to subscribers via the remote DataTrackInfo.
+  ///
+  /// @param options  Track name plus optional schema / frame encoding.
+  /// @return The published track on success, or a typed error describing why
+  ///         publication failed.
+  Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> publishDataTrack(
+      const DataTrackPublishOptions& options);
 
   /// Unpublish a data track from the room.
   ///

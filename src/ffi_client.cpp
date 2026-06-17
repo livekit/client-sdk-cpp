@@ -787,7 +787,7 @@ std::future<void> FfiClient::publishDataAsync(std::uint64_t local_participant_ha
 }
 
 std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> FfiClient::publishDataTrackAsync(
-    std::uint64_t local_participant_handle, const std::string& track_name) {
+    std::uint64_t local_participant_handle, const DataTrackPublishOptions& options) {
   const AsyncId async_id = generateAsyncId();
 
   auto fut = registerAsync<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>(
@@ -813,7 +813,14 @@ std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> FfiClient
   proto::FfiRequest req;
   auto* msg = req.mutable_publish_data_track();
   msg->set_local_participant_handle(local_participant_handle);
-  msg->mutable_options()->set_name(track_name);
+  auto* opts = msg->mutable_options();
+  opts->set_name(options.name);
+  if (options.schema.has_value()) {
+    *opts->mutable_schema() = toProto(*options.schema);
+  }
+  if (options.frame_encoding.has_value()) {
+    opts->set_frame_encoding(toProto(*options.frame_encoding));
+  }
   msg->set_request_async_id(async_id);
 
   try {

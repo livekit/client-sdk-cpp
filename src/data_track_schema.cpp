@@ -62,10 +62,75 @@ DataTrackSchemaEncoding fromProto(proto::DataTrackSchemaEncoding in) {
   return DataTrackSchemaEncoding::Other;
 }
 
+proto::DataTrackFrameEncoding toProto(DataTrackFrameEncoding in) {
+  switch (in) {
+  case DataTrackFrameEncoding::Ros1:
+    return proto::DATA_TRACK_FRAME_ENCODING_ROS1;
+  case DataTrackFrameEncoding::Cdr:
+    return proto::DATA_TRACK_FRAME_ENCODING_CDR;
+  case DataTrackFrameEncoding::Protobuf:
+    return proto::DATA_TRACK_FRAME_ENCODING_PROTOBUF;
+  case DataTrackFrameEncoding::Flatbuffer:
+    return proto::DATA_TRACK_FRAME_ENCODING_FLATBUFFER;
+  case DataTrackFrameEncoding::Cbor:
+    return proto::DATA_TRACK_FRAME_ENCODING_CBOR;
+  case DataTrackFrameEncoding::Msgpack:
+    return proto::DATA_TRACK_FRAME_ENCODING_MSGPACK;
+  case DataTrackFrameEncoding::Json:
+    return proto::DATA_TRACK_FRAME_ENCODING_JSON;
+  case DataTrackFrameEncoding::Other:
+    return proto::DATA_TRACK_FRAME_ENCODING_OTHER;
+  }
+  return proto::DATA_TRACK_FRAME_ENCODING_OTHER;
+}
+
+DataTrackFrameEncoding fromProto(proto::DataTrackFrameEncoding in) {
+  switch (in) {
+  case proto::DATA_TRACK_FRAME_ENCODING_ROS1:
+    return DataTrackFrameEncoding::Ros1;
+  case proto::DATA_TRACK_FRAME_ENCODING_CDR:
+    return DataTrackFrameEncoding::Cdr;
+  case proto::DATA_TRACK_FRAME_ENCODING_PROTOBUF:
+    return DataTrackFrameEncoding::Protobuf;
+  case proto::DATA_TRACK_FRAME_ENCODING_FLATBUFFER:
+    return DataTrackFrameEncoding::Flatbuffer;
+  case proto::DATA_TRACK_FRAME_ENCODING_CBOR:
+    return DataTrackFrameEncoding::Cbor;
+  case proto::DATA_TRACK_FRAME_ENCODING_MSGPACK:
+    return DataTrackFrameEncoding::Msgpack;
+  case proto::DATA_TRACK_FRAME_ENCODING_JSON:
+    return DataTrackFrameEncoding::Json;
+  case proto::DATA_TRACK_FRAME_ENCODING_OTHER:
+    return DataTrackFrameEncoding::Other;
+  }
+  return DataTrackFrameEncoding::Other;
+}
+
 proto::DataTrackSchemaId toProto(const DataTrackSchemaId& in) {
   proto::DataTrackSchemaId out;
   out.set_name(in.name);
   out.set_encoding(toProto(in.encoding));
+  return out;
+}
+
+DataTrackSchemaId fromProto(const proto::DataTrackSchemaId& in) {
+  DataTrackSchemaId out;
+  out.name = in.name();
+  out.encoding = fromProto(in.encoding());
+  return out;
+}
+
+DataTrackInfo fromProto(const proto::DataTrackInfo& in) {
+  DataTrackInfo out;
+  out.name = in.name();
+  out.sid = in.sid();
+  out.uses_e2ee = in.uses_e2ee();
+  if (in.has_schema()) {
+    out.schema = fromProto(in.schema());
+  }
+  if (in.has_frame_encoding()) {
+    out.frame_encoding = fromProto(in.frame_encoding());
+  }
   return out;
 }
 

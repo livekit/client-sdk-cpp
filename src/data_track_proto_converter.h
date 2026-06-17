@@ -17,12 +17,21 @@
 #pragma once
 
 #include "data_track.pb.h"
+#include "livekit/data_track_info.h"
 #include "livekit/data_track_schema.h"
 
 namespace livekit {
 
 proto::DataTrackSchemaEncoding toProto(DataTrackSchemaEncoding in);
 DataTrackSchemaEncoding fromProto(proto::DataTrackSchemaEncoding in);
+
+proto::DataTrackFrameEncoding toProto(DataTrackFrameEncoding in);
+DataTrackFrameEncoding fromProto(proto::DataTrackFrameEncoding in);
+
 proto::DataTrackSchemaId toProto(const DataTrackSchemaId& in);
+DataTrackSchemaId fromProto(const proto::DataTrackSchemaId& in);
+
+// Converts an FFI data track info message into the public DataTrackInfo struct.
+DataTrackInfo fromProto(const proto::DataTrackInfo& in);
 
 } // namespace livekit

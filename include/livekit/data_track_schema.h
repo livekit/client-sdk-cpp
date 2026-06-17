@@ -47,6 +47,32 @@ enum class DataTrackSchemaEncoding {
 };
 
 /**
+ * Encoding used for frames sent on a data track.
+ *
+ * The serialization format of the frame bytes (e.g.
+ * \ref DataTrackFrameEncoding::Protobuf); the structure of those bytes is
+ * described by a schema (see \ref DataTrackSchemaEncoding).
+ */
+enum class DataTrackFrameEncoding {
+  /** ROS 1, described by a Ros1Msg schema. */
+  Ros1,
+  /** CDR, described by a Ros2Msg, Ros2Idl, or OmgIdl schema. */
+  Cdr,
+  /** Protocol Buffer, described by a Protobuf schema. */
+  Protobuf,
+  /** FlatBuffer, described by a Flatbuffer schema. */
+  Flatbuffer,
+  /** CBOR, self-describing. */
+  Cbor,
+  /** MessagePack, self-describing. */
+  Msgpack,
+  /** JSON, self-describing or described by a JsonSchema schema. */
+  Json,
+  /** Another encoding not known to this client version. */
+  Other,
+};
+
+/**
  * Uniquely identifies a data track schema.
  *
  * A compound identifier with two components: a name and an encoding. Two IDs are

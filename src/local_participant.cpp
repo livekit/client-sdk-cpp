@@ -263,6 +263,13 @@ LocalParticipant::PublicationMap LocalParticipant::trackPublications() const {
 
 Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> LocalParticipant::publishDataTrack(
     const std::string& name) {
+  DataTrackPublishOptions options;
+  options.name = name;
+  return publishDataTrack(options);
+}
+
+Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> LocalParticipant::publishDataTrack(
+    const DataTrackPublishOptions& options) {
   auto handle_id = ffiHandleId();
   if (handle_id == 0) {
     return Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError>::failure(
@@ -271,7 +278,7 @@ Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> LocalParticipant:
                               "handle"});
   }
 
-  auto fut = FfiClient::instance().publishDataTrackAsync(static_cast<std::uint64_t>(handle_id), name);
+  auto fut = FfiClient::instance().publishDataTrackAsync(static_cast<std::uint64_t>(handle_id), options);
 
   auto result = fut.get();
   if (!result) {
