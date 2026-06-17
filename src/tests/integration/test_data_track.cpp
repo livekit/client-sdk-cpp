@@ -21,8 +21,10 @@
 // and run:
 //   ./build-debug/bin/livekit_integration_tests
 
+#include <livekit/data_track_schema.h>
 #include <livekit/data_track_stream.h>
 #include <livekit/e2ee.h>
+#include <livekit/local_participant.h>
 #include <livekit/remote_data_track.h>
 
 #include <condition_variable>
@@ -51,6 +53,7 @@ constexpr std::uint8_t kTransportPayloadValue = 0xFA;
 constexpr char kE2EESharedSecret[] = "password";
 constexpr int kE2EEFrameCount = 5;
 constexpr int kTimestampFrameAttempts = 200;
+constexpr std::size_t kMaxSchemaDefinitionBytes = 60000;
 
 std::string makeTrackName(const std::string& suffix) {
   return std::string(kTrackNamePrefix) + "_" + suffix + "_" + std::to_string(getTimestampUs());
@@ -514,6 +517,55 @@ TEST_F(DataTrackE2ETest, PublishDuplicateName) {
   EXPECT_FALSE(duplicate_result.error().message.empty());
 
   first_track->unpublishDataTrack();
+}
+
+TEST_F(DataTrackE2ETest, DefineAndGetSchema) {
+  auto rooms = testRooms(2);
+  auto& publisher_room = rooms[0];
+  auto& subscriber_room = rooms[1];
+
+  const auto publisher_identity = lockLocalParticipant(*publisher_room)->identity();
+  const DataTrackSchemaId schema_id{"some_schema", DataTrackSchemaEncoding::JsonSchema};
+  const std::string definition(kMaxSchemaDefinitionBytes, 'a');
+
+  ASSERT_NO_THROW(lockLocalParticipant(*publisher_room)->defineSchema(schema_id, definition));
+
+  std::string retrieved;
+  ASSERT_NO_THROW(retrieved = lockLocalParticipant(*subscriber_room)->getSchema(schema_id, publisher_identity));
+  EXPECT_EQ(retrieved, definition);
+}
+
+TEST_F(DataTrackE2ETest, DefineSchemaOverLimitFails) {
+  auto rooms = testRooms(1);
+  auto& room = rooms[0];
+
+  const DataTrackSchemaId schema_id{"some_schema", DataTrackSchemaEncoding::JsonSchema};
+  // Deliberately exceed the maximum allowed schema definition size.
+  const std::string definition(2 * kMaxSchemaDefinitionBytes, 'a');
+
+  EXPECT_THROW(lockLocalParticipant(*room)->defineSchema(schema_id, definition), std::runtime_error);
+}
+
+TEST_F(DataTrackE2ETest, DefineDuplicateSchemaFails) {
+  auto rooms = testRooms(1);
+  auto& room = rooms[0];
+
+  const DataTrackSchemaId schema_id{"some_schema", DataTrackSchemaEncoding::JsonSchema};
+  const std::string definition(kMaxSchemaDefinitionBytes, 'a');
+
+  ASSERT_NO_THROW(lockLocalParticipant(*room)->defineSchema(schema_id, definition));
+  // Defining the same schema again must fail.
+  EXPECT_THROW(lockLocalParticipant(*room)->defineSchema(schema_id, definition), std::runtime_error);
+}
+
+TEST_F(DataTrackE2ETest, GetUndefinedSchemaFails) {
+  auto rooms = testRooms(1);
+  auto& room = rooms[0];
+
+  const auto identity = lockLocalParticipant(*room)->identity();
+  const DataTrackSchemaId schema_id{"undefined", DataTrackSchemaEncoding::JsonSchema};
+
+  EXPECT_THROW((void)lockLocalParticipant(*room)->getSchema(schema_id, identity), std::runtime_error);
 }
 
 TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) {
