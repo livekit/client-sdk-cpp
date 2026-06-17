@@ -67,7 +67,7 @@ livekit::setLogCallback(
 livekit::setLogCallback(nullptr);
 ```
 
-See the [`logging_levels/custom_sinks.cpp`](https://github.com/livekit-examples/cpp-example-collection/blob/main/logging_levels/custom_sinks.cpp)
+See the [`logging_levels/custom_sinks`](https://github.com/livekit-examples/cpp-example-collection/tree/main/logging_levels/custom_sinks)
 example for three copy-paste-ready patterns: a **file logger**, **JSON
 structured lines**, and a **ROS2 bridge** that maps `LogLevel` to `RCLCPP_*`
 macros.

@@ -107,6 +107,11 @@ jobs:
     name: License Check
     uses: ./.github/workflows/license_check.yml
 
+  # link-check is cheap (seconds) and should run on every PR
+  link-check:
+    name: Link Check
+    uses: ./.github/workflows/link_check.yml
+
   cpp-checks:
     name: C++ Checks
     needs: changes
@@ -141,6 +146,7 @@ jobs:
       - license-check
       - cpp-checks
       - generate-docs
+      - link-check
       - rust-release-check
     if: always()
     steps:

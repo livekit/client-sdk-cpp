@@ -1,0 +1,12 @@
+# Local/dev-only URLs.
+http://localhost:*
+https://localhost:*
+ws://localhost:*
+wss://localhost:*
+
+# Ecosystem footer links that reject automated checks (403/405) but work in browsers.
+https://docs.livekit.io/mcp
+https://livekit.io/join-slack
+https://livekit.com/join-slack
+https://join.slack.com/*
+https://livekit-users.slack.com/*
