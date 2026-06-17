@@ -376,6 +376,7 @@ add_library(livekit SHARED
   src/data_track_frame.cpp
   src/data_stream.cpp
   src/data_track_error.cpp
+  src/data_track_schema.cpp
   src/data_track_stream.cpp
   src/e2ee.cpp
   src/ffi_handle.cpp

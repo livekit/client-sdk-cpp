@@ -290,6 +290,26 @@ void LocalParticipant::unpublishDataTrack(const std::shared_ptr<LocalDataTrack>&
   track->unpublishDataTrack();
 }
 
+void LocalParticipant::defineSchema(const DataTrackSchemaId& id, const std::string& definition) {
+  auto handle_id = ffiHandleId();
+  if (handle_id == 0) {
+    throw std::runtime_error("LocalParticipant::defineSchema: invalid FFI handle");
+  }
+
+  auto fut = FfiClient::instance().defineSchemaAsync(static_cast<std::uint64_t>(handle_id), id, definition);
+  fut.get();
+}
+
+std::string LocalParticipant::getSchema(const DataTrackSchemaId& id, const std::string& participant_identity) {
+  auto handle_id = ffiHandleId();
+  if (handle_id == 0) {
+    throw std::runtime_error("LocalParticipant::getSchema: invalid FFI handle");
+  }
+
+  auto fut = FfiClient::instance().getSchemaAsync(static_cast<std::uint64_t>(handle_id), id, participant_identity);
+  return fut.get();
+}
+
 std::string LocalParticipant::performRpc(const std::string& destination_identity, const std::string& method,
                                          const std::string& payload, const std::optional<double>& response_timeout) {
   auto handle_id = ffiHandleId();

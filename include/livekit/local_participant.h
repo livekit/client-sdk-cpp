@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "livekit/data_track_schema.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/local_audio_track.h"
 #include "livekit/local_data_track.h"
@@ -179,6 +180,39 @@ public:
   ///
   /// @param track  The data track to unpublish. Null is ignored.
   void unpublishDataTrack(const std::shared_ptr<LocalDataTrack>& track);
+
+  /// Store the definition of a data track schema.
+  ///
+  /// Called by a publisher to make a schema available to subscribers, who can
+  /// later look up its definition via getSchema(). Define a schema before
+  /// publishing any data track that references it, so subscribers can resolve
+  /// the schema by its ID.
+  ///
+  /// A schema can only be defined once. Attempting to redefine an existing
+  /// schema fails.
+  ///
+  /// @param id          Identifies the schema (name and encoding).
+  /// @param definition  The schema definition, stored as-is. It is neither
+  ///                    parsed nor validated against its encoding, so the
+  ///                    caller is responsible for ensuring it is well-formed.
+  ///
+  /// @throws std::runtime_error If the schema could not be defined or the FFI
+  ///                            call fails.
+  void defineSchema(const DataTrackSchemaId& id, const std::string& definition);
+
+  /// Retrieve the definition for a data track schema.
+  ///
+  /// Called by a subscriber that wants to inspect the schema a participant
+  /// defined (see defineSchema()) for a data track it is publishing.
+  ///
+  /// @param id                    Identifies the schema to retrieve.
+  /// @param participant_identity  Identity of the participant that defined the
+  ///                              schema.
+  /// @return The schema definition.
+  ///
+  /// @throws std::runtime_error If the participant has not defined a schema
+  ///                            with this ID or the FFI call fails.
+  std::string getSchema(const DataTrackSchemaId& id, const std::string& participant_identity);
 
   /// Initiate an RPC call to a remote participant.
   ///
