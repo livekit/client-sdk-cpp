@@ -29,6 +29,16 @@ on:
         required: false
         type: string
         default: metrics=debug
+      platform_audio_repeat:
+        description: Number of times to repeat PlatformAudio integration tests. Defaults to integration_repeat when set to 0.
+        required: false
+        type: number
+        default: 0
+      platform_audio_rust_log:
+        description: RUST_LOG value for the PlatformAudio integration test step.
+        required: false
+        type: string
+        default: metrics=debug
       run_stress_tests:
         description: Run stress tests that require LiveKit server setup.
         required: false
@@ -96,6 +106,16 @@ on:
         default: 1
       integration_rust_log:
         description: RUST_LOG value for the integration test step.
+        required: false
+        type: string
+        default: metrics=debug
+      platform_audio_repeat:
+        description: Number of times to repeat PlatformAudio integration tests. Defaults to integration_repeat when set to 0.
+        required: false
+        type: number
+        default: 0
+      platform_audio_rust_log:
+        description: RUST_LOG value for the PlatformAudio integration test step.
         required: false
         type: string
         default: metrics=debug
@@ -383,7 +403,7 @@ jobs:
 
       # ---------- Start livekit-server for integration tests ----------
       - name: Start livekit-server
-        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.platform_audio_repeat > 0 || inputs.run_stress_tests)
         id: livekit_server
         uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
         continue-on-error: true
@@ -391,7 +411,7 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Start livekit-server fallback
-        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests) && steps.livekit_server.outcome == 'failure'
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.platform_audio_repeat > 0 || inputs.run_stress_tests) && steps.livekit_server.outcome == 'failure'
         id: livekit_server_fallback
         shell: bash
         env:
@@ -462,7 +482,7 @@ jobs:
           exit 1
 
       - name: Resolve livekit-server log path
-        if: always() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        if: always() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.platform_audio_repeat > 0 || inputs.run_stress_tests)
         id: livekit_server_log
         shell: bash
         run: |
@@ -474,7 +494,7 @@ jobs:
 
       # Needed by token helper script
       - name: Install livekit-cli
-        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.platform_audio_repeat > 0 || inputs.run_stress_tests)
         shell: bash
         env:
           # Windows installs lk via `gh api` / `gh release download`, which need this env var
@@ -528,19 +548,23 @@ jobs:
           fi
 
       - name: Run platform audio integration tests
-        if: matrix.e2e-testing && inputs.integration_repeat > 0
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.platform_audio_repeat > 0)
         timeout-minutes: ${{ inputs.integration_timeout_minutes }}
         shell: bash
         env:
-          RUST_LOG: debug
+          RUST_LOG: ${{ inputs.platform_audio_rust_log }}
           RUST_BACKTRACE: full
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
           bin="${{ env.BUILD_DIR }}/bin/livekit_integration_tests"
+          platform_audio_repeat=${{ inputs.platform_audio_repeat }}
+          if [[ "${platform_audio_repeat}" -le 0 ]]; then
+            platform_audio_repeat=${{ inputs.integration_repeat }}
+          fi
           args=(
             --gtest_filter=PlatformAudioIntegrationTest.*
-            --gtest_repeat=${{ inputs.integration_repeat }}
+            --gtest_repeat="${platform_audio_repeat}"
             --gtest_recreate_environments_when_repeating=1
             --gtest_output=xml:${{ env.BUILD_DIR }}/platform-audio-integration-test-results.xml
           )
@@ -573,7 +597,7 @@ jobs:
           fi
 
       - name: Dump livekit-server log on failure
-        if: failure() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        if: failure() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.platform_audio_repeat > 0 || inputs.run_stress_tests)
         shell: bash
         run: tail -n 500 "${{ steps.livekit_server_log.outputs.log-path }}" || true
 
