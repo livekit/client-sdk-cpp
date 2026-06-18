@@ -148,6 +148,8 @@ endforeach()
 
 add_custom_command(
   OUTPUT ${PROTO_SRCS} ${PROTO_HDRS}
+  COMMAND ${CMAKE_COMMAND} -E rm -rf ${PROTO_BINARY_DIR}
+  COMMAND ${CMAKE_COMMAND} -E make_directory ${PROTO_BINARY_DIR}
   COMMAND ${Protobuf_PROTOC_EXECUTABLE}
     --proto_path=${FFI_PROTO_DIR}
     --cpp_out=${PROTO_BINARY_DIR}
@@ -259,12 +261,16 @@ if(NOT CFG STREQUAL \"Debug\")
   list(APPEND ARGS --release)
 endif()
 
+if(DEFINED CARGO_FEATURES AND NOT CARGO_FEATURES STREQUAL \"\")
+  list(APPEND ARGS --features \"\${CARGO_FEATURES}\")
+endif()
+
 if(DEFINED RUST_TARGET AND NOT RUST_TARGET STREQUAL \"\")
   list(APPEND ARGS --target \"\${RUST_TARGET}\")
   message(STATUS \"[run_cargo.cmake] Cross-compiling for target: \${RUST_TARGET}\")
 endif()
 
-message(STATUS \"[run_cargo.cmake] CFG=\${CFG}  CARGO=\${CARGO}  PROTOC=\${PROTOC_PATH}\")
+message(STATUS \"[run_cargo.cmake] CFG=\${CFG}  CARGO=\${CARGO}  PROTOC=\${PROTOC_PATH}  FEATURES=\${CARGO_FEATURES}\")
 set(ENV{PROTOC} \"\${PROTOC_PATH}\")
 
 if(DEFINED GCC_LIB_DIR AND NOT GCC_LIB_DIR STREQUAL \"\")
@@ -474,6 +480,8 @@ if(LIVEKIT_IS_TOPLEVEL)
   # Copy public headers to build/include (build.h is already in include/livekit/)
   add_custom_command(
     TARGET livekit POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E rm -rf
+            ${CMAKE_BINARY_DIR}/include/livekit
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${LIVEKIT_ROOT_DIR}/include
             ${CMAKE_BINARY_DIR}/include
@@ -729,6 +737,9 @@ endif()
 
 
 # Install public headers (includes generated build.h which is now in include/livekit/)
+install(CODE
+  "file(REMOVE_RECURSE \"\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}/livekit\")"
+)
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
   FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"

@@ -16,13 +16,21 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
+#include <vector>
 
 #include "livekit/ffi_handle.h"
+#include "livekit/room_event_types.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
+
+namespace proto {
+class FfiEvent;
+}
 
 class VideoFrame;
 
@@ -53,8 +61,33 @@ struct VideoCaptureOptions {
   std::optional<VideoFrameMetadata> metadata;
 };
 
-/// Represents a real-time video source that can accept frames from the
-/// application and feed them into the LiveKit core.
+struct EncodedVideoSourceOptions {
+  VideoCodec codec = VideoCodec::H264;
+};
+
+struct EncodedVideoFrameInfo {
+  bool is_keyframe = false;
+  bool has_sps_pps = false;
+  std::uint32_t width = 0;
+  std::uint32_t height = 0;
+  std::int64_t capture_time_us = 0;
+};
+
+class EncodedVideoSourceObserver {
+public:
+  virtual ~EncodedVideoSourceObserver() = default;
+
+  virtual void onKeyframeRequested() {}
+  virtual void onTargetBitrate(std::uint32_t bitrate_bps, double framerate_fps) {
+    (void)bitrate_bps;
+    (void)framerate_fps;
+  }
+};
+
+/**
+ * Represents a real-time video source that can accept frames from the
+ * application and feed them into the LiveKit core.
+ */
 class LIVEKIT_API VideoSource {
 public:
   /// Create a new native video source with a fixed resolution.
@@ -65,12 +98,13 @@ public:
   /// @throws std::runtime_error if the FFI call fails or the response
   ///         does not contain the expected new_video_source field.
   VideoSource(int width, int height);
-  virtual ~VideoSource() = default;
+  VideoSource(int width, int height, const EncodedVideoSourceOptions& encoded_options);
+  virtual ~VideoSource();
 
   VideoSource(const VideoSource&) = delete;
   VideoSource& operator=(const VideoSource&) = delete;
-  VideoSource(VideoSource&&) noexcept = default;
-  VideoSource& operator=(VideoSource&&) noexcept = default;
+  VideoSource(VideoSource&& other) noexcept;
+  VideoSource& operator=(VideoSource&& other) noexcept;
 
   /// Source resolution as declared at construction.
   int width() const noexcept { return width_; }
@@ -89,10 +123,34 @@ public:
   void captureFrame(const VideoFrame& frame, std::int64_t timestamp_us = 0,
                     VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0);
 
+  /**
+   * Push an encoded frame into an encoded video source.
+   *
+   * The source must have been created with EncodedVideoSourceOptions. Returns
+   * true when the frame was queued by the Rust/WebRTC layer and false when it
+   * was dropped because the internal queue was full.
+   */
+  bool captureEncodedFrame(const std::uint8_t* data, std::size_t size, const EncodedVideoFrameInfo& info);
+
+  bool captureEncodedFrame(const std::vector<std::uint8_t>& data, const EncodedVideoFrameInfo& info) {
+    return captureEncodedFrame(data.data(), data.size(), info);
+  }
+
+  void setEncodedObserver(std::shared_ptr<EncodedVideoSourceObserver> observer);
+
 private:
+  struct EncodedListenerState;
+
+  void registerEncodedListener();
+  void unregisterEncodedListener() noexcept;
+  static void handleEncodedEvent(const std::weak_ptr<EncodedListenerState>& state, const proto::FfiEvent& event);
+
   FfiHandle handle_; // owned FFI handle
   int width_{0};
   int height_{0};
+  bool encoded_{false};
+  int encoded_listener_id_{0};
+  std::shared_ptr<EncodedListenerState> encoded_listener_state_;
 };
 
 } // namespace livekit
