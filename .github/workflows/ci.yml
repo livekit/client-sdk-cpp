@@ -51,7 +51,7 @@ jobs:
               - .github/workflows/builds.yml
             docker:
               - docker/**
-              - .github/workflows/docker-builds.yml
+              - .github/workflows/docker-images.yml
             tests:
               - src/**
               - include/**
@@ -97,11 +97,11 @@ jobs:
     uses: ./.github/workflows/builds.yml
     secrets: inherit
 
-  docker-builds:
-    name: Docker Builds
+  docker-images:
+    name: Docker Images
     needs: changes
     if: ${{ (github.event_name == 'pull_request' && needs.changes.outputs.docker == 'true') || github.event_name == 'workflow_dispatch' }}
-    uses: ./.github/workflows/docker-builds.yml
+    uses: ./.github/workflows/docker-images.yml
     secrets: inherit
 
   tests:
@@ -152,7 +152,7 @@ jobs:
     needs:
       - changes
       - builds
-      - docker-builds
+      - docker-images
       - tests
       - license-check
       - cpp-checks
