@@ -392,6 +392,11 @@ add_library(livekit SHARED
   src/room_proto_converter.cpp
   src/room_proto_converter.h
   src/subscription_thread_dispatcher.cpp
+  src/token_source.cpp
+  src/token_source_http.cpp
+  src/token_source_json.cpp
+  src/token_source_jwt.cpp
+  src/token_source_internal.h
   src/local_participant.cpp
   src/remote_participant.cpp
   src/stats.cpp
@@ -460,6 +465,13 @@ target_link_libraries(livekit
     livekit_ffi
     ${LIVEKIT_PROTOBUF_TARGET}
 )
+
+if(WIN32)
+  target_link_libraries(livekit PRIVATE winhttp)
+else()
+  find_package(CURL REQUIRED)
+  target_link_libraries(livekit PRIVATE CURL::libcurl)
+endif()
 
 target_compile_definitions(livekit
   PRIVATE

@@ -189,33 +189,58 @@ For end-to-end samples and a fuller set of demos, see the [cpp-example-collectio
 
 ### Token source (dynamic tokens)
 
-When tokens are minted by your backend at connect time, pass an async callback
-instead of a static JWT string:
+The SDK provides token sources for literal credentials, custom async logic,
+HTTP token-server endpoints, LiveKit Cloud sandbox (dev), and JWT-aware caching.
+See the [token server docs](https://docs.livekit.io/frontends/build/authentication/).
+
+**Literal** — static URL + JWT:
 
 ```cpp
-#include <future>
+#include <livekit/token_source.h>
 
-livekit::TokenSource token_source = []() -> std::future<std::string> {
-  std::promise<std::string> promise;
-  promise.set_value(fetch_token_from_backend()); // your HTTP/auth logic
-  return promise.get_future();
-};
+livekit::ConnectionDetails details;
+details.server_url = url;
+details.participant_token = jwt;
 
-if (!room->connect(url, token_source, options)) {
+auto source = livekit::LiteralTokenSource::fromDetails(std::move(details));
+if (!room->connect(*source, options)) {
   std::cerr << "Failed to connect to LiveKit\n";
   return 1;
 }
 ```
 
-The callback runs on the application thread and `connect` blocks until the
-future completes. During an active session the SDK refreshes tokens internally
-for reconnect; override `RoomDelegate::onTokenRefreshed` if you want to log or
-cache the latest token.
+**Endpoint** — POST to your token server:
+
+```cpp
+livekit::TokenRequestOptions request;
+request.room_name = "my-room";
+request.participant_identity = "user-123";
+
+auto source = livekit::EndpointTokenSource::fromUrl("https://your-backend.example.com/token");
+if (!room->connect(*source, request, options)) {
+  return 1;
+}
+```
+
+**Custom** — wrap your own fetch logic:
+
+```cpp
+auto source = livekit::CustomTokenSource::fromCallback([](const livekit::TokenRequestOptions& options) {
+  std::promise<livekit::Result<livekit::ConnectionDetails, livekit::TokenSourceError>> promise;
+  // fetch from your backend, then:
+  promise.set_value(livekit::Result<livekit::ConnectionDetails, livekit::TokenSourceError>::success(details));
+  return promise.get_future();
+});
+```
+
+During an active session the SDK refreshes tokens internally for reconnect.
+`Room::participantToken()` returns the latest JWT and
+`RoomDelegate::onTokenRefreshed` fires when it changes.
 
 ## Features
 
 - Connect to LiveKit rooms (Cloud or self-hosted)
-- Dynamic token sourcing via async callback at connect time
+- Dynamic token sourcing (literal, custom, endpoint, sandbox, caching)
 - Receive remote audio/video tracks
 - Publish local audio/video tracks
 - Data tracks (low-level) and data streams (high-level)

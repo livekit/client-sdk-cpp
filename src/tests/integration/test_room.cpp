@@ -73,22 +73,47 @@ TEST_F(RoomTest, ConnectWithTokenSource) {
   Room room;
   RoomOptions options;
 
-  int fetch_count = 0;
-  const TokenSource token_source = [this, &fetch_count]() -> std::future<std::string> {
-    ++fetch_count;
-    std::promise<std::string> promise;
-    promise.set_value(token_);
-    return promise.get_future();
-  };
+  ConnectionDetails details;
+  details.server_url = server_url_;
+  details.participant_token = token_;
 
-  const bool connected = room.connect(server_url_, token_source, options);
-  EXPECT_TRUE(connected) << "Should connect to server via token source";
-  EXPECT_EQ(fetch_count, 1) << "Token source should be invoked exactly once";
+  auto token_source = LiteralTokenSource::fromDetails(std::move(details));
+  const bool connected = room.connect(*token_source, options);
+  EXPECT_TRUE(connected) << "Should connect to server via literal token source";
 
   if (connected) {
     EXPECT_FALSE(room.localParticipant().expired()) << "Local participant should exist after connect";
     EXPECT_EQ(room.connectionState(), ConnectionState::Connected);
+    EXPECT_EQ(room.participantToken(), token_);
   }
+}
+
+TEST_F(RoomTest, ConnectWithCustomTokenSource) {
+  if (!server_available_) {
+    GTEST_SKIP() << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+  }
+
+  Room room;
+  RoomOptions options;
+
+  auto token_source = CustomTokenSource::fromCallback(
+      [this](const TokenRequestOptions& options) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
+        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
+        ConnectionDetails details;
+        details.server_url = server_url_;
+        details.participant_token = token_;
+        if (options.room_name.has_value()) {
+          details.room_name = options.room_name;
+        }
+        promise.set_value(Result<ConnectionDetails, TokenSourceError>::success(details));
+        return promise.get_future();
+      });
+
+  TokenRequestOptions request;
+  request.room_name = "integration-room";
+
+  const bool connected = room.connect(*token_source, request, options);
+  EXPECT_TRUE(connected) << "Should connect to server via custom token source";
 }
 
 TEST_F(RoomTest, ConnectWithInvalidToken) {

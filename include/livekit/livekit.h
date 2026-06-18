@@ -34,6 +34,7 @@
 #include "livekit/room.h"
 #include "livekit/room_delegate.h"
 #include "livekit/room_event_types.h"
+#include "livekit/token_source.h"
 #include "livekit/tracing.h"
 #include "livekit/track_publication.h"
 #include "livekit/video_frame.h"

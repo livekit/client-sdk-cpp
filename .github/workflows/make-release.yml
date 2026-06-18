@@ -116,6 +116,7 @@ jobs:
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
             libabsl-dev \
+            libcurl4-openssl-dev \
             libwayland-dev libdecor-0-dev
 
       - name: Install deps (macOS)

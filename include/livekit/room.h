@@ -29,6 +29,7 @@
 #include "livekit/room_event_types.h"
 #include "livekit/stats.h"
 #include "livekit/subscription_thread_dispatcher.h"
+#include "livekit/token_source.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
@@ -124,12 +125,6 @@ struct RoomOptions {
   std::optional<std::chrono::milliseconds> connect_timeout;
 };
 
-/// Async callback that supplies an access token for room connection.
-///
-/// Invoked on the application thread during @ref Room::connect before the FFI
-/// connect request is sent. The returned future must resolve to a non-empty JWT.
-using TokenSource = std::function<std::future<std::string>()>;
-
 /// Represents a LiveKit room session.
 /// A Room manages:
 ///   - the connection to the LiveKit server
@@ -172,19 +167,21 @@ public:
   ///   automatically, and no remote audio/video will ever arrive.
   bool connect(const std::string& url, const std::string& token, const RoomOptions& options);
 
-  /// Connect to a LiveKit room using the given URL and token source.
+  /// Connect using a fixed token source that supplies server URL and JWT.
   ///
-  /// @param url           WebSocket URL of the LiveKit server.
-  /// @param token_source  Async callback that fetches an access token.
-  /// @param options       Connection options controlling auto-subscribe,
-  ///                      dynacast, E2EE, and WebRTC configuration.
-  /// @return @c false if the token source is empty, fails, returns an empty
-  ///         token, or the underlying connect fails.
+  /// @param token_source Token source invoked on the application thread.
+  /// @param options Connection options.
+  /// @return @c false if fetching credentials fails or connect fails.
+  bool connect(TokenSourceFixed& token_source, const RoomOptions& options);
+
+  /// Connect using a configurable token source.
   ///
-  /// The token source is invoked on the application thread and @ref connect
-  /// blocks until the future completes. Use this overload when tokens are
-  /// fetched from your own backend rather than supplied as a static string.
-  bool connect(const std::string& url, const TokenSource& token_source, const RoomOptions& options);
+  /// @param token_source Token source invoked on the application thread.
+  /// @param request_options Parameters encoded into the token request.
+  /// @param options Connection options.
+  /// @return @c false if fetching credentials fails or connect fails.
+  bool connect(TokenSourceConfigurable& token_source, const TokenRequestOptions& request_options,
+               const RoomOptions& options);
 
   /// Disconnect from the room.
   ///
@@ -250,6 +247,11 @@ public:
 
   /// Returns the current connection state of the room.
   ConnectionState connectionState() const;
+
+  /// Returns the participant JWT from the last successful connect or token refresh.
+  ///
+  /// Empty when the room has never connected or after disconnect.
+  std::string participantToken() const;
 
   /// Retrieve aggregated WebRTC stats for this room session.
   ///
@@ -355,6 +357,7 @@ private:
 
   mutable std::mutex lock_;
   ConnectionState connection_state_ = ConnectionState::Disconnected;
+  std::string participant_token_;
   RoomDelegate* delegate_ = nullptr; // Not owned
   RoomInfoData room_info_;
   std::shared_ptr<FfiHandle> room_handle_;

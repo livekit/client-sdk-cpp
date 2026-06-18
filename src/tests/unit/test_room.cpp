@@ -46,54 +46,79 @@ TEST_F(RoomTest, ConnectWithoutInitialize) {
   EXPECT_TRUE(room.remoteParticipants().empty()) << "Remote participants should be empty after failed connect";
 }
 
-TEST_F(RoomTest, ConnectWithEmptyTokenSourceFails) {
+TEST_F(RoomTest, ConnectWithLiteralTokenSourceEmptyCredentialsFails) {
   Room room;
 
-  const bool result = room.connect("wss://localhost:7880", livekit::TokenSource{}, livekit::RoomOptions());
-  EXPECT_FALSE(result) << "Connecting with an empty token source should return false";
+  ConnectionDetails details;
+  details.server_url = "wss://localhost:7880";
+  details.participant_token = "";
+
+  auto source = LiteralTokenSource::fromDetails(std::move(details));
+  const bool result = room.connect(*source, RoomOptions());
+  EXPECT_FALSE(result) << "Connecting with empty credentials should return false";
 }
 
-TEST_F(RoomTest, ConnectWithTokenSourceReturningEmptyFails) {
-  Room room;
-
-  livekit::TokenSource source = []() -> std::future<std::string> {
-    std::promise<std::string> promise;
-    promise.set_value("");
-    return promise.get_future();
-  };
-
-  const bool result = room.connect("wss://localhost:7880", source, livekit::RoomOptions());
-  EXPECT_FALSE(result) << "Connecting with an empty token should return false";
-}
-
-TEST_F(RoomTest, ConnectWithTokenSourceThrowingFails) {
-  Room room;
-
-  livekit::TokenSource source = []() -> std::future<std::string> {
-    std::promise<std::string> promise;
-    promise.set_exception(std::make_exception_ptr(std::runtime_error("token fetch failed")));
-    return promise.get_future();
-  };
-
-  const bool result = room.connect("wss://localhost:7880", source, livekit::RoomOptions());
-  EXPECT_FALSE(result) << "Connecting when token source throws should return false";
-}
-
-TEST_F(RoomTest, ConnectWithTokenSourceInvokesCallbackBeforeConnectFailure) {
+TEST_F(RoomTest, ConnectWithLiteralTokenSourceWithoutInitialize) {
   livekit::shutdown();
 
   Room room;
-  int call_count = 0;
-  livekit::TokenSource source = [&call_count]() -> std::future<std::string> {
-    ++call_count;
-    std::promise<std::string> promise;
-    promise.set_value("fetched-token");
-    return promise.get_future();
-  };
+  ConnectionDetails details;
+  details.server_url = "wss://localhost:7880";
+  details.participant_token = "jwt-token";
 
-  const bool result = room.connect("wss://localhost:7880", source, livekit::RoomOptions());
+  auto source = LiteralTokenSource::fromDetails(std::move(details));
+  const bool result = room.connect(*source, RoomOptions());
   EXPECT_FALSE(result) << "Connecting without initializing should return false";
-  EXPECT_EQ(call_count, 1) << "Token source should be invoked once before connect fails";
+}
+
+TEST_F(RoomTest, ConnectWithCustomTokenSourceThrowingFails) {
+  Room room;
+
+  auto source = CustomTokenSource::fromCallback(
+      [](const TokenRequestOptions&) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
+        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
+        promise.set_exception(std::make_exception_ptr(std::runtime_error("token fetch failed")));
+        return promise.get_future();
+      });
+
+  const bool result = room.connect(*source, TokenRequestOptions{}, RoomOptions());
+  EXPECT_FALSE(result) << "Connecting when token source throws should return false";
+}
+
+TEST_F(RoomTest, ConnectWithCustomTokenSourceErrorFails) {
+  Room room;
+
+  auto source = CustomTokenSource::fromCallback(
+      [](const TokenRequestOptions&) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
+        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
+        promise.set_value(
+            Result<ConnectionDetails, TokenSourceError>::failure(TokenSourceError{"backend unavailable"}));
+        return promise.get_future();
+      });
+
+  const bool result = room.connect(*source, TokenRequestOptions{}, RoomOptions());
+  EXPECT_FALSE(result) << "Connecting when token source returns error should return false";
+}
+
+TEST_F(RoomTest, ConnectWithLiteralTokenSourceInvokesFetchBeforeConnectFailure) {
+  livekit::shutdown();
+
+  Room room;
+  int fetch_count = 0;
+  auto source =
+      LiteralTokenSource::fromProvider([&fetch_count]() -> std::future<Result<ConnectionDetails, TokenSourceError>> {
+        ++fetch_count;
+        ConnectionDetails details;
+        details.server_url = "wss://localhost:7880";
+        details.participant_token = "fetched-token";
+        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
+        promise.set_value(Result<ConnectionDetails, TokenSourceError>::success(details));
+        return promise.get_future();
+      });
+
+  const bool result = room.connect(*source, RoomOptions());
+  EXPECT_FALSE(result) << "Connecting without initializing should return false";
+  EXPECT_EQ(fetch_count, 1) << "Token source should be invoked once before connect fails";
 }
 
 TEST(RoomOptionsProtoTest, TokenRefreshedFromProto) {
