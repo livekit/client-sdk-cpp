@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
+#include <future>
 #include <memory>
 #include <string>
 #include <vector>
@@ -49,6 +50,10 @@ protected:
 };
 
 TEST_F(RoomTest, ConnectToServer) {
+  if (!server_available_) {
+    GTEST_SKIP() << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+  }
+
   Room room;
   RoomOptions options;
 
@@ -60,7 +65,37 @@ TEST_F(RoomTest, ConnectToServer) {
   }
 }
 
+TEST_F(RoomTest, ConnectWithTokenSource) {
+  if (!server_available_) {
+    GTEST_SKIP() << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+  }
+
+  Room room;
+  RoomOptions options;
+
+  int fetch_count = 0;
+  const TokenSource token_source = [this, &fetch_count]() -> std::future<std::string> {
+    ++fetch_count;
+    std::promise<std::string> promise;
+    promise.set_value(token_);
+    return promise.get_future();
+  };
+
+  const bool connected = room.connect(server_url_, token_source, options);
+  EXPECT_TRUE(connected) << "Should connect to server via token source";
+  EXPECT_EQ(fetch_count, 1) << "Token source should be invoked exactly once";
+
+  if (connected) {
+    EXPECT_FALSE(room.localParticipant().expired()) << "Local participant should exist after connect";
+    EXPECT_EQ(room.connectionState(), ConnectionState::Connected);
+  }
+}
+
 TEST_F(RoomTest, ConnectWithInvalidToken) {
+  if (!server_available_) {
+    GTEST_SKIP() << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+  }
+
   Room room;
   RoomOptions options;
 
@@ -93,6 +128,10 @@ public:
 
 // Case: User calls disconnect()
 TEST_F(RoomTest, UserDisconnect) {
+  if (!server_available_) {
+    GTEST_SKIP() << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+  }
+
   Room room;
   DisconnectTrackingDelegate delegate;
   room.setDelegate(&delegate);
@@ -115,6 +154,10 @@ TEST_F(RoomTest, UserDisconnect) {
 
 // Case: Room goes out of scope while still connected
 TEST_F(RoomTest, DestructorDisconnect) {
+  if (!server_available_) {
+    GTEST_SKIP() << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+  }
+
   std::unique_ptr<Room> room = std::make_unique<Room>();
 
   DisconnectTrackingDelegate delegate;
