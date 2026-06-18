@@ -27,6 +27,7 @@ jobs:
       docs:   ${{ steps.filter.outputs.docs }}
       cpp_checks: ${{ steps.filter.outputs.cpp_checks }}
       rust_release_check: ${{ steps.filter.outputs.rust_release_check }}
+      docker: ${{ steps.filter.outputs.docker }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d  # v4.0.1
@@ -41,7 +42,6 @@ jobs:
               - cpp-example-collection/**
               - client-sdk-rust/**
               - cmake/**
-              - docker/**
               - CMakeLists.txt
               - CMakePresets.json
               - build*
@@ -49,6 +49,9 @@ jobs:
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
+            docker:
+              - docker/**
+              - .github/workflows/docker-builds.yml
             tests:
               - src/**
               - include/**
@@ -92,6 +95,13 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.builds == 'true' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/builds.yml
+    secrets: inherit
+
+  docker-builds:
+    name: Docker Builds
+    needs: changes
+    if: ${{ (github.event_name == 'pull_request' && needs.changes.outputs.docker == 'true') || github.event_name == 'workflow_dispatch' }}
+    uses: ./.github/workflows/docker-builds.yml
     secrets: inherit
 
   tests:
@@ -142,6 +152,7 @@ jobs:
     needs:
       - changes
       - builds
+      - docker-builds
       - tests
       - license-check
       - cpp-checks
