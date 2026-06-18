@@ -17,6 +17,8 @@
 #include <gtest/gtest.h>
 #include <livekit/room_event_types.h>
 
+#include <string>
+
 namespace livekit::test {
 
 TEST(RoomEventTypesTest, EnumValuesAreReachable) {
@@ -51,6 +53,17 @@ TEST(RoomEventTypesTest, UserPacketDataDefaults) {
   UserPacketData packet;
   EXPECT_TRUE(packet.data.empty());
   EXPECT_FALSE(packet.topic.has_value());
+}
+
+TEST(RoomEventTypesTest, TokenRefreshedEventDefaults) {
+  TokenRefreshedEvent event;
+  EXPECT_TRUE(event.token.empty());
+}
+
+TEST(RoomEventTypesTest, TokenRefreshedEventStoresToken) {
+  TokenRefreshedEvent event;
+  event.token = "refreshed-jwt";
+  EXPECT_EQ(event.token, "refreshed-jwt");
 }
 
 } // namespace livekit::test

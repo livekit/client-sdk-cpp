@@ -56,6 +56,7 @@ LIVEKIT_INTERNAL_API ConnectionStateChangedEvent fromProto(const proto::Connecti
 LIVEKIT_INTERNAL_API DisconnectedEvent fromProto(const proto::Disconnected& in);
 LIVEKIT_INTERNAL_API ReconnectingEvent fromProto(const proto::Reconnecting& in);
 LIVEKIT_INTERNAL_API ReconnectedEvent fromProto(const proto::Reconnected& in);
+LIVEKIT_INTERNAL_API TokenRefreshedEvent fromProto(const proto::TokenRefreshed& in);
 LIVEKIT_INTERNAL_API RoomEosEvent fromProto(const proto::RoomEOS& in);
 
 LIVEKIT_INTERNAL_API DataStreamHeaderReceivedEvent fromProto(const proto::DataStreamHeaderReceived& in);

@@ -18,6 +18,7 @@
 #include <livekit/livekit.h>
 
 #include <chrono>
+#include <future>
 #include <string>
 
 #include "ffi.pb.h"
@@ -43,6 +44,64 @@ TEST_F(RoomTest, ConnectWithoutInitialize) {
   EXPECT_FALSE(result) << "Connecting without initializing should return false";
   EXPECT_TRUE(room.localParticipant().expired()) << "Local participant should be empty after failed connect";
   EXPECT_TRUE(room.remoteParticipants().empty()) << "Remote participants should be empty after failed connect";
+}
+
+TEST_F(RoomTest, ConnectWithEmptyTokenSourceFails) {
+  Room room;
+
+  const bool result = room.connect("wss://localhost:7880", livekit::TokenSource{}, livekit::RoomOptions());
+  EXPECT_FALSE(result) << "Connecting with an empty token source should return false";
+}
+
+TEST_F(RoomTest, ConnectWithTokenSourceReturningEmptyFails) {
+  Room room;
+
+  livekit::TokenSource source = []() -> std::future<std::string> {
+    std::promise<std::string> promise;
+    promise.set_value("");
+    return promise.get_future();
+  };
+
+  const bool result = room.connect("wss://localhost:7880", source, livekit::RoomOptions());
+  EXPECT_FALSE(result) << "Connecting with an empty token should return false";
+}
+
+TEST_F(RoomTest, ConnectWithTokenSourceThrowingFails) {
+  Room room;
+
+  livekit::TokenSource source = []() -> std::future<std::string> {
+    std::promise<std::string> promise;
+    promise.set_exception(std::make_exception_ptr(std::runtime_error("token fetch failed")));
+    return promise.get_future();
+  };
+
+  const bool result = room.connect("wss://localhost:7880", source, livekit::RoomOptions());
+  EXPECT_FALSE(result) << "Connecting when token source throws should return false";
+}
+
+TEST_F(RoomTest, ConnectWithTokenSourceInvokesCallbackBeforeConnectFailure) {
+  livekit::shutdown();
+
+  Room room;
+  int call_count = 0;
+  livekit::TokenSource source = [&call_count]() -> std::future<std::string> {
+    ++call_count;
+    std::promise<std::string> promise;
+    promise.set_value("fetched-token");
+    return promise.get_future();
+  };
+
+  const bool result = room.connect("wss://localhost:7880", source, livekit::RoomOptions());
+  EXPECT_FALSE(result) << "Connecting without initializing should return false";
+  EXPECT_EQ(call_count, 1) << "Token source should be invoked once before connect fails";
+}
+
+TEST(RoomOptionsProtoTest, TokenRefreshedFromProto) {
+  proto::TokenRefreshed refreshed;
+  refreshed.set_token("refreshed-jwt");
+
+  const livekit::TokenRefreshedEvent event = livekit::fromProto(refreshed);
+  EXPECT_EQ(event.token, "refreshed-jwt");
 }
 
 TEST_F(RoomTest, CreateRoom) {

@@ -91,6 +91,31 @@ void Room::setDelegate(RoomDelegate* delegate) {
   delegate_ = delegate;
 }
 
+bool Room::connect(const std::string& url, const TokenSource& token_source, const RoomOptions& options) {
+  if (!token_source) {
+    LK_LOG_ERROR("Room::connect failed: token source is empty");
+    return false;
+  }
+
+  std::string token;
+  try {
+    token = token_source().get();
+  } catch (const std::exception& e) {
+    LK_LOG_ERROR("Room::connect failed: token source threw: {}", e.what());
+    return false;
+  } catch (...) {
+    LK_LOG_ERROR("Room::connect failed: token source threw unknown exception");
+    return false;
+  }
+
+  if (token.empty()) {
+    LK_LOG_ERROR("Room::connect failed: token source returned empty token");
+    return false;
+  }
+
+  return connect(url, token, options);
+}
+
 bool Room::connect(const std::string& url, const std::string& token, const RoomOptions& options) {
   TRACE_EVENT0("livekit", "Room::connect");
 
@@ -1199,6 +1224,13 @@ void Room::onEvent(const FfiEvent& event) {
           const ReconnectedEvent ev;
           if (delegate_snapshot) {
             delegate_snapshot->onReconnected(*this, ev);
+          }
+          break;
+        }
+        case proto::RoomEvent::kTokenRefreshed: {
+          const TokenRefreshedEvent ev = fromProto(re.token_refreshed());
+          if (delegate_snapshot) {
+            delegate_snapshot->onTokenRefreshed(*this, ev);
           }
           break;
         }

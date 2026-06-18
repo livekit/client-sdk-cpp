@@ -140,6 +140,9 @@ public:
   /// Called after the SDK successfully reconnects.
   virtual void onReconnected(Room&, const ReconnectedEvent&) {}
 
+  /// Called when the server refreshes the session access token.
+  virtual void onTokenRefreshed(Room&, const TokenRefreshedEvent&) {}
+
   // ------------------------------------------------------------------
   // E2EE
   // ------------------------------------------------------------------

@@ -545,6 +545,15 @@ struct ReconnectingEvent {};
 /// Fired after successfully reconnecting.
 struct ReconnectedEvent {};
 
+/// Fired when the server refreshes the session access token.
+///
+/// The SDK applies the refreshed token internally for reconnect; this event is
+/// informational so applications can log or cache the latest token.
+struct TokenRefreshedEvent {
+  /// Refreshed access token.
+  std::string token;
+};
+
 /// Fired when the room has reached end-of-stream (no more events).
 struct RoomEosEvent {};
 

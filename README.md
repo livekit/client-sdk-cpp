@@ -187,9 +187,35 @@ room->addOnDataFrameCallback(sender_identity, "app-data",
 
 For end-to-end samples and a fuller set of demos, see the [cpp-example-collection repo](https://github.com/livekit-examples/cpp-example-collection).
 
+### Token source (dynamic tokens)
+
+When tokens are minted by your backend at connect time, pass an async callback
+instead of a static JWT string:
+
+```cpp
+#include <future>
+
+livekit::TokenSource token_source = []() -> std::future<std::string> {
+  std::promise<std::string> promise;
+  promise.set_value(fetch_token_from_backend()); // your HTTP/auth logic
+  return promise.get_future();
+};
+
+if (!room->connect(url, token_source, options)) {
+  std::cerr << "Failed to connect to LiveKit\n";
+  return 1;
+}
+```
+
+The callback runs on the application thread and `connect` blocks until the
+future completes. During an active session the SDK refreshes tokens internally
+for reconnect; override `RoomDelegate::onTokenRefreshed` if you want to log or
+cache the latest token.
+
 ## Features
 
 - Connect to LiveKit rooms (Cloud or self-hosted)
+- Dynamic token sourcing via async callback at connect time
 - Receive remote audio/video tracks
 - Publish local audio/video tracks
 - Data tracks (low-level) and data streams (high-level)

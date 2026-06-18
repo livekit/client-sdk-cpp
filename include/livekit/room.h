@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -123,6 +124,12 @@ struct RoomOptions {
   std::optional<std::chrono::milliseconds> connect_timeout;
 };
 
+/// Async callback that supplies an access token for room connection.
+///
+/// Invoked on the application thread during @ref Room::connect before the FFI
+/// connect request is sent. The returned future must resolve to a non-empty JWT.
+using TokenSource = std::function<std::future<std::string>()>;
+
 /// Represents a LiveKit room session.
 /// A Room manages:
 ///   - the connection to the LiveKit server
@@ -164,6 +171,20 @@ public:
   ///   Without auto_subscribe enabled, remote tracks will NOT be subscribed
   ///   automatically, and no remote audio/video will ever arrive.
   bool connect(const std::string& url, const std::string& token, const RoomOptions& options);
+
+  /// Connect to a LiveKit room using the given URL and token source.
+  ///
+  /// @param url           WebSocket URL of the LiveKit server.
+  /// @param token_source  Async callback that fetches an access token.
+  /// @param options       Connection options controlling auto-subscribe,
+  ///                      dynacast, E2EE, and WebRTC configuration.
+  /// @return @c false if the token source is empty, fails, returns an empty
+  ///         token, or the underlying connect fails.
+  ///
+  /// The token source is invoked on the application thread and @ref connect
+  /// blocks until the future completes. Use this overload when tokens are
+  /// fetched from your own backend rather than supplied as a static string.
+  bool connect(const std::string& url, const TokenSource& token_source, const RoomOptions& options);
 
   /// Disconnect from the room.
   ///
