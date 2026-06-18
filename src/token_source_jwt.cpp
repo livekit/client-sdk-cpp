@@ -28,7 +28,7 @@ namespace {
 std::optional<std::vector<std::uint8_t>> base64UrlDecode(const std::string& input) {
   std::string normalized;
   normalized.reserve(input.size());
-  for (char ch : input) {
+  for (const char ch : input) {
     if (ch == '-') {
       normalized += '+';
     } else if (ch == '_') {

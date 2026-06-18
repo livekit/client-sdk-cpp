@@ -125,26 +125,26 @@ std::string buildTokenSourceRequestJson(const TokenRequestOptions& options) {
     if (out.tellp() > 1) {
       out << ',';
     }
-    out << "\"room_config\":{\"agents\":[{";
+    out << R"("room_config":{"agents":[{)";
     bool wrote_agent_field = false;
     if (options.agent_name.has_value() && !options.agent_name->empty()) {
-      out << "\"agent_name\":\"" << jsonEscape(*options.agent_name) << '"';
+      out << R"("agent_name":")" << jsonEscape(*options.agent_name) << '"';
       wrote_agent_field = true;
     }
     if (options.agent_metadata.has_value() && !options.agent_metadata->empty()) {
       if (wrote_agent_field) {
         out << ',';
       }
-      out << "\"metadata\":\"" << jsonEscape(*options.agent_metadata) << '"';
+      out << R"("metadata":")" << jsonEscape(*options.agent_metadata) << '"';
       wrote_agent_field = true;
     }
     if (options.agent_deployment.has_value() && !options.agent_deployment->empty()) {
       if (wrote_agent_field) {
         out << ',';
       }
-      out << "\"deployment\":\"" << jsonEscape(*options.agent_deployment) << '"';
+      out << R"("deployment":")" << jsonEscape(*options.agent_deployment) << '"';
     }
-    out << "}]}";
+    out << R"(}]})";
   }
 
   out << '}';

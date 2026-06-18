@@ -184,7 +184,11 @@ Result<std::string, std::string> tokenSourceHttpPost(const std::string& url,
   struct curl_slist* curl_headers = nullptr;
   curl_headers = curl_slist_append(curl_headers, "Content-Type: application/json");
   for (const auto& [key, value] : headers) {
-    const std::string header = key + ": " + value;
+    std::string header;
+    header.reserve(key.size() + 2 + value.size());
+    header.append(key);
+    header.append(": ");
+    header.append(value);
     curl_headers = curl_slist_append(curl_headers, header.c_str());
   }
   if (curl_headers != nullptr) {

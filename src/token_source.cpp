@@ -15,6 +15,7 @@
 
 #include "livekit/token_source.h"
 
+#include <exception>
 #include <mutex>
 #include <utility>
 
@@ -89,7 +90,18 @@ EndpointTokenSource::EndpointTokenSource(std::string endpoint_url, TokenEndpoint
 
 std::future<Result<ConnectionDetails, TokenSourceError>> EndpointTokenSource::fetch(const TokenRequestOptions& options,
                                                                                     bool /*force_refresh*/) {
-  return std::async(std::launch::async, [this, options]() { return fetchSync(options); });
+  // NOLINTNEXTLINE(bugprone-exception-escape): std::async may propagate allocation failures from captures.
+  return std::async(std::launch::async, [this, options]() {
+    try {
+      return fetchSync(options);
+    } catch (const std::exception& e) {
+      return Result<ConnectionDetails, TokenSourceError>::failure(
+          TokenSourceError{"token source endpoint fetch failed: " + std::string(e.what())});
+    } catch (...) {
+      return Result<ConnectionDetails, TokenSourceError>::failure(
+          TokenSourceError{"token source endpoint fetch failed: unknown exception"});
+    }
+  });
 }
 
 Result<ConnectionDetails, TokenSourceError> EndpointTokenSource::fetchSync(const TokenRequestOptions& options) const {
@@ -103,12 +115,12 @@ Result<ConnectionDetails, TokenSourceError> EndpointTokenSource::fetchSync(const
   return parseTokenSourceResponseJson(http_result.value());
 }
 
-std::unique_ptr<SandboxTokenSource> SandboxTokenSource::fromSandboxId(std::string sandbox_id,
+std::unique_ptr<SandboxTokenSource> SandboxTokenSource::fromSandboxId(const std::string& sandbox_id,
                                                                       TokenEndpointOptions options) {
-  return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(std::move(sandbox_id), std::move(options)));
+  return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(sandbox_id, std::move(options)));
 }
 
-SandboxTokenSource::SandboxTokenSource(std::string sandbox_id, TokenEndpointOptions options) {
+SandboxTokenSource::SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options) {
   options.headers["X-Sandbox-ID"] = sandbox_id;
   endpoint_ = EndpointTokenSource::fromUrl("https://cloud-api.livekit.io/api/v2/sandbox/connection-details",
                                            std::move(options));
@@ -139,14 +151,23 @@ std::future<Result<ConnectionDetails, TokenSourceError>> CachingTokenSource::fet
   }
 
   auto future = inner_->fetch(options, force_refresh);
+  // NOLINTNEXTLINE(bugprone-exception-escape): std::async may propagate allocation failures from captures.
   return std::async(std::launch::async, [this, future = std::move(future), options]() mutable {
-    auto result = future.get();
-    if (result) {
-      const std::scoped_lock<std::mutex> lock(mutex_);
-      cached_options_ = options;
-      cached_details_ = result.value();
+    try {
+      auto result = future.get();
+      if (result) {
+        const std::scoped_lock<std::mutex> lock(mutex_);
+        cached_options_ = options;
+        cached_details_ = result.value();
+      }
+      return result;
+    } catch (const std::exception& e) {
+      return Result<ConnectionDetails, TokenSourceError>::failure(
+          TokenSourceError{"token source cache refresh failed: " + std::string(e.what())});
+    } catch (...) {
+      return Result<ConnectionDetails, TokenSourceError>::failure(
+          TokenSourceError{"token source cache refresh failed: unknown exception"});
     }
-    return result;
   });
 }
 

@@ -16,7 +16,6 @@
 #pragma once
 
 #include <chrono>
-#include <cstdint>
 #include <functional>
 #include <future>
 #include <map>
@@ -24,7 +23,6 @@
 #include <mutex>
 #include <optional>
 #include <string>
-#include <vector>
 
 #include "livekit/result.h"
 #include "livekit/visibility.h"
@@ -163,13 +161,14 @@ private:
 class LIVEKIT_API SandboxTokenSource final : public TokenSourceConfigurable {
 public:
   /// @brief Create a token source backed by the LiveKit Cloud sandbox token server.
-  static std::unique_ptr<SandboxTokenSource> fromSandboxId(std::string sandbox_id, TokenEndpointOptions options = {});
+  static std::unique_ptr<SandboxTokenSource> fromSandboxId(const std::string& sandbox_id,
+                                                           TokenEndpointOptions options = {});
 
   std::future<Result<ConnectionDetails, TokenSourceError>> fetch(const TokenRequestOptions& options,
                                                                  bool force_refresh = false) override;
 
 private:
-  SandboxTokenSource(std::string sandbox_id, TokenEndpointOptions options);
+  SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options);
 
   std::unique_ptr<TokenSourceConfigurable> endpoint_;
 };
