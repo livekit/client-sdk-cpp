@@ -208,7 +208,27 @@ jobs:
             --gtest_brief=1 `
             --gtest_output="xml:build-release\unit-test-results.xml"
 
-      # ---------- Start livekit-server for integration tests ----------
+      - name: Start token fixture server (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Start-Process -FilePath node -ArgumentList "src/tests/fixtures/token_server.mjs","9876" -RedirectStandardOutput token-fixture.log -RedirectStandardError token-fixture.log -NoNewWindow
+          "LIVEKIT_TOKEN_FIXTURE_URL=http://127.0.0.1:9876" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Start-Sleep -Seconds 2
+
+      - name: Run token source endpoint tests (Windows)
+        if: runner.os == 'Windows'
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          build-release\bin\livekit_integration_tests.exe `
+            --gtest_filter=TokenSourceEndpointTest.* `
+            --gtest_brief=1
+
+      - name: Dump token fixture log on failure (Windows)
+        if: failure() && runner.os == 'Windows'
+        shell: pwsh
+        run: Get-Content token-fixture.log -Tail 200 -ErrorAction SilentlyContinue
       - name: Start livekit-server
         if: matrix.e2e-testing
         id: livekit_server
@@ -229,6 +249,15 @@ jobs:
           fi
           lk --version
 
+      - name: Start token fixture server
+        if: matrix.e2e-testing
+        shell: bash
+        run: |
+          set -euxo pipefail
+          node src/tests/fixtures/token_server.mjs 9876 > token-fixture.log 2>&1 &
+          echo "LIVEKIT_TOKEN_FIXTURE_URL=http://127.0.0.1:9876" >> "$GITHUB_ENV"
+          sleep 2
+
       - name: Run integration tests
         if: matrix.e2e-testing
         timeout-minutes: 5
@@ -245,6 +274,11 @@ jobs:
         if: failure() && matrix.e2e-testing
         shell: bash
         run: tail -n 500 "${{ steps.livekit_server.outputs.log-path }}" || true
+
+      - name: Dump token fixture log on failure
+        if: failure() && matrix.e2e-testing
+        shell: bash
+        run: tail -n 200 token-fixture.log || true
 
       # ---------- Upload results ----------
       - name: Upload test results

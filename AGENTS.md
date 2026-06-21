@@ -74,6 +74,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `include/livekit/` | Public API headers (what SDK consumers include) |
 | `src/` | Implementation files and internal-only headers (`ffi_client.h`, `lk_log.h`, etc.) |
 | `src/tests/` | Google Test integration and stress tests |
+| `src/tests/fixtures/` | CI/local fixture servers for integration tests (e.g. token-server HTTP fixture) |
 | `examples/` | In-tree example applications |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
@@ -356,7 +357,7 @@ Tests are under `src/tests/` using Google Test:
 cd build-debug && ctest
 ```
 
-Integration tests (`src/tests/integration/`) cover: room connections, callbacks, data tracks, RPC, logging, audio processing, and the subscription thread dispatcher.
+Integration tests (`src/tests/integration/`) cover: room connections, callbacks, data tracks, RPC, logging, audio processing, the subscription thread dispatcher, and token source HTTP endpoint flows (via `src/tests/fixtures/token_server.mjs` when `LIVEKIT_TOKEN_FIXTURE_URL` is set).
 
 When adding new client facing functionality, add a new test case to the existing test suite.
 When adding new client facing functionality, add benchmarking to understand the limitations of the new functionality.

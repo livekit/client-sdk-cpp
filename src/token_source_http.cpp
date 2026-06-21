@@ -10,9 +10,11 @@
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the License governing permissions and limitations.
+ * See the License for the specific language governing permissions and limitations.
  */
 
+#include <algorithm>
+#include <cctype>
 #include <sstream>
 #include <utility>
 
@@ -40,6 +42,15 @@ size_t curlWriteCallback(char* contents, size_t size, size_t nmemb, void* user_d
 }
 #endif
 
+std::string normalizeHttpMethod(std::string method) {
+  if (method.empty()) {
+    return "POST";
+  }
+  std::transform(method.begin(), method.end(), method.begin(),
+                 [](unsigned char ch) { return static_cast<char>(std::toupper(ch)); });
+  return method;
+}
+
 #if defined(_WIN32)
 std::wstring toWide(const std::string& value) {
   if (value.empty()) {
@@ -54,8 +65,9 @@ std::wstring toWide(const std::string& value) {
   return wide;
 }
 
-Result<std::string, std::string> winHttpPost(const std::string& url, const std::map<std::string, std::string>& headers,
-                                             const std::string& json_body, std::chrono::milliseconds timeout) {
+Result<std::string, std::string> winHttpRequest(const std::string& method, const std::string& url,
+                                                const std::map<std::string, std::string>& headers,
+                                                const std::string& json_body, std::chrono::milliseconds timeout) {
   URL_COMPONENTS components{};
   components.dwStructSize = sizeof(components);
   components.dwSchemeLength = static_cast<DWORD>(-1);
@@ -70,6 +82,7 @@ Result<std::string, std::string> winHttpPost(const std::string& url, const std::
 
   const std::wstring host(components.lpszHostName, components.dwHostNameLength);
   const std::wstring path(components.lpszUrlPath, components.dwUrlPathLength);
+  const std::wstring wide_method = toWide(normalizeHttpMethod(method));
 
   HINTERNET session = WinHttpOpen(L"LiveKit-CPP/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
                                   WINHTTP_NO_PROXY_BYPASS, 0);
@@ -87,7 +100,7 @@ Result<std::string, std::string> winHttpPost(const std::string& url, const std::
   }
 
   const DWORD flags = (components.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0;
-  HINTERNET request = WinHttpOpenRequest(connection, L"POST", path.c_str(), nullptr, WINHTTP_NO_REFERER,
+  HINTERNET request = WinHttpOpenRequest(connection, wide_method.c_str(), path.c_str(), nullptr, WINHTTP_NO_REFERER,
                                          WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
   if (request == nullptr) {
     WinHttpCloseHandle(connection);
@@ -160,20 +173,23 @@ Result<std::string, std::string> winHttpPost(const std::string& url, const std::
 
 } // namespace
 
-Result<std::string, std::string> tokenSourceHttpPost(const std::string& url,
-                                                     const std::map<std::string, std::string>& headers,
-                                                     const std::string& json_body, std::chrono::milliseconds timeout) {
+Result<std::string, std::string> tokenSourceHttpRequest(const std::string& method, const std::string& url,
+                                                        const std::map<std::string, std::string>& headers,
+                                                        const std::string& json_body,
+                                                        std::chrono::milliseconds timeout) {
 #if defined(_WIN32)
-  return winHttpPost(url, headers, json_body, timeout);
+  return winHttpRequest(method, url, headers, json_body, timeout);
 #else
   CURL* curl = curl_easy_init();
   if (curl == nullptr) {
     return Result<std::string, std::string>::failure("curl_easy_init failed");
   }
 
+  const std::string normalized_method = normalizeHttpMethod(method);
+
   std::string response_body;
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-  curl_easy_setopt(curl, CURLOPT_POST, 1L);
+  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, normalized_method.c_str());
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
   curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(json_body.size()));
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWriteCallback);

@@ -209,17 +209,31 @@ if (!room->connect(*source, options)) {
 }
 ```
 
-**Endpoint** — POST to your token server:
+**Endpoint** — POST (or GET) to your token server:
 
 ```cpp
 livekit::TokenRequestOptions request;
 request.room_name = "my-room";
 request.participant_identity = "user-123";
 
-auto source = livekit::EndpointTokenSource::fromUrl("https://your-backend.example.com/token");
+livekit::TokenEndpointOptions endpoint_options;
+endpoint_options.method = "POST";  // default; set to "GET" if your server requires it
+endpoint_options.headers["Authorization"] = "Bearer your-api-token";
+
+auto source = livekit::EndpointTokenSource::fromUrl("https://your-backend.example.com/token",
+                                                     std::move(endpoint_options));
 if (!room->connect(*source, request, options)) {
   return 1;
 }
+```
+
+**Sandbox** (dev only) — LiveKit Cloud sandbox token server:
+
+```cpp
+auto source = livekit::SandboxTokenSource::fromSandboxId(
+    "your-sandbox-id",
+    {},
+    "https://cloud-api.livekit.io");  // optional base URL override
 ```
 
 **Custom** — wrap your own fetch logic:

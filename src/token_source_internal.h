@@ -25,10 +25,10 @@
 
 namespace livekit {
 
-/// @brief Perform an HTTPS/HTTP POST with a JSON body (internal).
-LIVEKIT_INTERNAL_API Result<std::string, std::string> tokenSourceHttpPost(
-    const std::string& url, const std::map<std::string, std::string>& headers, const std::string& json_body,
-    std::chrono::milliseconds timeout);
+/// @brief Perform an HTTPS/HTTP request with a JSON body (internal).
+LIVEKIT_INTERNAL_API Result<std::string, std::string> tokenSourceHttpRequest(
+    const std::string& method, const std::string& url, const std::map<std::string, std::string>& headers,
+    const std::string& json_body, std::chrono::milliseconds timeout);
 
 /// @brief Build the standard LiveKit token-server JSON request body.
 LIVEKIT_INTERNAL_API std::string buildTokenSourceRequestJson(const TokenRequestOptions& options);

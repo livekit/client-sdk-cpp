@@ -10,11 +10,13 @@
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the License governing permissions and limitations.
+ * See the License for the specific language governing permissions and limitations.
  */
 
 #include "livekit/token_source.h"
 
+#include <algorithm>
+#include <cctype>
 #include <exception>
 #include <mutex>
 #include <utility>
@@ -24,11 +26,66 @@
 namespace livekit {
 namespace {
 
+using TokenSourceResult = Result<ConnectionDetails, TokenSourceError>;
+using TokenSourceFuture = std::future<TokenSourceResult>;
+
 bool tokenRequestOptionsEqual(const TokenRequestOptions& a, const TokenRequestOptions& b) {
   return a.room_name == b.room_name && a.participant_name == b.participant_name &&
          a.participant_identity == b.participant_identity && a.participant_metadata == b.participant_metadata &&
          a.participant_attributes == b.participant_attributes && a.agent_name == b.agent_name &&
          a.agent_metadata == b.agent_metadata && a.agent_deployment == b.agent_deployment;
+}
+
+TokenSourceFuture makeFailedFuture(std::string message) {
+  std::promise<TokenSourceResult> promise;
+  promise.set_value(TokenSourceResult::failure(TokenSourceError{std::move(message)}));
+  return promise.get_future();
+}
+
+template <typename WorkFn>
+TokenSourceFuture runAsyncTokenSource(std::string context, WorkFn&& work_fn) {
+  try {
+    return std::async(std::launch::async,
+                      [context = std::move(context), work_fn = std::forward<WorkFn>(work_fn)]() mutable {
+                        try {
+                          return work_fn();
+                        } catch (const std::exception& e) {
+                          return TokenSourceResult::failure(TokenSourceError{context + ": " + std::string(e.what())});
+                        } catch (...) {
+                          return TokenSourceResult::failure(TokenSourceError{context + ": unknown exception"});
+                        }
+                      });
+  } catch (const std::exception& e) {
+    return makeFailedFuture(context + ": failed to start async work: " + std::string(e.what()));
+  } catch (...) {
+    return makeFailedFuture(context + ": failed to start async work: unknown exception");
+  }
+}
+
+std::string trimSandboxId(const std::string& sandbox_id) {
+  const auto is_space = [](unsigned char ch) { return std::isspace(ch) != 0; };
+  const auto begin = std::find_if_not(sandbox_id.begin(), sandbox_id.end(), is_space);
+  const auto end = std::find_if_not(sandbox_id.rbegin(), sandbox_id.rend(), is_space).base();
+  if (begin >= end) {
+    return {};
+  }
+  return std::string(begin, end);
+}
+
+std::string joinUrlPath(const std::string& base_url, const std::string& path) {
+  if (base_url.empty()) {
+    return path;
+  }
+  if (base_url.back() == '/') {
+    return base_url + (path.empty() || path.front() == '/' ? path.substr(path.front() == '/' ? 1 : 0) : path);
+  }
+  if (path.empty()) {
+    return base_url;
+  }
+  if (path.front() == '/') {
+    return base_url + path;
+  }
+  return base_url + "/" + path;
 }
 
 } // namespace
@@ -90,24 +147,24 @@ EndpointTokenSource::EndpointTokenSource(std::string endpoint_url, TokenEndpoint
 
 std::future<Result<ConnectionDetails, TokenSourceError>> EndpointTokenSource::fetch(const TokenRequestOptions& options,
                                                                                     bool /*force_refresh*/) {
-  // NOLINTNEXTLINE(bugprone-exception-escape): std::async may propagate allocation failures from captures.
-  return std::async(std::launch::async, [this, options]() {
-    try {
-      return fetchSync(options);
-    } catch (const std::exception& e) {
-      return Result<ConnectionDetails, TokenSourceError>::failure(
-          TokenSourceError{"token source endpoint fetch failed: " + std::string(e.what())});
-    } catch (...) {
-      return Result<ConnectionDetails, TokenSourceError>::failure(
-          TokenSourceError{"token source endpoint fetch failed: unknown exception"});
-    }
-  });
+  std::shared_ptr<TokenRequestOptions> options_snapshot;
+  try {
+    options_snapshot = std::make_shared<TokenRequestOptions>(options);
+  } catch (const std::exception& e) {
+    return makeFailedFuture("token source endpoint fetch failed: failed to copy request options: " +
+                            std::string(e.what()));
+  } catch (...) {
+    return makeFailedFuture("token source endpoint fetch failed: failed to copy request options: unknown exception");
+  }
+
+  return runAsyncTokenSource("token source endpoint fetch failed",
+                             [this, options_snapshot]() { return fetchSync(*options_snapshot); });
 }
 
 Result<ConnectionDetails, TokenSourceError> EndpointTokenSource::fetchSync(const TokenRequestOptions& options) const {
   const std::string request_json = buildTokenSourceRequestJson(options);
   auto headers = options_.headers;
-  auto http_result = tokenSourceHttpPost(endpoint_url_, headers, request_json, options_.timeout);
+  auto http_result = tokenSourceHttpRequest(options_.method, endpoint_url_, headers, request_json, options_.timeout);
   if (!http_result) {
     return Result<ConnectionDetails, TokenSourceError>::failure(
         TokenSourceError{"token server request failed: " + http_result.error()});
@@ -116,14 +173,17 @@ Result<ConnectionDetails, TokenSourceError> EndpointTokenSource::fetchSync(const
 }
 
 std::unique_ptr<SandboxTokenSource> SandboxTokenSource::fromSandboxId(const std::string& sandbox_id,
-                                                                      TokenEndpointOptions options) {
-  return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(sandbox_id, std::move(options)));
+                                                                      TokenEndpointOptions options,
+                                                                      const std::string& base_url) {
+  return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(sandbox_id, std::move(options), base_url));
 }
 
-SandboxTokenSource::SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options) {
-  options.headers["X-Sandbox-ID"] = sandbox_id;
-  endpoint_ = EndpointTokenSource::fromUrl("https://cloud-api.livekit.io/api/v2/sandbox/connection-details",
-                                           std::move(options));
+SandboxTokenSource::SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options,
+                                       const std::string& base_url) {
+  const std::string trimmed_id = trimSandboxId(sandbox_id);
+  options.headers["X-Sandbox-ID"] = trimmed_id;
+  const std::string endpoint_url = joinUrlPath(base_url, "/api/v2/sandbox/connection-details");
+  endpoint_ = EndpointTokenSource::fromUrl(endpoint_url, std::move(options));
 }
 
 std::future<Result<ConnectionDetails, TokenSourceError>> SandboxTokenSource::fetch(const TokenRequestOptions& options,
@@ -139,35 +199,30 @@ CachingTokenSource::CachingTokenSource(std::unique_ptr<TokenSourceConfigurable> 
 
 std::future<Result<ConnectionDetails, TokenSourceError>> CachingTokenSource::fetch(const TokenRequestOptions& options,
                                                                                    bool force_refresh) {
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
-    if (!force_refresh && cached_details_.has_value() && cached_options_.has_value() &&
-        tokenRequestOptionsEqual(*cached_options_, options) &&
-        isParticipantTokenValid(cached_details_->participant_token)) {
-      return std::async(std::launch::deferred, [details = *cached_details_]() {
-        return Result<ConnectionDetails, TokenSourceError>::success(details);
-      });
-    }
+  std::shared_ptr<TokenRequestOptions> options_snapshot;
+  try {
+    options_snapshot = std::make_shared<TokenRequestOptions>(options);
+  } catch (const std::exception& e) {
+    return makeFailedFuture("token source cache fetch failed: failed to copy request options: " +
+                            std::string(e.what()));
+  } catch (...) {
+    return makeFailedFuture("token source cache fetch failed: failed to copy request options: unknown exception");
   }
 
-  auto future = inner_->fetch(options, force_refresh);
-  // NOLINTNEXTLINE(bugprone-exception-escape): std::async may propagate allocation failures from captures.
-  return std::async(std::launch::async, [this, future = std::move(future), options]() mutable {
-    try {
-      auto result = future.get();
-      if (result) {
-        const std::scoped_lock<std::mutex> lock(mutex_);
-        cached_options_ = options;
-        cached_details_ = result.value();
-      }
-      return result;
-    } catch (const std::exception& e) {
-      return Result<ConnectionDetails, TokenSourceError>::failure(
-          TokenSourceError{"token source cache refresh failed: " + std::string(e.what())});
-    } catch (...) {
-      return Result<ConnectionDetails, TokenSourceError>::failure(
-          TokenSourceError{"token source cache refresh failed: unknown exception"});
+  return runAsyncTokenSource("token source cache fetch failed", [this, options_snapshot, force_refresh]() {
+    const std::scoped_lock<std::mutex> lock(mutex_);
+    if (!force_refresh && cached_details_.has_value() && cached_options_.has_value() &&
+        tokenRequestOptionsEqual(*cached_options_, *options_snapshot) &&
+        isParticipantTokenValid(cached_details_->participant_token)) {
+      return TokenSourceResult::success(*cached_details_);
     }
+
+    auto result = inner_->fetch(*options_snapshot, force_refresh).get();
+    if (result) {
+      cached_options_ = *options_snapshot;
+      cached_details_ = result.value();
+    }
+    return result;
   });
 }
 

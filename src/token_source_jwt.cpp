@@ -136,7 +136,7 @@ std::optional<std::string> extractJwtPayloadJson(const std::string& token) {
 bool isParticipantTokenValid(const std::string& participant_token) {
   const auto payload_json = extractJwtPayloadJson(participant_token);
   if (!payload_json.has_value()) {
-    return true;
+    return false;
   }
 
   const auto now_seconds =

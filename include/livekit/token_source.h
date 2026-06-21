@@ -161,14 +161,19 @@ private:
 class LIVEKIT_API SandboxTokenSource final : public TokenSourceConfigurable {
 public:
   /// @brief Create a token source backed by the LiveKit Cloud sandbox token server.
-  static std::unique_ptr<SandboxTokenSource> fromSandboxId(const std::string& sandbox_id,
-                                                           TokenEndpointOptions options = {});
+  ///
+  /// @param sandbox_id Sandbox identifier from LiveKit Cloud (surrounding whitespace is trimmed).
+  /// @param options HTTP options (method, headers, timeout).
+  /// @param base_url LiveKit Cloud API base URL (default @c https://cloud-api.livekit.io).
+  static std::unique_ptr<SandboxTokenSource> fromSandboxId(
+      const std::string& sandbox_id, TokenEndpointOptions options = {},
+      const std::string& base_url = "https://cloud-api.livekit.io");
 
   std::future<Result<ConnectionDetails, TokenSourceError>> fetch(const TokenRequestOptions& options,
                                                                  bool force_refresh = false) override;
 
 private:
-  SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options);
+  SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options, const std::string& base_url);
 
   std::unique_ptr<TokenSourceConfigurable> endpoint_;
 };
