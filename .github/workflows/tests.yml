@@ -212,7 +212,12 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          Start-Process -FilePath node -ArgumentList "src/tests/fixtures/token_server.mjs","9876" -RedirectStandardOutput token-fixture.log -RedirectStandardError token-fixture.log -NoNewWindow
+          $ErrorActionPreference = 'Stop'
+          Start-Process -FilePath node `
+            -ArgumentList @("src/tests/fixtures/token_server.mjs", "9876") `
+            -RedirectStandardOutput "token-fixture.log" `
+            -RedirectStandardError "token-fixture.err.log" `
+            -NoNewWindow
           "LIVEKIT_TOKEN_FIXTURE_URL=http://127.0.0.1:9876" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Start-Sleep -Seconds 2
 
@@ -228,7 +233,9 @@ jobs:
       - name: Dump token fixture log on failure (Windows)
         if: failure() && runner.os == 'Windows'
         shell: pwsh
-        run: Get-Content token-fixture.log -Tail 200 -ErrorAction SilentlyContinue
+        run: |
+          Get-Content token-fixture.log -Tail 200 -ErrorAction SilentlyContinue
+          Get-Content token-fixture.err.log -Tail 200 -ErrorAction SilentlyContinue
       - name: Start livekit-server
         if: matrix.e2e-testing
         id: livekit_server
