@@ -191,6 +191,8 @@ jobs:
           - os: ubuntu-latest
             name: linux-x64
             e2e-testing: true
+            # Extra FFI logging on linux-x64 to diagnose timing-sensitive integration hangs.
+            integration_rust_log: info,livekit_ffi::server=debug
           - os: ubuntu-24.04-arm
             name: linux-arm64
             e2e-testing: true
@@ -529,8 +531,11 @@ jobs:
         timeout-minutes: ${{ inputs.integration_timeout_minutes }}
         shell: bash
         env:
-          RUST_LOG: ${{ inputs.integration_rust_log }}
+          RUST_LOG: ${{ matrix.integration_rust_log || inputs.integration_rust_log }}
           RUST_BACKTRACE: full
+          # linux-x64: verbose C++ logs + stall watchdog (see run_tests_with_backtrace.sh).
+          LIVEKIT_TEST_LOG_LEVEL: ${{ matrix.name == 'linux-x64' && 'debug' || '' }}
+          LIVEKIT_TEST_STALL_SECONDS: ${{ matrix.name == 'linux-x64' && '90' || '0' }}
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash

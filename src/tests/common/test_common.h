@@ -144,6 +144,37 @@ inline bool waitForParticipant(Room* room, const std::string& identity, std::chr
 /// once the room is torn down (or before connect). Dereferencing the result of
 /// lock() blindly is undefined behavior, so tests must go through this helper,
 /// which throws instead of crashing when the handle is expired.
+/// Resolve integration-test log verbosity from LIVEKIT_TEST_LOG_LEVEL (trace/debug/info/...).
+inline livekit::LogLevel testLogLevelFromEnv() {
+  const char* level = std::getenv("LIVEKIT_TEST_LOG_LEVEL");
+  if (level == nullptr || std::string(level).empty()) {
+    return livekit::LogLevel::Info;
+  }
+  const std::string value(level);
+  if (value == "trace") {
+    return livekit::LogLevel::Trace;
+  }
+  if (value == "debug") {
+    return livekit::LogLevel::Debug;
+  }
+  if (value == "info") {
+    return livekit::LogLevel::Info;
+  }
+  if (value == "warn") {
+    return livekit::LogLevel::Warn;
+  }
+  if (value == "error") {
+    return livekit::LogLevel::Error;
+  }
+  if (value == "critical") {
+    return livekit::LogLevel::Critical;
+  }
+  if (value == "off") {
+    return livekit::LogLevel::Off;
+  }
+  return livekit::LogLevel::Info;
+}
+
 inline std::shared_ptr<LocalParticipant> lockLocalParticipant(const Room& room) {
   if (auto participant = room.localParticipant().lock()) {
     return participant;
@@ -497,7 +528,7 @@ private:
 class LiveKitTestBase : public ::testing::Test {
 protected:
   void SetUp() override {
-    livekit::initialize(livekit::LogLevel::Info);
+    livekit::initialize(testLogLevelFromEnv());
     config_ = TestConfig::fromEnv();
 
     // Tracing is controlled by compile-time macro LIVEKIT_TEST_ENABLE_TRACING

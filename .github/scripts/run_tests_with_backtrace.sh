@@ -2,6 +2,10 @@
 # Run a test binary under debug CI. On fatal signals, print post-mortem
 # backtraces from core dumps when available. Linux also runs under catchsegv
 # so a partial backtrace appears in the log even without a core file.
+#
+# When LIVEKIT_TEST_STALL_SECONDS is set to a positive integer, a watchdog
+# monitors test output and dumps live thread backtraces if the log goes silent
+# for that many seconds (integration-test hang diagnostics on linux-x64).
 set -uo pipefail
 
 usage() {
@@ -54,6 +58,36 @@ dump_macos_crash_reports() {
   done
   if ((found == 0)); then
     echo "No DiagnosticReports .ips found for ${binary_name}"
+  fi
+}
+
+dump_live_backtraces() {
+  local test_pid=$1
+  local reason=$2
+
+  echo "=== live backtrace diagnostics (${reason}, pid ${test_pid}) ==="
+
+  if [[ "$(uname -s)" == "Linux" ]]; then
+    if command -v gdb >/dev/null 2>&1; then
+      gdb -batch \
+        -ex 'set pagination off' \
+        -ex 'thread apply all bt full' \
+        -p "${test_pid}" || true
+    else
+      echo "gdb not available; install gdb for live backtraces"
+    fi
+    return 0
+  fi
+
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    if command -v sample >/dev/null 2>&1; then
+      sample "${test_pid}" 5 -mayDie 2>&1 || true
+    fi
+    if command -v lldb >/dev/null 2>&1; then
+      lldb -p "${test_pid}" --batch -o 'thread backtrace all' -o 'detach' -o 'quit' 2>&1 || true
+    else
+      echo "lldb not available"
+    fi
   fi
 }
 
@@ -122,11 +156,57 @@ run_test() {
   fi
 }
 
+start_stall_watchdog() {
+  local test_pid=$1
+  local log_file=$2
+  local stall_limit=$3
+
+  (
+    local last_size=-1
+    local stall=0
+    while kill -0 "${test_pid}" 2>/dev/null; do
+      local size
+      size=$(wc -c <"${log_file}" 2>/dev/null || echo 0)
+      if [[ "${size}" == "${last_size}" ]]; then
+        stall=$((stall + 5))
+      else
+        stall=0
+        last_size=${size}
+      fi
+      if ((stall >= stall_limit)); then
+        echo "=== TEST HANG DETECTED: no output for ${stall}s (pid ${test_pid}) ==="
+        echo "--- last log lines ---"
+        tail -n 40 "${log_file}" || true
+        dump_live_backtraces "${test_pid}" "stall ${stall}s"
+        kill -ABRT "${test_pid}" 2>/dev/null || kill -TERM "${test_pid}" 2>/dev/null || true
+        break
+      fi
+      sleep 5
+    done
+  ) &
+  echo $!
+}
+
+stall_limit=${LIVEKIT_TEST_STALL_SECONDS:-0}
+log_file="${RUNNER_TEMP:-/tmp}/livekit-test-output.log"
+
 set +e
-run_test "$@" &
-test_pid=$!
-wait "${test_pid}"
-status=$?
+if ((stall_limit > 0)); then
+  : >"${log_file}"
+  run_test "$@" >"${log_file}" 2>&1 &
+  test_pid=$!
+  watchdog_pid=$(start_stall_watchdog "${test_pid}" "${log_file}" "${stall_limit}")
+  wait "${test_pid}"
+  status=$?
+  kill "${watchdog_pid}" 2>/dev/null || true
+  wait "${watchdog_pid}" 2>/dev/null || true
+  cat "${log_file}"
+else
+  run_test "$@" &
+  test_pid=$!
+  wait "${test_pid}"
+  status=$?
+fi
 set -e
 
 if ((status > 128)); then
