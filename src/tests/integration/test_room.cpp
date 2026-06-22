@@ -93,15 +93,12 @@ TEST_F(RoomTest, ConnectWithCustomTokenSource) {
   RoomOptions options;
 
   auto token_source = CustomTokenSource::fromCallback(
-      [this](const TokenRequestOptions& options) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
-        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
-        ConnectionDetails details;
+      [this](const TokenRequestOptions& options) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        TokenSourceResponse details;
         details.server_url = server_url_;
         details.participant_token = token_;
-        if (options.room_name.has_value()) {
-          details.room_name = options.room_name;
-        }
-        promise.set_value(Result<ConnectionDetails, TokenSourceError>::success(details));
+        promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
       });
 

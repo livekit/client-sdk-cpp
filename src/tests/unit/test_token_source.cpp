@@ -48,8 +48,6 @@ TEST(TokenSourceJsonTest, ParseResponseSnakeCase) {
   ASSERT_TRUE(result);
   EXPECT_EQ(result.value().server_url, "wss://example.livekit.io");
   EXPECT_EQ(result.value().participant_token, "jwt-token");
-  ASSERT_TRUE(result.value().room_name.has_value());
-  EXPECT_EQ(*result.value().room_name, "room-a");
 }
 
 TEST(TokenSourceJsonTest, ParseResponseCamelCase) {
@@ -60,8 +58,6 @@ TEST(TokenSourceJsonTest, ParseResponseCamelCase) {
   ASSERT_TRUE(result);
   EXPECT_EQ(result.value().server_url, "wss://example.livekit.io");
   EXPECT_EQ(result.value().participant_token, "jwt-token");
-  ASSERT_TRUE(result.value().participant_name.has_value());
-  EXPECT_EQ(*result.value().participant_name, "Alice");
 }
 
 TEST(TokenSourceJsonTest, ParseResponseInvalidJsonFails) {
@@ -100,16 +96,16 @@ TEST(TokenSourceFactoryTest, LiteralTokenSourceReturnsDetails) {
 
 TEST(TokenSourceFactoryTest, CustomTokenSourceReceivesOptions) {
   std::optional<std::string> captured_room;
-  auto source = CustomTokenSource::fromCallback(
-      [&captured_room](const TokenRequestOptions& options) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
-        captured_room = options.room_name;
-        ConnectionDetails details;
-        details.server_url = "wss://example.livekit.io";
-        details.participant_token = "jwt-token";
-        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
-        promise.set_value(Result<ConnectionDetails, TokenSourceError>::success(details));
-        return promise.get_future();
-      });
+  auto source = CustomTokenSource::fromCallback([&captured_room](const TokenRequestOptions& options)
+                                                    -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
+    captured_room = options.room_name;
+    TokenSourceResponse details;
+    details.server_url = "wss://example.livekit.io";
+    details.participant_token = "jwt-token";
+    std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+    promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
+    return promise.get_future();
+  });
 
   TokenRequestOptions request;
   request.room_name = "requested-room";
@@ -122,13 +118,13 @@ TEST(TokenSourceFactoryTest, CustomTokenSourceReceivesOptions) {
 TEST(TokenSourceFactoryTest, CachingTokenSourceReusesValidToken) {
   std::atomic<int> fetch_count{0};
   auto inner = CustomTokenSource::fromCallback(
-      [&fetch_count](const TokenRequestOptions&) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
+      [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
-        ConnectionDetails details;
+        TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
         details.participant_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
-        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
-        promise.set_value(Result<ConnectionDetails, TokenSourceError>::success(details));
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
       });
 
@@ -146,13 +142,13 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceReusesValidToken) {
 TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenForced) {
   std::atomic<int> fetch_count{0};
   auto inner = CustomTokenSource::fromCallback(
-      [&fetch_count](const TokenRequestOptions&) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
+      [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
-        ConnectionDetails details;
+        TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
         details.participant_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
-        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
-        promise.set_value(Result<ConnectionDetails, TokenSourceError>::success(details));
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
       });
 
@@ -167,13 +163,13 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenForced) {
 TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenOptionsChange) {
   std::atomic<int> fetch_count{0};
   auto inner = CustomTokenSource::fromCallback(
-      [&fetch_count](const TokenRequestOptions&) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
+      [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
-        ConnectionDetails details;
+        TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
         details.participant_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
-        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
-        promise.set_value(Result<ConnectionDetails, TokenSourceError>::success(details));
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
       });
 
@@ -192,14 +188,14 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenOptionsChange) {
 TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenExpired) {
   std::atomic<int> fetch_count{0};
   auto inner = CustomTokenSource::fromCallback(
-      [&fetch_count](const TokenRequestOptions&) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
+      [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         const int count = ++fetch_count;
-        ConnectionDetails details;
+        TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
         details.participant_token =
             (count == 1) ? "eyJhbGciOiJub25lIn0.eyJleHAiOjF9." : "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
-        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
-        promise.set_value(Result<ConnectionDetails, TokenSourceError>::success(details));
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
       });
 
@@ -219,13 +215,13 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenExpired) {
 TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenUnparseable) {
   std::atomic<int> fetch_count{0};
   auto inner = CustomTokenSource::fromCallback(
-      [&fetch_count](const TokenRequestOptions&) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
+      [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         const int count = ++fetch_count;
-        ConnectionDetails details;
+        TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
         details.participant_token = (count == 1) ? "not-a-jwt" : "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
-        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
-        promise.set_value(Result<ConnectionDetails, TokenSourceError>::success(details));
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
       });
 
@@ -247,8 +243,8 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceSerializesConcurrentFetches) {
   std::atomic<int> max_concurrent_calls{0};
 
   auto inner = CustomTokenSource::fromCallback(
-      [&fetch_count, &concurrent_calls,
-       &max_concurrent_calls](const TokenRequestOptions&) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
+      [&fetch_count, &concurrent_calls, &max_concurrent_calls](
+          const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
         const int active = ++concurrent_calls;
         int observed_max = max_concurrent_calls.load();
@@ -257,11 +253,11 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceSerializesConcurrentFetches) {
 
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-        ConnectionDetails details;
+        TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
         details.participant_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
-        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
-        promise.set_value(Result<ConnectionDetails, TokenSourceError>::success(details));
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         --concurrent_calls;
         return promise.get_future();
       });

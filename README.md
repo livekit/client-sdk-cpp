@@ -236,9 +236,12 @@ auto source = livekit::SandboxTokenSource::fromSandboxId(
 
 ```cpp
 auto source = livekit::CustomTokenSource::fromCallback([](const livekit::TokenRequestOptions& options) {
-  std::promise<livekit::Result<livekit::ConnectionDetails, livekit::TokenSourceError>> promise;
+  std::promise<livekit::Result<livekit::TokenSourceResponse, livekit::TokenSourceError>> promise;
   // fetch from your backend, then:
-  promise.set_value(livekit::Result<livekit::ConnectionDetails, livekit::TokenSourceError>::success(details));
+  livekit::TokenSourceResponse details;
+  details.server_url = /* ... */;
+  details.participant_token = /* ... */;
+  promise.set_value(livekit::Result<livekit::TokenSourceResponse, livekit::TokenSourceError>::success(details));
   return promise.get_future();
 });
 ```

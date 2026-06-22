@@ -92,8 +92,8 @@ void Room::setDelegate(RoomDelegate* delegate) {
 }
 
 bool Room::connect(TokenSourceFixed& token_source, const RoomOptions& options) {
-  Result<ConnectionDetails, TokenSourceError> details =
-      Result<ConnectionDetails, TokenSourceError>::failure(TokenSourceError{"token source not invoked"});
+  Result<TokenSourceResponse, TokenSourceError> details =
+      Result<TokenSourceResponse, TokenSourceError>::failure(TokenSourceError{"token source not invoked"});
   try {
     details = token_source.fetch().get();
   } catch (const std::exception& e) {
@@ -114,8 +114,8 @@ bool Room::connect(TokenSourceFixed& token_source, const RoomOptions& options) {
 
 bool Room::connect(TokenSourceConfigurable& token_source, const TokenRequestOptions& request_options,
                    const RoomOptions& options) {
-  Result<ConnectionDetails, TokenSourceError> details =
-      Result<ConnectionDetails, TokenSourceError>::failure(TokenSourceError{"token source not invoked"});
+  Result<TokenSourceResponse, TokenSourceError> details =
+      Result<TokenSourceResponse, TokenSourceError>::failure(TokenSourceError{"token source not invoked"});
   try {
     details = token_source.fetch(request_options, false).get();
   } catch (const std::exception& e) {

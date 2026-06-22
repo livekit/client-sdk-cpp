@@ -67,8 +67,8 @@ TEST_F(RoomTest, ConnectWithCustomTokenSourceThrowingFails) {
   Room room;
 
   auto source = CustomTokenSource::fromCallback(
-      [](const TokenRequestOptions&) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
-        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
+      [](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         promise.set_exception(std::make_exception_ptr(std::runtime_error("token fetch failed")));
         return promise.get_future();
       });
@@ -81,10 +81,10 @@ TEST_F(RoomTest, ConnectWithCustomTokenSourceErrorFails) {
   Room room;
 
   auto source = CustomTokenSource::fromCallback(
-      [](const TokenRequestOptions&) -> std::future<Result<ConnectionDetails, TokenSourceError>> {
-        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
+      [](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         promise.set_value(
-            Result<ConnectionDetails, TokenSourceError>::failure(TokenSourceError{"backend unavailable"}));
+            Result<TokenSourceResponse, TokenSourceError>::failure(TokenSourceError{"backend unavailable"}));
         return promise.get_future();
       });
 
@@ -98,13 +98,13 @@ TEST_F(RoomTest, ConnectWithLiteralTokenSourceInvokesFetchBeforeConnectFailure) 
   Room room;
   int fetch_count = 0;
   auto source =
-      LiteralTokenSource::fromProvider([&fetch_count]() -> std::future<Result<ConnectionDetails, TokenSourceError>> {
+      LiteralTokenSource::fromProvider([&fetch_count]() -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
-        ConnectionDetails details;
+        TokenSourceResponse details;
         details.server_url = "wss://localhost:7880";
         details.participant_token = "fetched-token";
-        std::promise<Result<ConnectionDetails, TokenSourceError>> promise;
-        promise.set_value(Result<ConnectionDetails, TokenSourceError>::success(details));
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
       });
 

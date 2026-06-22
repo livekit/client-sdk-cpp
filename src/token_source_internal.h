@@ -33,8 +33,9 @@ LIVEKIT_INTERNAL_API Result<std::string, std::string> tokenSourceHttpRequest(
 /// @brief Build the standard LiveKit token-server JSON request body.
 LIVEKIT_INTERNAL_API std::string buildTokenSourceRequestJson(const TokenRequestOptions& options);
 
-/// @brief Parse a token-server JSON response into @ref ConnectionDetails.
-LIVEKIT_INTERNAL_API Result<ConnectionDetails, TokenSourceError> parseTokenSourceResponseJson(const std::string& json);
+/// @brief Parse a token-server JSON response into @ref TokenSourceResponse.
+LIVEKIT_INTERNAL_API Result<TokenSourceResponse, TokenSourceError> parseTokenSourceResponseJson(
+    const std::string& json);
 
 /// @brief Return @c true when the JWT is within its validity window (1-minute skew buffer).
 LIVEKIT_INTERNAL_API bool isParticipantTokenValid(const std::string& participant_token);

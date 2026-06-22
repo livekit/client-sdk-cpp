@@ -151,14 +151,14 @@ std::string buildTokenSourceRequestJson(const TokenRequestOptions& options) {
   return out.str();
 }
 
-Result<ConnectionDetails, TokenSourceError> parseTokenSourceResponseJson(const std::string& json) {
-  ConnectionDetails details;
+Result<TokenSourceResponse, TokenSourceError> parseTokenSourceResponseJson(const std::string& json) {
+  TokenSourceResponse details;
 
   const auto server_url = extractJsonStringField(json, "server_url");
   if (!server_url.has_value()) {
     const auto camel_url = extractJsonStringField(json, "serverUrl");
     if (!camel_url.has_value() || camel_url->empty()) {
-      return Result<ConnectionDetails, TokenSourceError>::failure(
+      return Result<TokenSourceResponse, TokenSourceError>::failure(
           TokenSourceError{"token server response missing server_url"});
     }
     details.server_url = *camel_url;
@@ -170,7 +170,7 @@ Result<ConnectionDetails, TokenSourceError> parseTokenSourceResponseJson(const s
   if (!participant_token.has_value()) {
     const auto camel_token = extractJsonStringField(json, "participantToken");
     if (!camel_token.has_value() || camel_token->empty()) {
-      return Result<ConnectionDetails, TokenSourceError>::failure(
+      return Result<TokenSourceResponse, TokenSourceError>::failure(
           TokenSourceError{"token server response missing participant_token"});
     }
     details.participant_token = *camel_token;
@@ -178,22 +178,12 @@ Result<ConnectionDetails, TokenSourceError> parseTokenSourceResponseJson(const s
     details.participant_token = *participant_token;
   }
 
-  details.participant_name = extractJsonStringField(json, "participant_name");
-  if (!details.participant_name.has_value()) {
-    details.participant_name = extractJsonStringField(json, "participantName");
-  }
-
-  details.room_name = extractJsonStringField(json, "room_name");
-  if (!details.room_name.has_value()) {
-    details.room_name = extractJsonStringField(json, "roomName");
-  }
-
   if (details.server_url.empty() || details.participant_token.empty()) {
-    return Result<ConnectionDetails, TokenSourceError>::failure(
+    return Result<TokenSourceResponse, TokenSourceError>::failure(
         TokenSourceError{"token server response contained empty server_url or participant_token"});
   }
 
-  return Result<ConnectionDetails, TokenSourceError>::success(std::move(details));
+  return Result<TokenSourceResponse, TokenSourceError>::success(std::move(details));
 }
 
 } // namespace livekit

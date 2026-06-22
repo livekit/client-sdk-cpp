@@ -37,29 +37,15 @@ namespace livekit {
 /// @ref LiteralTokenSource::fromValue, which takes the server URL and token
 /// directly instead of requiring you to populate this struct.
 ///
-/// Only @ref server_url and @ref participant_token are required by
-/// @ref Room::connect. The remaining fields are optional, server-resolved
-/// metadata echoed back by endpoint/sandbox token servers (for example, when the
-/// server auto-assigns a room name). Custom providers may leave them unset.
-struct ConnectionDetails {
+/// Mirrors the @c livekit.TokenSourceResponse protocol message: only the server
+/// URL and participant token are carried; any additional fields a token server
+/// returns are ignored.
+struct TokenSourceResponse {
   /// WebSocket URL of the LiveKit server.
   std::string server_url;
 
   /// JWT access token for the participant.
   std::string participant_token;
-
-  /// Optional participant display name resolved by the token server.
-  ///
-  /// Populated when a token server echoes a canonical display name for UI/session
-  /// context. Not required by @ref Room::connect.
-  std::optional<std::string> participant_name;
-
-  /// Optional room name resolved by the token server.
-  ///
-  /// Populated when a token server echoes the resolved room name (for example,
-  /// server-side or auto-generated room assignment). Not required by
-  /// @ref Room::connect.
-  std::optional<std::string> room_name;
 };
 
 /// @brief Per-call options sent to configurable token sources (endpoint, sandbox, custom).
@@ -153,7 +139,7 @@ struct TokenSourceError {
 ///
 /// Use this shape when token selection does not depend on per-connection request
 /// fields (room, participant identity, agent selection, and so on). This is most
-/// useful when your app already has complete @ref ConnectionDetails and only needs
+/// useful when your app already has complete @ref TokenSourceResponse and only needs
 /// to hand them to the SDK.
 class LIVEKIT_API TokenSourceFixed {
 public:
@@ -162,7 +148,7 @@ public:
   /// Fetch connection credentials.
   ///
   /// @return Future resolving to connection details or an error.
-  virtual std::future<Result<ConnectionDetails, TokenSourceError>> fetch() = 0;
+  virtual std::future<Result<TokenSourceResponse, TokenSourceError>> fetch() = 0;
 };
 
 /// @brief Base interface for token sources that generate credentials from request options.
@@ -180,8 +166,8 @@ public:
   /// @param options Connection parameters encoded into the token request.
   /// @param force_refresh When @c true, bypass any cached credentials.
   /// @return Future resolving to connection details or an error.
-  virtual std::future<Result<ConnectionDetails, TokenSourceError>> fetch(const TokenRequestOptions& options = {},
-                                                                         bool force_refresh = false) = 0;
+  virtual std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options = {},
+                                                                           bool force_refresh = false) = 0;
 };
 
 /// @brief Token source that returns credentials you already created yourself.
@@ -205,16 +191,16 @@ public:
   /// Use this overload when credentials are produced outside the SDK but fetched
   /// lazily (for example, from your own cache or secure storage).
   static std::unique_ptr<LiteralTokenSource> fromProvider(
-      std::function<std::future<Result<ConnectionDetails, TokenSourceError>>()> provider);
+      std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>()> provider);
 
-  std::future<Result<ConnectionDetails, TokenSourceError>> fetch() override;
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch() override;
 
 private:
-  explicit LiteralTokenSource(ConnectionDetails details);
-  explicit LiteralTokenSource(std::function<std::future<Result<ConnectionDetails, TokenSourceError>>()> provider);
+  explicit LiteralTokenSource(TokenSourceResponse details);
+  explicit LiteralTokenSource(std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>()> provider);
 
-  ConnectionDetails details_;
-  std::function<std::future<Result<ConnectionDetails, TokenSourceError>>()> provider_;
+  TokenSourceResponse details_;
+  std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>()> provider_;
 };
 
 /// @brief Token source that delegates token generation to your callback.
@@ -227,18 +213,18 @@ public:
   /// @brief Create a token source that delegates fetching to @p provider.
   ///
   /// The callback receives @ref TokenRequestOptions for each fetch and returns
-  /// @ref ConnectionDetails produced by your application.
+  /// @ref TokenSourceResponse produced by your application.
   static std::unique_ptr<CustomTokenSource> fromCallback(
-      std::function<std::future<Result<ConnectionDetails, TokenSourceError>>(const TokenRequestOptions&)> provider);
+      std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider);
 
-  std::future<Result<ConnectionDetails, TokenSourceError>> fetch(const TokenRequestOptions& options,
-                                                                 bool force_refresh = false) override;
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options,
+                                                                   bool force_refresh = false) override;
 
 private:
   explicit CustomTokenSource(
-      std::function<std::future<Result<ConnectionDetails, TokenSourceError>>(const TokenRequestOptions&)> provider);
+      std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider);
 
-  std::function<std::future<Result<ConnectionDetails, TokenSourceError>>(const TokenRequestOptions&)> provider_;
+  std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider_;
 };
 
 /// @brief Token source that calls your backend token endpoint over HTTP.
@@ -256,13 +242,13 @@ public:
   /// @param options HTTP transport options (method, headers, timeout).
   static std::unique_ptr<EndpointTokenSource> fromUrl(std::string endpoint_url, TokenEndpointOptions options = {});
 
-  std::future<Result<ConnectionDetails, TokenSourceError>> fetch(const TokenRequestOptions& options,
-                                                                 bool force_refresh = false) override;
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options,
+                                                                   bool force_refresh = false) override;
 
 private:
   EndpointTokenSource(std::string endpoint_url, TokenEndpointOptions options);
 
-  Result<ConnectionDetails, TokenSourceError> fetchSync(const TokenRequestOptions& options) const;
+  Result<TokenSourceResponse, TokenSourceError> fetchSync(const TokenRequestOptions& options) const;
 
   std::string endpoint_url_;
   TokenEndpointOptions options_;
@@ -285,8 +271,8 @@ public:
       const std::string& sandbox_id, TokenEndpointOptions options = {},
       const std::string& base_url = "https://cloud-api.livekit.io");
 
-  std::future<Result<ConnectionDetails, TokenSourceError>> fetch(const TokenRequestOptions& options,
-                                                                 bool force_refresh = false) override;
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options,
+                                                                   bool force_refresh = false) override;
 
 private:
   SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options, const std::string& base_url);
@@ -306,8 +292,8 @@ public:
   /// Cached values are keyed by @ref TokenRequestOptions.
   static std::unique_ptr<CachingTokenSource> wrap(std::unique_ptr<TokenSourceConfigurable> inner);
 
-  std::future<Result<ConnectionDetails, TokenSourceError>> fetch(const TokenRequestOptions& options,
-                                                                 bool force_refresh = false) override;
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options,
+                                                                   bool force_refresh = false) override;
 
 private:
   explicit CachingTokenSource(std::unique_ptr<TokenSourceConfigurable> inner);
@@ -315,7 +301,7 @@ private:
   std::unique_ptr<TokenSourceConfigurable> inner_;
   mutable std::mutex mutex_;
   std::optional<TokenRequestOptions> cached_options_;
-  std::optional<ConnectionDetails> cached_details_;
+  std::optional<TokenSourceResponse> cached_details_;
 };
 
 } // namespace livekit

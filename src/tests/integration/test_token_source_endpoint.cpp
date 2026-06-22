@@ -118,8 +118,8 @@ TEST_F(TokenSourceEndpointTest, EndpointSendsOnlyProvidedFields) {
   auto source = EndpointTokenSource::fromUrl(fixtureUrl("/snake"));
   const auto result = source->fetch(options).get();
   ASSERT_TRUE(result);
-  ASSERT_TRUE(result.value().room_name.has_value());
-  EXPECT_EQ(*result.value().room_name, "my-room");
+  EXPECT_EQ(result.value().server_url, "wss://fixture.livekit.test");
+  EXPECT_FALSE(result.value().participant_token.empty());
 }
 
 TEST_F(TokenSourceEndpointTest, EndpointParsesCamelCaseResponse) {
@@ -131,10 +131,7 @@ TEST_F(TokenSourceEndpointTest, EndpointParsesCamelCaseResponse) {
   const auto result = source->fetch({}).get();
   ASSERT_TRUE(result);
   EXPECT_EQ(result.value().server_url, "wss://fixture.livekit.test");
-  ASSERT_TRUE(result.value().participant_name.has_value());
-  EXPECT_EQ(*result.value().participant_name, "participant-name");
-  ASSERT_TRUE(result.value().room_name.has_value());
-  EXPECT_EQ(*result.value().room_name, "room-name");
+  EXPECT_FALSE(result.value().participant_token.empty());
 }
 
 TEST_F(TokenSourceEndpointTest, EndpointFailsOnMalformedJsonResponse) {

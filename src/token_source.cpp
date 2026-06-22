@@ -26,7 +26,7 @@
 namespace livekit {
 namespace {
 
-using TokenSourceResult = Result<ConnectionDetails, TokenSourceError>;
+using TokenSourceResult = Result<TokenSourceResponse, TokenSourceError>;
 using TokenSourceFuture = std::future<TokenSourceResult>;
 
 bool tokenRequestOptionsEqual(const TokenRequestOptions& a, const TokenRequestOptions& b) {
@@ -96,48 +96,48 @@ TokenSourceConfigurable::~TokenSourceConfigurable() = default;
 
 std::unique_ptr<LiteralTokenSource> LiteralTokenSource::fromValue(std::string server_url,
                                                                   std::string participant_token) {
-  ConnectionDetails details;
+  TokenSourceResponse details;
   details.server_url = std::move(server_url);
   details.participant_token = std::move(participant_token);
   return std::unique_ptr<LiteralTokenSource>(new LiteralTokenSource(std::move(details)));
 }
 
 std::unique_ptr<LiteralTokenSource> LiteralTokenSource::fromProvider(
-    std::function<std::future<Result<ConnectionDetails, TokenSourceError>>()> provider) {
+    std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>()> provider) {
   return std::unique_ptr<LiteralTokenSource>(new LiteralTokenSource(std::move(provider)));
 }
 
-LiteralTokenSource::LiteralTokenSource(ConnectionDetails details) : details_(std::move(details)) {}
+LiteralTokenSource::LiteralTokenSource(TokenSourceResponse details) : details_(std::move(details)) {}
 
 LiteralTokenSource::LiteralTokenSource(
-    std::function<std::future<Result<ConnectionDetails, TokenSourceError>>()> provider)
+    std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>()> provider)
     : provider_(std::move(provider)) {}
 
-std::future<Result<ConnectionDetails, TokenSourceError>> LiteralTokenSource::fetch() {
+std::future<Result<TokenSourceResponse, TokenSourceError>> LiteralTokenSource::fetch() {
   if (provider_) {
     return provider_();
   }
 
   return std::async(std::launch::deferred, [details = details_]() {
     if (details.server_url.empty() || details.participant_token.empty()) {
-      return Result<ConnectionDetails, TokenSourceError>::failure(
+      return Result<TokenSourceResponse, TokenSourceError>::failure(
           TokenSourceError{"literal token source returned empty server_url or participant_token"});
     }
-    return Result<ConnectionDetails, TokenSourceError>::success(details);
+    return Result<TokenSourceResponse, TokenSourceError>::success(details);
   });
 }
 
 std::unique_ptr<CustomTokenSource> CustomTokenSource::fromCallback(
-    std::function<std::future<Result<ConnectionDetails, TokenSourceError>>(const TokenRequestOptions&)> provider) {
+    std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider) {
   return std::unique_ptr<CustomTokenSource>(new CustomTokenSource(std::move(provider)));
 }
 
 CustomTokenSource::CustomTokenSource(
-    std::function<std::future<Result<ConnectionDetails, TokenSourceError>>(const TokenRequestOptions&)> provider)
+    std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider)
     : provider_(std::move(provider)) {}
 
-std::future<Result<ConnectionDetails, TokenSourceError>> CustomTokenSource::fetch(const TokenRequestOptions& options,
-                                                                                  bool /*force_refresh*/) {
+std::future<Result<TokenSourceResponse, TokenSourceError>> CustomTokenSource::fetch(const TokenRequestOptions& options,
+                                                                                    bool /*force_refresh*/) {
   return provider_(options);
 }
 
@@ -149,8 +149,8 @@ std::unique_ptr<EndpointTokenSource> EndpointTokenSource::fromUrl(std::string en
 EndpointTokenSource::EndpointTokenSource(std::string endpoint_url, TokenEndpointOptions options)
     : endpoint_url_(std::move(endpoint_url)), options_(std::move(options)) {}
 
-std::future<Result<ConnectionDetails, TokenSourceError>> EndpointTokenSource::fetch(const TokenRequestOptions& options,
-                                                                                    bool /*force_refresh*/) {
+std::future<Result<TokenSourceResponse, TokenSourceError>> EndpointTokenSource::fetch(
+    const TokenRequestOptions& options, bool /*force_refresh*/) {
   std::shared_ptr<TokenRequestOptions> options_snapshot;
   try {
     options_snapshot = std::make_shared<TokenRequestOptions>(options);
@@ -165,12 +165,12 @@ std::future<Result<ConnectionDetails, TokenSourceError>> EndpointTokenSource::fe
                              [this, options_snapshot]() { return fetchSync(*options_snapshot); });
 }
 
-Result<ConnectionDetails, TokenSourceError> EndpointTokenSource::fetchSync(const TokenRequestOptions& options) const {
+Result<TokenSourceResponse, TokenSourceError> EndpointTokenSource::fetchSync(const TokenRequestOptions& options) const {
   const std::string request_json = buildTokenSourceRequestJson(options);
   auto headers = options_.headers;
   auto http_result = tokenSourceHttpRequest(options_.method, endpoint_url_, headers, request_json, options_.timeout);
   if (!http_result) {
-    return Result<ConnectionDetails, TokenSourceError>::failure(
+    return Result<TokenSourceResponse, TokenSourceError>::failure(
         TokenSourceError{"token server request failed: " + http_result.error()});
   }
   return parseTokenSourceResponseJson(http_result.value());
@@ -190,8 +190,8 @@ SandboxTokenSource::SandboxTokenSource(const std::string& sandbox_id, TokenEndpo
   endpoint_ = EndpointTokenSource::fromUrl(endpoint_url, std::move(options));
 }
 
-std::future<Result<ConnectionDetails, TokenSourceError>> SandboxTokenSource::fetch(const TokenRequestOptions& options,
-                                                                                   bool force_refresh) {
+std::future<Result<TokenSourceResponse, TokenSourceError>> SandboxTokenSource::fetch(const TokenRequestOptions& options,
+                                                                                     bool force_refresh) {
   return endpoint_->fetch(options, force_refresh);
 }
 
@@ -201,8 +201,8 @@ std::unique_ptr<CachingTokenSource> CachingTokenSource::wrap(std::unique_ptr<Tok
 
 CachingTokenSource::CachingTokenSource(std::unique_ptr<TokenSourceConfigurable> inner) : inner_(std::move(inner)) {}
 
-std::future<Result<ConnectionDetails, TokenSourceError>> CachingTokenSource::fetch(const TokenRequestOptions& options,
-                                                                                   bool force_refresh) {
+std::future<Result<TokenSourceResponse, TokenSourceError>> CachingTokenSource::fetch(const TokenRequestOptions& options,
+                                                                                     bool force_refresh) {
   std::shared_ptr<TokenRequestOptions> options_snapshot;
   try {
     options_snapshot = std::make_shared<TokenRequestOptions>(options);
