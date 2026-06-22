@@ -78,7 +78,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `examples/` | In-tree example applications |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
-| `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `LiveKitConfig.cmake.in`) |
+| `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `nlohmann_json.cmake`, `LiveKitConfig.cmake.in`) |
 | `docker/` | Dockerfile for CI and SDK distribution images |
 | `scripts/` | Developer / CI helper scripts (e.g. `clang-tidy.sh`) |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
@@ -339,6 +339,7 @@ Adhere to clang-tidy checks configured in `.clang-tidy`. After C++ code changes,
 |------------|-------|-------|
 | protobuf | Private (built-in) | Vendored via FetchContent (Unix) or vcpkg (Windows) |
 | spdlog | **Private** | FetchContent or system package; must NOT leak into public API |
+| nlohmann/json | **Private** | Header-only; vendored via FetchContent (Unix) or vcpkg (Windows); must NOT leak into public API |
 | client-sdk-rust | Build-time | Git submodule, built via cargo during CMake build |
 | Google Test | Test only | FetchContent in `src/tests/CMakeLists.txt` |
 

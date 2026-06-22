@@ -13,9 +13,9 @@
  * See the License for the License governing permissions and limitations.
  */
 
-#include <cctype>
 #include <chrono>
 #include <cstdint>
+#include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
 #include <vector>
@@ -77,41 +77,6 @@ std::optional<std::vector<std::uint8_t>> base64UrlDecode(const std::string& inpu
   return output;
 }
 
-std::optional<std::int64_t> extractJsonInt64Field(const std::string& json, const char* key) {
-  const std::string needle = std::string("\"") + key + "\":";
-  const std::size_t pos = json.find(needle);
-  if (pos == std::string::npos) {
-    return std::nullopt;
-  }
-
-  std::size_t index = pos + needle.size();
-  while (index < json.size() && std::isspace(static_cast<unsigned char>(json[index])) != 0) {
-    ++index;
-  }
-
-  bool negative = false;
-  if (index < json.size() && json[index] == '-') {
-    negative = true;
-    ++index;
-  }
-
-  std::int64_t value = 0;
-  bool found_digit = false;
-  for (; index < json.size(); ++index) {
-    const char ch = json[index];
-    if (!std::isdigit(static_cast<unsigned char>(ch))) {
-      break;
-    }
-    found_digit = true;
-    value = value * 10 + (ch - '0');
-  }
-
-  if (!found_digit) {
-    return std::nullopt;
-  }
-  return negative ? -value : value;
-}
-
 std::optional<std::string> extractJwtPayloadJson(const std::string& token) {
   const std::size_t first_dot = token.find('.');
   if (first_dot == std::string::npos) {
@@ -131,6 +96,16 @@ std::optional<std::string> extractJwtPayloadJson(const std::string& token) {
   return std::string(decoded->begin(), decoded->end());
 }
 
+// Read an integer-valued JWT claim (e.g. "nbf"/"exp"). JWT numeric date claims
+// are seconds since the epoch; non-integer or absent claims return nullopt.
+std::optional<std::int64_t> readNumericClaim(const nlohmann::json& payload, const char* key) {
+  const auto it = payload.find(key);
+  if (it == payload.end() || !it->is_number()) {
+    return std::nullopt;
+  }
+  return it->get<std::int64_t>();
+}
+
 } // namespace
 
 bool isParticipantTokenValid(const std::string& participant_token) {
@@ -139,15 +114,20 @@ bool isParticipantTokenValid(const std::string& participant_token) {
     return false;
   }
 
+  const nlohmann::json payload = nlohmann::json::parse(*payload_json, nullptr, /*allow_exceptions=*/false);
+  if (!payload.is_object()) {
+    return false;
+  }
+
   const auto now_seconds =
       std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-  const auto nbf = extractJsonInt64Field(*payload_json, "nbf");
+  const auto nbf = readNumericClaim(payload, "nbf");
   if (nbf.has_value() && *nbf > now_seconds) {
     return false;
   }
 
-  const auto exp = extractJsonInt64Field(*payload_json, "exp");
+  const auto exp = readNumericClaim(payload, "exp");
   if (exp.has_value()) {
     constexpr std::int64_t kExpiryBufferSeconds = 60;
     if (*exp <= now_seconds + kExpiryBufferSeconds) {

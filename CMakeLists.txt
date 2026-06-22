@@ -93,6 +93,8 @@ file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 include(protobuf)
 # spdlog logging library (PRIVATE dependency).
 include(spdlog)
+# nlohmann/json header-only library (PRIVATE dependency).
+include(nlohmann_json)
 # Ensure protoc executable is found.
 if(TARGET protobuf::protoc)
   set(Protobuf_PROTOC_EXECUTABLE "$<TARGET_FILE:protobuf::protoc>")
@@ -462,6 +464,7 @@ target_include_directories(livekit SYSTEM PRIVATE
 target_link_libraries(livekit
   PRIVATE
     spdlog::spdlog
+    nlohmann_json::nlohmann_json
     livekit_ffi
     ${LIVEKIT_PROTOBUF_TARGET}
 )
