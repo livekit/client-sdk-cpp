@@ -74,7 +74,6 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `include/livekit/` | Public API headers (what SDK consumers include) |
 | `src/` | Implementation files and internal-only headers (`ffi_client.h`, `lk_log.h`, etc.) |
 | `src/tests/` | Google Test integration and stress tests |
-| `src/tests/fixtures/` | CI/local fixture servers for integration tests (e.g. token-server HTTP fixture) |
 | `examples/` | In-tree example applications |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
@@ -358,7 +357,7 @@ Tests are under `src/tests/` using Google Test:
 cd build-debug && ctest
 ```
 
-Integration tests (`src/tests/integration/`) cover: room connections, callbacks, data tracks, RPC, logging, audio processing, the subscription thread dispatcher, and token source HTTP endpoint flows (via `src/tests/fixtures/token_server.mjs` when `LIVEKIT_TOKEN_FIXTURE_URL` is set). The zero-dependency fixture exercises the HTTP/JSON wire contract with non-connectable tokens; for a full end-to-end check, `TokenSourceEndpointConnectTest` connects a `Room` with a real JWT minted by the official `livekit-examples/token-server-node` server pointed at the local dev `livekit-server` (advertised via `LIVEKIT_CREATE_TOKEN_URL`; CI stands this up in the `e2e-testing` jobs via the token server's own reusable GitHub Action, pinned by SHA in `tests.yml`).
+Integration tests (`src/tests/integration/`) cover: room connections, callbacks, data tracks, RPC, logging, audio processing, and the subscription thread dispatcher. The token source HTTP/JSON wire contract (request serialization, response parsing, header passthrough, GET support, sandbox URL/header resolution) is covered by mocked unit tests in `src/tests/unit/test_token_source.cpp`, which inject a stub HTTP transport so no live server is needed. For a full end-to-end check, `TokenSourceEndpointConnectTest` connects a `Room` with a real JWT minted by the official `livekit-examples/token-server-node` server pointed at the local dev `livekit-server`. CI sets `TOKEN_SERVER_PORT` in `tests.yml`; the test and the token server both read that env var to agree on the `/createToken` URL (with optional `LIVEKIT_CREATE_TOKEN_URL` override). The server is started in the `e2e-testing` jobs via the token server's reusable GitHub Action, pinned by SHA in `tests.yml`.
 
 When adding new client facing functionality, add a new test case to the existing test suite.
 When adding new client facing functionality, add benchmarking to understand the limitations of the new functionality.

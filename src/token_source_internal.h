@@ -16,7 +16,9 @@
 #pragma once
 
 #include <chrono>
+#include <functional>
 #include <map>
+#include <memory>
 #include <string>
 
 #include "livekit/result.h"
@@ -29,6 +31,29 @@ namespace livekit {
 LIVEKIT_INTERNAL_API Result<std::string, std::string> tokenSourceHttpRequest(
     const std::string& method, const std::string& url, const std::map<std::string, std::string>& headers,
     const std::string& json_body, std::chrono::milliseconds timeout);
+
+/// @brief Signature of the HTTP transport seam injected by tests.
+using TokenSourceHttpTransport = std::function<Result<std::string, std::string>(
+    const std::string& method, const std::string& url, const std::map<std::string, std::string>& headers,
+    const std::string& json_body, std::chrono::milliseconds timeout)>;
+
+/// @brief Test-only constructor access for @ref EndpointTokenSource.
+///
+/// Lets unit tests inject a stub transport so request serialization and
+/// response parsing can be exercised without a live server.
+struct LIVEKIT_INTERNAL_API EndpointTokenSourceTestAccess {
+  static std::unique_ptr<EndpointTokenSource> create(std::string endpoint_url, TokenEndpointOptions options,
+                                                     TokenSourceHttpTransport transport);
+};
+
+/// @brief Test-only constructor access for @ref SandboxTokenSource.
+///
+/// Builds a sandbox source whose underlying endpoint uses an injected stub
+/// transport, so the X-Sandbox-ID header and resolved URL can be asserted.
+struct LIVEKIT_INTERNAL_API SandboxTokenSourceTestAccess {
+  static std::unique_ptr<SandboxTokenSource> create(const std::string& sandbox_id, TokenEndpointOptions options,
+                                                    const std::string& base_url, TokenSourceHttpTransport transport);
+};
 
 /// @brief Build the standard LiveKit token-server JSON request body.
 LIVEKIT_INTERNAL_API std::string buildTokenSourceRequestJson(const TokenRequestOptions& options);

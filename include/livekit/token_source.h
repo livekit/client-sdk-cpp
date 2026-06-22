@@ -246,12 +246,23 @@ public:
                                                                    bool force_refresh = false) override;
 
 private:
-  EndpointTokenSource(std::string endpoint_url, TokenEndpointOptions options);
+  // Network transport seam. Mirrors the internal HTTP client signature
+  // (returns the raw response body or an error string) so tests can inject a
+  // stub and assert the serialized request / parse a canned response without a
+  // live server. Defaults to the real HTTP client in production.
+  using HttpTransport = std::function<Result<std::string, std::string>(
+      const std::string& method, const std::string& url, const std::map<std::string, std::string>& headers,
+      const std::string& json_body, std::chrono::milliseconds timeout)>;
+
+  EndpointTokenSource(std::string endpoint_url, TokenEndpointOptions options, HttpTransport transport);
 
   Result<TokenSourceResponse, TokenSourceError> fetchSync(const TokenRequestOptions& options) const;
 
   std::string endpoint_url_;
   TokenEndpointOptions options_;
+  HttpTransport transport_;
+
+  friend struct EndpointTokenSourceTestAccess;
 };
 
 /// @brief Token source that uses LiveKit Cloud's sandbox token server (development only).
@@ -278,6 +289,8 @@ private:
   SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options, const std::string& base_url);
 
   std::unique_ptr<TokenSourceConfigurable> endpoint_;
+
+  friend struct SandboxTokenSourceTestAccess;
 };
 
 /// @brief Decorator that adds JWT-aware caching to another configurable token source.

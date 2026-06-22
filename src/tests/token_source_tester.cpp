@@ -171,20 +171,21 @@ livekit::TokenEndpointOptions endpointOptionsFromEnv() {
 }
 
 bool endpointTokenSourceConnect() {
-  const char* endpoint_env = std::getenv("LIVEKIT_TOKEN_ENDPOINT");
-  if (endpoint_env == nullptr || endpoint_env[0] == '\0') {
-    std::cerr << "LIVEKIT_TOKEN_ENDPOINT not set (URL of your backend token endpoint)\n"
-              << "To vet the endpoint path against the live LiveKit Cloud sandbox endpoint (no backend needed):\n"
-              << "  export LIVEKIT_TOKEN_ENDPOINT=https://cloud-api.livekit.io/api/v2/sandbox/connection-details\n"
-              << "  export LIVEKIT_TOKEN_ENDPOINT_HEADERS=\"X-Sandbox-ID: <your-sandbox-id>\"\n";
-    return false;
+  std::string endpoint_url;
+  if (const char* endpoint_env = std::getenv("LIVEKIT_TOKEN_ENDPOINT");
+      endpoint_env != nullptr && endpoint_env[0] != '\0') {
+    endpoint_url = endpoint_env;
+  } else {
+    const char* port_env = std::getenv("TOKEN_SERVER_PORT");
+    const char* port = (port_env != nullptr && port_env[0] != '\0') ? port_env : "3000";
+    endpoint_url = std::string("http://127.0.0.1:") + port + "/createToken";
   }
 
   auto endpoint_options = endpointOptionsFromEnv();
-  std::cout << "Endpoint token source: " << endpoint_options.method << " " << endpoint_env << " ("
+  std::cout << "Endpoint token source: " << endpoint_options.method << " " << endpoint_url << " ("
             << endpoint_options.headers.size() << " custom header(s))\n";
 
-  auto token_source = livekit::EndpointTokenSource::fromUrl(endpoint_env, std::move(endpoint_options));
+  auto token_source = livekit::EndpointTokenSource::fromUrl(endpoint_url, std::move(endpoint_options));
 
   livekit::TokenRequestOptions options;
   options.participant_identity = "robot-a";

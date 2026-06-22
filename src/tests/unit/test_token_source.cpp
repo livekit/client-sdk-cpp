@@ -19,12 +19,203 @@
 #include <atomic>
 #include <chrono>
 #include <future>
+#include <map>
+#include <memory>
+#include <string>
 #include <thread>
 #include <vector>
 
 #include "token_source_internal.h"
 
 namespace livekit::test {
+
+namespace {
+
+// A non-expired unsigned JWT (alg=none, exp far in the future) used for stubbed
+// token-endpoint responses.
+constexpr const char* kValidToken = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
+constexpr const char* kServerUrl = "wss://localhost:7000";
+
+// Captures the arguments the token source passed to the HTTP transport so tests
+// can assert the serialized request (mirrors mocking global fetch in the JS SDK).
+struct CapturedRequest {
+  std::string method;
+  std::string url;
+  std::map<std::string, std::string> headers;
+  std::string body;
+  int calls = 0;
+};
+
+TokenRequestOptions exampleFetchOptions() {
+  TokenRequestOptions options;
+  options.room_name = "room name";
+  options.participant_name = "participant name";
+  options.participant_identity = "participant identity";
+  options.participant_metadata = R"({"example": "metadata here"})";
+  options.agent_name = "agent name";
+  options.agent_metadata = R"({"example": "agent metadata here"})";
+  return options;
+}
+
+std::string successResponseJson(const std::string& extra_fields = "") {
+  return std::string(R"({"server_url":")") + kServerUrl + R"(","participant_token":")" + kValidToken + "\"" +
+         extra_fields + "}";
+}
+
+// Builds a transport that records the request into `capture` and returns `response`.
+TokenSourceHttpTransport makeStubTransport(const std::shared_ptr<CapturedRequest>& capture,
+                                           const Result<std::string, std::string>& response) {
+  return [capture, response](const std::string& method, const std::string& url,
+                             const std::map<std::string, std::string>& headers, const std::string& body,
+                             std::chrono::milliseconds) {
+    capture->method = method;
+    capture->url = url;
+    capture->headers = headers;
+    capture->body = body;
+    capture->calls += 1;
+    return response;
+  };
+}
+
+} // namespace
+
+TEST(TokenSourceEndpointMockTest, SendsAllProvidedFields) {
+  auto capture = std::make_shared<CapturedRequest>();
+  auto source = EndpointTokenSourceTestAccess::create(
+      "https://example.com/token", {},
+      makeStubTransport(capture, Result<std::string, std::string>::success(successResponseJson())));
+
+  const auto result = source->fetch(exampleFetchOptions()).get();
+  ASSERT_TRUE(result);
+  EXPECT_EQ(result.value().server_url, kServerUrl);
+  EXPECT_EQ(result.value().participant_token, kValidToken);
+
+  EXPECT_EQ(capture->calls, 1);
+  EXPECT_EQ(capture->method, "POST");
+  EXPECT_EQ(capture->url, "https://example.com/token");
+  EXPECT_NE(capture->body.find("\"room_name\":\"room name\""), std::string::npos);
+  EXPECT_NE(capture->body.find("\"participant_name\":\"participant name\""), std::string::npos);
+  EXPECT_NE(capture->body.find("\"participant_identity\":\"participant identity\""), std::string::npos);
+  EXPECT_NE(capture->body.find("\"participant_metadata\":"), std::string::npos);
+  // Agent options are packaged into room_config.agents (per the standard endpoint contract).
+  EXPECT_NE(capture->body.find("\"room_config\""), std::string::npos);
+  EXPECT_NE(capture->body.find("\"agents\""), std::string::npos);
+  EXPECT_NE(capture->body.find("\"agent_name\":\"agent name\""), std::string::npos);
+}
+
+TEST(TokenSourceEndpointMockTest, SendsEmptyBodyWithNoOptions) {
+  auto capture = std::make_shared<CapturedRequest>();
+  auto source = EndpointTokenSourceTestAccess::create(
+      "https://example.com/token", {},
+      makeStubTransport(capture, Result<std::string, std::string>::success(successResponseJson())));
+
+  const auto result = source->fetch({}).get();
+  ASSERT_TRUE(result);
+  EXPECT_EQ(capture->body, "{}");
+}
+
+TEST(TokenSourceEndpointMockTest, SendsOnlyProvidedFields) {
+  auto capture = std::make_shared<CapturedRequest>();
+  auto source = EndpointTokenSourceTestAccess::create(
+      "https://example.com/token", {},
+      makeStubTransport(capture, Result<std::string, std::string>::success(successResponseJson())));
+
+  TokenRequestOptions options;
+  options.room_name = "my-room";
+  const auto result = source->fetch(options).get();
+  ASSERT_TRUE(result);
+  EXPECT_NE(capture->body.find("\"room_name\":\"my-room\""), std::string::npos);
+  // No agent fields were provided, so room_config must be omitted entirely.
+  EXPECT_EQ(capture->body.find("room_config"), std::string::npos);
+}
+
+TEST(TokenSourceEndpointMockTest, MergesCustomHeaders) {
+  auto capture = std::make_shared<CapturedRequest>();
+  TokenEndpointOptions endpoint_options;
+  endpoint_options.headers["Authorization"] = "Bearer my-token";
+  endpoint_options.headers["X-Custom"] = "value";
+
+  auto source = EndpointTokenSourceTestAccess::create(
+      "https://example.com/token", std::move(endpoint_options),
+      makeStubTransport(capture, Result<std::string, std::string>::success(successResponseJson())));
+
+  const auto result = source->fetch(exampleFetchOptions()).get();
+  ASSERT_TRUE(result);
+  EXPECT_EQ(capture->headers["Authorization"], "Bearer my-token");
+  EXPECT_EQ(capture->headers["X-Custom"], "value");
+}
+
+TEST(TokenSourceEndpointMockTest, FailsOnTransportError) {
+  auto capture = std::make_shared<CapturedRequest>();
+  auto source = EndpointTokenSourceTestAccess::create(
+      "https://example.com/token", {},
+      makeStubTransport(capture, Result<std::string, std::string>::failure("token server returned status 403")));
+
+  const auto result = source->fetch(exampleFetchOptions()).get();
+  ASSERT_FALSE(result);
+  EXPECT_NE(result.error().message.find("403"), std::string::npos);
+}
+
+TEST(TokenSourceEndpointMockTest, ParsesCamelCaseResponse) {
+  auto capture = std::make_shared<CapturedRequest>();
+  const std::string camel = std::string(R"({"serverUrl":")") + kServerUrl + R"(","participantToken":")" + kValidToken +
+                            R"(","participantName":"Alice"})";
+  auto source = EndpointTokenSourceTestAccess::create(
+      "https://example.com/token", {}, makeStubTransport(capture, Result<std::string, std::string>::success(camel)));
+
+  const auto result = source->fetch({}).get();
+  ASSERT_TRUE(result);
+  EXPECT_EQ(result.value().server_url, kServerUrl);
+  EXPECT_EQ(result.value().participant_token, kValidToken);
+}
+
+TEST(TokenSourceEndpointMockTest, IgnoresUnknownResponseFields) {
+  auto capture = std::make_shared<CapturedRequest>();
+  auto source = EndpointTokenSourceTestAccess::create(
+      "https://example.com/token", {},
+      makeStubTransport(capture, Result<std::string, std::string>::success(
+                                     successResponseJson(R"(,"some_future_field":"ignored","another_unknown":42)"))));
+
+  const auto result = source->fetch(exampleFetchOptions()).get();
+  ASSERT_TRUE(result);
+  EXPECT_EQ(result.value().server_url, kServerUrl);
+  EXPECT_EQ(result.value().participant_token, kValidToken);
+}
+
+TEST(TokenSourceEndpointMockTest, FailsOnMalformedResponse) {
+  auto capture = std::make_shared<CapturedRequest>();
+  auto source = EndpointTokenSourceTestAccess::create(
+      "https://example.com/token", {},
+      makeStubTransport(capture, Result<std::string, std::string>::success("this-is-not-json")));
+
+  const auto result = source->fetch({}).get();
+  ASSERT_FALSE(result);
+}
+
+TEST(TokenSourceEndpointMockTest, SupportsGetMethod) {
+  auto capture = std::make_shared<CapturedRequest>();
+  TokenEndpointOptions endpoint_options;
+  endpoint_options.method = "GET";
+  auto source = EndpointTokenSourceTestAccess::create(
+      "https://example.com/token", std::move(endpoint_options),
+      makeStubTransport(capture, Result<std::string, std::string>::success(successResponseJson())));
+
+  const auto result = source->fetch({}).get();
+  ASSERT_TRUE(result);
+  EXPECT_EQ(capture->method, "GET");
+}
+
+TEST(TokenSourceSandboxMockTest, SetsSandboxHeaderAndResolvesUrl) {
+  auto capture = std::make_shared<CapturedRequest>();
+  auto source = SandboxTokenSourceTestAccess::create(
+      "  sandbox-123  ", {}, "https://cloud-api.livekit.io",
+      makeStubTransport(capture, Result<std::string, std::string>::success(successResponseJson())));
+
+  const auto result = source->fetch({}).get();
+  ASSERT_TRUE(result);
+  EXPECT_EQ(capture->url, "https://cloud-api.livekit.io/api/v2/sandbox/connection-details");
+  EXPECT_EQ(capture->headers["X-Sandbox-ID"], "sandbox-123");
+}
 
 TEST(TokenSourceJsonTest, BuildRequestJsonIncludesFields) {
   TokenRequestOptions options;

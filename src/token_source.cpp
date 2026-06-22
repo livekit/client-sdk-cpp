@@ -88,6 +88,19 @@ std::string joinUrlPath(const std::string& base_url, const std::string& path) {
   return base_url + "/" + path;
 }
 
+struct ResolvedSandboxEndpoint {
+  std::string url;
+  TokenEndpointOptions options;
+};
+
+// Apply the sandbox header and resolve the connection-details URL shared by the
+// production and test-only sandbox factories.
+ResolvedSandboxEndpoint resolveSandboxEndpoint(const std::string& sandbox_id, TokenEndpointOptions options,
+                                               const std::string& base_url) {
+  options.headers["X-Sandbox-ID"] = trimSandboxId(sandbox_id);
+  return {joinUrlPath(base_url, "/api/v2/sandbox/connection-details"), std::move(options)};
+}
+
 } // namespace
 
 TokenSourceFixed::~TokenSourceFixed() = default;
@@ -143,11 +156,20 @@ std::future<Result<TokenSourceResponse, TokenSourceError>> CustomTokenSource::fe
 
 std::unique_ptr<EndpointTokenSource> EndpointTokenSource::fromUrl(std::string endpoint_url,
                                                                   TokenEndpointOptions options) {
-  return std::unique_ptr<EndpointTokenSource>(new EndpointTokenSource(std::move(endpoint_url), std::move(options)));
+  return std::unique_ptr<EndpointTokenSource>(
+      new EndpointTokenSource(std::move(endpoint_url), std::move(options), &tokenSourceHttpRequest));
 }
 
-EndpointTokenSource::EndpointTokenSource(std::string endpoint_url, TokenEndpointOptions options)
-    : endpoint_url_(std::move(endpoint_url)), options_(std::move(options)) {}
+EndpointTokenSource::EndpointTokenSource(std::string endpoint_url, TokenEndpointOptions options,
+                                         HttpTransport transport)
+    : endpoint_url_(std::move(endpoint_url)), options_(std::move(options)), transport_(std::move(transport)) {}
+
+std::unique_ptr<EndpointTokenSource> EndpointTokenSourceTestAccess::create(std::string endpoint_url,
+                                                                           TokenEndpointOptions options,
+                                                                           TokenSourceHttpTransport transport) {
+  return std::unique_ptr<EndpointTokenSource>(
+      new EndpointTokenSource(std::move(endpoint_url), std::move(options), std::move(transport)));
+}
 
 std::future<Result<TokenSourceResponse, TokenSourceError>> EndpointTokenSource::fetch(
     const TokenRequestOptions& options, bool /*force_refresh*/) {
@@ -168,7 +190,7 @@ std::future<Result<TokenSourceResponse, TokenSourceError>> EndpointTokenSource::
 Result<TokenSourceResponse, TokenSourceError> EndpointTokenSource::fetchSync(const TokenRequestOptions& options) const {
   const std::string request_json = buildTokenSourceRequestJson(options);
   auto headers = options_.headers;
-  auto http_result = tokenSourceHttpRequest(options_.method, endpoint_url_, headers, request_json, options_.timeout);
+  auto http_result = transport_(options_.method, endpoint_url_, headers, request_json, options_.timeout);
   if (!http_result) {
     return Result<TokenSourceResponse, TokenSourceError>::failure(
         TokenSourceError{"token server request failed: " + http_result.error()});
@@ -184,10 +206,19 @@ std::unique_ptr<SandboxTokenSource> SandboxTokenSource::fromSandboxId(const std:
 
 SandboxTokenSource::SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options,
                                        const std::string& base_url) {
-  const std::string trimmed_id = trimSandboxId(sandbox_id);
-  options.headers["X-Sandbox-ID"] = trimmed_id;
-  const std::string endpoint_url = joinUrlPath(base_url, "/api/v2/sandbox/connection-details");
-  endpoint_ = EndpointTokenSource::fromUrl(endpoint_url, std::move(options));
+  auto resolved = resolveSandboxEndpoint(sandbox_id, std::move(options), base_url);
+  endpoint_ = EndpointTokenSource::fromUrl(std::move(resolved.url), std::move(resolved.options));
+}
+
+std::unique_ptr<SandboxTokenSource> SandboxTokenSourceTestAccess::create(const std::string& sandbox_id,
+                                                                         TokenEndpointOptions options,
+                                                                         const std::string& base_url,
+                                                                         TokenSourceHttpTransport transport) {
+  auto source = std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(sandbox_id, options, base_url));
+  auto resolved = resolveSandboxEndpoint(sandbox_id, std::move(options), base_url);
+  source->endpoint_ =
+      EndpointTokenSourceTestAccess::create(std::move(resolved.url), std::move(resolved.options), std::move(transport));
+  return source;
 }
 
 std::future<Result<TokenSourceResponse, TokenSourceError>> SandboxTokenSource::fetch(const TokenRequestOptions& options,

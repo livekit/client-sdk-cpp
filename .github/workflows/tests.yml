@@ -12,6 +12,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Port for livekit-examples/token-server-node in e2e jobs. Passed to the server
+  # process and read by TokenSourceEndpointConnectTest to build the /createToken URL.
+  TOKEN_SERVER_PORT: "3000"
   # Disable Cargo incremental artifacts. The Rust FFI is built once per
   # submodule SHA and cached whole (see the cargo target cache below), so
   # incremental dirs add nothing but bloat the cached target/ directory and
@@ -208,34 +211,6 @@ jobs:
             --gtest_brief=1 `
             --gtest_output="xml:build-release\unit-test-results.xml"
 
-      - name: Start token fixture server (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          Start-Process -FilePath node `
-            -ArgumentList @("src/tests/fixtures/token_server.mjs", "9876") `
-            -RedirectStandardOutput "token-fixture.log" `
-            -RedirectStandardError "token-fixture.err.log" `
-            -NoNewWindow
-          "LIVEKIT_TOKEN_FIXTURE_URL=http://127.0.0.1:9876" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
-          Start-Sleep -Seconds 2
-
-      - name: Run token source endpoint tests (Windows)
-        if: runner.os == 'Windows'
-        timeout-minutes: 5
-        shell: pwsh
-        run: |
-          build-release\bin\livekit_integration_tests.exe `
-            --gtest_filter=TokenSourceEndpointTest.* `
-            --gtest_brief=1
-
-      - name: Dump token fixture log on failure (Windows)
-        if: failure() && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          Get-Content token-fixture.log -Tail 200 -ErrorAction SilentlyContinue
-          Get-Content token-fixture.err.log -Tail 200 -ErrorAction SilentlyContinue
       - name: Start livekit-server
         if: matrix.e2e-testing
         id: livekit_server
@@ -256,34 +231,21 @@ jobs:
           fi
           lk --version
 
-      - name: Start token fixture server
-        if: matrix.e2e-testing
-        shell: bash
-        run: |
-          set -euxo pipefail
-          node src/tests/fixtures/token_server.mjs 9876 > token-fixture.log 2>&1 &
-          echo "LIVEKIT_TOKEN_FIXTURE_URL=http://127.0.0.1:9876" >> "$GITHUB_ENV"
-          sleep 2
-
       # Stand up token-server-node against the local dev livekit-server so
       # EndpointTokenSource can be exercised end-to-end with a real, connectable
       # JWT (see TokenSourceEndpointConnectTest). The token server ships its own
       # reusable composite action (like livekit/dev-server-action); we pin it to a
       # commit SHA on an unmerged branch of the public repo. TODO: repin to a
       # released tag once the action + tsconfig fix are merged.
+      # TOKEN_SERVER_PORT is inherited from the workflow env block above.
       - name: Start token-server-node (real token endpoint)
         if: matrix.e2e-testing
         id: token_server
-        uses: livekit-examples/token-server-node@5fc5794b0aad26c04b1d6891fe8536fb43d0ac61
+        uses: livekit-examples/token-server-node@9980bad8ce1d6d753dae7f33112e2c85d1ddba42
         with:
           livekit-url: ws://localhost:7880
           api-key: devkey
           api-secret: secret
-
-      - name: Advertise token endpoint to tests
-        if: matrix.e2e-testing
-        shell: bash
-        run: echo "LIVEKIT_CREATE_TOKEN_URL=${{ steps.token_server.outputs.token-url }}" >> "$GITHUB_ENV"
 
       - name: Run integration tests
         if: matrix.e2e-testing
@@ -301,11 +263,6 @@ jobs:
         if: failure() && matrix.e2e-testing
         shell: bash
         run: tail -n 500 "${{ steps.livekit_server.outputs.log-path }}" || true
-
-      - name: Dump token fixture log on failure
-        if: failure() && matrix.e2e-testing
-        shell: bash
-        run: tail -n 200 token-fixture.log || true
 
       - name: Dump token-server-node log on failure
         if: failure() && matrix.e2e-testing && steps.token_server.outputs.log-path != ''
