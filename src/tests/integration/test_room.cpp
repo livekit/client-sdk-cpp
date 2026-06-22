@@ -73,11 +73,7 @@ TEST_F(RoomTest, ConnectWithTokenSource) {
   Room room;
   RoomOptions options;
 
-  ConnectionDetails details;
-  details.server_url = server_url_;
-  details.participant_token = token_;
-
-  auto token_source = LiteralTokenSource::fromDetails(std::move(details));
+  auto token_source = LiteralTokenSource::fromValue(server_url_, token_);
   const bool connected = room.connect(*token_source, options);
   EXPECT_TRUE(connected) << "Should connect to server via literal token source";
 

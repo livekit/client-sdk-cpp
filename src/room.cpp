@@ -119,7 +119,7 @@ bool Room::connect(TokenSourceConfigurable& token_source, const TokenRequestOpti
   try {
     details = token_source.fetch(request_options, false).get();
   } catch (const std::exception& e) {
-    LK_LOG_ERROR("Room::connect failed: token source threw: {}", e.what());
+    LK_LOG_ERROR("Room::connect failed: failed to fetch token: {}", e.what());
     return false;
   } catch (...) {
     LK_LOG_ERROR("Room::connect failed: token source threw unknown exception");

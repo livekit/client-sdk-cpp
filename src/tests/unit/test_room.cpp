@@ -49,11 +49,7 @@ TEST_F(RoomTest, ConnectWithoutInitialize) {
 TEST_F(RoomTest, ConnectWithLiteralTokenSourceEmptyCredentialsFails) {
   Room room;
 
-  ConnectionDetails details;
-  details.server_url = "wss://localhost:7880";
-  details.participant_token = "";
-
-  auto source = LiteralTokenSource::fromDetails(std::move(details));
+  auto source = LiteralTokenSource::fromValue("wss://localhost:7880", "");
   const bool result = room.connect(*source, RoomOptions());
   EXPECT_FALSE(result) << "Connecting with empty credentials should return false";
 }
@@ -62,11 +58,7 @@ TEST_F(RoomTest, ConnectWithLiteralTokenSourceWithoutInitialize) {
   livekit::shutdown();
 
   Room room;
-  ConnectionDetails details;
-  details.server_url = "wss://localhost:7880";
-  details.participant_token = "jwt-token";
-
-  auto source = LiteralTokenSource::fromDetails(std::move(details));
+  auto source = LiteralTokenSource::fromValue("wss://localhost:7880", "jwt-token");
   const bool result = room.connect(*source, RoomOptions());
   EXPECT_FALSE(result) << "Connecting without initializing should return false";
 }

@@ -198,11 +198,7 @@ See the [token server docs](https://docs.livekit.io/frontends/build/authenticati
 ```cpp
 #include <livekit/token_source.h>
 
-livekit::ConnectionDetails details;
-details.server_url = url;
-details.participant_token = jwt;
-
-auto source = livekit::LiteralTokenSource::fromDetails(std::move(details));
+auto source = livekit::LiteralTokenSource::fromValue(url, jwt);
 if (!room->connect(*source, options)) {
   std::cerr << "Failed to connect to LiveKit\n";
   return 1;

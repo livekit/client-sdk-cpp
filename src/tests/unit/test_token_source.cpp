@@ -88,15 +88,14 @@ TEST(TokenSourceJwtTest, ValidAndExpiredTokens) {
 TEST(TokenSourceJwtTest, UnparseableTokenIsInvalid) { EXPECT_FALSE(isParticipantTokenValid("not-a-jwt")); }
 
 TEST(TokenSourceFactoryTest, LiteralTokenSourceReturnsDetails) {
-  ConnectionDetails details;
-  details.server_url = "wss://example.livekit.io";
-  details.participant_token = "jwt-token";
+  const std::string server_url = "wss://example.livekit.io";
+  const std::string participant_token = "jwt-token";
 
-  auto source = LiteralTokenSource::fromDetails(details);
+  auto source = LiteralTokenSource::fromValue(server_url, participant_token);
   const auto result = source->fetch().get();
   ASSERT_TRUE(result);
-  EXPECT_EQ(result.value().server_url, details.server_url);
-  EXPECT_EQ(result.value().participant_token, details.participant_token);
+  EXPECT_EQ(result.value().server_url, server_url);
+  EXPECT_EQ(result.value().participant_token, participant_token);
 }
 
 TEST(TokenSourceFactoryTest, CustomTokenSourceReceivesOptions) {

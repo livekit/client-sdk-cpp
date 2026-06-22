@@ -94,7 +94,11 @@ TokenSourceFixed::~TokenSourceFixed() = default;
 
 TokenSourceConfigurable::~TokenSourceConfigurable() = default;
 
-std::unique_ptr<LiteralTokenSource> LiteralTokenSource::fromDetails(ConnectionDetails details) {
+std::unique_ptr<LiteralTokenSource> LiteralTokenSource::fromValue(std::string server_url,
+                                                                  std::string participant_token) {
+  ConnectionDetails details;
+  details.server_url = std::move(server_url);
+  details.participant_token = std::move(participant_token);
   return std::unique_ptr<LiteralTokenSource>(new LiteralTokenSource(std::move(details)));
 }
 

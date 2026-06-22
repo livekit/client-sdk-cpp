@@ -29,7 +29,18 @@
 
 namespace livekit {
 
-/// @brief Credentials returned by a @ref TokenSourceFixed or @ref TokenSourceConfigurable.
+/// @brief Credentials produced by a token source and consumed by @ref Room::connect.
+///
+/// This is an output type: it is what a @ref TokenSourceFixed or
+/// @ref TokenSourceConfigurable returns from @c fetch. Applications typically read
+/// it rather than construct it. For static credentials, prefer
+/// @ref LiteralTokenSource::fromValue, which takes the server URL and token
+/// directly instead of requiring you to populate this struct.
+///
+/// Only @ref server_url and @ref participant_token are required by
+/// @ref Room::connect. The remaining fields are optional, server-resolved
+/// metadata echoed back by endpoint/sandbox token servers (for example, when the
+/// server auto-assigns a room name). Custom providers may leave them unset.
 struct ConnectionDetails {
   /// WebSocket URL of the LiveKit server.
   std::string server_url;
@@ -37,32 +48,87 @@ struct ConnectionDetails {
   /// JWT access token for the participant.
   std::string participant_token;
 
-  /// Optional participant display name metadata.
+  /// Optional participant display name resolved by the token server.
   ///
-  /// Populate this when your token provider (endpoint/sandbox/custom callback)
-  /// returns a canonical display name for UI/session context. This field is not
-  /// required for @ref Room::connect; literal/manual-token workflows typically
-  /// leave it unset unless the application already has this value.
+  /// Populated when a token server echoes a canonical display name for UI/session
+  /// context. Not required by @ref Room::connect.
   std::optional<std::string> participant_name;
 
-  /// Optional room name metadata.
+  /// Optional room name resolved by the token server.
   ///
-  /// Populate this when your token provider returns the resolved room name (for
-  /// example, server-side room assignment). This field is not required for
-  /// @ref Room::connect; literal/manual-token workflows usually leave it unset
-  /// unless the application wants to preserve it for app-level logic.
+  /// Populated when a token server echoes the resolved room name (for example,
+  /// server-side or auto-generated room assignment). Not required by
+  /// @ref Room::connect.
   std::optional<std::string> room_name;
 };
 
 /// @brief Per-call options sent to configurable token sources (endpoint, sandbox, custom).
+///
+/// All fields are optional. Unset or empty values are omitted from the token-server
+/// request body. The token server embeds the provided values into the returned JWT;
+/// @ref Room::connect does not read these options directly after fetch — the room,
+/// identity, and grants come from the token.
+///
+/// @note Which fields are honored depends on the token server. The LiveKit Cloud
+/// sandbox token server auto-generates @c room_name, @c participant_identity, and
+/// related fields when they are omitted. A project token endpoint typically accepts
+/// the full set below, including agent dispatch via @c room_config.
 struct TokenRequestOptions {
+  /// Target room name encoded into the token request.
+  ///
+  /// Set this when you need a stable room across reconnects or when coordinating
+  /// multiple clients in the same session. If omitted, many token servers (including
+  /// the sandbox) assign a new room name on each fetch, so repeat connections may
+  /// land in different rooms.
   std::optional<std::string> room_name;
+
+  /// Participant display name shown in UIs and room rosters.
+  ///
+  /// Optional cosmetic label. Does not need to match @c participant_identity.
+  /// If omitted, the token server may generate one or leave it unset.
   std::optional<std::string> participant_name;
+
+  /// Stable participant identity encoded into the JWT.
+  ///
+  /// Set this when the same logical user or device should reconnect with the same
+  /// identity (for example, @c "robot-a" in tests). If omitted, many token servers
+  /// assign a new identity on each fetch.
   std::optional<std::string> participant_identity;
+
+  /// Opaque participant metadata string stored on the participant record.
+  ///
+  /// Often JSON. Passed through to the token server for inclusion in the JWT.
+  /// Optional unless your backend or agents depend on it.
   std::optional<std::string> participant_metadata;
+
+  /// Key/value participant attributes encoded into the token request.
+  ///
+  /// Optional. Empty keys are omitted when serializing the request. Attribute
+  /// semantics are defined by your token server and application.
   std::map<std::string, std::string> participant_attributes;
+
+  /// Name of a registered LiveKit agent to dispatch into the room.
+  ///
+  /// When set (alone or with @c agent_metadata / @c agent_deployment), the SDK
+  /// sends @c room_config.agents in the token request so the token server can
+  /// embed agent dispatch in the JWT. The named agent must already be deployed
+  /// and registered with the same @c agent_name; this does not run agent logic
+  /// in the client.
+  ///
+  /// @see https://docs.livekit.io/agents/server/agent-dispatch/
   std::optional<std::string> agent_name;
+
+  /// Opaque metadata passed to the dispatched agent job at startup.
+  ///
+  /// Often JSON. Applies to the remote agent worker, not the local participant
+  /// (use @c participant_metadata for that). Ignored unless @c agent_name is set
+  /// or another agent field triggers @c room_config serialization.
   std::optional<std::string> agent_metadata;
+
+  /// LiveKit Cloud deployment to target for agent dispatch.
+  ///
+  /// Optional. When omitted or empty, the production deployment is used.
+  /// Only relevant when dispatching a named agent on LiveKit Cloud.
   std::optional<std::string> agent_deployment;
 };
 
@@ -126,10 +192,13 @@ public:
 /// want the SDK to issue token-generation requests.
 class LIVEKIT_API LiteralTokenSource final : public TokenSourceFixed {
 public:
-  /// @brief Create a token source from static @ref ConnectionDetails.
+  /// @brief Create a token source from a static server URL and participant token.
   ///
   /// Each @ref fetch call returns the same credentials.
-  static std::unique_ptr<LiteralTokenSource> fromDetails(ConnectionDetails details);
+  ///
+  /// @param server_url WebSocket URL of the LiveKit server.
+  /// @param participant_token JWT access token for the participant.
+  static std::unique_ptr<LiteralTokenSource> fromValue(std::string server_url, std::string participant_token);
 
   /// @brief Create a token source from an async provider that returns full credentials.
   ///
