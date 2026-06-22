@@ -265,6 +265,26 @@ jobs:
           echo "LIVEKIT_TOKEN_FIXTURE_URL=http://127.0.0.1:9876" >> "$GITHUB_ENV"
           sleep 2
 
+      # Stand up token-server-node against the local dev livekit-server so
+      # EndpointTokenSource can be exercised end-to-end with a real, connectable
+      # JWT (see TokenSourceEndpointConnectTest). The token server ships its own
+      # reusable composite action (like livekit/dev-server-action); we pin it to a
+      # commit SHA on an unmerged branch of the public repo. TODO: repin to a
+      # released tag once the action + tsconfig fix are merged.
+      - name: Start token-server-node (real token endpoint)
+        if: matrix.e2e-testing
+        id: token_server
+        uses: livekit-examples/token-server-node@5fc5794b0aad26c04b1d6891fe8536fb43d0ac61
+        with:
+          livekit-url: ws://localhost:7880
+          api-key: devkey
+          api-secret: secret
+
+      - name: Advertise token endpoint to tests
+        if: matrix.e2e-testing
+        shell: bash
+        run: echo "LIVEKIT_CREATE_TOKEN_URL=${{ steps.token_server.outputs.token-url }}" >> "$GITHUB_ENV"
+
       - name: Run integration tests
         if: matrix.e2e-testing
         timeout-minutes: 5
@@ -286,6 +306,11 @@ jobs:
         if: failure() && matrix.e2e-testing
         shell: bash
         run: tail -n 200 token-fixture.log || true
+
+      - name: Dump token-server-node log on failure
+        if: failure() && matrix.e2e-testing && steps.token_server.outputs.log-path != ''
+        shell: bash
+        run: tail -n 200 "${{ steps.token_server.outputs.log-path }}" || true
 
       # ---------- Upload results ----------
       - name: Upload test results

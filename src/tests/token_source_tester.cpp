@@ -16,22 +16,70 @@
 #include <livekit/livekit.h>
 #include <livekit/token_source.h>
 
+#include <cctype>
 #include <chrono>
+#include <cstddef>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <thread>
 
 namespace {
 
+using namespace std::chrono_literals;
+
+// How long to stay connected so participant join/leave events can be observed.
+constexpr auto kObserveDuration = 5s;
+
+/// Render a participant display name, falling back to "<unset>" when empty.
+std::string displayName(const std::string& name) { return name.empty() ? "<unset>" : name; }
+
+/// Standard one-line description of a participant (local or remote).
+std::string formatParticipant(const livekit::Participant& participant) {
+  return "identity=" + participant.identity() + ", name=" + displayName(participant.name());
+}
+
+/// Minimal delegate that logs remote participant join/leave activity.
+class ParticipantLogDelegate : public livekit::RoomDelegate {
+public:
+  void onParticipantConnected(livekit::Room& /*room*/, const livekit::ParticipantConnectedEvent& event) override {
+    if (event.participant == nullptr) {
+      return;
+    }
+    std::cout << "Participant connected: " << formatParticipant(*event.participant) << "\n";
+  }
+
+  void onParticipantDisconnected(livekit::Room& /*room*/, const livekit::ParticipantDisconnectedEvent& event) override {
+    if (event.participant == nullptr) {
+      return;
+    }
+    std::cout << "Participant disconnected: identity=" << event.participant->identity() << "\n";
+  }
+};
+
+void logRemoteParticipants(const livekit::Room& room) {
+  const auto participants = room.remoteParticipants();
+  std::cout << "Remote participants currently in room: " << participants.size() << "\n";
+  for (const auto& participant_weak : participants) {
+    if (const auto participant = participant_weak.lock()) {
+      std::cout << "  - " << formatParticipant(*participant) << "\n";
+    }
+  }
+}
+
 bool runConnectedSession(livekit::Room& room) {
-  auto local_participant = room.localParticipant().lock();
+  const auto local_participant = room.localParticipant().lock();
   if (!local_participant) {
     std::cerr << "Failed to get local participant\n";
     return false;
   }
-  std::cout << "Local participant: " << local_participant->identity() << "\n";
+  std::cout << "Local participant info: " << formatParticipant(*local_participant) << "\n";
 
-  std::this_thread::sleep_for(std::chrono::seconds(2));
+  logRemoteParticipants(room);
+
+  // Stay connected briefly so participant join/leave events are surfaced.
+  std::this_thread::sleep_for(kObserveDuration);
+  logRemoteParticipants(room);
 
   if (!room.disconnect()) {
     std::cerr << "Failed to gracefully disconnect from room\n";
@@ -58,11 +106,97 @@ bool literalTokenSourceConnect() {
   auto token_source = livekit::LiteralTokenSource::fromValue(url_env, token_env);
 
   livekit::Room room;
+  ParticipantLogDelegate delegate;
+  room.setDelegate(&delegate);
   if (!room.connect(*token_source, livekit::RoomOptions())) {
     std::cerr << "Failed to connect to room\n";
     return false;
   }
   std::cout << "Connected to room: " << room.roomInfo().name << " (literal token source)\n";
+
+  return runConnectedSession(room);
+}
+
+std::string trimWhitespace(const std::string& value) {
+  std::size_t begin = 0;
+  std::size_t end = value.size();
+  while (begin < end && std::isspace(static_cast<unsigned char>(value[begin])) != 0) {
+    ++begin;
+  }
+  while (end > begin && std::isspace(static_cast<unsigned char>(value[end - 1])) != 0) {
+    --end;
+  }
+  return value.substr(begin, end - begin);
+}
+
+// Parses HTTP transport options for EndpointTokenSource from the environment.
+//
+// LIVEKIT_TOKEN_ENDPOINT_METHOD  - optional HTTP method (default POST).
+// LIVEKIT_TOKEN_ENDPOINT_HEADERS - optional newline-separated "Name: Value" pairs,
+//                                  e.g. "X-Sandbox-ID: my-id" or "Authorization: Bearer ...".
+livekit::TokenEndpointOptions endpointOptionsFromEnv() {
+  livekit::TokenEndpointOptions options;
+
+  if (const char* method_env = std::getenv("LIVEKIT_TOKEN_ENDPOINT_METHOD");
+      method_env != nullptr && method_env[0] != '\0') {
+    options.method = method_env;
+  }
+
+  const char* headers_env = std::getenv("LIVEKIT_TOKEN_ENDPOINT_HEADERS");
+  if (headers_env == nullptr || headers_env[0] == '\0') {
+    return options;
+  }
+
+  const std::string headers_text = headers_env;
+  std::size_t start = 0;
+  while (start <= headers_text.size()) {
+    const std::size_t newline = headers_text.find('\n', start);
+    const std::string line =
+        headers_text.substr(start, newline == std::string::npos ? std::string::npos : newline - start);
+    const std::size_t colon = line.find(':');
+    if (colon != std::string::npos) {
+      const std::string name = trimWhitespace(line.substr(0, colon));
+      const std::string value = trimWhitespace(line.substr(colon + 1));
+      if (!name.empty()) {
+        options.headers[name] = value;
+      }
+    }
+    if (newline == std::string::npos) {
+      break;
+    }
+    start = newline + 1;
+  }
+
+  return options;
+}
+
+bool endpointTokenSourceConnect() {
+  const char* endpoint_env = std::getenv("LIVEKIT_TOKEN_ENDPOINT");
+  if (endpoint_env == nullptr || endpoint_env[0] == '\0') {
+    std::cerr << "LIVEKIT_TOKEN_ENDPOINT not set (URL of your backend token endpoint)\n"
+              << "To vet the endpoint path against the live LiveKit Cloud sandbox endpoint (no backend needed):\n"
+              << "  export LIVEKIT_TOKEN_ENDPOINT=https://cloud-api.livekit.io/api/v2/sandbox/connection-details\n"
+              << "  export LIVEKIT_TOKEN_ENDPOINT_HEADERS=\"X-Sandbox-ID: <your-sandbox-id>\"\n";
+    return false;
+  }
+
+  auto endpoint_options = endpointOptionsFromEnv();
+  std::cout << "Endpoint token source: " << endpoint_options.method << " " << endpoint_env << " ("
+            << endpoint_options.headers.size() << " custom header(s))\n";
+
+  auto token_source = livekit::EndpointTokenSource::fromUrl(endpoint_env, std::move(endpoint_options));
+
+  livekit::TokenRequestOptions options;
+  options.participant_identity = "robot-a";
+
+  livekit::Room room;
+  ParticipantLogDelegate delegate;
+  room.setDelegate(&delegate);
+  if (!room.connect(*token_source, options, livekit::RoomOptions())) {
+    std::cerr << "Failed to connect to room\n";
+    return false;
+  }
+  std::cout << "Connected to room: " << room.roomInfo().name << " (endpoint token source)\n";
 
   return runConnectedSession(room);
 }
@@ -81,10 +215,21 @@ bool sandboxTokenSourceConnect() {
   livekit::TokenRequestOptions options;
   options.participant_identity = "robot-a";
 
-  options.agent_name = "token-source-agent";
-  options.agent_metadata = R"({"greeting": "hello from cpp"})";
+  // Optional agent dispatch: when LIVEKIT_AGENT_NAME is set, the request embeds
+  // room_config.agents so the token server dispatches a named agent into the room.
+  if (const char* agent_name_env = std::getenv("LIVEKIT_AGENT_NAME");
+      agent_name_env != nullptr && agent_name_env[0] != '\0') {
+    options.agent_name = agent_name_env;
+    if (const char* agent_metadata_env = std::getenv("LIVEKIT_AGENT_METADATA");
+        agent_metadata_env != nullptr && agent_metadata_env[0] != '\0') {
+      options.agent_metadata = agent_metadata_env;
+    }
+    std::cout << "Requesting sandbox token with agent dispatch: agent_name=" << *options.agent_name << "\n";
+  }
 
   livekit::Room room;
+  ParticipantLogDelegate delegate;
+  room.setDelegate(&delegate);
   if (!room.connect(*token_source, options, livekit::RoomOptions())) {
     std::cerr << "Failed to connect to room\n";
     return false;
@@ -99,8 +244,9 @@ bool sandboxTokenSourceConnect() {
 int main() {
   livekit::initialize(livekit::LogLevel::Info);
 
-  // Swap the active connect function below.
+  // Swap the active connect function below to exercise a given token source.
   // if (!literalTokenSourceConnect()) {
+  // if (!endpointTokenSourceConnect()) {
   if (!sandboxTokenSourceConnect()) {
     livekit::shutdown();
     return 1;

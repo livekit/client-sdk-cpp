@@ -358,7 +358,7 @@ Tests are under `src/tests/` using Google Test:
 cd build-debug && ctest
 ```
 
-Integration tests (`src/tests/integration/`) cover: room connections, callbacks, data tracks, RPC, logging, audio processing, the subscription thread dispatcher, and token source HTTP endpoint flows (via `src/tests/fixtures/token_server.mjs` when `LIVEKIT_TOKEN_FIXTURE_URL` is set).
+Integration tests (`src/tests/integration/`) cover: room connections, callbacks, data tracks, RPC, logging, audio processing, the subscription thread dispatcher, and token source HTTP endpoint flows (via `src/tests/fixtures/token_server.mjs` when `LIVEKIT_TOKEN_FIXTURE_URL` is set). The zero-dependency fixture exercises the HTTP/JSON wire contract with non-connectable tokens; for a full end-to-end check, `TokenSourceEndpointConnectTest` connects a `Room` with a real JWT minted by the official `livekit-examples/token-server-node` server pointed at the local dev `livekit-server` (advertised via `LIVEKIT_CREATE_TOKEN_URL`; CI stands this up in the `e2e-testing` jobs via the token server's own reusable GitHub Action, pinned by SHA in `tests.yml`).
 
 When adding new client facing functionality, add a new test case to the existing test suite.
 When adding new client facing functionality, add benchmarking to understand the limitations of the new functionality.
@@ -404,6 +404,13 @@ all filtered stages; normal pull requests and pushes use the path filters.
   outside PR-review aggregation.
 - `.github/workflows/docker-validate.yml` — Docker image validation workflow,
   outside PR-review aggregation.
+
+The `tests.yml` e2e jobs consume two external, pinned composite actions:
+`livekit/dev-server-action` (local `livekit-server`) and
+`livekit-examples/token-server-node` (a real `/createToken` endpoint used by
+`TokenSourceEndpointConnectTest`). Both are referenced by commit SHA. The token
+server action lives in its own repo on purpose — it is general-purpose like
+`dev-server-action` and is not bundled here.
 
 When adding or renaming files that affect a CI stage, update the matching
 `ci.yml` `changes` filter in the same PR. For example, new build scripts,

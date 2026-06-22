@@ -14,6 +14,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <livekit/livekit.h>
 #include <livekit/token_source.h>
 
 #include <cstdlib>
@@ -175,6 +176,46 @@ TEST_F(TokenSourceEndpointTest, SandboxTrimsIdAndUsesBaseUrl) {
   const auto result = source->fetch({}).get();
   ASSERT_TRUE(result);
   EXPECT_EQ(result.value().server_url, "wss://fixture.livekit.test");
+}
+
+// End-to-end: requires a real token endpoint (token-server-node) pointed at a
+// running livekit-server, advertised via LIVEKIT_CREATE_TOKEN_URL. Unlike the
+// fixture tests above, the minted JWT must actually connect to a room. CI starts
+// token-server-node with the local dev server's credentials; see tests.yml.
+class TokenSourceEndpointConnectTest : public ::testing::Test {
+protected:
+  void SetUp() override {
+    initialize(LogLevel::Info);
+    const char* url = std::getenv("LIVEKIT_CREATE_TOKEN_URL");
+    if (url != nullptr && url[0] != '\0') {
+      create_token_url_ = url;
+      endpoint_available_ = true;
+    }
+  }
+
+  void TearDown() override { shutdown(); }
+
+  bool endpoint_available_ = false;
+  std::string create_token_url_;
+};
+
+TEST_F(TokenSourceEndpointConnectTest, EndpointMintsConnectableToken) {
+  if (!endpoint_available_) {
+    GTEST_SKIP() << "LIVEKIT_CREATE_TOKEN_URL not set";
+  }
+
+  auto source = EndpointTokenSource::fromUrl(create_token_url_);
+
+  TokenRequestOptions request;
+  request.room_name = "cpp_endpoint_e2e";
+  request.participant_identity = "cpp-endpoint-e2e";
+
+  Room room;
+  RoomOptions options;
+  ASSERT_TRUE(room.connect(*source, request, options)) << "endpoint-minted token should connect";
+  EXPECT_FALSE(room.localParticipant().expired());
+  EXPECT_EQ(room.connectionState(), ConnectionState::Connected);
+  EXPECT_TRUE(room.disconnect());
 }
 
 } // namespace livekit::test
