@@ -37,10 +37,20 @@ struct ConnectionDetails {
   /// JWT access token for the participant.
   std::string participant_token;
 
-  /// Optional participant display name returned by the token server.
+  /// Optional participant display name metadata.
+  ///
+  /// Populate this when your token provider (endpoint/sandbox/custom callback)
+  /// returns a canonical display name for UI/session context. This field is not
+  /// required for @ref Room::connect; literal/manual-token workflows typically
+  /// leave it unset unless the application already has this value.
   std::optional<std::string> participant_name;
 
-  /// Optional room name returned by the token server.
+  /// Optional room name metadata.
+  ///
+  /// Populate this when your token provider returns the resolved room name (for
+  /// example, server-side room assignment). This field is not required for
+  /// @ref Room::connect; literal/manual-token workflows usually leave it unset
+  /// unless the application wants to preserve it for app-level logic.
   std::optional<std::string> room_name;
 };
 
@@ -73,7 +83,12 @@ struct TokenSourceError {
   std::string message;
 };
 
-/// @brief Fixed token source: @ref fetch takes no parameters.
+/// @brief Base interface for token sources that provide full credentials directly.
+///
+/// Use this shape when token selection does not depend on per-connection request
+/// fields (room, participant identity, agent selection, and so on). This is most
+/// useful when your app already has complete @ref ConnectionDetails and only needs
+/// to hand them to the SDK.
 class LIVEKIT_API TokenSourceFixed {
 public:
   virtual ~TokenSourceFixed();
@@ -84,7 +99,12 @@ public:
   virtual std::future<Result<ConnectionDetails, TokenSourceError>> fetch() = 0;
 };
 
-/// @brief Configurable token source: @ref fetch accepts @ref TokenRequestOptions.
+/// @brief Base interface for token sources that generate credentials from request options.
+///
+/// Use this shape when token generation depends on room/participant/agent inputs
+/// supplied at connection time. Most production integrations use this interface,
+/// either via a backend token endpoint, custom callback logic, or the sandbox
+/// token server during development.
 class LIVEKIT_API TokenSourceConfigurable {
 public:
   virtual ~TokenSourceConfigurable();
@@ -98,13 +118,23 @@ public:
                                                                          bool force_refresh = false) = 0;
 };
 
-/// @brief Fixed token source backed by static connection details or an async provider.
+/// @brief Token source that returns credentials you already created yourself.
+///
+/// Choose this when your app manually handles token creation/retrieval and you
+/// want the SDK to consume those credentials as-is ("literal" workflow). This
+/// class is ideal for quick prototypes, tests, and custom flows where you do not
+/// want the SDK to issue token-generation requests.
 class LIVEKIT_API LiteralTokenSource final : public TokenSourceFixed {
 public:
   /// @brief Create a token source from static @ref ConnectionDetails.
+  ///
+  /// Each @ref fetch call returns the same credentials.
   static std::unique_ptr<LiteralTokenSource> fromDetails(ConnectionDetails details);
 
-  /// @brief Create a token source from an async provider (fixed credentials per call).
+  /// @brief Create a token source from an async provider that returns full credentials.
+  ///
+  /// Use this overload when credentials are produced outside the SDK but fetched
+  /// lazily (for example, from your own cache or secure storage).
   static std::unique_ptr<LiteralTokenSource> fromProvider(
       std::function<std::future<Result<ConnectionDetails, TokenSourceError>>()> provider);
 
@@ -118,10 +148,17 @@ private:
   std::function<std::future<Result<ConnectionDetails, TokenSourceError>>()> provider_;
 };
 
-/// @brief Configurable token source backed by custom application logic.
+/// @brief Token source that delegates token generation to your callback.
+///
+/// Choose this when you already have an internal auth/token system and want to
+/// integrate it with LiveKit's request options without adopting the standardized
+/// token endpoint format.
 class LIVEKIT_API CustomTokenSource final : public TokenSourceConfigurable {
 public:
   /// @brief Create a token source that delegates fetching to @p provider.
+  ///
+  /// The callback receives @ref TokenRequestOptions for each fetch and returns
+  /// @ref ConnectionDetails produced by your application.
   static std::unique_ptr<CustomTokenSource> fromCallback(
       std::function<std::future<Result<ConnectionDetails, TokenSourceError>>(const TokenRequestOptions&)> provider);
 
@@ -135,12 +172,19 @@ private:
   std::function<std::future<Result<ConnectionDetails, TokenSourceError>>(const TokenRequestOptions&)> provider_;
 };
 
-/// @brief Configurable token source that POSTs to a token-server endpoint.
+/// @brief Token source that calls your backend token endpoint over HTTP.
+///
+/// Recommended for most production apps: keep API keys server-side, expose a
+/// standardized token endpoint, and let the SDK request credentials with room,
+/// participant, and agent options.
 ///
 /// @see https://docs.livekit.io/frontends/build/authentication/endpoint/
 class LIVEKIT_API EndpointTokenSource final : public TokenSourceConfigurable {
 public:
   /// @brief Create a token source that fetches credentials from @p endpoint_url.
+  ///
+  /// @param endpoint_url URL of your backend token endpoint.
+  /// @param options HTTP transport options (method, headers, timeout).
   static std::unique_ptr<EndpointTokenSource> fromUrl(std::string endpoint_url, TokenEndpointOptions options = {});
 
   std::future<Result<ConnectionDetails, TokenSourceError>> fetch(const TokenRequestOptions& options,
@@ -155,7 +199,10 @@ private:
   TokenEndpointOptions options_;
 };
 
-/// @brief Configurable token source for LiveKit Cloud sandbox (dev only).
+/// @brief Token source that uses LiveKit Cloud's sandbox token server (development only).
+///
+/// Use this for local development and quick testing when you do not yet have your
+/// own backend token endpoint. Do not use in production.
 ///
 /// @see https://docs.livekit.io/frontends/build/authentication/sandbox-token-server/
 class LIVEKIT_API SandboxTokenSource final : public TokenSourceConfigurable {
@@ -178,10 +225,16 @@ private:
   std::unique_ptr<TokenSourceConfigurable> endpoint_;
 };
 
-/// @brief Configurable token source that caches JWT-aware credentials from an inner source.
+/// @brief Decorator that adds JWT-aware caching to another configurable token source.
+///
+/// Wrap @ref CustomTokenSource, @ref EndpointTokenSource, or
+/// @ref SandboxTokenSource to reduce token fetch calls while still refreshing
+/// when tokens expire or when @p force_refresh is requested.
 class LIVEKIT_API CachingTokenSource final : public TokenSourceConfigurable {
 public:
   /// @brief Wrap @p inner with JWT-aware caching.
+  ///
+  /// Cached values are keyed by @ref TokenRequestOptions.
   static std::unique_ptr<CachingTokenSource> wrap(std::unique_ptr<TokenSourceConfigurable> inner);
 
   std::future<Result<ConnectionDetails, TokenSourceError>> fetch(const TokenRequestOptions& options,

@@ -226,7 +226,12 @@ Result<std::string, std::string> tokenSourceHttpRequest(const std::string& metho
 
   if (status_code < 200 || status_code >= 300) {
     std::ostringstream message;
-    message << "token server HTTP " << status_code << ": " << response_body;
+    message << "token server returned HTTP code " << status_code << ": ";
+    if (!response_body.empty()) {
+      message << response_body;
+    } else {
+      message << "<no response body>";
+    }
     return Result<std::string, std::string>::failure(message.str());
   }
 

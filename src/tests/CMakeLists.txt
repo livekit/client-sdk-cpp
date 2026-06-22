@@ -328,6 +328,62 @@ if(STRESS_TEST_SOURCES)
 endif()
 
 # ============================================================================
+# Standalone test utility binary
+# ============================================================================
+
+add_executable(token_source_tester
+  "${CMAKE_CURRENT_SOURCE_DIR}/token_source_tester.cpp"
+)
+
+target_link_libraries(token_source_tester
+  PRIVATE
+    livekit
+)
+
+target_include_directories(token_source_tester
+  PRIVATE
+    ${LIVEKIT_ROOT_DIR}/include
+)
+
+target_compile_definitions(token_source_tester
+  PRIVATE
+    $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
+)
+
+# Copy shared libraries to tester executable directory
+if(WIN32)
+  add_custom_command(TARGET token_source_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:token_source_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
+      $<TARGET_FILE_DIR:token_source_tester>
+    COMMENT "Copying DLLs to token_source_tester directory"
+  )
+elseif(APPLE)
+  add_custom_command(TARGET token_source_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:token_source_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+      $<TARGET_FILE_DIR:token_source_tester>
+    COMMENT "Copying dylibs to token_source_tester directory"
+  )
+else()
+  add_custom_command(TARGET token_source_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:token_source_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+      $<TARGET_FILE_DIR:token_source_tester>
+    COMMENT "Copying shared libraries to token_source_tester directory"
+  )
+endif()
+
+# ============================================================================
 # Combined test target
 # ============================================================================
 
