@@ -21,8 +21,11 @@
 // and run:
 //   ./build-debug/bin/livekit_integration_tests
 
+#include <livekit/data_track_options.h>
+#include <livekit/data_track_schema.h>
 #include <livekit/data_track_stream.h>
 #include <livekit/e2ee.h>
+#include <livekit/local_participant.h>
 #include <livekit/remote_data_track.h>
 
 #include <condition_variable>
@@ -51,6 +54,7 @@ constexpr std::uint8_t kTransportPayloadValue = 0xFA;
 constexpr char kE2EESharedSecret[] = "password";
 constexpr int kE2EEFrameCount = 5;
 constexpr int kTimestampFrameAttempts = 200;
+constexpr std::size_t kMaxSchemaDefinitionBytes = 60000;
 
 std::string makeTrackName(const std::string& suffix) {
   return std::string(kTrackNamePrefix) + "_" + suffix + "_" + std::to_string(getTimestampUs());
@@ -514,6 +518,98 @@ TEST_F(DataTrackE2ETest, PublishDuplicateName) {
   EXPECT_FALSE(duplicate_result.error().message.empty());
 
   first_track->unpublishDataTrack();
+}
+
+TEST_F(DataTrackE2ETest, DefineAndGetSchema) {
+  auto rooms = testRooms(2);
+  auto& publisher_room = rooms[0];
+  auto& subscriber_room = rooms[1];
+
+  const auto publisher_identity = lockLocalParticipant(*publisher_room)->identity();
+  const DataTrackSchemaId schema_id{"some_schema", DataTrackSchemaEncoding::JsonSchema};
+  const std::string definition(kMaxSchemaDefinitionBytes, 'a');
+
+  ASSERT_NO_THROW(lockLocalParticipant(*publisher_room)->defineSchema(schema_id, definition));
+
+  std::string retrieved;
+  ASSERT_NO_THROW(retrieved = lockLocalParticipant(*subscriber_room)->getSchema(schema_id, publisher_identity));
+  EXPECT_EQ(retrieved, definition);
+}
+
+TEST_F(DataTrackE2ETest, DefineSchemaOverLimitFails) {
+  auto rooms = testRooms(1);
+  auto& room = rooms[0];
+
+  const DataTrackSchemaId schema_id{"some_schema", DataTrackSchemaEncoding::JsonSchema};
+  // Deliberately exceed the maximum allowed schema definition size.
+  const std::string definition(2 * kMaxSchemaDefinitionBytes, 'a');
+
+  EXPECT_THROW(lockLocalParticipant(*room)->defineSchema(schema_id, definition), std::runtime_error);
+}
+
+TEST_F(DataTrackE2ETest, DefineDuplicateSchemaFails) {
+  auto rooms = testRooms(1);
+  auto& room = rooms[0];
+
+  const DataTrackSchemaId schema_id{"some_schema", DataTrackSchemaEncoding::JsonSchema};
+  const std::string definition(kMaxSchemaDefinitionBytes, 'a');
+
+  ASSERT_NO_THROW(lockLocalParticipant(*room)->defineSchema(schema_id, definition));
+  // Defining the same schema again must fail.
+  EXPECT_THROW(lockLocalParticipant(*room)->defineSchema(schema_id, definition), std::runtime_error);
+}
+
+TEST_F(DataTrackE2ETest, GetUndefinedSchemaFails) {
+  auto rooms = testRooms(1);
+  auto& room = rooms[0];
+
+  const auto identity = lockLocalParticipant(*room)->identity();
+  const DataTrackSchemaId schema_id{"undefined", DataTrackSchemaEncoding::JsonSchema};
+
+  EXPECT_THROW((void)lockLocalParticipant(*room)->getSchema(schema_id, identity), std::runtime_error);
+}
+
+TEST_F(DataTrackE2ETest, PublishWithSchemaAndFrameEncodingMetadata) {
+  const auto track_name = makeTrackName("schema_meta");
+
+  DataTrackPublishedDelegate subscriber_delegate;
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[1].delegate = &subscriber_delegate;
+
+  auto rooms = testRooms(room_configs);
+  auto& publisher_room = rooms[0];
+
+  DataTrackPublishOptions options;
+  options.name = track_name;
+  options.schema = DataTrackSchemaId{"sensor_msgs/Image", DataTrackSchemaEncoding::Ros2Msg};
+  options.frame_encoding = DataTrackFrameEncoding::Cdr;
+
+  auto publish_result = lockLocalParticipant(*publisher_room)->publishDataTrack(options);
+  if (!publish_result) {
+    FAIL() << describeDataTrackError(publish_result.error());
+  }
+  auto local_track = publish_result.value();
+  ASSERT_TRUE(local_track->isPublished());
+
+  const auto& local_info = local_track->info();
+  ASSERT_TRUE(local_info.schema.has_value());
+  EXPECT_EQ(local_info.schema->name, "sensor_msgs/Image");
+  EXPECT_EQ(local_info.schema->encoding, DataTrackSchemaEncoding::Ros2Msg);
+  ASSERT_TRUE(local_info.frame_encoding.has_value());
+  EXPECT_EQ(*local_info.frame_encoding, DataTrackFrameEncoding::Cdr);
+
+  auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
+  ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
+  EXPECT_EQ(remote_track->info().name, track_name);
+
+  const auto& remote_info = remote_track->info();
+  ASSERT_TRUE(remote_info.schema.has_value());
+  EXPECT_EQ(remote_info.schema->name, "sensor_msgs/Image");
+  EXPECT_EQ(remote_info.schema->encoding, DataTrackSchemaEncoding::Ros2Msg);
+  ASSERT_TRUE(remote_info.frame_encoding.has_value());
+  EXPECT_EQ(*remote_info.frame_encoding, DataTrackFrameEncoding::Cdr);
+
+  local_track->unpublishDataTrack();
 }
 
 TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) {

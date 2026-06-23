@@ -31,6 +31,8 @@
 
 #include "data_track.pb.h"
 #include "livekit/data_track_error.h"
+#include "livekit/data_track_options.h"
+#include "livekit/data_track_schema.h"
 #include "livekit/result.h"
 #include "livekit/room_event_types.h"
 #include "livekit/stats.h"
@@ -123,9 +125,15 @@ public:
                                            const std::string& payload,
                                            std::optional<std::uint32_t> response_timeout_ms = std::nullopt);
 
+  // Data Track schema APIs
+  std::future<void> defineSchemaAsync(std::uint64_t local_participant_handle, const DataTrackSchemaId& schema_id,
+                                      const std::string& definition);
+  std::future<std::string> getSchemaAsync(std::uint64_t local_participant_handle, const DataTrackSchemaId& schema_id,
+                                          const std::string& participant_identity);
+
   // Data Track APIs
   std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> publishDataTrackAsync(
-      std::uint64_t local_participant_handle, const std::string& track_name);
+      std::uint64_t local_participant_handle, const DataTrackPublishOptions& options);
 
   Result<proto::OwnedDataTrackStream, SubscribeDataTrackError> subscribeDataTrack(
       std::uint64_t track_handle, std::optional<std::uint32_t> buffer_size = std::nullopt);
