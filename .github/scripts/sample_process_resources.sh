@@ -18,17 +18,41 @@ interval=${3:-3}
 
 echo "iso_time,elapsed_s,pid,rss_kb,threads,fds,mach_ports" > "${out}"
 
-# Wait up to 60s for the process to appear.
+# Resolve the target PID. `pgrep -f` also matches this script (its own argv
+# contains the pattern) and the run_tests wrapper shell, so picking head -1 grabs
+# the wrong, idle process. Instead choose the matching PID with the largest RSS:
+# the instrumented test binary uses orders of magnitude more memory than any
+# shell, which disambiguates it reliably. Exclude this script's own PID.
+self=$$
+RSS_THRESHOLD_KB=${SAMPLER_RSS_THRESHOLD_KB:-50000}
+
+pick_target() {
+  local best="" best_rss=0 p rss
+  for p in $(pgrep -f "${pattern}" 2>/dev/null); do
+    [[ "${p}" == "${self}" ]] && continue
+    rss=$(ps -o rss= -p "${p}" 2>/dev/null | tr -d ' ')
+    [[ -z "${rss}" ]] && continue
+    if (( rss > best_rss )); then best_rss=${rss}; best=${p}; fi
+  done
+  echo "${best} ${best_rss}"
+}
+
+# Wait up to 120s for the real binary (RSS over threshold) to come up. Fall back
+# to the largest match seen if nothing crosses the threshold before timeout.
 pid=""
-for _ in $(seq 1 60); do
-  pid=$(pgrep -f "${pattern}" | head -1 || true)
-  [[ -n "${pid}" ]] && break
+for _ in $(seq 1 120); do
+  read -r cand cand_rss <<< "$(pick_target)"
+  if [[ -n "${cand}" ]]; then
+    pid=${cand}
+    (( cand_rss >= RSS_THRESHOLD_KB )) && break
+  fi
   sleep 1
 done
 if [[ -z "${pid}" ]]; then
   echo "sampler: process matching '${pattern}' never appeared" >&2
   exit 0
 fi
+echo "sampler: tracking pid ${pid} (pattern '${pattern}')" >&2
 
 is_macos=0
 [[ "$(uname -s)" == "Darwin" ]] && is_macos=1
