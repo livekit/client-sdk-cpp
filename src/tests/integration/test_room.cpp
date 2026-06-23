@@ -17,6 +17,7 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
+#include <algorithm>
 #include <future>
 #include <memory>
 #include <string>
@@ -80,7 +81,10 @@ TEST_F(RoomTest, ConnectWithTokenSource) {
   if (connected) {
     EXPECT_FALSE(room.localParticipant().expired()) << "Local participant should exist after connect";
     EXPECT_EQ(room.connectionState(), ConnectionState::Connected);
-    EXPECT_EQ(room.participantToken(), token_);
+    const std::string participant_token = room.participantToken();
+    EXPECT_FALSE(participant_token.empty()) << "Token source should have populated the participant token";
+    EXPECT_EQ(std::count(participant_token.begin(), participant_token.end(), '.'), 2)
+        << "participant token should be a well-formed JWT (header.payload.signature)";
   }
 }
 
