@@ -215,14 +215,13 @@ jobs:
         uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
         with:
           github-token: ${{ github.token }}
-          config: |
-            enable_data_tracks: true
 
       # Needed by token helper script
       - name: Install livekit-cli
         if: matrix.e2e-testing
         shell: bash
         env:
+          # Windows installs lk via `gh api` / `gh release download`, which need this env var
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euxo pipefail
