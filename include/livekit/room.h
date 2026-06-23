@@ -18,7 +18,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <functional>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -147,7 +146,7 @@ public:
   ///     room.setDelegate(&del);
   void setDelegate(RoomDelegate* delegate);
 
-  /// Connect to a LiveKit room using the given URL and token,  applying the
+  /// Connect to a LiveKit room using the given URL and token, applying the
   /// supplied connection options.
   ///
   /// @param url      WebSocket URL of the LiveKit server.
@@ -167,16 +166,18 @@ public:
   ///   automatically, and no remote audio/video will ever arrive.
   bool connect(const std::string& url, const std::string& token, const RoomOptions& options);
 
-  /// Connect using a fixed token source that supplies server URL and JWT.
+  /// Connect using a fixed token source.
   ///
-  /// @param token_source Token source invoked on the application thread.
+  /// @see TokenSourceFixed
+  /// @param token_source @ref TokenSourceFixed invoked on the application thread.
   /// @param options Connection options.
   /// @return @c false if fetching credentials fails or connect fails.
   bool connect(TokenSourceFixed& token_source, const RoomOptions& options);
 
   /// Connect using a configurable token source.
   ///
-  /// @param token_source Token source invoked on the application thread.
+  /// @see TokenSourceConfigurable
+  /// @param token_source @ref TokenSourceConfigurable invoked on the application thread.
   /// @param request_options Parameters encoded into the token request.
   /// @param options Connection options.
   /// @return @c false if fetching credentials fails or connect fails.

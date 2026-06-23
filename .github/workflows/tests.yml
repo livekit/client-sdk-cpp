@@ -12,9 +12,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Port for livekit-examples/token-server-node in e2e jobs. Passed to the server
-  # process and read by TokenSourceEndpointConnectTest to build the /createToken URL.
-  TOKEN_SERVER_PORT: "3000"
   # Disable Cargo incremental artifacts. The Rust FFI is built once per
   # submodule SHA and cached whole (see the cargo target cache below), so
   # incremental dirs add nothing but bloat the cached target/ directory and
@@ -231,17 +228,18 @@ jobs:
           fi
           lk --version
 
-      # Stand up token-server-node against the local dev livekit-server so
+      # Stand up the token server against the local dev livekit-server so
       # EndpointTokenSource can be exercised end-to-end with a real, connectable
       # JWT (see TokenSourceEndpointConnectTest). The token server ships its own
       # reusable composite action (like livekit/dev-server-action); we pin it to a
       # commit SHA on an unmerged branch of the public repo. TODO: repin to a
-      # released tag once the action + tsconfig fix are merged.
-      # TOKEN_SERVER_PORT is inherited from the workflow env block above.
-      - name: Start token-server-node (real token endpoint)
+      # released tag once the action is merged. The /createToken endpoint URL is
+      # exposed as the `token-url` output and handed to the integration test step
+      # below via LIVEKIT_CREATE_TOKEN_URL.
+      - name: Start token server (real token endpoint)
         if: matrix.e2e-testing
         id: token_server
-        uses: livekit-examples/token-server-node@9980bad8ce1d6d753dae7f33112e2c85d1ddba42
+        uses: livekit/token-server-action@7870d4fc756b405ca21c5b4b4e1610149b980d11
         with:
           livekit-url: ws://localhost:7880
           api-key: devkey
@@ -253,6 +251,7 @@ jobs:
         shell: bash
         env:
           RUST_LOG: "metrics=debug"
+          LIVEKIT_CREATE_TOKEN_URL: ${{ steps.token_server.outputs.token-url }}
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
@@ -264,7 +263,7 @@ jobs:
         shell: bash
         run: tail -n 500 "${{ steps.livekit_server.outputs.log-path }}" || true
 
-      - name: Dump token-server-node log on failure
+      - name: Dump token server log on failure
         if: failure() && matrix.e2e-testing && steps.token_server.outputs.log-path != ''
         shell: bash
         run: tail -n 200 "${{ steps.token_server.outputs.log-path }}" || true

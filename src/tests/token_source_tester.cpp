@@ -176,9 +176,7 @@ bool endpointTokenSourceConnect() {
       endpoint_env != nullptr && endpoint_env[0] != '\0') {
     endpoint_url = endpoint_env;
   } else {
-    const char* port_env = std::getenv("TOKEN_SERVER_PORT");
-    const char* port = (port_env != nullptr && port_env[0] != '\0') ? port_env : "3000";
-    endpoint_url = std::string("http://127.0.0.1:") + port + "/createToken";
+    endpoint_url = "http://127.0.0.1:3000/createToken";
   }
 
   auto endpoint_options = endpointOptionsFromEnv();

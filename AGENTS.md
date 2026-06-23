@@ -357,7 +357,7 @@ Tests are under `src/tests/` using Google Test:
 cd build-debug && ctest
 ```
 
-Integration tests (`src/tests/integration/`) cover: room connections, callbacks, data tracks, RPC, logging, audio processing, and the subscription thread dispatcher. The token source HTTP/JSON wire contract (request serialization, response parsing, header passthrough, GET support, sandbox URL/header resolution) is covered by mocked unit tests in `src/tests/unit/test_token_source.cpp`, which inject a stub HTTP transport so no live server is needed. For a full end-to-end check, `TokenSourceEndpointConnectTest` connects a `Room` with a real JWT minted by the official `livekit-examples/token-server-node` server pointed at the local dev `livekit-server`. CI sets `TOKEN_SERVER_PORT` in `tests.yml`; the test and the token server both read that env var to agree on the `/createToken` URL (with optional `LIVEKIT_CREATE_TOKEN_URL` override). The server is started in the `e2e-testing` jobs via the token server's reusable GitHub Action, pinned by SHA in `tests.yml`.
+Integration tests (`src/tests/integration/`) cover: room connections, callbacks, data tracks, RPC, logging, audio processing, and the subscription thread dispatcher. The token source HTTP/JSON wire contract (request serialization, response parsing, header passthrough, GET support, sandbox URL/header resolution) is covered by mocked unit tests in `src/tests/unit/test_token_source.cpp`, which inject a stub HTTP transport so no live server is needed. For a full end-to-end check, `TokenSourceEndpointConnectTest` connects a `Room` with a real JWT minted by the `livekit/token-server-action` token server pointed at the local dev `livekit-server`. The action exposes its `/createToken` endpoint as a `token-url` output; `tests.yml` passes that to the integration test step as `LIVEKIT_CREATE_TOKEN_URL`, which the test reads to locate the endpoint. The server is started in the `e2e-testing` jobs via the token server's reusable GitHub Action, pinned by SHA in `tests.yml`.
 
 When adding new client facing functionality, add a new test case to the existing test suite.
 When adding new client facing functionality, add benchmarking to understand the limitations of the new functionality.
@@ -406,7 +406,7 @@ all filtered stages; normal pull requests and pushes use the path filters.
 
 The `tests.yml` e2e jobs consume two external, pinned composite actions:
 `livekit/dev-server-action` (local `livekit-server`) and
-`livekit-examples/token-server-node` (a real `/createToken` endpoint used by
+`livekit/token-server-action` (a real `/createToken` endpoint used by
 `TokenSourceEndpointConnectTest`). Both are referenced by commit SHA. The token
 server action lives in its own repo on purpose — it is general-purpose like
 `dev-server-action` and is not bundled here.

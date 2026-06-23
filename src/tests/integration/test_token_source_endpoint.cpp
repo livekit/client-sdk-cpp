@@ -32,26 +32,20 @@ namespace {
 
 // Resolve the token-server /createToken URL from the environment.
 //
-// Primary: TOKEN_SERVER_PORT → http://127.0.0.1:<port>/createToken (matches
-// livekit-examples/token-server-node and tests.yml).
-//
-// Override: LIVEKIT_CREATE_TOKEN_URL supplies a full endpoint URL when the
-// server is not on 127.0.0.1 or uses a non-standard path.
+// LIVEKIT_CREATE_TOKEN_URL holds the full endpoint URL. In CI it is wired from
+// the livekit/token-server-action `token-url` output (see tests.yml).
 std::optional<std::string> resolveCreateTokenUrl() {
   if (const char* url = std::getenv("LIVEKIT_CREATE_TOKEN_URL"); url != nullptr && url[0] != '\0') {
     return std::string(url);
-  }
-  if (const char* port = std::getenv("TOKEN_SERVER_PORT"); port != nullptr && port[0] != '\0') {
-    return std::string("http://127.0.0.1:") + port + "/createToken";
   }
   return std::nullopt;
 }
 
 } // namespace
 
-// End-to-end: requires a real token endpoint (token-server-node) pointed at a
-// running livekit-server. CI sets TOKEN_SERVER_PORT and starts token-server-node
-// with the local dev server's credentials; see tests.yml.
+// End-to-end: requires a real token endpoint pointed at a running
+// livekit-server. CI starts livekit/token-server-action with the local dev
+// server's credentials and sets LIVEKIT_CREATE_TOKEN_URL; see tests.yml.
 class TokenSourceEndpointConnectTest : public ::testing::Test {
 protected:
   void SetUp() override {
@@ -70,7 +64,7 @@ protected:
 
 TEST_F(TokenSourceEndpointConnectTest, EndpointMintsConnectableToken) {
   if (!endpoint_available_) {
-    GTEST_SKIP() << "TOKEN_SERVER_PORT or LIVEKIT_CREATE_TOKEN_URL not set";
+    GTEST_SKIP() << "LIVEKIT_CREATE_TOKEN_URL not set";
   }
 
   auto source = EndpointTokenSource::fromUrl(create_token_url_);
