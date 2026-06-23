@@ -14,9 +14,7 @@ name: PlatformAudio Triage
 #     cycles. If the repeat arm crashes but this stays green, the bug is in ADM
 #     teardown, not the steady media path.
 #
-# Trigger from the Actions tab (workflow_dispatch) and tune the inputs. The
-# pull_request trigger is TEMPORARY for validating the workflow itself; remove
-# it before merging.
+# Trigger from the Actions tab (workflow_dispatch) and tune the inputs.
 
 on:
   workflow_dispatch:
@@ -32,18 +30,15 @@ on:
       repeat:
         description: "gtest_repeat count for the dispose-each-iteration arm"
         type: string
-        default: "100"
+        default: "500"
       pin_iterations:
         description: "PLATFORM_AUDIO_PIN_ITERATIONS for the pinned control arm"
         type: string
-        default: "50"
+        default: "200"
       ubsan:
         description: "Build with UndefinedBehaviorSanitizer (ASan is incompatible with macOS CoreAudio)"
         type: boolean
         default: true
-  pull_request:
-    types: [opened, reopened, synchronize, ready_for_review]
-    branches: ["main"]
 
 permissions:
   contents: read
@@ -59,9 +54,8 @@ jobs:
       CARGO_INCREMENTAL: "0"
       RUST_BACKTRACE: full
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-      # On pull_request validation runs keep counts small; dispatch uses inputs.
-      REPEAT: ${{ github.event.inputs.repeat || '3' }}
-      PIN_ITERATIONS: ${{ github.event.inputs.pin_iterations || '3' }}
+      REPEAT: ${{ github.event.inputs.repeat || '500' }}
+      PIN_ITERATIONS: ${{ github.event.inputs.pin_iterations || '200' }}
       USE_UBSAN: ${{ github.event.inputs.ubsan || 'true' }}
 
     steps:
@@ -89,6 +83,12 @@ jobs:
         uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
         with:
           toolchain: stable
+
+      # Cache the Rust submodule build so re-runs skip the ~20-minute cold build.
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: client-sdk-rust
 
       - name: Set build environment
         run: |
