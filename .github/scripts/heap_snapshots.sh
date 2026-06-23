@@ -72,10 +72,11 @@ while kill -0 "${pid}" 2>/dev/null && (( snap < max_snaps )); do
 
   if (( sudo_ok )); then
     sudo -n heap "${pid}" > "${outdir}/heap-${label}.txt" 2>&1 || true
-    # malloc_history is large; only capture it on the last few ticks.
-    if (( snap >= max_snaps - 1 )); then
-      sudo -n malloc_history "${pid}" -allBySize > "${outdir}/mhist-${label}.txt" 2>&1 || true
-    fi
+    # malloc_history -allBySize sorts largest-first, so head keeps the biggest
+    # offenders while bounding artifact size. Capture every tick so we always
+    # have stacks even if the process exits/hangs before max_snaps.
+    sudo -n malloc_history "${pid}" -allBySize 2>/dev/null \
+      | head -400 > "${outdir}/mhist-${label}.txt" || true
   fi
 done
 

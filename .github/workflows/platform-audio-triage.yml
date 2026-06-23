@@ -300,13 +300,16 @@ jobs:
           set -uo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
           mkdir -p "$RUNNER_TEMP/heap-snapshots"
-          # Snapshot the live heap every 25s while the dispose-path test repeats.
+          # Snapshot the live heap every 10s while the dispose-path test repeats.
+          # Frequent early ticks catch the growth curve (not just a plateau), and
+          # malloc_history is captured on every tick so we always get stacks.
+          # A larger repeat keeps the process churning across the whole window.
           .github/scripts/heap_snapshots.sh \
-            livekit_integration_tests "$RUNNER_TEMP/heap-snapshots" 25 12 &
+            livekit_integration_tests "$RUNNER_TEMP/heap-snapshots" 10 30 &
           .github/scripts/run_tests_with_backtrace.sh \
             build-debug/bin/livekit_integration_tests \
             --gtest_filter='PlatformAudioIntegrationTest.*-PlatformAudioIntegrationTest.PinnedRuntimeRepeatedPublishStress' \
-            --gtest_repeat=30 \
+            --gtest_repeat=60 \
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_output=xml:build-debug/triage-heap-arm.xml || true
           echo "--- heap snapshots captured ---"
