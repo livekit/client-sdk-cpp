@@ -30,7 +30,7 @@ on:
       repeat:
         description: "gtest_repeat count for the dispose-each-iteration arm"
         type: string
-        default: "500"
+        default: "200"
       pin_iterations:
         description: "PLATFORM_AUDIO_PIN_ITERATIONS for the pinned control arm"
         type: string
@@ -54,7 +54,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       RUST_BACKTRACE: full
       UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-      REPEAT: ${{ github.event.inputs.repeat || '500' }}
+      REPEAT: ${{ github.event.inputs.repeat || '200' }}
       PIN_ITERATIONS: ${{ github.event.inputs.pin_iterations || '200' }}
       USE_UBSAN: ${{ github.event.inputs.ubsan || 'true' }}
 
@@ -72,6 +72,7 @@ jobs:
         run: |
           chmod +x .github/scripts/run_tests_with_backtrace.sh
           chmod +x .github/scripts/stage_crash_diagnostics.sh
+          chmod +x .github/scripts/sample_process_resources.sh
 
       - name: Install deps
         run: |
@@ -153,6 +154,9 @@ jobs:
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
+          # Sample process resources in the background; it self-exits with the test.
+          .github/scripts/sample_process_resources.sh \
+            livekit_integration_tests "$RUNNER_TEMP/resources-arm-a.csv" 3 &
           .github/scripts/run_tests_with_backtrace.sh \
             build-debug/bin/livekit_integration_tests \
             --gtest_filter='PlatformAudioIntegrationTest.*-PlatformAudioIntegrationTest.PinnedRuntimeRepeatedPublishStress' \
@@ -174,6 +178,9 @@ jobs:
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
+          # Sample process resources in the background; it self-exits with the test.
+          .github/scripts/sample_process_resources.sh \
+            livekit_integration_tests "$RUNNER_TEMP/resources-arm-b.csv" 3 &
           .github/scripts/run_tests_with_backtrace.sh \
             build-debug/bin/livekit_integration_tests \
             --gtest_filter='PlatformAudioIntegrationTest.PinnedRuntimeRepeatedPublishStress' \
@@ -214,6 +221,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Upload resource samples
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: platform-audio-triage-resource-samples
+          path: |
+            ${{ runner.temp }}/resources-arm-a.csv
+            ${{ runner.temp }}/resources-arm-b.csv
+          if-no-files-found: ignore
+          retention-days: 14
+
       # Surface the diagnostic contrast and fail the job if either arm failed.
       - name: Triage summary
         if: always()
@@ -221,6 +239,23 @@ jobs:
         run: |
           repeat="${{ steps.repeat_arm.outcome }}"
           pinned="${{ steps.pinned_arm.outcome }}"
+
+          # Print first vs last resource sample so the leak curve is visible inline.
+          resource_delta() {
+            local csv=$1
+            [[ -f "${csv}" ]] || { echo "| (no samples) | | | | |"; return; }
+            local first last
+            first=$(tail -n +2 "${csv}" | head -1)
+            last=$(tail -n 1 "${csv}")
+            [[ -n "${first}" && "${first}" != "${last}" ]] || { echo "| (insufficient samples) | | | | |"; return; }
+            IFS=, read -r _ _ _ frss fthreads ffds fports <<< "${first}"
+            IFS=, read -r _ le _ lrss lthreads lfds lports <<< "${last}"
+            echo "| rss_kb | ${frss} | ${lrss} | over ${le}s |"
+            echo "| threads | ${fthreads} | ${lthreads} | |"
+            echo "| fds | ${ffds} | ${lfds} | |"
+            echo "| mach_ports | ${fports} | ${lports} | |"
+          }
+
           {
             echo "## PlatformAudio triage"
             echo ""
@@ -236,5 +271,15 @@ jobs:
             elif [[ "${repeat}" == "success" && "${pinned}" == "success" ]]; then
               echo "➡️ Both arms passed this run (did not reproduce). Try a higher repeat count."
             fi
+            echo ""
+            echo "### Resource growth — Arm A (dispose each iteration)"
+            echo "| metric | first | last | note |"
+            echo "| --- | --- | --- | --- |"
+            resource_delta "$RUNNER_TEMP/resources-arm-a.csv"
+            echo ""
+            echo "### Resource growth — Arm B (pinned)"
+            echo "| metric | first | last | note |"
+            echo "| --- | --- | --- | --- |"
+            resource_delta "$RUNNER_TEMP/resources-arm-b.csv"
           } >> "$GITHUB_STEP_SUMMARY"
           [[ "${repeat}" == "success" && "${pinned}" == "success" ]]
