@@ -42,6 +42,10 @@ on:
         description: "PLATFORM_AUDIO_PIN_ITERATIONS for the pinned control arm"
         type: string
         default: "200"
+      leak_iterations:
+        description: "Pinned-cycle iterations for the leaks arm (kept small; MallocStackLogging is heavy)"
+        type: string
+        default: "40"
       ubsan:
         description: "Build with UndefinedBehaviorSanitizer (ASan is incompatible with macOS CoreAudio)"
         type: boolean
@@ -240,6 +244,43 @@ jobs:
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_output=xml:build-debug/triage-frames-arm.xml
 
+      # Arm D: name the leak. The pinned-cycle reproducer (ADM held alive, rooms
+      # recycled each cycle) is run under macOS `leaks` with MallocStackLogging so
+      # every still-allocated block is reported with the backtrace that allocated
+      # it. This points directly at the leaking call site (C++ SDK vs Rust FFI)
+      # instead of us guessing. A small iteration count keeps the stack-logging
+      # overhead bounded while leaking enough to aggregate clear stacks.
+      - name: "Arm D — leak backtraces (pinned cycle under leaks)"
+        id: leaks_arm
+        continue-on-error: true
+        timeout-minutes: 40
+        shell: bash
+        env:
+          # Quieter than the other arms: the leak report is the signal here.
+          RUST_LOG: warn
+          RUST_BACKTRACE: "1"
+          MallocStackLogging: "1"
+          PLATFORM_AUDIO_PIN_ITERATIONS: ${{ github.event.inputs.leak_iterations || '40' }}
+        run: |
+          set -uo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          report="$RUNNER_TEMP/leaks-report.txt"
+          # `leaks --atExit -- <cmd>` launches the binary, lets it run to normal
+          # exit, then dumps leaks (grouped by identical backtrace with counts).
+          leaks --atExit -- \
+            build-debug/bin/livekit_integration_tests \
+            --gtest_filter='PlatformAudioIntegrationTest.PinnedRuntimeRepeatedPublishStress' \
+            > "$report" 2>&1
+          status=$?
+          echo "leaks exit status: ${status}"
+          # Surface the leak summary + the largest stacks in the step log.
+          grep -E "Process [0-9]+: .* leaks for|leaks for [0-9,]+ total|^[[:space:]]*[0-9]+ \(" "$report" | head -40 || true
+          echo "--- top of leaks report ---"
+          tail -n 200 "$report" || true
+          # leaks exits non-zero when leaks are found; treat that as success for
+          # this diagnostic arm (the report is the deliverable).
+          exit 0
+
       - name: Dump livekit-server log on failure
         if: failure() || steps.repeat_arm.outcome == 'failure' || steps.pinned_arm.outcome == 'failure' || steps.frames_arm.outcome == 'failure'
         shell: bash
@@ -287,6 +328,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Upload leak report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: platform-audio-triage-leak-report-${{ matrix.runner }}
+          path: ${{ runner.temp }}/leaks-report.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
       # Surface the diagnostic contrast and fail the job if either arm failed.
       - name: Triage summary
         if: always()
@@ -295,6 +345,7 @@ jobs:
           repeat="${{ steps.repeat_arm.outcome }}"
           pinned="${{ steps.pinned_arm.outcome }}"
           frames="${{ steps.frames_arm.outcome }}"
+          leaks="${{ steps.leaks_arm.outcome }}"
 
           # Print first vs last resource sample so the leak curve is visible inline.
           resource_delta() {
@@ -320,6 +371,7 @@ jobs:
             echo "| A — Repeat (dispose+ADM Terminate each iter) | ${repeat} |"
             echo "| B — Pinned runtime (ADM never terminated) | ${pinned} |"
             echo "| C — Frame-flow only (fresh ADM each iter) | ${frames} |"
+            echo "| D — Leak backtraces (see leak-report artifact) | ${leaks} |"
             echo ""
             if [[ "${repeat}" == "failure" && "${pinned}" == "success" ]]; then
               echo "➡️ Repeat failed while pinned passed: consistent with an ADM teardown/recreate bug."
