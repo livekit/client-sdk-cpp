@@ -248,6 +248,12 @@ TEST_F(PlatformAudioIntegrationTest, PlatformAudioFramesReachRemote) {
     GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
   }
 
+  // Some platforms (notably Windows) construct a valid ADM even on a headless
+  // CI runner with no microphone: guard against that here.
+  if (platform_audio->recordingDeviceCount() == 0) {
+    GTEST_SKIP() << "No recording device available; cannot capture platform audio frames";
+  }
+
   RoomOptions options;
   options.auto_subscribe = true;
 
