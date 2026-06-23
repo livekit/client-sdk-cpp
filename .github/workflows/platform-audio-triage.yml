@@ -4,6 +4,10 @@ name: PlatformAudio Triage
 # It builds ONLY the integration test binary and runs the PlatformAudio cases
 # in a tight, high-repeat loop with backtrace + crash-report capture.
 #
+# The instability reproduces on BOTH macOS architectures (Intel x64 hits an
+# assertion timeout / no-frames; Apple Silicon arm64 has been seen to SIGSEGV),
+# so by default this fans out across one Intel and one arm64 runner.
+#
 # Two arms run so a failure is diagnostic, not just a red X:
 #   - repeat arm: the standard cases under --gtest_repeat. Each iteration calls
 #     livekit::shutdown() -> FFI dispose -> Arc<LkRuntime> drop ->
@@ -19,14 +23,17 @@ name: PlatformAudio Triage
 on:
   workflow_dispatch:
     inputs:
-      runner:
-        description: "macOS runner (Intel = x64, where the instability reproduces)"
+      runners:
+        description: "Which macOS runners to triage (the instability reproduces on both Intel x64 and Apple Silicon arm64)"
         type: choice
-        default: macos-15-large
+        default: all
         options:
-          - macos-15-large
-          - macos-13
-          - macos-26-xlarge
+          - all              # both arches: macos-15-large (x64) + macos-15 (arm64)
+          - macos-15-large   # Intel x64
+          - macos-15         # Apple Silicon arm64
+          - macos-13         # Intel x64 (older)
+          - macos-14         # Apple Silicon arm64 (older)
+          - macos-26-xlarge  # Apple Silicon arm64 (newer, larger)
       repeat:
         description: "gtest_repeat count for the dispose-each-iteration arm"
         type: string
@@ -45,9 +52,32 @@ permissions:
   actions: read
 
 jobs:
+  # Expand the runner selection into a matrix. "all" fans out across both
+  # architectures so a single dispatch confirms whether the instability
+  # reproduces on Intel x64 and Apple Silicon arm64.
+  prepare:
+    name: Resolve runner matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        shell: bash
+        run: |
+          sel="${{ github.event.inputs.runners || 'all' }}"
+          if [[ "${sel}" == "all" ]]; then
+            echo 'matrix={"runner":["macos-15-large","macos-15"]}' >> "$GITHUB_OUTPUT"
+          else
+            printf 'matrix={"runner":["%s"]}\n' "${sel}" >> "$GITHUB_OUTPUT"
+          fi
+
   triage:
-    name: PlatformAudio Triage (${{ github.event.inputs.runner || 'macos-15-large' }})
-    runs-on: ${{ github.event.inputs.runner || 'macos-15-large' }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    name: PlatformAudio Triage (${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     env:
       CARGO_TERM_COLOR: always
@@ -228,7 +258,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: platform-audio-triage-results
+          name: platform-audio-triage-results-${{ matrix.runner }}
           path: |
             build-debug/triage-repeat-arm.xml
             build-debug/triage-pinned-arm.xml
@@ -240,7 +270,7 @@ jobs:
         if: steps.repeat_arm.outcome == 'failure' || steps.pinned_arm.outcome == 'failure' || steps.frames_arm.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: platform-audio-triage-crash-diagnostics
+          name: platform-audio-triage-crash-diagnostics-${{ matrix.runner }}
           path: ${{ runner.temp }}/crash-diagnostics/
           if-no-files-found: ignore
           retention-days: 14
@@ -249,7 +279,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: platform-audio-triage-resource-samples
+          name: platform-audio-triage-resource-samples-${{ matrix.runner }}
           path: |
             ${{ runner.temp }}/resources-arm-a.csv
             ${{ runner.temp }}/resources-arm-b.csv
