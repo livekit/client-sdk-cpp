@@ -239,7 +239,7 @@ jobs:
       - name: Start token server (real token endpoint)
         if: matrix.e2e-testing
         id: token_server
-        uses: livekit/token-server-action@8719ded68778b260f81ec5f073318ec22a3c8ccc
+        uses: livekit/token-server-action@a1e42c649a1998d5b224f5102f252c07762024f0 # v0.0.1
         with:
           livekit-url: ws://localhost:7880
           api-key: devkey
