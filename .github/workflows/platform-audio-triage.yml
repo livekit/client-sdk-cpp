@@ -107,6 +107,7 @@ jobs:
           chmod +x .github/scripts/run_tests_with_backtrace.sh
           chmod +x .github/scripts/stage_crash_diagnostics.sh
           chmod +x .github/scripts/sample_process_resources.sh
+          chmod +x .github/scripts/heap_snapshots.sh
 
       - name: Install deps
         run: |
@@ -281,6 +282,44 @@ jobs:
           # this diagnostic arm (the report is the deliverable).
           exit 0
 
+      # Arm E: attribute the reachable retention. `leaks` reports 0 (the growth is
+      # still-referenced, not lost) so we instead sample the LIVE heap mid-run on
+      # the dispose+recreate path (the worst leaker) with MallocStackLogging, then
+      # diff successive `heap` summaries + read `malloc_history` stacks to name the
+      # growing allocation type and its call site.
+      - name: "Arm E — live-heap attribution (dispose path under heap/malloc_history)"
+        id: heap_arm
+        continue-on-error: true
+        timeout-minutes: 40
+        shell: bash
+        env:
+          RUST_LOG: warn
+          RUST_BACKTRACE: "1"
+          MallocStackLogging: "1"
+        run: |
+          set -uo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          mkdir -p "$RUNNER_TEMP/heap-snapshots"
+          # Snapshot the live heap every 25s while the dispose-path test repeats.
+          .github/scripts/heap_snapshots.sh \
+            livekit_integration_tests "$RUNNER_TEMP/heap-snapshots" 25 12 &
+          .github/scripts/run_tests_with_backtrace.sh \
+            build-debug/bin/livekit_integration_tests \
+            --gtest_filter='PlatformAudioIntegrationTest.*-PlatformAudioIntegrationTest.PinnedRuntimeRepeatedPublishStress' \
+            --gtest_repeat=30 \
+            --gtest_recreate_environments_when_repeating=1 \
+            --gtest_output=xml:build-debug/triage-heap-arm.xml || true
+          echo "--- heap snapshots captured ---"
+          ls -la "$RUNNER_TEMP/heap-snapshots" || true
+          # Surface the 'all zones' growth across the first vs last heap summary.
+          first=$(ls "$RUNNER_TEMP"/heap-snapshots/heap-*.txt 2>/dev/null | head -1)
+          last=$(ls "$RUNNER_TEMP"/heap-snapshots/heap-*.txt 2>/dev/null | tail -1)
+          if [[ -n "${first}" && -n "${last}" && "${first}" != "${last}" ]]; then
+            echo "=== FIRST heap summary (${first##*/}) ==="; grep -E "Process [0-9]+:|total|COUNT" "${first}" | head -25 || true
+            echo "=== LAST heap summary (${last##*/}) ==="; grep -E "Process [0-9]+:|total|COUNT" "${last}" | head -25 || true
+          fi
+          exit 0
+
       - name: Dump livekit-server log on failure
         if: failure() || steps.repeat_arm.outcome == 'failure' || steps.pinned_arm.outcome == 'failure' || steps.frames_arm.outcome == 'failure'
         shell: bash
@@ -337,6 +376,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Upload heap snapshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: platform-audio-triage-heap-snapshots-${{ matrix.runner }}
+          path: ${{ runner.temp }}/heap-snapshots/
+          if-no-files-found: ignore
+          retention-days: 14
+
       # Surface the diagnostic contrast and fail the job if either arm failed.
       - name: Triage summary
         if: always()
@@ -346,6 +394,7 @@ jobs:
           pinned="${{ steps.pinned_arm.outcome }}"
           frames="${{ steps.frames_arm.outcome }}"
           leaks="${{ steps.leaks_arm.outcome }}"
+          heap="${{ steps.heap_arm.outcome }}"
 
           # Print first vs last resource sample so the leak curve is visible inline.
           resource_delta() {
@@ -372,6 +421,7 @@ jobs:
             echo "| B — Pinned runtime (ADM never terminated) | ${pinned} |"
             echo "| C — Frame-flow only (fresh ADM each iter) | ${frames} |"
             echo "| D — Leak backtraces (see leak-report artifact) | ${leaks} |"
+            echo "| E — Live-heap attribution (see heap-snapshots artifact) | ${heap} |"
             echo ""
             if [[ "${repeat}" == "failure" && "${pinned}" == "success" ]]; then
               echo "➡️ Repeat failed while pinned passed: consistent with an ADM teardown/recreate bug."
