@@ -49,10 +49,11 @@ jobs:
             name: macos-x64
             build_cmd: ./build.sh release-tests --macos-arch x86_64
             e2e-testing: true
-            # Pinned to Windows 2022 for current VS 17 implementation
+          # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
             build_cmd: .\build.cmd release-tests
+            e2e-testing: true
 
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
@@ -219,18 +220,37 @@ jobs:
       - name: Install livekit-cli
         if: matrix.e2e-testing
         shell: bash
+        env:
+          # Windows installs lk via `gh api` / `gh release download`, which need this env var
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euxo pipefail
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             curl -sSL https://get.livekit.io/cli | bash
-          else
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
             brew install livekit-cli
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            install_dir="$RUNNER_TEMP/livekit-cli"
+            mkdir -p "$install_dir"
+            tag="$(gh api repos/livekit/livekit-cli/releases/latest --jq '.tag_name')"
+            gh release download "$tag" \
+              --repo livekit/livekit-cli \
+              --pattern "*_windows_amd64.zip" \
+              --output "$RUNNER_TEMP/lk.zip"
+            unzip -o "$RUNNER_TEMP/lk.zip" -d "$install_dir"
+            # GITHUB_PATH updates apply to subsequent steps only; export PATH here
+            # so lk --version in this step succeeds.
+            echo "$install_dir" >> "$GITHUB_PATH"
+            export PATH="$install_dir:$PATH"
+          else
+            echo "::error::Unsupported runner OS for livekit-cli install: ${RUNNER_OS}"
+            exit 1
           fi
           lk --version
 
       - name: Run integration tests
         if: matrix.e2e-testing
-        timeout-minutes: 5
+        timeout-minutes: 10
         shell: bash
         env:
           RUST_LOG: "metrics=debug"
