@@ -136,11 +136,6 @@ struct TokenSourceError {
 };
 
 /// @brief Base interface for token sources that provide full credentials directly.
-///
-/// Use this shape when token selection does not depend on per-connection request
-/// fields (room, participant identity, agent selection, and so on). This is most
-/// useful when your app already has complete @ref TokenSourceResponse and only needs
-/// to hand them to the SDK.
 class LIVEKIT_API TokenSourceFixed {
 public:
   virtual ~TokenSourceFixed();
@@ -152,11 +147,6 @@ public:
 };
 
 /// @brief Base interface for token sources that generate credentials from request options.
-///
-/// Use this shape when token generation depends on room/participant/agent inputs
-/// supplied at connection time. Most production integrations use this interface,
-/// either via a backend token endpoint, custom callback logic, or the sandbox
-/// token server during development.
 class LIVEKIT_API TokenSourceConfigurable {
 public:
   virtual ~TokenSourceConfigurable();
