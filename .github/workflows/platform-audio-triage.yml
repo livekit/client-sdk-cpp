@@ -1,0 +1,240 @@
+name: PlatformAudio Triage
+
+# Focused, mac-only crash-hunting harness for the PlatformAudio instability.
+# It builds ONLY the integration test binary and runs the PlatformAudio cases
+# in a tight, high-repeat loop with backtrace + crash-report capture.
+#
+# Two arms run so a failure is diagnostic, not just a red X:
+#   - repeat arm: the standard cases under --gtest_repeat. Each iteration calls
+#     livekit::shutdown() -> FFI dispose -> Arc<LkRuntime> drop ->
+#     AdmProxy::~AdmProxy() -> CoreAudio ADM Terminate(). This is the suspected
+#     crash path (full ADM teardown/recreate every iteration).
+#   - pinned arm: PinnedRuntimeRepeatedPublishStress holds one PlatformAudio for
+#     the whole test, so the ADM is created once and never terminated between
+#     cycles. If the repeat arm crashes but this stays green, the bug is in ADM
+#     teardown, not the steady media path.
+#
+# Trigger from the Actions tab (workflow_dispatch) and tune the inputs. The
+# pull_request trigger is TEMPORARY for validating the workflow itself; remove
+# it before merging.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "macOS runner (Intel = x64, where the instability reproduces)"
+        type: choice
+        default: macos-15-large
+        options:
+          - macos-15-large
+          - macos-13
+          - macos-26-xlarge
+      repeat:
+        description: "gtest_repeat count for the dispose-each-iteration arm"
+        type: string
+        default: "100"
+      pin_iterations:
+        description: "PLATFORM_AUDIO_PIN_ITERATIONS for the pinned control arm"
+        type: string
+        default: "50"
+      ubsan:
+        description: "Build with UndefinedBehaviorSanitizer (ASan is incompatible with macOS CoreAudio)"
+        type: boolean
+        default: true
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: ["main"]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  triage:
+    name: PlatformAudio Triage (${{ github.event.inputs.runner || 'macos-15-large' }})
+    runs-on: ${{ github.event.inputs.runner || 'macos-15-large' }}
+    timeout-minutes: 90
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      RUST_BACKTRACE: full
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      # On pull_request validation runs keep counts small; dispatch uses inputs.
+      REPEAT: ${{ github.event.inputs.repeat || '3' }}
+      PIN_ITERATIONS: ${{ github.event.inputs.pin_iterations || '3' }}
+      USE_UBSAN: ${{ github.event.inputs.ubsan || 'true' }}
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Pull LFS files
+        run: git lfs pull
+
+      - name: Prepare CI test scripts
+        run: |
+          chmod +x .github/scripts/run_tests_with_backtrace.sh
+          chmod +x .github/scripts/stage_crash_diagnostics.sh
+
+      - name: Install deps
+        run: |
+          set -eux
+          brew update
+          brew install cmake ninja protobuf abseil
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
+
+      - name: Set build environment
+        run: |
+          echo "CXXFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
+          echo "CFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
+
+      - name: Configure build
+        run: |
+          if [[ "${USE_UBSAN}" == "true" ]]; then
+            cmake --preset macos-debug-tests \
+              -DCMAKE_C_FLAGS="-fsanitize=undefined -fno-omit-frame-pointer" \
+              -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-omit-frame-pointer" \
+              -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined" \
+              -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=undefined"
+          else
+            cmake --preset macos-debug-tests
+          fi
+
+      - name: Build integration tests only
+        run: cmake --build build-debug --target livekit_integration_tests --parallel 2
+
+      - name: Start livekit-server
+        id: livekit_server
+        uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
+        continue-on-error: true
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Start livekit-server fallback
+        if: steps.livekit_server.outcome == 'failure'
+        id: livekit_server_fallback
+        shell: bash
+        run: |
+          set -euxo pipefail
+          brew install livekit
+          cat > "$RUNNER_TEMP/livekit.yaml" <<'EOF'
+          logging: { json: true }
+          EOF
+          livekit-server --config "$RUNNER_TEMP/livekit.yaml" --dev > "$RUNNER_TEMP/livekit.jsonl" 2>&1 &
+          echo "log-path=$RUNNER_TEMP/livekit.jsonl" >> "$GITHUB_OUTPUT"
+          for i in $(seq 1 30); do
+            if [[ "$(curl -fsS http://localhost:7880/ || true)" == "OK" ]]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+
+      - name: Install livekit-cli
+        shell: bash
+        run: brew install livekit-cli
+
+      # Arm A: full ADM teardown/recreate every iteration (suspected crash path).
+      - name: "Arm A — repeat (dispose+ADM Terminate each iteration)"
+        id: repeat_arm
+        continue-on-error: true
+        timeout-minutes: 40
+        shell: bash
+        env:
+          RUST_LOG: info,livekit_ffi::server=debug,livekit_ffi::server::platform_audio=debug,livekit::platform_audio=debug
+          RUST_BACKTRACE: full
+        run: |
+          set -euo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          .github/scripts/run_tests_with_backtrace.sh \
+            build-debug/bin/livekit_integration_tests \
+            --gtest_filter='PlatformAudioIntegrationTest.*-PlatformAudioIntegrationTest.PinnedRuntimeRepeatedPublishStress' \
+            --gtest_repeat="${REPEAT}" \
+            --gtest_recreate_environments_when_repeating=1 \
+            --gtest_break_on_failure \
+            --gtest_output=xml:build-debug/triage-repeat-arm.xml
+
+      # Arm B: control. Runtime/ADM pinned alive for the whole test.
+      - name: "Arm B — pinned runtime (ADM created once, never terminated)"
+        id: pinned_arm
+        continue-on-error: true
+        timeout-minutes: 40
+        shell: bash
+        env:
+          RUST_LOG: info,livekit_ffi::server=debug,livekit_ffi::server::platform_audio=debug,livekit::platform_audio=debug
+          RUST_BACKTRACE: full
+          PLATFORM_AUDIO_PIN_ITERATIONS: ${{ env.PIN_ITERATIONS }}
+        run: |
+          set -euo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          .github/scripts/run_tests_with_backtrace.sh \
+            build-debug/bin/livekit_integration_tests \
+            --gtest_filter='PlatformAudioIntegrationTest.PinnedRuntimeRepeatedPublishStress' \
+            --gtest_break_on_failure \
+            --gtest_output=xml:build-debug/triage-pinned-arm.xml
+
+      - name: Dump livekit-server log on failure
+        if: failure() || steps.repeat_arm.outcome == 'failure' || steps.pinned_arm.outcome == 'failure'
+        shell: bash
+        run: |
+          log_path="${{ steps.livekit_server.outputs.log-path }}"
+          if [[ -z "$log_path" ]]; then
+            log_path="${{ steps.livekit_server_fallback.outputs.log-path }}"
+          fi
+          tail -n 500 "$log_path" || true
+
+      - name: Stage crash diagnostics
+        if: steps.repeat_arm.outcome == 'failure' || steps.pinned_arm.outcome == 'failure'
+        run: .github/scripts/stage_crash_diagnostics.sh build-debug
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: platform-audio-triage-results
+          path: |
+            build-debug/triage-repeat-arm.xml
+            build-debug/triage-pinned-arm.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload crash diagnostics
+        if: steps.repeat_arm.outcome == 'failure' || steps.pinned_arm.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: platform-audio-triage-crash-diagnostics
+          path: ${{ runner.temp }}/crash-diagnostics/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # Surface the diagnostic contrast and fail the job if either arm failed.
+      - name: Triage summary
+        if: always()
+        shell: bash
+        run: |
+          repeat="${{ steps.repeat_arm.outcome }}"
+          pinned="${{ steps.pinned_arm.outcome }}"
+          {
+            echo "## PlatformAudio triage"
+            echo ""
+            echo "| Arm | Outcome |"
+            echo "| --- | --- |"
+            echo "| Repeat (dispose+ADM Terminate each iter) | ${repeat} |"
+            echo "| Pinned runtime (ADM never terminated) | ${pinned} |"
+            echo ""
+            if [[ "${repeat}" == "failure" && "${pinned}" == "success" ]]; then
+              echo "➡️ Repeat failed while pinned passed: consistent with an ADM teardown/recreate bug."
+            elif [[ "${repeat}" == "failure" && "${pinned}" == "failure" ]]; then
+              echo "➡️ Both arms failed: instability is not exclusive to ADM teardown."
+            elif [[ "${repeat}" == "success" && "${pinned}" == "success" ]]; then
+              echo "➡️ Both arms passed this run (did not reproduce). Try a higher repeat count."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          [[ "${repeat}" == "success" && "${pinned}" == "success" ]]
