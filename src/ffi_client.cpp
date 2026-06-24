@@ -819,7 +819,7 @@ std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> FfiClient
     *opts->mutable_schema() = toProto(*options.schema);
   }
   if (options.frame_encoding.has_value()) {
-    opts->set_frame_encoding(toProto(*options.frame_encoding));
+    *opts->mutable_frame_encoding() = toProto(*options.frame_encoding);
   }
   msg->set_request_async_id(async_id);
 

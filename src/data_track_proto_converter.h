@@ -22,11 +22,11 @@
 
 namespace livekit {
 
-proto::DataTrackSchemaEncoding toProto(DataTrackSchemaEncoding in);
-DataTrackSchemaEncoding fromProto(proto::DataTrackSchemaEncoding in);
+proto::DataTrackSchemaEncoding toProto(const DataTrackSchemaEncoding& in);
+DataTrackSchemaEncoding fromProto(const proto::DataTrackSchemaEncoding& in);
 
-proto::DataTrackFrameEncoding toProto(DataTrackFrameEncoding in);
-DataTrackFrameEncoding fromProto(proto::DataTrackFrameEncoding in);
+proto::DataTrackFrameEncoding toProto(const DataTrackFrameEncoding& in);
+DataTrackFrameEncoding fromProto(const proto::DataTrackFrameEncoding& in);
 
 proto::DataTrackSchemaId toProto(const DataTrackSchemaId& in);
 DataTrackSchemaId fromProto(const proto::DataTrackSchemaId& in);
