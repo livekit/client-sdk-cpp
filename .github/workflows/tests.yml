@@ -248,15 +248,7 @@ jobs:
           fi
           lk --version
 
-      # Stand up the token server against the local dev livekit-server so
-      # EndpointTokenSource can be exercised end-to-end with a real, connectable
-      # JWT (see TokenSourceEndpointConnectTest). The token server ships its own
-      # reusable composite action (like livekit/dev-server-action); we pin it to a
-      # commit SHA on an unmerged branch of the public repo. TODO: repin to a
-      # released tag once the action is merged. The /createToken endpoint URL is
-      # exposed as the `token-url` output and handed to the integration test step
-      # below via LIVEKIT_CREATE_TOKEN_URL.
-      - name: Start token server (real token endpoint)
+      - name: Start token server
         if: matrix.e2e-testing
         id: token_server
         uses: livekit/token-server-action@a1e42c649a1998d5b224f5102f252c07762024f0 # v0.0.1

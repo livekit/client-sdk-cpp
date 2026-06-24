@@ -21,7 +21,7 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 
 - [LiveKit docs](https://docs.livekit.io)
 - [SDK reference](https://docs.livekit.io/reference/client-sdk-cpp/)
-- [Repository docs](./docs/README.md)
+- [Repository docs](./docs/README.md) — building, [authentication](./docs/authentication.md), testing, logging, tracing
 
 ## Using the SDK
 
@@ -187,68 +187,28 @@ room->addOnDataFrameCallback(sender_identity, "app-data",
 
 For end-to-end samples and a fuller set of demos, see the [cpp-example-collection repo](https://github.com/livekit-examples/cpp-example-collection).
 
-### Token source (dynamic tokens)
+### Generating tokens
 
-The SDK provides token sources for literal credentials, custom async logic,
-HTTP token-server endpoints, LiveKit Cloud sandbox (dev), and JWT-aware caching.
-See the [token server docs](https://docs.livekit.io/frontends/build/authentication/).
+For local development, install [`livekit-cli`](https://docs.livekit.io/home/cli/cli-setup/)
+and mint a participant JWT against a dev server (`livekit-server --dev` uses
+`devkey` / `secret`):
 
-**Literal** — static URL + JWT:
-
-```cpp
-#include <livekit/token_source.h>
-
-auto source = livekit::LiteralTokenSource::fromValue(url, jwt);
-if (!room->connect(*source, options)) {
-  std::cerr << "Failed to connect to LiveKit\n";
-  return 1;
-}
+```bash
+export LIVEKIT_URL=ws://localhost:7880
+export LIVEKIT_TOKEN=$(lk token create \
+  --api-key devkey \
+  --api-secret secret \
+  -i my-participant \
+  --join \
+  --valid-for 24h \
+  --room my-room \
+  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}' \
+  --token-only)
 ```
 
-**Endpoint** — POST (or GET) to your token server:
-
-```cpp
-livekit::TokenRequestOptions request;
-request.room_name = "my-room";
-request.participant_identity = "user-123";
-
-livekit::TokenEndpointOptions endpoint_options;
-endpoint_options.method = "POST";  // default; set to "GET" if your server requires it
-endpoint_options.headers["Authorization"] = "Bearer your-api-token";
-
-auto source = livekit::EndpointTokenSource::fromUrl("https://your-backend.example.com/token",
-                                                     std::move(endpoint_options));
-if (!room->connect(*source, request, options)) {
-  return 1;
-}
-```
-
-**Sandbox** (dev only) — LiveKit Cloud sandbox token server:
-
-```cpp
-auto source = livekit::SandboxTokenSource::fromSandboxId(
-    "your-sandbox-id",
-    {},
-    "https://cloud-api.livekit.io");  // optional base URL override
-```
-
-**Custom** — wrap your own fetch logic:
-
-```cpp
-auto source = livekit::CustomTokenSource::fromCallback([](const livekit::TokenRequestOptions& options) {
-  std::promise<livekit::Result<livekit::TokenSourceResponse, livekit::TokenSourceError>> promise;
-  // fetch from your backend, then:
-  livekit::TokenSourceResponse details;
-  details.server_url = /* ... */;
-  details.participant_token = /* ... */;
-  promise.set_value(livekit::Result<livekit::TokenSourceResponse, livekit::TokenSourceError>::success(details));
-  return promise.get_future();
-});
-```
-
-During an active session the SDK refreshes tokens internally for reconnect.
-`Room::participantToken()` returns the latest JWT and
-`RoomDelegate::onTokenRefreshed` fires when it changes.
+Pass `LIVEKIT_URL` and `LIVEKIT_TOKEN` into `Room::connect`, or use the SDK's
+token source helpers for endpoint, sandbox, and custom backends. See
+[docs/authentication.md](docs/authentication.md).
 
 ## Features
 

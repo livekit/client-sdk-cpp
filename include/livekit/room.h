@@ -249,11 +249,6 @@ public:
   /// Returns the current connection state of the room.
   ConnectionState connectionState() const;
 
-  /// Returns the participant JWT from the last successful connect or token refresh.
-  ///
-  /// Empty when the room has never connected or after disconnect.
-  std::string participantToken() const;
-
   /// Retrieve aggregated WebRTC stats for this room session.
   ///
   /// Dispatches an async request to the server and returns a future that
@@ -358,7 +353,6 @@ private:
 
   mutable std::mutex lock_;
   ConnectionState connection_state_ = ConnectionState::Disconnected;
-  std::string participant_token_;
   RoomDelegate* delegate_ = nullptr; // Not owned
   RoomInfoData room_info_;
   std::shared_ptr<FfiHandle> room_handle_;

@@ -55,6 +55,7 @@ TEST_F(RoomTest, ConnectWithLiteralTokenSourceEmptyCredentialsFails) {
 }
 
 TEST_F(RoomTest, ConnectWithLiteralTokenSourceWithoutInitialize) {
+  // Test fixture initializes by default, do this to emulate lack of initialization
   livekit::shutdown();
 
   Room room;

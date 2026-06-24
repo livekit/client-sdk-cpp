@@ -222,7 +222,6 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
       local_participant_ = std::move(new_local_participant);
       remote_participants_ = std::move(new_remote_participants);
       e2ee_manager_ = std::move(new_e2ee_manager);
-      participant_token_ = token;
       connection_state_ = ConnectionState::Connected;
     }
 
@@ -242,7 +241,6 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
       remote_participants_.clear();
       room_handle_.reset();
       e2ee_manager_.reset();
-      participant_token_.clear();
       text_stream_readers_.clear();
       byte_stream_readers_.clear();
     }
@@ -288,7 +286,6 @@ bool Room::disconnect(DisconnectReason reason) {
     listener_to_remove = listener_id_;
     listener_id_ = 0;
     room_handle_.reset();
-    participant_token_.clear();
     // Flip state immediately so the in-flight Disconnected room-event we'll
     // get back doesn't double-fire onDisconnected. Mirrors Python's
     // Room.disconnect()
@@ -369,11 +366,6 @@ std::vector<std::weak_ptr<RemoteParticipant>> Room::remoteParticipants() const {
 ConnectionState Room::connectionState() const {
   const std::scoped_lock<std::mutex> g(lock_);
   return connection_state_;
-}
-
-std::string Room::participantToken() const {
-  const std::scoped_lock<std::mutex> g(lock_);
-  return participant_token_;
 }
 
 std::future<SessionStats> Room::getStats() const {
@@ -1255,10 +1247,6 @@ void Room::onEvent(const FfiEvent& event) {
         }
         case proto::RoomEvent::kTokenRefreshed: {
           const TokenRefreshedEvent ev = fromProto(re.token_refreshed());
-          {
-            const std::scoped_lock<std::mutex> guard(lock_);
-            participant_token_ = ev.token;
-          }
           if (delegate_snapshot) {
             delegate_snapshot->onTokenRefreshed(*this, ev);
           }
@@ -1287,7 +1275,6 @@ void Room::onEvent(const FfiEvent& event) {
 
             // Reset connection state
             connection_state_ = ConnectionState::Disconnected;
-            participant_token_.clear();
 
             // Move state out for cleanup outside lock
             old_local_participant = std::move(local_participant_);
