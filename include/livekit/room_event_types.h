@@ -280,6 +280,9 @@ struct PacketTrailerFeatures {
 
   /// Embed a monotonically increasing frame identifier.
   bool frame_id = false;
+
+  /// Negotiate the PTF_USER_DATA trailer feature for published video.
+  bool user_data = false;
 };
 
 /// Options for publishing a track to the room.

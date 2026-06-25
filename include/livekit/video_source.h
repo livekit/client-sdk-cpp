@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "livekit/ffi_handle.h"
 #include "livekit/visibility.h"
@@ -43,6 +44,8 @@ enum class VideoRotation {
 struct VideoFrameMetadata {
   std::optional<std::uint64_t> user_timestamp_us;
   std::optional<std::uint32_t> frame_id;
+  /// Arbitrary application-supplied bytes carried in the PTF_USER_DATA trailer.
+  std::optional<std::vector<std::uint8_t>> user_data;
 };
 
 /// Capture options for a single outbound video frame.
