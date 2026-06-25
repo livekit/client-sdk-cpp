@@ -129,7 +129,7 @@ struct TokenEndpointOptions {
   /// Request timeout (default 30 seconds).
   ///
   /// @note A non-positive value is treated as the 30 second default rather than
-  /// as "no timeout". Extremely large values are clamped to INT_MAX for Windows compatibility.
+  /// as "no timeout".
   std::chrono::milliseconds timeout = std::chrono::seconds(30);
 };
 

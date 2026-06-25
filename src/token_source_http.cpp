@@ -16,7 +16,6 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
-#include <limits>
 #include <sstream>
 #include <utility>
 
@@ -53,18 +52,14 @@ std::string normalizeHttpMethod(std::string method) {
   return method;
 }
 
-// Coerce a caller-supplied timeout into a valid, positive millisecond count.
-// Both WinHTTP (int) and libcurl (long) treat 0 as "wait forever" and reject
-// negatives, neither of which is sensible for a token fetch, so non-positive
-// values fall back to the 30s default. The result is capped to INT_MAX so the
-// 64-bit millisecond count cannot overflow WinHTTP's int parameters.
-int clampedTimeoutMs(std::chrono::milliseconds timeout) {
+// Coerce a caller-supplied timeout into a positive millisecond count. Both
+// WinHTTP and libcurl treat 0 as "wait forever" and reject negatives, neither
+// of which is sensible for a token fetch, so non-positive values fall back to
+// the 30s default.
+std::int64_t effectiveTimeoutMs(std::chrono::milliseconds timeout) {
   constexpr std::int64_t kDefaultTimeoutMs = 30000;
   const std::int64_t count = timeout.count();
-  if (count <= 0) {
-    return static_cast<int>(kDefaultTimeoutMs);
-  }
-  return static_cast<int>(std::min<std::int64_t>(count, std::numeric_limits<int>::max()));
+  return count > 0 ? count : kDefaultTimeoutMs;
 }
 
 #if defined(_WIN32)
@@ -114,7 +109,7 @@ Result<std::string, std::string> winHttpRequest(const std::string& method, const
     return Result<std::string, std::string>::failure("WinHttpOpen failed");
   }
 
-  const int timeout_ms = clampedTimeoutMs(timeout);
+  const int timeout_ms = static_cast<int>(effectiveTimeoutMs(timeout));
   WinHttpSetTimeouts(session, timeout_ms, timeout_ms, timeout_ms, timeout_ms);
 
   HINTERNET connection = WinHttpConnect(session, host.c_str(), components.nPort, 0);
@@ -218,7 +213,7 @@ Result<std::string, std::string> tokenSourceHttpRequest(const std::string& metho
   curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(json_body.size()));
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWriteCallback);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
-  curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(clampedTimeoutMs(timeout)));
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(effectiveTimeoutMs(timeout)));
   curl_easy_setopt(curl, CURLOPT_USERAGENT, "LiveKit-CPP/1.0");
 
   struct curl_slist* curl_headers = nullptr;
