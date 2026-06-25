@@ -127,6 +127,9 @@ struct TokenEndpointOptions {
   std::map<std::string, std::string> headers;
 
   /// Request timeout (default 30 seconds).
+  ///
+  /// @note A non-positive value is treated as the 30 second default rather than
+  /// as "no timeout". Extremely large values are clamped to INT_MAX for Windows compatibility.
   std::chrono::milliseconds timeout = std::chrono::seconds(30);
 };
 
@@ -275,7 +278,7 @@ public:
   std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
 
 private:
-  SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options, const std::string& base_url);
+  explicit SandboxTokenSource(std::unique_ptr<TokenSourceConfigurable> endpoint);
 
   std::unique_ptr<TokenSourceConfigurable> endpoint_;
 

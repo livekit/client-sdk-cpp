@@ -197,24 +197,22 @@ Result<TokenSourceResponse, TokenSourceError> EndpointTokenSource::fetchSync(con
 std::unique_ptr<SandboxTokenSource> SandboxTokenSource::fromSandboxId(const std::string& sandbox_id,
                                                                       TokenEndpointOptions options,
                                                                       const std::string& base_url) {
-  return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(sandbox_id, std::move(options), base_url));
+  auto resolved = resolveSandboxEndpoint(sandbox_id, std::move(options), base_url);
+  auto endpoint = EndpointTokenSource::fromUrl(std::move(resolved.url), std::move(resolved.options));
+  return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(std::move(endpoint)));
 }
 
-SandboxTokenSource::SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options,
-                                       const std::string& base_url) {
-  auto resolved = resolveSandboxEndpoint(sandbox_id, std::move(options), base_url);
-  endpoint_ = EndpointTokenSource::fromUrl(std::move(resolved.url), std::move(resolved.options));
-}
+SandboxTokenSource::SandboxTokenSource(std::unique_ptr<TokenSourceConfigurable> endpoint)
+    : endpoint_(std::move(endpoint)) {}
 
 std::unique_ptr<SandboxTokenSource> SandboxTokenSourceTestAccess::create(const std::string& sandbox_id,
                                                                          TokenEndpointOptions options,
                                                                          const std::string& base_url,
                                                                          TokenSourceHttpTransport transport) {
-  auto source = std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(sandbox_id, options, base_url));
   auto resolved = resolveSandboxEndpoint(sandbox_id, std::move(options), base_url);
-  source->endpoint_ =
+  auto endpoint =
       EndpointTokenSourceTestAccess::create(std::move(resolved.url), std::move(resolved.options), std::move(transport));
-  return source;
+  return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(std::move(endpoint)));
 }
 
 std::future<Result<TokenSourceResponse, TokenSourceError>> SandboxTokenSource::fetch(

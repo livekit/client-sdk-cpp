@@ -15,6 +15,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
+#include <limits>
 #include <sstream>
 #include <utility>
 
@@ -51,6 +53,20 @@ std::string normalizeHttpMethod(std::string method) {
   return method;
 }
 
+// Coerce a caller-supplied timeout into a valid, positive millisecond count.
+// Both WinHTTP (int) and libcurl (long) treat 0 as "wait forever" and reject
+// negatives, neither of which is sensible for a token fetch, so non-positive
+// values fall back to the 30s default. The result is capped to INT_MAX so the
+// 64-bit millisecond count cannot overflow WinHTTP's int parameters.
+int clampedTimeoutMs(std::chrono::milliseconds timeout) {
+  constexpr std::int64_t kDefaultTimeoutMs = 30000;
+  const std::int64_t count = timeout.count();
+  if (count <= 0) {
+    return static_cast<int>(kDefaultTimeoutMs);
+  }
+  return static_cast<int>(std::min<std::int64_t>(count, std::numeric_limits<int>::max()));
+}
+
 #if defined(_WIN32)
 std::wstring toWide(const std::string& value) {
   if (value.empty()) {
@@ -81,7 +97,15 @@ Result<std::string, std::string> winHttpRequest(const std::string& method, const
   }
 
   const std::wstring host(components.lpszHostName, components.dwHostNameLength);
-  const std::wstring path(components.lpszUrlPath, components.dwUrlPathLength);
+
+  // WinHttpCrackUrl splits the query string (and fragment) into lpszExtraInfo;
+  // lpszUrlPath alone drops it. Append it so endpoint URLs carrying query
+  // params (e.g. "/token?project=foo") reach the server, matching libcurl.
+  std::wstring object_name(components.lpszUrlPath, components.dwUrlPathLength);
+  if (components.lpszExtraInfo != nullptr && components.dwExtraInfoLength > 0) {
+    object_name.append(components.lpszExtraInfo, components.dwExtraInfoLength);
+  }
+
   const std::wstring wide_method = toWide(normalizeHttpMethod(method));
 
   HINTERNET session = WinHttpOpen(L"LiveKit-CPP/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
@@ -90,7 +114,7 @@ Result<std::string, std::string> winHttpRequest(const std::string& method, const
     return Result<std::string, std::string>::failure("WinHttpOpen failed");
   }
 
-  const int timeout_ms = static_cast<int>(timeout.count());
+  const int timeout_ms = clampedTimeoutMs(timeout);
   WinHttpSetTimeouts(session, timeout_ms, timeout_ms, timeout_ms, timeout_ms);
 
   HINTERNET connection = WinHttpConnect(session, host.c_str(), components.nPort, 0);
@@ -100,8 +124,8 @@ Result<std::string, std::string> winHttpRequest(const std::string& method, const
   }
 
   const DWORD flags = (components.nScheme == INTERNET_SCHEME_HTTPS) ? WINHTTP_FLAG_SECURE : 0;
-  HINTERNET request = WinHttpOpenRequest(connection, wide_method.c_str(), path.c_str(), nullptr, WINHTTP_NO_REFERER,
-                                         WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
+  HINTERNET request = WinHttpOpenRequest(connection, wide_method.c_str(), object_name.c_str(), nullptr,
+                                         WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, flags);
   if (request == nullptr) {
     WinHttpCloseHandle(connection);
     WinHttpCloseHandle(session);
@@ -194,7 +218,7 @@ Result<std::string, std::string> tokenSourceHttpRequest(const std::string& metho
   curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(json_body.size()));
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWriteCallback);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
-  curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(timeout.count()));
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(clampedTimeoutMs(timeout)));
   curl_easy_setopt(curl, CURLOPT_USERAGENT, "LiveKit-CPP/1.0");
 
   struct curl_slist* curl_headers = nullptr;
