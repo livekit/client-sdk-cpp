@@ -138,7 +138,7 @@ struct TokenSourceError {
 /// @brief Base interface for token sources that provide full credentials directly.
 class LIVEKIT_API TokenSourceFixed {
 public:
-  virtual ~TokenSourceFixed();
+  virtual ~TokenSourceFixed() = default;
 
   /// Fetch connection credentials.
   ///
@@ -149,7 +149,7 @@ public:
 /// @brief Base interface for token sources that generate credentials from request options.
 class LIVEKIT_API TokenSourceConfigurable {
 public:
-  virtual ~TokenSourceConfigurable();
+  virtual ~TokenSourceConfigurable() = default;
 
   /// Fetch connection credentials.
   ///
@@ -207,6 +207,8 @@ public:
   static std::unique_ptr<CustomTokenSource> fromCallback(
       std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider);
 
+  /// @note @p force_refresh is a no-op: this source holds no cache and invokes
+  /// the provider fresh on every call. Layer @ref CachingTokenSource to honor it.
   std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options,
                                                                    bool force_refresh = false) override;
 
@@ -232,6 +234,8 @@ public:
   /// @param options HTTP transport options (method, headers, timeout).
   static std::unique_ptr<EndpointTokenSource> fromUrl(std::string endpoint_url, TokenEndpointOptions options = {});
 
+  /// @note @p force_refresh is a no-op: every fetch issues a fresh HTTP request.
+  /// Layer @ref CachingTokenSource to honor it.
   std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options,
                                                                    bool force_refresh = false) override;
 

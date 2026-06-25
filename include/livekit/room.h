@@ -28,7 +28,6 @@
 #include "livekit/room_event_types.h"
 #include "livekit/stats.h"
 #include "livekit/subscription_thread_dispatcher.h"
-#include "livekit/token_source.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
@@ -43,6 +42,9 @@ struct E2EEOptions;
 class E2EEManager;
 class LocalParticipant;
 class RemoteParticipant;
+class TokenSourceFixed;
+class TokenSourceConfigurable;
+struct TokenRequestOptions;
 
 /// Represents a single ICE server configuration.
 struct IceServer {

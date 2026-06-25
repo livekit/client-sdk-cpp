@@ -30,6 +30,7 @@
 #include "livekit/remote_video_track.h"
 #include "livekit/room_delegate.h"
 #include "livekit/room_event_types.h"
+#include "livekit/token_source.h"
 #include "livekit_ffi.h"
 #include "lk_log.h"
 #include "room.pb.h"
@@ -72,6 +73,31 @@ void readyForRoomEvent(std::uint64_t room_handle) {
   }
 }
 
+// Shared driver for the token-source connect overloads
+template <typename FetchFn>
+bool connectWithTokenSource(Room& room, const RoomOptions& options, FetchFn&& fetch) {
+  Result<TokenSourceResponse, TokenSourceError> details =
+      Result<TokenSourceResponse, TokenSourceError>::failure(TokenSourceError{"token source not invoked"});
+
+  try {
+    details = fetch().get();
+  } catch (const std::exception& e) {
+    LK_LOG_ERROR("Room::connect failed: token source threw: {}", e.what());
+    return false;
+  } catch (...) {
+    LK_LOG_ERROR("Room::connect failed: token source threw unknown exception");
+    return false;
+  }
+
+  if (!details) {
+    LK_LOG_ERROR("Room::connect failed: token source error: {}", details.error().message);
+    return false;
+  }
+
+  const auto& value = details.value();
+  return room.connect(value.server_url, value.participant_token, options);
+}
+
 } // namespace
 Room::Room() : subscription_thread_dispatcher_(std::make_unique<SubscriptionThreadDispatcher>()) {}
 
@@ -92,46 +118,12 @@ void Room::setDelegate(RoomDelegate* delegate) {
 }
 
 bool Room::connect(TokenSourceFixed& token_source, const RoomOptions& options) {
-  Result<TokenSourceResponse, TokenSourceError> details =
-      Result<TokenSourceResponse, TokenSourceError>::failure(TokenSourceError{"token source not invoked"});
-  try {
-    details = token_source.fetch().get();
-  } catch (const std::exception& e) {
-    LK_LOG_ERROR("Room::connect failed: token source threw: {}", e.what());
-    return false;
-  } catch (...) {
-    LK_LOG_ERROR("Room::connect failed: token source threw unknown exception");
-    return false;
-  }
-
-  if (!details) {
-    LK_LOG_ERROR("Room::connect failed: token source error: {}", details.error().message);
-    return false;
-  }
-
-  return connect(details.value().server_url, details.value().participant_token, options);
+  return connectWithTokenSource(*this, options, [&] { return token_source.fetch(); });
 }
 
 bool Room::connect(TokenSourceConfigurable& token_source, const TokenRequestOptions& request_options,
                    const RoomOptions& options) {
-  Result<TokenSourceResponse, TokenSourceError> details =
-      Result<TokenSourceResponse, TokenSourceError>::failure(TokenSourceError{"token source not invoked"});
-  try {
-    details = token_source.fetch(request_options, false).get();
-  } catch (const std::exception& e) {
-    LK_LOG_ERROR("Room::connect failed: failed to fetch token: {}", e.what());
-    return false;
-  } catch (...) {
-    LK_LOG_ERROR("Room::connect failed: token source threw unknown exception");
-    return false;
-  }
-
-  if (!details) {
-    LK_LOG_ERROR("Room::connect failed: token source error: {}", details.error().message);
-    return false;
-  }
-
-  return connect(details.value().server_url, details.value().participant_token, options);
+  return connectWithTokenSource(*this, options, [&] { return token_source.fetch(request_options, false); });
 }
 
 bool Room::connect(const std::string& url, const std::string& token, const RoomOptions& options) {

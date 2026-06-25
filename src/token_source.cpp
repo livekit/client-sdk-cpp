@@ -103,10 +103,6 @@ ResolvedSandboxEndpoint resolveSandboxEndpoint(const std::string& sandbox_id, To
 
 } // namespace
 
-TokenSourceFixed::~TokenSourceFixed() = default;
-
-TokenSourceConfigurable::~TokenSourceConfigurable() = default;
-
 std::unique_ptr<LiteralTokenSource> LiteralTokenSource::fromValue(std::string server_url,
                                                                   std::string participant_token) {
   TokenSourceResponse details;
