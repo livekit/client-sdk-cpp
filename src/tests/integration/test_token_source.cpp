@@ -21,6 +21,8 @@
 #include <optional>
 #include <string>
 
+#include "../common/test_common.h"
+
 // Request serialization, response parsing, header passthrough, GET support, and
 // sandbox URL/header resolution are covered by mocked unit tests in
 // src/tests/unit/test_token_source.cpp. This file holds the end-to-end check
@@ -64,6 +66,9 @@ protected:
 
 TEST_F(TokenSourceEndpointConnectTest, EndpointMintsConnectableToken) {
   if (!endpoint_available_) {
+    if (runningInCi()) {
+      FAIL() << "LIVEKIT_CREATE_TOKEN_URL not set";
+    }
     GTEST_SKIP() << "LIVEKIT_CREATE_TOKEN_URL not set";
   }
 

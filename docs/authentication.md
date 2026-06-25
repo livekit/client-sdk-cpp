@@ -231,6 +231,3 @@ public:
 This event is **informational**. It does not invoke your token source or token
 endpoint. Automatic reconnect/resume while connected uses the internally stored
 JWT only.
-
-See [token-lifecycle.md](token-lifecycle.md) for client vs. server
-responsibilities, refresh timing, and how join `valid-for` relates to reconnect.

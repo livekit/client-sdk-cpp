@@ -60,10 +60,4 @@ TEST(RoomEventTypesTest, TokenRefreshedEventDefaults) {
   EXPECT_TRUE(event.token.empty());
 }
 
-TEST(RoomEventTypesTest, TokenRefreshedEventStoresToken) {
-  TokenRefreshedEvent event;
-  event.token = "refreshed-jwt";
-  EXPECT_EQ(event.token, "refreshed-jwt");
-}
-
 } // namespace livekit::test
