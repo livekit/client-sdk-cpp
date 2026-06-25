@@ -123,7 +123,7 @@ bool Room::connect(TokenSourceFixed& token_source, const RoomOptions& options) {
 
 bool Room::connect(TokenSourceConfigurable& token_source, const TokenRequestOptions& request_options,
                    const RoomOptions& options) {
-  return connectWithTokenSource(*this, options, [&] { return token_source.fetch(request_options, false); });
+  return connectWithTokenSource(*this, options, [&] { return token_source.fetch(request_options); });
 }
 
 bool Room::connect(const std::string& url, const std::string& token, const RoomOptions& options) {

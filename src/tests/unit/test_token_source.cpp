@@ -330,7 +330,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceReusesValidToken) {
   EXPECT_EQ(fetch_count.load(), 1);
 }
 
-TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenForced) {
+TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesAfterInvalidate) {
   std::atomic<int> fetch_count{0};
   auto inner = CustomTokenSource::fromCallback(
       [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
@@ -347,8 +347,34 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenForced) {
   TokenRequestOptions request;
 
   (void)cached->fetch(request).get();
-  (void)cached->fetch(request, true).get();
+  cached->invalidate();
+  (void)cached->fetch(request).get();
   EXPECT_EQ(fetch_count.load(), 2);
+}
+
+TEST(TokenSourceFactoryTest, CachingTokenSourceExposesCachedResponse) {
+  auto inner = CustomTokenSource::fromCallback(
+      [](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
+        TokenSourceResponse details;
+        details.server_url = "wss://example.livekit.io";
+        details.participant_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
+        return promise.get_future();
+      });
+
+  auto cached = CachingTokenSource::wrap(std::move(inner));
+  TokenRequestOptions request;
+
+  EXPECT_FALSE(cached->cachedResponse().has_value());
+
+  (void)cached->fetch(request).get();
+  const auto stored = cached->cachedResponse();
+  ASSERT_TRUE(stored.has_value());
+  EXPECT_EQ(stored->server_url, "wss://example.livekit.io");
+
+  cached->invalidate();
+  EXPECT_FALSE(cached->cachedResponse().has_value());
 }
 
 TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenOptionsChange) {

@@ -145,8 +145,8 @@ CustomTokenSource::CustomTokenSource(
     std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider)
     : provider_(std::move(provider)) {}
 
-std::future<Result<TokenSourceResponse, TokenSourceError>> CustomTokenSource::fetch(const TokenRequestOptions& options,
-                                                                                    bool /*force_refresh*/) {
+std::future<Result<TokenSourceResponse, TokenSourceError>> CustomTokenSource::fetch(
+    const TokenRequestOptions& options) {
   return provider_(options);
 }
 
@@ -168,7 +168,7 @@ std::unique_ptr<EndpointTokenSource> EndpointTokenSourceTestAccess::create(std::
 }
 
 std::future<Result<TokenSourceResponse, TokenSourceError>> EndpointTokenSource::fetch(
-    const TokenRequestOptions& options, bool /*force_refresh*/) {
+    const TokenRequestOptions& options) {
   std::shared_ptr<TokenRequestOptions> options_snapshot;
   try {
     options_snapshot = std::make_shared<TokenRequestOptions>(options);
@@ -217,9 +217,9 @@ std::unique_ptr<SandboxTokenSource> SandboxTokenSourceTestAccess::create(const s
   return source;
 }
 
-std::future<Result<TokenSourceResponse, TokenSourceError>> SandboxTokenSource::fetch(const TokenRequestOptions& options,
-                                                                                     bool force_refresh) {
-  return endpoint_->fetch(options, force_refresh);
+std::future<Result<TokenSourceResponse, TokenSourceError>> SandboxTokenSource::fetch(
+    const TokenRequestOptions& options) {
+  return endpoint_->fetch(options);
 }
 
 std::unique_ptr<CachingTokenSource> CachingTokenSource::wrap(std::unique_ptr<TokenSourceConfigurable> inner) {
@@ -228,8 +228,8 @@ std::unique_ptr<CachingTokenSource> CachingTokenSource::wrap(std::unique_ptr<Tok
 
 CachingTokenSource::CachingTokenSource(std::unique_ptr<TokenSourceConfigurable> inner) : inner_(std::move(inner)) {}
 
-std::future<Result<TokenSourceResponse, TokenSourceError>> CachingTokenSource::fetch(const TokenRequestOptions& options,
-                                                                                     bool force_refresh) {
+std::future<Result<TokenSourceResponse, TokenSourceError>> CachingTokenSource::fetch(
+    const TokenRequestOptions& options) {
   std::shared_ptr<TokenRequestOptions> options_snapshot;
   try {
     options_snapshot = std::make_shared<TokenRequestOptions>(options);
@@ -240,21 +240,32 @@ std::future<Result<TokenSourceResponse, TokenSourceError>> CachingTokenSource::f
     return makeFailedFuture("token source cache fetch failed: failed to copy request options: unknown exception");
   }
 
-  return runAsyncTokenSource("token source cache fetch failed", [this, options_snapshot, force_refresh]() {
+  return runAsyncTokenSource("token source cache fetch failed", [this, options_snapshot]() {
     const std::scoped_lock<std::mutex> lock(mutex_);
-    if (!force_refresh && cached_details_.has_value() && cached_options_.has_value() &&
+    if (cached_details_.has_value() && cached_options_.has_value() &&
         tokenRequestOptionsEqual(*cached_options_, *options_snapshot) &&
         isParticipantTokenValid(cached_details_->participant_token)) {
       return TokenSourceResult::success(*cached_details_);
     }
 
-    auto result = inner_->fetch(*options_snapshot, force_refresh).get();
+    auto result = inner_->fetch(*options_snapshot).get();
     if (result) {
       cached_options_ = *options_snapshot;
       cached_details_ = result.value();
     }
     return result;
   });
+}
+
+void CachingTokenSource::invalidate() {
+  const std::scoped_lock<std::mutex> lock(mutex_);
+  cached_options_.reset();
+  cached_details_.reset();
+}
+
+std::optional<TokenSourceResponse> CachingTokenSource::cachedResponse() const {
+  const std::scoped_lock<std::mutex> lock(mutex_);
+  return cached_details_;
 }
 
 } // namespace livekit

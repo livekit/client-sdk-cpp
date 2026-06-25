@@ -154,10 +154,8 @@ public:
   /// Fetch connection credentials.
   ///
   /// @param options Connection parameters encoded into the token request.
-  /// @param force_refresh When @c true, bypass any cached credentials.
   /// @return Future resolving to connection details or an error.
-  virtual std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options = {},
-                                                                           bool force_refresh = false) = 0;
+  virtual std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options = {}) = 0;
 };
 
 /// @brief Token source that returns credentials you already created yourself.
@@ -207,10 +205,9 @@ public:
   static std::unique_ptr<CustomTokenSource> fromCallback(
       std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider);
 
-  /// @note @p force_refresh is a no-op: this source holds no cache and invokes
-  /// the provider fresh on every call. Layer @ref CachingTokenSource to honor it.
-  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options,
-                                                                   bool force_refresh = false) override;
+  /// @note This source holds no cache and invokes the provider fresh on every
+  /// call. Wrap it in @ref CachingTokenSource to reuse credentials.
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
 
 private:
   explicit CustomTokenSource(
@@ -234,10 +231,9 @@ public:
   /// @param options HTTP transport options (method, headers, timeout).
   static std::unique_ptr<EndpointTokenSource> fromUrl(std::string endpoint_url, TokenEndpointOptions options = {});
 
-  /// @note @p force_refresh is a no-op: every fetch issues a fresh HTTP request.
-  /// Layer @ref CachingTokenSource to honor it.
-  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options,
-                                                                   bool force_refresh = false) override;
+  /// @note Every fetch issues a fresh HTTP request. Wrap it in
+  /// @ref CachingTokenSource to reuse credentials between calls.
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
 
 private:
   // Network transport seam. Mirrors the internal HTTP client signature
@@ -276,8 +272,7 @@ public:
       const std::string& sandbox_id, TokenEndpointOptions options = {},
       const std::string& base_url = "https://cloud-api.livekit.io");
 
-  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options,
-                                                                   bool force_refresh = false) override;
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
 
 private:
   SandboxTokenSource(const std::string& sandbox_id, TokenEndpointOptions options, const std::string& base_url);
@@ -290,8 +285,9 @@ private:
 /// @brief Decorator that adds JWT-aware caching to another configurable token source.
 ///
 /// Wrap @ref CustomTokenSource, @ref EndpointTokenSource, or
-/// @ref SandboxTokenSource to reduce token fetch calls while still refreshing
-/// when tokens expire or when @p force_refresh is requested.
+/// @ref SandboxTokenSource to reduce token fetch calls. A cached response is
+/// reused until the request options change or the JWT expires. Call
+/// @ref invalidate to force the next @ref fetch to bypass the cache.
 class LIVEKIT_API CachingTokenSource final : public TokenSourceConfigurable {
 public:
   /// @brief Wrap @p inner with JWT-aware caching.
@@ -299,8 +295,15 @@ public:
   /// Cached values are keyed by @ref TokenRequestOptions.
   static std::unique_ptr<CachingTokenSource> wrap(std::unique_ptr<TokenSourceConfigurable> inner);
 
-  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options,
-                                                                   bool force_refresh = false) override;
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
+
+  /// @brief Clear any cached credentials so the next @ref fetch re-queries the inner source.
+  void invalidate();
+
+  /// @brief Return the currently cached credentials, if any.
+  ///
+  /// @return The cached response, or @c std::nullopt when nothing is cached.
+  std::optional<TokenSourceResponse> cachedResponse() const;
 
 private:
   explicit CachingTokenSource(std::unique_ptr<TokenSourceConfigurable> inner);

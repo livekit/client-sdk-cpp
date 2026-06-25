@@ -91,7 +91,7 @@ again only happens when you call `Room::connect` again with that source.
 | Base class | `fetch` signature | Use when |
 |---|---|---|
 | `TokenSourceFixed` | `fetch()` | Credentials are fully determined without per-call options |
-| `TokenSourceConfigurable` | `fetch(options, force_refresh)` | Room, identity, agent dispatch, etc. vary per connect |
+| `TokenSourceConfigurable` | `fetch(options)` | Room, identity, agent dispatch, etc. vary per connect |
 
 ### Token source types
 
@@ -198,9 +198,10 @@ auto source = livekit::CustomTokenSource::fromCallback(
 ### Caching
 
 Wraps another configurable source and reuses a cached JWT when options match
-and the token is still valid. `force_refresh = true` bypasses the cache on the
-next `fetch()` — useful when calling `Room::connect` again, **not** for
-server-pushed refresh during an active session.
+and the token is still valid. Call `invalidate()` to drop the cached credentials
+so the next `fetch()` re-queries the inner source — useful when calling
+`Room::connect` again, **not** for server-pushed refresh during an active
+session. `cachedResponse()` returns the currently cached credentials, if any.
 
 ```cpp
 auto inner = livekit::EndpointTokenSource::fromUrl("https://your-backend.example.com/token");
