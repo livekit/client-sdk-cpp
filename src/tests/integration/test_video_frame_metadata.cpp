@@ -31,7 +31,7 @@ namespace livekit::test {
 class VideoFrameMetadataServerTest : public LiveKitTestBase {};
 
 TEST_F(VideoFrameMetadataServerTest, UserTimestampRoundTripsToReceiverEventCallback) {
-  skipIfNotConfigured();
+  failIfNotConfigured();
 
   Room sender_room;
   Room receiver_room;
@@ -157,7 +157,7 @@ TEST_F(VideoFrameMetadataServerTest, UserTimestampRoundTripsToReceiverEventCallb
 }
 
 TEST_F(VideoFrameMetadataServerTest, UserDataRoundTripsToReceiverEventCallback) {
-  skipIfNotConfigured();
+  failIfNotConfigured();
 
   Room sender_room;
   Room receiver_room;

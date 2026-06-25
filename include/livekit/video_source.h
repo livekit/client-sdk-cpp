@@ -39,12 +39,14 @@ enum class VideoRotation {
 
 /// Optional packet-trailer metadata carried alongside a video frame.
 ///
-/// Each field is independently optional because the corresponding transport
-/// feature can be negotiated separately.
+/// Each field is independently optional. Enable the corresponding features in
+/// @ref TrackPublishOptions before publishing the track.
 struct VideoFrameMetadata {
+  /// User-supplied capture time in microseconds.
   std::optional<std::uint64_t> user_timestamp_us;
+  /// Monotonically increasing frame identifier.
   std::optional<std::uint32_t> frame_id;
-  /// Arbitrary application-supplied bytes carried in the PTF_USER_DATA trailer.
+  /// Free-form data to attach to the frame.
   std::optional<std::vector<std::uint8_t>> user_data;
 };
 
@@ -52,7 +54,7 @@ struct VideoFrameMetadata {
 struct VideoCaptureOptions {
   std::int64_t timestamp_us = 0;
   VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0;
-  /// Populate meta data when you want to send user timestamps or frame IDs.
+  /// Optional per-frame metadata (timestamps, frame IDs, user data).
   std::optional<VideoFrameMetadata> metadata;
 };
 
