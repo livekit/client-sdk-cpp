@@ -181,6 +181,11 @@ public:
   ///
   /// Use this overload when credentials are produced outside the SDK but fetched
   /// lazily (for example, from your own cache or secure storage).
+  ///
+  /// @note This is still a *fixed* source: the provider takes no parameters and
+  /// cannot be influenced by @ref TokenRequestOptions. If you need a configurable
+  /// source whose callback receives request options and can re-fetch on demand,
+  /// use @ref CustomTokenSource instead.
   static std::unique_ptr<LiteralTokenSource> fromProvider(
       std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>()> provider);
 
