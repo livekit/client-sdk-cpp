@@ -513,7 +513,9 @@ TEST_F(FfiClientTest, NotInitialized_GetSessionStatsAsyncThrows) {
 TEST_F(FfiClientTest, NotInitialized_PublishDataTrackAsyncFails) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
 
-  auto fut_result = FfiClient::instance().publishDataTrackAsync(1, "name");
+  DataTrackPublishOptions options;
+  options.name = "name";
+  auto fut_result = FfiClient::instance().publishDataTrackAsync(1, options);
   auto result = fut_result.get();
   EXPECT_FALSE(result.ok());
   EXPECT_EQ(result.error().code, PublishDataTrackErrorCode::INTERNAL);

@@ -25,30 +25,30 @@ proto::DataTrackSchemaEncoding toProto(const DataTrackSchemaEncoding& in) {
     return out;
   }
   switch (in.well_known()) {
-  case DataTrackSchemaEncoding::Protobuf:
-    out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_PROTOBUF);
-    break;
-  case DataTrackSchemaEncoding::Flatbuffer:
-    out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_FLATBUFFER);
-    break;
-  case DataTrackSchemaEncoding::Ros1Msg:
-    out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS1_MSG);
-    break;
-  case DataTrackSchemaEncoding::Ros2Msg:
-    out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS2_MSG);
-    break;
-  case DataTrackSchemaEncoding::Ros2Idl:
-    out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS2_IDL);
-    break;
-  case DataTrackSchemaEncoding::OmgIdl:
-    out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_OMG_IDL);
-    break;
-  case DataTrackSchemaEncoding::JsonSchema:
-    out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_JSON_SCHEMA);
-    break;
-  case DataTrackSchemaEncoding::Other:
-    out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_UNSPECIFIED);
-    break;
+    case DataTrackSchemaEncoding::Protobuf:
+      out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_PROTOBUF);
+      break;
+    case DataTrackSchemaEncoding::Flatbuffer:
+      out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_FLATBUFFER);
+      break;
+    case DataTrackSchemaEncoding::Ros1Msg:
+      out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS1_MSG);
+      break;
+    case DataTrackSchemaEncoding::Ros2Msg:
+      out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS2_MSG);
+      break;
+    case DataTrackSchemaEncoding::Ros2Idl:
+      out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS2_IDL);
+      break;
+    case DataTrackSchemaEncoding::OmgIdl:
+      out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_OMG_IDL);
+      break;
+    case DataTrackSchemaEncoding::JsonSchema:
+      out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_JSON_SCHEMA);
+      break;
+    case DataTrackSchemaEncoding::Other:
+      out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_UNSPECIFIED);
+      break;
   }
   return out;
 }
@@ -58,22 +58,22 @@ DataTrackSchemaEncoding fromProto(const proto::DataTrackSchemaEncoding& in) {
     return DataTrackSchemaEncoding::Custom(in.custom());
   }
   switch (in.well_known()) {
-  case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_PROTOBUF:
-    return DataTrackSchemaEncoding::Protobuf;
-  case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_FLATBUFFER:
-    return DataTrackSchemaEncoding::Flatbuffer;
-  case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS1_MSG:
-    return DataTrackSchemaEncoding::Ros1Msg;
-  case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS2_MSG:
-    return DataTrackSchemaEncoding::Ros2Msg;
-  case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS2_IDL:
-    return DataTrackSchemaEncoding::Ros2Idl;
-  case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_OMG_IDL:
-    return DataTrackSchemaEncoding::OmgIdl;
-  case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_JSON_SCHEMA:
-    return DataTrackSchemaEncoding::JsonSchema;
-  default:
-    return DataTrackSchemaEncoding::Other;
+    case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_PROTOBUF:
+      return DataTrackSchemaEncoding::Protobuf;
+    case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_FLATBUFFER:
+      return DataTrackSchemaEncoding::Flatbuffer;
+    case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS1_MSG:
+      return DataTrackSchemaEncoding::Ros1Msg;
+    case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS2_MSG:
+      return DataTrackSchemaEncoding::Ros2Msg;
+    case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_ROS2_IDL:
+      return DataTrackSchemaEncoding::Ros2Idl;
+    case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_OMG_IDL:
+      return DataTrackSchemaEncoding::OmgIdl;
+    case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_JSON_SCHEMA:
+      return DataTrackSchemaEncoding::JsonSchema;
+    default:
+      return DataTrackSchemaEncoding::Other;
   }
 }
 
@@ -84,30 +84,30 @@ proto::DataTrackFrameEncoding toProto(const DataTrackFrameEncoding& in) {
     return out;
   }
   switch (in.well_known()) {
-  case DataTrackFrameEncoding::Ros1:
-    out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_ROS1);
-    break;
-  case DataTrackFrameEncoding::Cdr:
-    out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_CDR);
-    break;
-  case DataTrackFrameEncoding::Protobuf:
-    out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_PROTOBUF);
-    break;
-  case DataTrackFrameEncoding::Flatbuffer:
-    out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_FLATBUFFER);
-    break;
-  case DataTrackFrameEncoding::Cbor:
-    out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_CBOR);
-    break;
-  case DataTrackFrameEncoding::Msgpack:
-    out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_MSGPACK);
-    break;
-  case DataTrackFrameEncoding::Json:
-    out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_JSON);
-    break;
-  case DataTrackFrameEncoding::Other:
-    out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_UNSPECIFIED);
-    break;
+    case DataTrackFrameEncoding::Ros1:
+      out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_ROS1);
+      break;
+    case DataTrackFrameEncoding::Cdr:
+      out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_CDR);
+      break;
+    case DataTrackFrameEncoding::Protobuf:
+      out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_PROTOBUF);
+      break;
+    case DataTrackFrameEncoding::Flatbuffer:
+      out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_FLATBUFFER);
+      break;
+    case DataTrackFrameEncoding::Cbor:
+      out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_CBOR);
+      break;
+    case DataTrackFrameEncoding::Msgpack:
+      out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_MSGPACK);
+      break;
+    case DataTrackFrameEncoding::Json:
+      out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_JSON);
+      break;
+    case DataTrackFrameEncoding::Other:
+      out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_UNSPECIFIED);
+      break;
   }
   return out;
 }
@@ -117,22 +117,22 @@ DataTrackFrameEncoding fromProto(const proto::DataTrackFrameEncoding& in) {
     return DataTrackFrameEncoding::Custom(in.custom());
   }
   switch (in.well_known()) {
-  case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_ROS1:
-    return DataTrackFrameEncoding::Ros1;
-  case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_CDR:
-    return DataTrackFrameEncoding::Cdr;
-  case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_PROTOBUF:
-    return DataTrackFrameEncoding::Protobuf;
-  case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_FLATBUFFER:
-    return DataTrackFrameEncoding::Flatbuffer;
-  case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_CBOR:
-    return DataTrackFrameEncoding::Cbor;
-  case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_MSGPACK:
-    return DataTrackFrameEncoding::Msgpack;
-  case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_JSON:
-    return DataTrackFrameEncoding::Json;
-  default:
-    return DataTrackFrameEncoding::Other;
+    case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_ROS1:
+      return DataTrackFrameEncoding::Ros1;
+    case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_CDR:
+      return DataTrackFrameEncoding::Cdr;
+    case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_PROTOBUF:
+      return DataTrackFrameEncoding::Protobuf;
+    case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_FLATBUFFER:
+      return DataTrackFrameEncoding::Flatbuffer;
+    case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_CBOR:
+      return DataTrackFrameEncoding::Cbor;
+    case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_MSGPACK:
+      return DataTrackFrameEncoding::Msgpack;
+    case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_JSON:
+      return DataTrackFrameEncoding::Json;
+    default:
+      return DataTrackFrameEncoding::Other;
   }
 }
 

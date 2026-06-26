@@ -1181,8 +1181,8 @@ std::future<void> FfiClient::sendStreamTrailerAsync(std::uint64_t local_particip
   return fut;
 }
 
-std::future<void> FfiClient::defineSchemaAsync(std::uint64_t local_participant_handle, const DataTrackSchemaId& schema_id,
-                                               const std::string& definition) {
+std::future<void> FfiClient::defineSchemaAsync(std::uint64_t local_participant_handle,
+                                               const DataTrackSchemaId& schema_id, const std::string& definition) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 

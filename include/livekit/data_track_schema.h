@@ -94,9 +94,7 @@ inline bool operator==(const DataTrackSchemaEncoding& a, const DataTrackSchemaEn
   }
   return a.well_known() == b.well_known();
 }
-inline bool operator!=(const DataTrackSchemaEncoding& a, const DataTrackSchemaEncoding& b) {
-  return !(a == b);
-}
+inline bool operator!=(const DataTrackSchemaEncoding& a, const DataTrackSchemaEncoding& b) { return !(a == b); }
 
 /**
  * Encoding used for frames sent on a data track.
@@ -171,9 +169,7 @@ inline bool operator==(const DataTrackFrameEncoding& a, const DataTrackFrameEnco
   }
   return a.well_known() == b.well_known();
 }
-inline bool operator!=(const DataTrackFrameEncoding& a, const DataTrackFrameEncoding& b) {
-  return !(a == b);
-}
+inline bool operator!=(const DataTrackFrameEncoding& a, const DataTrackFrameEncoding& b) { return !(a == b); }
 
 /**
  * Uniquely identifies a data track schema.
