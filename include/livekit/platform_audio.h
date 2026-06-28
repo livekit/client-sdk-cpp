@@ -114,8 +114,8 @@ private:
 
   PlatformAudioSource(FfiHandle handle, std::shared_ptr<PlatformAudioState> platform_audio) noexcept;
 
-  FfiHandle handle_;
   std::shared_ptr<PlatformAudioState> platform_audio_;
+  FfiHandle handle_;
 };
 
 /// Platform audio device manager backed by WebRTC's Audio Device Module.

@@ -30,7 +30,7 @@ jobs:
       integration_repeat: 10
       integration_rust_log: info,livekit_ffi::server=debug
       platform_audio_repeat: 100
-      platform_audio_rust_log: info,livekit_ffi::server=debug,livekit_ffi::server::platform_audio=debug,livekit::platform_audio=debug
+      platform_audio_rust_log: info,livekit_ffi::server=debug
       run_stress_tests: true
       stress_repeat: 1
       unit_timeout_minutes: 60
@@ -73,7 +73,7 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           submodules: recursive
           fetch-depth: 1
@@ -111,9 +111,11 @@ jobs:
       - name: Set build environment
         run: |
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
-          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
-          echo "CXXFLAGS=-Wno-deprecated-declarations -fno-omit-frame-pointer" >> "$GITHUB_ENV"
-          echo "CFLAGS=-Wno-deprecated-declarations -fno-omit-frame-pointer" >> "$GITHUB_ENV"
+          {
+            echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib"
+            echo "CXXFLAGS=-Wno-deprecated-declarations -fno-omit-frame-pointer"
+            echo "CFLAGS=-Wno-deprecated-declarations -fno-omit-frame-pointer"
+          } >> "$GITHUB_ENV"
 
       - name: Configure sanitizer build
         run: |
@@ -164,7 +166,7 @@ jobs:
           EOF
           "$RUNNER_TEMP/livekit-server" --config "$RUNNER_TEMP/livekit.yaml" --dev > "$RUNNER_TEMP/livekit.jsonl" 2>&1 &
           echo "log-path=$RUNNER_TEMP/livekit.jsonl" >> "$GITHUB_OUTPUT"
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if [[ "$(curl -fsS http://localhost:7880/ || true)" == "OK" ]]; then
               exit 0
             fi
@@ -298,7 +300,7 @@ jobs:
           EOF
           livekit-server --config "$RUNNER_TEMP/livekit.yaml" --dev > "$RUNNER_TEMP/livekit.jsonl" 2>&1 &
           echo "log-path=$RUNNER_TEMP/livekit.jsonl" >> "$GITHUB_OUTPUT"
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if [[ "$(curl -fsS http://localhost:7880/ || true)" == "OK" ]]; then
               exit 0
             fi
@@ -314,7 +316,7 @@ jobs:
         timeout-minutes: 30
         shell: bash
         env:
-          RUST_LOG: info,livekit_ffi::server=debug,livekit_ffi::server::platform_audio=debug,livekit::platform_audio=debug
+          RUST_LOG: info,livekit_ffi::server=debug
           RUST_BACKTRACE: full
         run: |
           set -euo pipefail
