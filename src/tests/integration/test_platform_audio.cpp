@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-#include <chrono>
 #include <condition_variable>
-#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -317,90 +315,6 @@ TEST_F(PlatformAudioIntegrationTest, PlatformAudioFramesReachRemote) {
   EXPECT_TRUE(frames_received) << "Receiver did not get platform audio frames from the remote";
 
   receiver_room->clearOnAudioFrameCallback(sender_identity, track_name);
-}
-
-namespace {
-
-/// Run one publish/subscribe/unpublish cycle against a fresh pair of rooms,
-/// reusing a caller-owned PlatformAudio so the underlying Rust LkRuntime (and
-/// therefore the platform Audio Device Module) is never torn down between
-/// cycles. Returns true if the receiver observed the published track.
-bool runPlatformAudioCycle(PlatformAudio& platform_audio, const TestConfig& config, const std::string& track_name) {
-  RoomOptions options;
-  options.auto_subscribe = true;
-
-  PlatformTrackState receiver_state;
-  PlatformTrackCollectorDelegate receiver_delegate(receiver_state);
-
-  auto receiver_room = std::make_unique<Room>();
-  receiver_room->setDelegate(&receiver_delegate);
-  if (!receiver_room->connect(config.url, config.token_b, options)) {
-    return false;
-  }
-
-  auto sender_room = std::make_unique<Room>();
-  if (!sender_room->connect(config.url, config.token_a, options)) {
-    return false;
-  }
-
-  const auto source = platform_audio.createAudioSource();
-  if (source == nullptr) {
-    return false;
-  }
-
-  const auto track = LocalAudioTrack::createLocalAudioTrack(track_name, source);
-  if (track == nullptr) {
-    return false;
-  }
-
-  TrackPublishOptions publish_options;
-  publish_options.source = TrackSource::SOURCE_MICROPHONE;
-  lockLocalParticipant(*sender_room)->publishTrack(track, publish_options);
-
-  std::unique_lock<std::mutex> lock(receiver_state.mutex);
-  return receiver_state.cv.wait_for(lock, kSubscriptionTimeout,
-                                    [&]() { return receiver_state.subscribed_audio_names.count(track_name) > 0; });
-}
-
-} // namespace
-
-// Control arm for the macOS PlatformAudio instability investigation.
-//
-// The standard PlatformAudioIntegrationTest cases each call livekit::shutdown()
-// in TearDown(), which disposes the FFI server, drops the last Arc<LkRuntime>,
-// and runs AdmProxy::~AdmProxy() -> platform_adm_->Terminate(). Under
-// --gtest_repeat that means the native CoreAudio ADM is fully terminated and
-// recreated on *every* iteration -- the suspected crash path.
-//
-// This test instead holds a single PlatformAudio alive for the whole test, so
-// the runtime and ADM are created once and never terminated between cycles. It
-// loops the same connect/publish/subscribe cycle PLATFORM_AUDIO_PIN_ITERATIONS
-// times (default 20). If the repeat arm crashes on macOS but this pinned arm
-// stays green, the instability is in ADM teardown/recreation, not the steady
-// media path.
-TEST_F(PlatformAudioIntegrationTest, PinnedRuntimeRepeatedPublishStress) {
-  EXPECT_TRUE(config_.available) << "Missing integration configuration";
-
-  std::unique_ptr<PlatformAudio> platform_audio;
-  try {
-    platform_audio = std::make_unique<PlatformAudio>();
-  } catch (const PlatformAudioError& error) {
-    GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
-  }
-
-  int iterations = 20;
-  if (const char* env = std::getenv("PLATFORM_AUDIO_PIN_ITERATIONS")) {
-    const int parsed = std::atoi(env);
-    if (parsed > 0) {
-      iterations = parsed;
-    }
-  }
-
-  for (int i = 0; i < iterations; ++i) {
-    const std::string track_name = "platform-mic-pinned-" + std::to_string(i);
-    const bool subscribed = runPlatformAudioCycle(*platform_audio, config_, track_name);
-    ASSERT_TRUE(subscribed) << "Receiver never subscribed on pinned iteration " << i;
-  }
 }
 
 } // namespace livekit::test

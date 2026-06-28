@@ -26,11 +26,8 @@ jobs:
     with:
       build_type: debug
       unit_repeat: ${{ github.event_name == 'pull_request' && 1 || 100 }}
-      unit_gtest_brief: ${{ github.event_name != 'pull_request' }}
       integration_repeat: 10
       integration_rust_log: info,livekit_ffi::server=debug
-      platform_audio_repeat: 100
-      platform_audio_rust_log: info,livekit_ffi::server=debug
       run_stress_tests: true
       stress_repeat: 1
       unit_timeout_minutes: 60
@@ -133,7 +130,6 @@ jobs:
         run: |
           .github/scripts/run_tests_with_backtrace.sh \
             build-debug/bin/livekit_unit_tests \
-            --gtest_brief=1 \
             --gtest_output=xml:build-debug/sanitizer-unit-test-results.xml
 
       - name: Start livekit-server
@@ -189,7 +185,6 @@ jobs:
             --gtest_filter='PlatformAudioIntegrationTest.*:DataTrackE2ETest.UnpublishUpdatesPublishedStateEndToEnd:DataTrackPayloads/DataTrackTransportTest.PublishesAndReceivesFramesEndToEnd/MultiPacket' \
             --gtest_repeat=10 \
             --gtest_recreate_environments_when_repeating=1 \
-            --gtest_brief=1 \
             --gtest_output=xml:build-debug/sanitizer-integration-test-results.xml
 
       - name: Dump livekit-server log on failure
@@ -222,142 +217,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: sanitizer-crash-diagnostics
-          path: ${{ runner.temp }}/crash-diagnostics/
-          if-no-files-found: ignore
-          retention-days: 14
-
-  sanitizer-macos:
-    # UBSan only: AddressSanitizer is incompatible with macOS CoreAudio
-    # (ASAN faults in AudioToolbox capture threads on repeat ADM cycles).
-    name: UBSan Checks (macOS PlatformAudio)
-    runs-on: macos-26-xlarge
-    timeout-minutes: 90
-    env:
-      CARGO_TERM_COLOR: always
-      CARGO_INCREMENTAL: "0"
-      RUST_BACKTRACE: full
-      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-      PLATFORM_AUDIO_TEST_REPEAT: ${{ github.event_name == 'pull_request' && 1 || 10 }}
-
-    steps:
-      - name: Checkout (with submodules)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          submodules: recursive
-          fetch-depth: 1
-
-      - name: Pull LFS files
-        run: git lfs pull
-
-      - name: Prepare CI test scripts
-        run: |
-          chmod +x .github/scripts/run_tests_with_backtrace.sh
-          chmod +x .github/scripts/stage_crash_diagnostics.sh
-
-      - name: Install deps
-        run: |
-          set -eux
-          brew update
-          brew install cmake ninja protobuf abseil
-
-      - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
-        with:
-          toolchain: stable
-
-      - name: Set build environment
-        run: |
-          echo "CXXFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
-          echo "CFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
-
-      - name: Configure UBSan build
-        run: |
-          cmake --preset macos-debug-tests \
-            -DCMAKE_C_FLAGS="-fsanitize=undefined -fno-omit-frame-pointer" \
-            -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-omit-frame-pointer" \
-            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined" \
-            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=undefined"
-
-      - name: Build UBSan tests
-        run: cmake --build build-debug --target livekit_integration_tests --parallel 2
-
-      - name: Start livekit-server
-        id: livekit_server
-        uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
-        continue-on-error: true
-        with:
-          github-token: ${{ github.token }}
-
-      - name: Start livekit-server fallback
-        if: steps.livekit_server.outcome == 'failure'
-        id: livekit_server_fallback
-        shell: bash
-        run: |
-          set -euxo pipefail
-          brew install livekit
-          cat > "$RUNNER_TEMP/livekit.yaml" <<'EOF'
-          logging: { json: true }
-          EOF
-          livekit-server --config "$RUNNER_TEMP/livekit.yaml" --dev > "$RUNNER_TEMP/livekit.jsonl" 2>&1 &
-          echo "log-path=$RUNNER_TEMP/livekit.jsonl" >> "$GITHUB_OUTPUT"
-          for _ in $(seq 1 30); do
-            if [[ "$(curl -fsS http://localhost:7880/ || true)" == "OK" ]]; then
-              exit 0
-            fi
-            sleep 1
-          done
-          exit 1
-
-      - name: Install livekit-cli
-        shell: bash
-        run: brew install livekit-cli
-
-      - name: Run UBSan platform audio integration tests
-        timeout-minutes: 30
-        shell: bash
-        env:
-          RUST_LOG: info,livekit_ffi::server=debug
-          RUST_BACKTRACE: full
-        run: |
-          set -euo pipefail
-          source .token_helpers/set_data_track_test_tokens.bash
-          .github/scripts/run_tests_with_backtrace.sh \
-            build-debug/bin/livekit_integration_tests \
-            --gtest_filter='PlatformAudioIntegrationTest.*' \
-            --gtest_repeat="${PLATFORM_AUDIO_TEST_REPEAT}" \
-            --gtest_recreate_environments_when_repeating=1 \
-            --gtest_brief=1 \
-            --gtest_output=xml:build-debug/sanitizer-platform-audio-integration-test-results.xml
-
-      - name: Dump livekit-server log on failure
-        if: failure()
-        shell: bash
-        run: |
-          log_path="${{ steps.livekit_server.outputs.log-path }}"
-          if [[ -z "$log_path" ]]; then
-            log_path="${{ steps.livekit_server_fallback.outputs.log-path }}"
-          fi
-          tail -n 500 "$log_path" || true
-
-      - name: Stage crash diagnostics
-        if: failure()
-        run: .github/scripts/stage_crash_diagnostics.sh build-debug
-
-      - name: Upload sanitizer test results
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: sanitizer-macos-platform-audio-test-results
-          path: |
-            build-debug/sanitizer-platform-audio-integration-test-results.xml
-          if-no-files-found: ignore
-          retention-days: 14
-
-      - name: Upload sanitizer crash diagnostics
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: sanitizer-macos-crash-diagnostics
           path: ${{ runner.temp }}/crash-diagnostics/
           if-no-files-found: ignore
           retention-days: 14

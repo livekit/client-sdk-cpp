@@ -466,6 +466,7 @@ jobs:
 
       - name: Delete old nightly package versions
         if: inputs.cleanup_nightly_images && steps.meta.outputs.publish_nightly == 'true' && steps.meta.outputs.sdk_changed == 'true'
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
