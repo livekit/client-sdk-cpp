@@ -3,9 +3,9 @@
 This note summarizes possible public API shapes for constructing TokenSource
 implementations in the C++ SDK.
 
-## 1. Existing API
+## 1. Previous API
 
-Concrete classes expose mechanism-specific static factories:
+Concrete classes exposed mechanism-specific static factories:
 
 ```cpp
 LiteralTokenSource::fromLiteral(url, token);
@@ -103,13 +103,14 @@ auto source = TokenSource::fromSandboxTokenServer("sandbox-id");
 
 ## 4. Constructors
 
-Make concrete sources directly constructible:
+Make concrete sources directly constructible. This is the current branch shape:
 
 ```cpp
 LiteralTokenSource source(url, token);
 CustomTokenSource source(callback);
 EndpointTokenSource source(url, options);
 SandboxTokenSource source(sandbox_id, options);
+CachingTokenSource source(std::move(inner));
 ```
 
 Pros:
@@ -119,8 +120,8 @@ Pros:
 
 Cons:
 
-- Larger shift from the current `std::unique_ptr` ownership story.
-- Caching/wrapping may require heap allocation or additional helper APIs.
+- Caching still requires an owned configurable source, typically via
+  `std::make_unique`.
 
 Example:
 

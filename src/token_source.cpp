@@ -105,20 +105,8 @@ ResolvedSandboxEndpoint resolveSandboxEndpoint(const std::string& sandbox_id, To
 
 } // namespace
 
-std::unique_ptr<LiteralTokenSource> LiteralTokenSource::fromLiteral(std::string server_url,
-                                                                    std::string participant_token) {
-  TokenSourceResponse details;
-  details.server_url = std::move(server_url);
-  details.participant_token = std::move(participant_token);
-  return std::unique_ptr<LiteralTokenSource>(new LiteralTokenSource(std::move(details)));
-}
-
-std::unique_ptr<LiteralTokenSource> LiteralTokenSource::fromProvider(
-    std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>()> provider) {
-  return std::unique_ptr<LiteralTokenSource>(new LiteralTokenSource(std::move(provider)));
-}
-
-LiteralTokenSource::LiteralTokenSource(TokenSourceResponse details) : details_(std::move(details)) {}
+LiteralTokenSource::LiteralTokenSource(std::string server_url, std::string participant_token)
+    : details_{std::move(server_url), std::move(participant_token), std::nullopt, std::nullopt} {}
 
 LiteralTokenSource::LiteralTokenSource(
     std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>()> provider)
@@ -138,11 +126,6 @@ std::future<Result<TokenSourceResponse, TokenSourceError>> LiteralTokenSource::f
   });
 }
 
-std::unique_ptr<CustomTokenSource> CustomTokenSource::fromCustom(
-    std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider) {
-  return std::unique_ptr<CustomTokenSource>(new CustomTokenSource(std::move(provider)));
-}
-
 CustomTokenSource::CustomTokenSource(
     std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider)
     : provider_(std::move(provider)) {}
@@ -152,11 +135,8 @@ std::future<Result<TokenSourceResponse, TokenSourceError>> CustomTokenSource::fe
   return provider_(options);
 }
 
-std::unique_ptr<EndpointTokenSource> EndpointTokenSource::fromEndpoint(std::string endpoint_url,
-                                                                       TokenEndpointOptions options) {
-  return std::unique_ptr<EndpointTokenSource>(
-      new EndpointTokenSource(std::move(endpoint_url), std::move(options), &tokenSourceHttpRequest));
-}
+EndpointTokenSource::EndpointTokenSource(std::string endpoint_url, TokenEndpointOptions options)
+    : EndpointTokenSource(std::move(endpoint_url), std::move(options), &tokenSourceHttpRequest) {}
 
 EndpointTokenSource::EndpointTokenSource(std::string endpoint_url, TokenEndpointOptions options,
                                          HttpTransport transport)
@@ -196,11 +176,9 @@ Result<TokenSourceResponse, TokenSourceError> EndpointTokenSource::fetchSync(con
   return parseTokenSourceResponseJson(http_result.value());
 }
 
-std::unique_ptr<SandboxTokenSource> SandboxTokenSource::fromSandboxTokenServer(
-    const std::string& sandbox_id, const SandboxTokenServerOptions& options) {
+SandboxTokenSource::SandboxTokenSource(const std::string& sandbox_id, const SandboxTokenServerOptions& options) {
   auto resolved = resolveSandboxEndpoint(sandbox_id, {}, options.base_url);
-  auto endpoint = EndpointTokenSource::fromEndpoint(std::move(resolved.url), std::move(resolved.options));
-  return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(std::move(endpoint)));
+  endpoint_ = std::make_unique<EndpointTokenSource>(std::move(resolved.url), std::move(resolved.options));
 }
 
 SandboxTokenSource::SandboxTokenSource(std::unique_ptr<TokenSourceConfigurable> endpoint)
@@ -218,10 +196,6 @@ std::unique_ptr<SandboxTokenSource> SandboxTokenSourceTestAccess::create(const s
 std::future<Result<TokenSourceResponse, TokenSourceError>> SandboxTokenSource::fetch(
     const TokenRequestOptions& options) {
   return endpoint_->fetch(options);
-}
-
-std::unique_ptr<CachingTokenSource> CachingTokenSource::wrap(std::unique_ptr<TokenSourceConfigurable> inner) {
-  return std::unique_ptr<CachingTokenSource>(new CachingTokenSource(std::move(inner)));
 }
 
 CachingTokenSource::CachingTokenSource(std::unique_ptr<TokenSourceConfigurable> inner) : inner_(std::move(inner)) {}

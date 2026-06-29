@@ -81,7 +81,7 @@ them:
 #include <livekit/token_source.h>
 
 auto source = /* EndpointTokenSource, SandboxTokenSource, CustomTokenSource, etc. */;
-auto credentials = source->fetch(request_options).get();
+auto credentials = source.fetch(request_options).get();
 if (!credentials ||
     !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
   // handle failure
@@ -122,15 +122,15 @@ Static credentials you already have, or credentials loaded asynchronously
 #include <livekit/token_source.h>
 
 // Static URL + JWT
-auto source = livekit::LiteralTokenSource::fromLiteral(url, jwt);
-auto credentials = source->fetch().get();
+livekit::LiteralTokenSource source(url, jwt);
+auto credentials = source.fetch().get();
 if (!credentials ||
     !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
   return 1;
 }
 
 // Async provider (same contract as JS TokenSource.literal(async () => …))
-auto source2 = livekit::LiteralTokenSource::fromProvider([]() {
+livekit::LiteralTokenSource source2([]() {
   return std::async(std::launch::async, [] {
     livekit::TokenSourceResponse details;
     details.server_url = /* ... */;
@@ -157,11 +157,11 @@ livekit::TokenEndpointOptions endpoint_options;
 endpoint_options.method = "POST";  // default; set to "GET" if your server requires it
 endpoint_options.headers["Authorization"] = "Bearer your-api-token";
 
-auto source = livekit::EndpointTokenSource::fromEndpoint(
+livekit::EndpointTokenSource source(
     "https://your-backend.example.com/token",
     std::move(endpoint_options));
 
-auto credentials = source->fetch(request).get();
+auto credentials = source.fetch(request).get();
 if (!credentials ||
     !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
   return 1;
@@ -173,12 +173,12 @@ if (!credentials ||
 Uses the LiveKit Cloud sandbox token server. Do not use in production.
 
 ```cpp
-auto source = livekit::SandboxTokenSource::fromSandboxTokenServer("your-sandbox-id");
+livekit::SandboxTokenSource source("your-sandbox-id");
 
 livekit::TokenRequestOptions request;
 request.agent_name = "my-agent";  // optional agent dispatch
 
-auto credentials = source->fetch(request).get();
+auto credentials = source.fetch(request).get();
 if (!credentials ||
     !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
   return 1;
@@ -193,7 +193,7 @@ Integrate an existing auth system without adopting the standard endpoint wire
 format:
 
 ```cpp
-auto source = livekit::CustomTokenSource::fromCustom(
+livekit::CustomTokenSource source(
     [](const livekit::TokenRequestOptions& options)
         -> std::future<livekit::Result<livekit::TokenSourceResponse, livekit::TokenSourceError>> {
       std::promise<livekit::Result<livekit::TokenSourceResponse, livekit::TokenSourceError>> promise;
@@ -215,10 +215,10 @@ so the next `fetch()` re-queries the inner source — useful when calling
 session. `cachedResponse()` returns the currently cached credentials, if any.
 
 ```cpp
-auto inner = livekit::EndpointTokenSource::fromEndpoint("https://your-backend.example.com/token");
-auto source = livekit::CachingTokenSource::wrap(std::move(inner));
+auto inner = std::make_unique<livekit::EndpointTokenSource>("https://your-backend.example.com/token");
+livekit::CachingTokenSource source(std::move(inner));
 
-auto credentials = source->fetch(request).get();
+auto credentials = source.fetch(request).get();
 if (!credentials ||
     !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
   return 1;

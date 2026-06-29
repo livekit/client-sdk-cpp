@@ -212,7 +212,7 @@ TEST(TokenSourceSandboxMockTest, SetsSandboxHeaderAndResolvesUrl) {
   SandboxTokenServerOptions options;
   options.base_url = "https://cloud-api.livekit.io";
   auto source = SandboxTokenSourceTestAccess::create(
-      "  sandbox-123  ", std::move(options),
+      "  sandbox-123  ", options,
       makeStubTransport(capture, Result<std::string, std::string>::success(successResponseJson())));
 
   const auto result = source->fetch({}).get();
@@ -308,21 +308,21 @@ TEST(TokenSourceJwtTest, ValidAndExpiredTokens) {
 
 TEST(TokenSourceJwtTest, UnparseableTokenIsInvalid) { EXPECT_FALSE(isParticipantTokenValid("not-a-jwt")); }
 
-TEST(TokenSourceFactoryTest, LiteralTokenSourceReturnsDetails) {
+TEST(TokenSourceConstructionTest, LiteralTokenSourceReturnsDetails) {
   const std::string server_url = "wss://example.livekit.io";
   const std::string participant_token = "jwt-token";
 
-  auto source = LiteralTokenSource::fromLiteral(server_url, participant_token);
-  const auto result = source->fetch().get();
+  LiteralTokenSource source(server_url, participant_token);
+  const auto result = source.fetch().get();
   ASSERT_TRUE(result);
   EXPECT_EQ(result.value().server_url, server_url);
   EXPECT_EQ(result.value().participant_token, participant_token);
 }
 
-TEST(TokenSourceFactoryTest, CustomTokenSourceReceivesOptions) {
+TEST(TokenSourceConstructionTest, CustomTokenSourceReceivesOptions) {
   std::optional<std::string> captured_room;
-  auto source = CustomTokenSource::fromCustom([&captured_room](const TokenRequestOptions& options)
-                                                  -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
+  CustomTokenSource source([&captured_room](const TokenRequestOptions& options)
+                               -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
     captured_room = options.room_name;
     TokenSourceResponse details;
     details.server_url = "wss://example.livekit.io";
@@ -334,15 +334,15 @@ TEST(TokenSourceFactoryTest, CustomTokenSourceReceivesOptions) {
 
   TokenRequestOptions request;
   request.room_name = "requested-room";
-  const auto result = source->fetch(request).get();
+  const auto result = source.fetch(request).get();
   ASSERT_TRUE(result);
   ASSERT_TRUE(captured_room.has_value());
   EXPECT_EQ(*captured_room, "requested-room");
 }
 
-TEST(TokenSourceFactoryTest, CachingTokenSourceReusesValidToken) {
+TEST(TokenSourceConstructionTest, CachingTokenSourceReusesValidToken) {
   std::atomic<int> fetch_count{0};
-  auto inner = CustomTokenSource::fromCustom(
+  auto inner = std::make_unique<CustomTokenSource>(
       [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
         TokenSourceResponse details;
@@ -353,20 +353,20 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceReusesValidToken) {
         return promise.get_future();
       });
 
-  auto cached = CachingTokenSource::wrap(std::move(inner));
+  CachingTokenSource cached(std::move(inner));
   TokenRequestOptions request;
   request.room_name = "room";
 
-  const auto first = cached->fetch(request).get();
-  const auto second = cached->fetch(request).get();
+  const auto first = cached.fetch(request).get();
+  const auto second = cached.fetch(request).get();
   ASSERT_TRUE(first);
   ASSERT_TRUE(second);
   EXPECT_EQ(fetch_count.load(), 1);
 }
 
-TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesAfterInvalidate) {
+TEST(TokenSourceConstructionTest, CachingTokenSourceRefetchesAfterInvalidate) {
   std::atomic<int> fetch_count{0};
-  auto inner = CustomTokenSource::fromCustom(
+  auto inner = std::make_unique<CustomTokenSource>(
       [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
         TokenSourceResponse details;
@@ -377,17 +377,17 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesAfterInvalidate) {
         return promise.get_future();
       });
 
-  auto cached = CachingTokenSource::wrap(std::move(inner));
+  CachingTokenSource cached(std::move(inner));
   TokenRequestOptions request;
 
-  (void)cached->fetch(request).get();
-  cached->invalidate();
-  (void)cached->fetch(request).get();
+  (void)cached.fetch(request).get();
+  cached.invalidate();
+  (void)cached.fetch(request).get();
   EXPECT_EQ(fetch_count.load(), 2);
 }
 
-TEST(TokenSourceFactoryTest, CachingTokenSourceExposesCachedResponse) {
-  auto inner = CustomTokenSource::fromCustom(
+TEST(TokenSourceConstructionTest, CachingTokenSourceExposesCachedResponse) {
+  auto inner = std::make_unique<CustomTokenSource>(
       [](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
@@ -397,23 +397,23 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceExposesCachedResponse) {
         return promise.get_future();
       });
 
-  auto cached = CachingTokenSource::wrap(std::move(inner));
+  CachingTokenSource cached(std::move(inner));
   TokenRequestOptions request;
 
-  EXPECT_FALSE(cached->cachedResponse().has_value());
+  EXPECT_FALSE(cached.cachedResponse().has_value());
 
-  (void)cached->fetch(request).get();
-  const auto stored = cached->cachedResponse();
+  (void)cached.fetch(request).get();
+  const auto stored = cached.cachedResponse();
   ASSERT_TRUE(stored.has_value());
   EXPECT_EQ(stored->server_url, "wss://example.livekit.io");
 
-  cached->invalidate();
-  EXPECT_FALSE(cached->cachedResponse().has_value());
+  cached.invalidate();
+  EXPECT_FALSE(cached.cachedResponse().has_value());
 }
 
-TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenOptionsChange) {
+TEST(TokenSourceConstructionTest, CachingTokenSourceRefetchesWhenOptionsChange) {
   std::atomic<int> fetch_count{0};
-  auto inner = CustomTokenSource::fromCustom(
+  auto inner = std::make_unique<CustomTokenSource>(
       [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
         TokenSourceResponse details;
@@ -424,21 +424,21 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenOptionsChange) {
         return promise.get_future();
       });
 
-  auto cached = CachingTokenSource::wrap(std::move(inner));
+  CachingTokenSource cached(std::move(inner));
 
   TokenRequestOptions first_request;
   first_request.room_name = "room-a";
   TokenRequestOptions second_request;
   second_request.room_name = "room-b";
 
-  (void)cached->fetch(first_request).get();
-  (void)cached->fetch(second_request).get();
+  (void)cached.fetch(first_request).get();
+  (void)cached.fetch(second_request).get();
   EXPECT_EQ(fetch_count.load(), 2);
 }
 
-TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenExpired) {
+TEST(TokenSourceConstructionTest, CachingTokenSourceRefetchesWhenTokenExpired) {
   std::atomic<int> fetch_count{0};
-  auto inner = CustomTokenSource::fromCustom(
+  auto inner = std::make_unique<CustomTokenSource>(
       [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         const int count = ++fetch_count;
         TokenSourceResponse details;
@@ -450,12 +450,12 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenExpired) {
         return promise.get_future();
       });
 
-  auto cached = CachingTokenSource::wrap(std::move(inner));
+  CachingTokenSource cached(std::move(inner));
   TokenRequestOptions request;
   request.room_name = "room";
 
-  const auto first = cached->fetch(request).get();
-  const auto second = cached->fetch(request).get();
+  const auto first = cached.fetch(request).get();
+  const auto second = cached.fetch(request).get();
 
   ASSERT_TRUE(first);
   ASSERT_TRUE(second);
@@ -463,9 +463,9 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenExpired) {
   EXPECT_NE(first.value().participant_token, second.value().participant_token);
 }
 
-TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenUnparseable) {
+TEST(TokenSourceConstructionTest, CachingTokenSourceRefetchesWhenTokenUnparseable) {
   std::atomic<int> fetch_count{0};
-  auto inner = CustomTokenSource::fromCustom(
+  auto inner = std::make_unique<CustomTokenSource>(
       [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         const int count = ++fetch_count;
         TokenSourceResponse details;
@@ -476,24 +476,24 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenUnparseable) {
         return promise.get_future();
       });
 
-  auto cached = CachingTokenSource::wrap(std::move(inner));
+  CachingTokenSource cached(std::move(inner));
   TokenRequestOptions request;
   request.room_name = "room";
 
-  const auto first = cached->fetch(request).get();
-  const auto second = cached->fetch(request).get();
+  const auto first = cached.fetch(request).get();
+  const auto second = cached.fetch(request).get();
 
   ASSERT_TRUE(first);
   ASSERT_TRUE(second);
   EXPECT_EQ(fetch_count.load(), 2);
 }
 
-TEST(TokenSourceFactoryTest, CachingTokenSourceSerializesConcurrentFetches) {
+TEST(TokenSourceConstructionTest, CachingTokenSourceSerializesConcurrentFetches) {
   std::atomic<int> fetch_count{0};
   std::atomic<int> concurrent_calls{0};
   std::atomic<int> max_concurrent_calls{0};
 
-  auto inner = CustomTokenSource::fromCustom(
+  auto inner = std::make_unique<CustomTokenSource>(
       [&fetch_count, &concurrent_calls, &max_concurrent_calls](
           const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
@@ -513,14 +513,14 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceSerializesConcurrentFetches) {
         return promise.get_future();
       });
 
-  auto cached = CachingTokenSource::wrap(std::move(inner));
+  CachingTokenSource cached(std::move(inner));
   TokenRequestOptions request;
   request.room_name = "concurrent-room";
 
   std::vector<std::thread> threads;
   threads.reserve(4);
   for (int i = 0; i < 4; ++i) {
-    threads.emplace_back([&cached, &request]() { (void)cached->fetch(request).get(); });
+    threads.emplace_back([&cached, &request]() { (void)cached.fetch(request).get(); });
   }
   for (auto& thread : threads) {
     thread.join();

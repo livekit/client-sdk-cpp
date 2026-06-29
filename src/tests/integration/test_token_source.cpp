@@ -72,7 +72,7 @@ TEST_F(TokenSourceEndpointConnectTest, EndpointMintsConnectableToken) {
     GTEST_SKIP() << "LIVEKIT_CREATE_TOKEN_URL not set";
   }
 
-  auto source = EndpointTokenSource::fromEndpoint(create_token_url_);
+  EndpointTokenSource source(create_token_url_);
 
   TokenRequestOptions request;
   request.room_name = "cpp_endpoint_e2e";
@@ -80,7 +80,7 @@ TEST_F(TokenSourceEndpointConnectTest, EndpointMintsConnectableToken) {
 
   Room room;
   RoomOptions options;
-  const auto details = source->fetch(request).get();
+  const auto details = source.fetch(request).get();
   ASSERT_TRUE(details) << "endpoint should mint connectable credentials";
   ASSERT_TRUE(room.connect(details.value().server_url, details.value().participant_token, options))
       << "endpoint-minted token should connect";

@@ -94,8 +94,8 @@ TEST_F(RoomTest, ConnectWithLiteralTokenSource) {
   Room room;
   RoomOptions options;
 
-  auto token_source = LiteralTokenSource::fromLiteral(server_url_, token_);
-  const auto details = token_source->fetch().get();
+  LiteralTokenSource token_source(server_url_, token_);
+  const auto details = token_source.fetch().get();
   ASSERT_TRUE(details);
 
   const bool connected = room.connect(details.value().server_url, details.value().participant_token, options);
@@ -113,7 +113,7 @@ TEST_F(RoomTest, ConnectWithCustomTokenSource) {
   Room room;
   RoomOptions options;
 
-  auto token_source = CustomTokenSource::fromCustom(
+  CustomTokenSource token_source(
       [this](const TokenRequestOptions& options) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         TokenSourceResponse details;
@@ -127,7 +127,7 @@ TEST_F(RoomTest, ConnectWithCustomTokenSource) {
   TokenRequestOptions request;
   request.room_name = "integration-room";
 
-  const auto details = token_source->fetch(request).get();
+  const auto details = token_source.fetch(request).get();
   ASSERT_TRUE(details);
 
   const bool connected = room.connect(details.value().server_url, details.value().participant_token, options);
