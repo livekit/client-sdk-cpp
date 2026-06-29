@@ -49,9 +49,6 @@ jobs:
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
-            docker:
-              - docker/**
-              - .github/workflows/docker-images.yml
             tests:
               - src/**
               - include/**
@@ -87,6 +84,10 @@ jobs:
               - .clang-tidy
               - .github/workflows/ci.yml
               - .github/workflows/cpp-checks.yml
+            docker:
+              - docker/**
+              - .github/workflows/ci.yml
+              - .github/workflows/docker-images.yml
             rust_release_check:
               - client-sdk-rust
 
