@@ -51,8 +51,9 @@ struct LIVEKIT_INTERNAL_API EndpointTokenSourceTestAccess {
 /// Builds a sandbox source whose underlying endpoint uses an injected stub
 /// transport, so the X-Sandbox-ID header and resolved URL can be asserted.
 struct LIVEKIT_INTERNAL_API SandboxTokenSourceTestAccess {
-  static std::unique_ptr<SandboxTokenSource> create(const std::string& sandbox_id, TokenEndpointOptions options,
-                                                    const std::string& base_url, TokenSourceHttpTransport transport);
+  static std::unique_ptr<SandboxTokenSource> create(const std::string& sandbox_id,
+                                                    const SandboxTokenServerOptions& options,
+                                                    TokenSourceHttpTransport transport);
 };
 
 /// @brief Build the standard LiveKit token-server JSON request body.

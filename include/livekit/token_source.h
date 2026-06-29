@@ -139,6 +139,12 @@ struct TokenEndpointOptions {
   std::chrono::milliseconds timeout = std::chrono::seconds(30);
 };
 
+/// @brief Options for @ref SandboxTokenSource.
+struct SandboxTokenServerOptions {
+  /// LiveKit Cloud API base URL (default @c https://cloud-api.livekit.io).
+  std::string base_url = "https://cloud-api.livekit.io";
+};
+
 /// @brief Error returned when token fetching fails.
 struct TokenSourceError {
   std::string message;
@@ -280,11 +286,9 @@ public:
   /// @brief Create a token source backed by the LiveKit Cloud sandbox token server.
   ///
   /// @param sandbox_id Sandbox identifier from LiveKit Cloud (surrounding whitespace is trimmed).
-  /// @param options HTTP options (method, headers, timeout).
-  /// @param base_url LiveKit Cloud API base URL (default @c https://cloud-api.livekit.io).
-  static std::unique_ptr<SandboxTokenSource> fromSandboxTokenServer(
-      const std::string& sandbox_id, TokenEndpointOptions options = {},
-      const std::string& base_url = "https://cloud-api.livekit.io");
+  /// @param options Sandbox token server options.
+  static std::unique_ptr<SandboxTokenSource> fromSandboxTokenServer(const std::string& sandbox_id,
+                                                                    const SandboxTokenServerOptions& options = {});
 
   std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
 

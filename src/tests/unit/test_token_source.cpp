@@ -209,8 +209,10 @@ TEST(TokenSourceEndpointMockTest, SupportsGetMethod) {
 
 TEST(TokenSourceSandboxMockTest, SetsSandboxHeaderAndResolvesUrl) {
   auto capture = std::make_shared<CapturedRequest>();
+  SandboxTokenServerOptions options;
+  options.base_url = "https://cloud-api.livekit.io";
   auto source = SandboxTokenSourceTestAccess::create(
-      "  sandbox-123  ", {}, "https://cloud-api.livekit.io",
+      "  sandbox-123  ", std::move(options),
       makeStubTransport(capture, Result<std::string, std::string>::success(successResponseJson())));
 
   const auto result = source->fetch({}).get();

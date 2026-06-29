@@ -173,10 +173,7 @@ if (!credentials ||
 Uses the LiveKit Cloud sandbox token server. Do not use in production.
 
 ```cpp
-auto source = livekit::SandboxTokenSource::fromSandboxTokenServer(
-    "your-sandbox-id",
-    {},
-    "https://cloud-api.livekit.io");  // optional base URL override
+auto source = livekit::SandboxTokenSource::fromSandboxTokenServer("your-sandbox-id");
 
 livekit::TokenRequestOptions request;
 request.agent_name = "my-agent";  // optional agent dispatch

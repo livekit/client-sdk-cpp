@@ -28,6 +28,7 @@ namespace {
 
 using TokenSourceResult = Result<TokenSourceResponse, TokenSourceError>;
 using TokenSourceFuture = std::future<TokenSourceResult>;
+constexpr const char* kDefaultSandboxBaseUrl = "https://cloud-api.livekit.io";
 
 bool tokenRequestOptionsEqual(const TokenRequestOptions& a, const TokenRequestOptions& b) {
   return a.room_name == b.room_name && a.participant_name == b.participant_name &&
@@ -98,7 +99,8 @@ struct ResolvedSandboxEndpoint {
 ResolvedSandboxEndpoint resolveSandboxEndpoint(const std::string& sandbox_id, TokenEndpointOptions options,
                                                const std::string& base_url) {
   options.headers["X-Sandbox-ID"] = trimSandboxId(sandbox_id);
-  return {joinUrlPath(base_url, "/api/v2/sandbox/connection-details"), std::move(options)};
+  const std::string resolved_base_url = base_url.empty() ? kDefaultSandboxBaseUrl : base_url;
+  return {joinUrlPath(resolved_base_url, "/api/v2/sandbox/connection-details"), std::move(options)};
 }
 
 } // namespace
@@ -194,10 +196,9 @@ Result<TokenSourceResponse, TokenSourceError> EndpointTokenSource::fetchSync(con
   return parseTokenSourceResponseJson(http_result.value());
 }
 
-std::unique_ptr<SandboxTokenSource> SandboxTokenSource::fromSandboxTokenServer(const std::string& sandbox_id,
-                                                                               TokenEndpointOptions options,
-                                                                               const std::string& base_url) {
-  auto resolved = resolveSandboxEndpoint(sandbox_id, std::move(options), base_url);
+std::unique_ptr<SandboxTokenSource> SandboxTokenSource::fromSandboxTokenServer(
+    const std::string& sandbox_id, const SandboxTokenServerOptions& options) {
+  auto resolved = resolveSandboxEndpoint(sandbox_id, {}, options.base_url);
   auto endpoint = EndpointTokenSource::fromEndpoint(std::move(resolved.url), std::move(resolved.options));
   return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(std::move(endpoint)));
 }
@@ -206,10 +207,9 @@ SandboxTokenSource::SandboxTokenSource(std::unique_ptr<TokenSourceConfigurable> 
     : endpoint_(std::move(endpoint)) {}
 
 std::unique_ptr<SandboxTokenSource> SandboxTokenSourceTestAccess::create(const std::string& sandbox_id,
-                                                                         TokenEndpointOptions options,
-                                                                         const std::string& base_url,
+                                                                         const SandboxTokenServerOptions& options,
                                                                          TokenSourceHttpTransport transport) {
-  auto resolved = resolveSandboxEndpoint(sandbox_id, std::move(options), base_url);
+  auto resolved = resolveSandboxEndpoint(sandbox_id, {}, options.base_url);
   auto endpoint =
       EndpointTokenSourceTestAccess::create(std::move(resolved.url), std::move(resolved.options), std::move(transport));
   return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(std::move(endpoint)));
