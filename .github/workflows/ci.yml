@@ -102,6 +102,10 @@ jobs:
     name: Docker Images
     needs: changes
     if: ${{ (github.event_name == 'pull_request' && needs.changes.outputs.docker == 'true') || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: read
+      actions: read
+      packages: write
     uses: ./.github/workflows/docker-images.yml
     with:
       push_images: false
