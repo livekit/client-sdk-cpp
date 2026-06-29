@@ -167,6 +167,8 @@ TEST(TokenSourceEndpointMockTest, ParsesCamelCaseResponse) {
   ASSERT_TRUE(result);
   EXPECT_EQ(result.value().server_url, kServerUrl);
   EXPECT_EQ(result.value().participant_token, kValidToken);
+  ASSERT_TRUE(result.value().participant_name.has_value());
+  EXPECT_EQ(*result.value().participant_name, "Alice");
 }
 
 TEST(TokenSourceEndpointMockTest, IgnoresUnknownResponseFields) {
@@ -239,6 +241,9 @@ TEST(TokenSourceJsonTest, ParseResponseSnakeCase) {
   ASSERT_TRUE(result);
   EXPECT_EQ(result.value().server_url, "wss://example.livekit.io");
   EXPECT_EQ(result.value().participant_token, "jwt-token");
+  ASSERT_TRUE(result.value().room_name.has_value());
+  EXPECT_EQ(*result.value().room_name, "room-a");
+  EXPECT_FALSE(result.value().participant_name.has_value());
 }
 
 TEST(TokenSourceJsonTest, ParseResponseCamelCase) {
@@ -249,6 +254,9 @@ TEST(TokenSourceJsonTest, ParseResponseCamelCase) {
   ASSERT_TRUE(result);
   EXPECT_EQ(result.value().server_url, "wss://example.livekit.io");
   EXPECT_EQ(result.value().participant_token, "jwt-token");
+  ASSERT_TRUE(result.value().participant_name.has_value());
+  EXPECT_EQ(*result.value().participant_name, "Alice");
+  EXPECT_FALSE(result.value().room_name.has_value());
 }
 
 TEST(TokenSourceJsonTest, ParseResponseInvalidJsonFails) {
@@ -278,7 +286,7 @@ TEST(TokenSourceFactoryTest, LiteralTokenSourceReturnsDetails) {
   const std::string server_url = "wss://example.livekit.io";
   const std::string participant_token = "jwt-token";
 
-  auto source = LiteralTokenSource::fromValue(server_url, participant_token);
+  auto source = LiteralTokenSource::fromLiteral(server_url, participant_token);
   const auto result = source->fetch().get();
   ASSERT_TRUE(result);
   EXPECT_EQ(result.value().server_url, server_url);
@@ -287,8 +295,8 @@ TEST(TokenSourceFactoryTest, LiteralTokenSourceReturnsDetails) {
 
 TEST(TokenSourceFactoryTest, CustomTokenSourceReceivesOptions) {
   std::optional<std::string> captured_room;
-  auto source = CustomTokenSource::fromCallback([&captured_room](const TokenRequestOptions& options)
-                                                    -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
+  auto source = CustomTokenSource::fromCustom([&captured_room](const TokenRequestOptions& options)
+                                                  -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
     captured_room = options.room_name;
     TokenSourceResponse details;
     details.server_url = "wss://example.livekit.io";
@@ -308,7 +316,7 @@ TEST(TokenSourceFactoryTest, CustomTokenSourceReceivesOptions) {
 
 TEST(TokenSourceFactoryTest, CachingTokenSourceReusesValidToken) {
   std::atomic<int> fetch_count{0};
-  auto inner = CustomTokenSource::fromCallback(
+  auto inner = CustomTokenSource::fromCustom(
       [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
         TokenSourceResponse details;
@@ -332,7 +340,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceReusesValidToken) {
 
 TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesAfterInvalidate) {
   std::atomic<int> fetch_count{0};
-  auto inner = CustomTokenSource::fromCallback(
+  auto inner = CustomTokenSource::fromCustom(
       [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
         TokenSourceResponse details;
@@ -353,7 +361,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesAfterInvalidate) {
 }
 
 TEST(TokenSourceFactoryTest, CachingTokenSourceExposesCachedResponse) {
-  auto inner = CustomTokenSource::fromCallback(
+  auto inner = CustomTokenSource::fromCustom(
       [](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
@@ -379,7 +387,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceExposesCachedResponse) {
 
 TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenOptionsChange) {
   std::atomic<int> fetch_count{0};
-  auto inner = CustomTokenSource::fromCallback(
+  auto inner = CustomTokenSource::fromCustom(
       [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
         TokenSourceResponse details;
@@ -404,7 +412,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenOptionsChange) {
 
 TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenExpired) {
   std::atomic<int> fetch_count{0};
-  auto inner = CustomTokenSource::fromCallback(
+  auto inner = CustomTokenSource::fromCustom(
       [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         const int count = ++fetch_count;
         TokenSourceResponse details;
@@ -431,7 +439,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenExpired) {
 
 TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenUnparseable) {
   std::atomic<int> fetch_count{0};
-  auto inner = CustomTokenSource::fromCallback(
+  auto inner = CustomTokenSource::fromCustom(
       [&fetch_count](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         const int count = ++fetch_count;
         TokenSourceResponse details;
@@ -459,7 +467,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceSerializesConcurrentFetches) {
   std::atomic<int> concurrent_calls{0};
   std::atomic<int> max_concurrent_calls{0};
 
-  auto inner = CustomTokenSource::fromCallback(
+  auto inner = CustomTokenSource::fromCustom(
       [&fetch_count, &concurrent_calls, &max_concurrent_calls](
           const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;

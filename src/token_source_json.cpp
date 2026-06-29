@@ -96,6 +96,8 @@ Result<TokenSourceResponse, TokenSourceError> parseTokenSourceResponseJson(const
     if (const auto participant_token = readStringField(parsed, "participant_token", "participantToken")) {
       details.participant_token = *participant_token;
     }
+    details.participant_name = readStringField(parsed, "participant_name", "participantName");
+    details.room_name = readStringField(parsed, "room_name", "roomName");
   }
 
   if (details.server_url.empty()) {

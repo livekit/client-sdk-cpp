@@ -12,7 +12,7 @@ These are separate mechanisms:
 |---|---|---|
 | **When** | Before or at `Room::connect` | While already connected |
 | **Who provides the JWT** | Your app, backend, or token server | LiveKit server (signal channel) |
-| **C++ API** | `Room::connect(url, token, …)` or `Room::connect(token_source, …)` | `RoomDelegate::onTokenRefreshed` (informational) |
+| **C++ API** | `Room::connect(url, token, …)` | `RoomDelegate::onTokenRefreshed` (informational) |
 | **Rust / FFI** | JWT passed once via `connectAsync` | Handled internally; C++ receives a `TokenRefreshed` event |
 
 **Token sources are for initial connection only.** After a successful connect,
@@ -72,19 +72,27 @@ SDK.
 ## Token sources (initial connect)
 
 Token sources are C++ helpers that call `fetch()` to produce a
-`TokenSourceResponse` (`server_url` + `participant_token`), then connect:
+`TokenSourceResponse`. Pass `server_url` and `participant_token` to
+`Room::connect`; optional `room_name` and `participant_name` response fields are
+informational metadata for application UI/logging when a token server provides
+them:
 
 ```cpp
 #include <livekit/token_source.h>
 
-auto source = /* LiteralTokenSource, EndpointTokenSource, etc. */;
-if (!room.connect(*source, options)) { /* fixed source */ }
-// or, for configurable sources:
-if (!room.connect(*source, request_options, options)) { /* ... */ }
+auto source = /* EndpointTokenSource, SandboxTokenSource, CustomTokenSource, etc. */;
+auto credentials = source->fetch(request_options).get();
+if (!credentials ||
+    !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
+  // handle failure
+}
 ```
 
+For a fixed source such as `LiteralTokenSource`, call `fetch()` without request
+options.
+
 `Room` does **not** retain the token source after connect. Calling `fetch()`
-again only happens when you call `Room::connect` again with that source.
+again only happens when your application invokes it again.
 
 ### Fixed vs. configurable
 
@@ -114,8 +122,10 @@ Static credentials you already have, or credentials loaded asynchronously
 #include <livekit/token_source.h>
 
 // Static URL + JWT
-auto source = livekit::LiteralTokenSource::fromValue(url, jwt);
-if (!room.connect(*source, options)) {
+auto source = livekit::LiteralTokenSource::fromLiteral(url, jwt);
+auto credentials = source->fetch().get();
+if (!credentials ||
+    !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
   return 1;
 }
 
@@ -147,11 +157,13 @@ livekit::TokenEndpointOptions endpoint_options;
 endpoint_options.method = "POST";  // default; set to "GET" if your server requires it
 endpoint_options.headers["Authorization"] = "Bearer your-api-token";
 
-auto source = livekit::EndpointTokenSource::fromUrl(
+auto source = livekit::EndpointTokenSource::fromEndpoint(
     "https://your-backend.example.com/token",
     std::move(endpoint_options));
 
-if (!room.connect(*source, request, options)) {
+auto credentials = source->fetch(request).get();
+if (!credentials ||
+    !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
   return 1;
 }
 ```
@@ -161,7 +173,7 @@ if (!room.connect(*source, request, options)) {
 Uses the LiveKit Cloud sandbox token server. Do not use in production.
 
 ```cpp
-auto source = livekit::SandboxTokenSource::fromSandboxId(
+auto source = livekit::SandboxTokenSource::fromSandboxTokenServer(
     "your-sandbox-id",
     {},
     "https://cloud-api.livekit.io");  // optional base URL override
@@ -169,7 +181,9 @@ auto source = livekit::SandboxTokenSource::fromSandboxId(
 livekit::TokenRequestOptions request;
 request.agent_name = "my-agent";  // optional agent dispatch
 
-if (!room.connect(*source, request, options)) {
+auto credentials = source->fetch(request).get();
+if (!credentials ||
+    !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
   return 1;
 }
 ```
@@ -182,7 +196,7 @@ Integrate an existing auth system without adopting the standard endpoint wire
 format:
 
 ```cpp
-auto source = livekit::CustomTokenSource::fromCallback(
+auto source = livekit::CustomTokenSource::fromCustom(
     [](const livekit::TokenRequestOptions& options)
         -> std::future<livekit::Result<livekit::TokenSourceResponse, livekit::TokenSourceError>> {
       std::promise<livekit::Result<livekit::TokenSourceResponse, livekit::TokenSourceError>> promise;
@@ -204,10 +218,12 @@ so the next `fetch()` re-queries the inner source — useful when calling
 session. `cachedResponse()` returns the currently cached credentials, if any.
 
 ```cpp
-auto inner = livekit::EndpointTokenSource::fromUrl("https://your-backend.example.com/token");
+auto inner = livekit::EndpointTokenSource::fromEndpoint("https://your-backend.example.com/token");
 auto source = livekit::CachingTokenSource::wrap(std::move(inner));
 
-if (!room.connect(*source, request, options)) {
+auto credentials = source->fetch(request).get();
+if (!credentials ||
+    !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
   return 1;
 }
 ```

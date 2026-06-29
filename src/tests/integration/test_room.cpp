@@ -94,9 +94,12 @@ TEST_F(RoomTest, ConnectWithLiteralTokenSource) {
   Room room;
   RoomOptions options;
 
-  auto token_source = LiteralTokenSource::fromValue(server_url_, token_);
-  const bool connected = room.connect(*token_source, options);
-  EXPECT_TRUE(connected) << "Should connect to server via literal token source";
+  auto token_source = LiteralTokenSource::fromLiteral(server_url_, token_);
+  const auto details = token_source->fetch().get();
+  ASSERT_TRUE(details);
+
+  const bool connected = room.connect(details.value().server_url, details.value().participant_token, options);
+  EXPECT_TRUE(connected) << "Should connect to server via fetched literal token source credentials";
 
   if (connected) {
     EXPECT_FALSE(room.localParticipant().expired()) << "Local participant should exist after connect";
@@ -110,7 +113,7 @@ TEST_F(RoomTest, ConnectWithCustomTokenSource) {
   Room room;
   RoomOptions options;
 
-  auto token_source = CustomTokenSource::fromCallback(
+  auto token_source = CustomTokenSource::fromCustom(
       [this](const TokenRequestOptions& options) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         TokenSourceResponse details;
@@ -124,8 +127,11 @@ TEST_F(RoomTest, ConnectWithCustomTokenSource) {
   TokenRequestOptions request;
   request.room_name = "integration-room";
 
-  const bool connected = room.connect(*token_source, request, options);
-  EXPECT_TRUE(connected) << "Should connect to server via custom token source";
+  const auto details = token_source->fetch(request).get();
+  ASSERT_TRUE(details);
+
+  const bool connected = room.connect(details.value().server_url, details.value().participant_token, options);
+  EXPECT_TRUE(connected) << "Should connect to server via fetched custom token source credentials";
 }
 
 namespace {

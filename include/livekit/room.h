@@ -42,9 +42,6 @@ struct E2EEOptions;
 class E2EEManager;
 class LocalParticipant;
 class RemoteParticipant;
-class TokenSourceFixed;
-class TokenSourceConfigurable;
-struct TokenRequestOptions;
 
 /// Represents a single ICE server configuration.
 struct IceServer {
@@ -167,24 +164,6 @@ public:
   ///   Without auto_subscribe enabled, remote tracks will NOT be subscribed
   ///   automatically, and no remote audio/video will ever arrive.
   bool connect(const std::string& url, const std::string& token, const RoomOptions& options);
-
-  /// Connect using a fixed token source.
-  ///
-  /// @see TokenSourceFixed
-  /// @param token_source @ref TokenSourceFixed invoked on the application thread.
-  /// @param options Connection options.
-  /// @return @c false if fetching credentials fails or connect fails.
-  bool connect(TokenSourceFixed& token_source, const RoomOptions& options);
-
-  /// Connect using a configurable token source.
-  ///
-  /// @see TokenSourceConfigurable
-  /// @param token_source @ref TokenSourceConfigurable invoked on the application thread.
-  /// @param request_options Parameters encoded into the token request.
-  /// @param options Connection options.
-  /// @return @c false if fetching credentials fails or connect fails.
-  bool connect(TokenSourceConfigurable& token_source, const TokenRequestOptions& request_options,
-               const RoomOptions& options);
 
   /// Disconnect from the room.
   ///

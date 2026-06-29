@@ -34,18 +34,24 @@ namespace livekit {
 /// This is an output type: it is what a @ref TokenSourceFixed or
 /// @ref TokenSourceConfigurable returns from @c fetch. Applications typically read
 /// it rather than construct it. For static credentials, prefer
-/// @ref LiteralTokenSource::fromValue, which takes the server URL and token
+/// @ref LiteralTokenSource::fromLiteral, which takes the server URL and token
 /// directly instead of requiring you to populate this struct.
 ///
-/// Mirrors the @c livekit.TokenSourceResponse protocol message: only the server
-/// URL and participant token are carried; any additional fields a token server
-/// returns are ignored.
+/// Mirrors the @c livekit.TokenSourceResponse wire shape for connection
+/// credentials, while also preserving optional response metadata exposed by
+/// other LiveKit client SDKs.
 struct TokenSourceResponse {
-  /// WebSocket URL of the LiveKit server.
+  /// WebSocket URL of the LiveKit server. Use this to establish the connection.
   std::string server_url;
 
-  /// JWT access token for the participant.
+  /// JWT token containing participant permissions and metadata. Required for authentication.
   std::string participant_token;
+
+  /// Display name for the participant in the room. May be unset if not specified.
+  std::optional<std::string> participant_name;
+
+  /// Name of the room the participant will join. May be unset if not specified.
+  std::optional<std::string> room_name;
 };
 
 /// @brief Per-call options sent to configurable token sources (endpoint, sandbox, custom).
@@ -175,7 +181,7 @@ public:
   ///
   /// @param server_url WebSocket URL of the LiveKit server.
   /// @param participant_token JWT access token for the participant.
-  static std::unique_ptr<LiteralTokenSource> fromValue(std::string server_url, std::string participant_token);
+  static std::unique_ptr<LiteralTokenSource> fromLiteral(std::string server_url, std::string participant_token);
 
   /// @brief Create a token source from an async provider that returns full credentials.
   ///
@@ -210,7 +216,7 @@ public:
   ///
   /// The callback receives @ref TokenRequestOptions for each fetch and returns
   /// @ref TokenSourceResponse produced by your application.
-  static std::unique_ptr<CustomTokenSource> fromCallback(
+  static std::unique_ptr<CustomTokenSource> fromCustom(
       std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider);
 
   /// @note This source holds no cache and invokes the provider fresh on every
@@ -237,7 +243,7 @@ public:
   ///
   /// @param endpoint_url URL of your backend token endpoint.
   /// @param options HTTP transport options (method, headers, timeout).
-  static std::unique_ptr<EndpointTokenSource> fromUrl(std::string endpoint_url, TokenEndpointOptions options = {});
+  static std::unique_ptr<EndpointTokenSource> fromEndpoint(std::string endpoint_url, TokenEndpointOptions options = {});
 
   /// @note Every fetch issues a fresh HTTP request. Wrap it in
   /// @ref CachingTokenSource to reuse credentials between calls.
@@ -276,7 +282,7 @@ public:
   /// @param sandbox_id Sandbox identifier from LiveKit Cloud (surrounding whitespace is trimmed).
   /// @param options HTTP options (method, headers, timeout).
   /// @param base_url LiveKit Cloud API base URL (default @c https://cloud-api.livekit.io).
-  static std::unique_ptr<SandboxTokenSource> fromSandboxId(
+  static std::unique_ptr<SandboxTokenSource> fromSandboxTokenServer(
       const std::string& sandbox_id, TokenEndpointOptions options = {},
       const std::string& base_url = "https://cloud-api.livekit.io");
 

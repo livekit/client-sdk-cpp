@@ -103,8 +103,8 @@ ResolvedSandboxEndpoint resolveSandboxEndpoint(const std::string& sandbox_id, To
 
 } // namespace
 
-std::unique_ptr<LiteralTokenSource> LiteralTokenSource::fromValue(std::string server_url,
-                                                                  std::string participant_token) {
+std::unique_ptr<LiteralTokenSource> LiteralTokenSource::fromLiteral(std::string server_url,
+                                                                    std::string participant_token) {
   TokenSourceResponse details;
   details.server_url = std::move(server_url);
   details.participant_token = std::move(participant_token);
@@ -136,7 +136,7 @@ std::future<Result<TokenSourceResponse, TokenSourceError>> LiteralTokenSource::f
   });
 }
 
-std::unique_ptr<CustomTokenSource> CustomTokenSource::fromCallback(
+std::unique_ptr<CustomTokenSource> CustomTokenSource::fromCustom(
     std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider) {
   return std::unique_ptr<CustomTokenSource>(new CustomTokenSource(std::move(provider)));
 }
@@ -150,8 +150,8 @@ std::future<Result<TokenSourceResponse, TokenSourceError>> CustomTokenSource::fe
   return provider_(options);
 }
 
-std::unique_ptr<EndpointTokenSource> EndpointTokenSource::fromUrl(std::string endpoint_url,
-                                                                  TokenEndpointOptions options) {
+std::unique_ptr<EndpointTokenSource> EndpointTokenSource::fromEndpoint(std::string endpoint_url,
+                                                                       TokenEndpointOptions options) {
   return std::unique_ptr<EndpointTokenSource>(
       new EndpointTokenSource(std::move(endpoint_url), std::move(options), &tokenSourceHttpRequest));
 }
@@ -194,11 +194,11 @@ Result<TokenSourceResponse, TokenSourceError> EndpointTokenSource::fetchSync(con
   return parseTokenSourceResponseJson(http_result.value());
 }
 
-std::unique_ptr<SandboxTokenSource> SandboxTokenSource::fromSandboxId(const std::string& sandbox_id,
-                                                                      TokenEndpointOptions options,
-                                                                      const std::string& base_url) {
+std::unique_ptr<SandboxTokenSource> SandboxTokenSource::fromSandboxTokenServer(const std::string& sandbox_id,
+                                                                               TokenEndpointOptions options,
+                                                                               const std::string& base_url) {
   auto resolved = resolveSandboxEndpoint(sandbox_id, std::move(options), base_url);
-  auto endpoint = EndpointTokenSource::fromUrl(std::move(resolved.url), std::move(resolved.options));
+  auto endpoint = EndpointTokenSource::fromEndpoint(std::move(resolved.url), std::move(resolved.options));
   return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(std::move(endpoint)));
 }
 
