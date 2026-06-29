@@ -233,9 +233,20 @@ TEST(TokenSourceJsonTest, BuildRequestJsonIncludesFields) {
   EXPECT_NE(json.find("\"agent_name\":\"assistant\""), std::string::npos);
 }
 
-TEST(TokenSourceJsonTest, ParseResponseSnakeCase) {
+TEST(TokenSourceJsonTest, ParseResponseSnakeCaseMinimal) {
+  const std::string json = R"({"server_url":"wss://example.livekit.io","participant_token":"jwt-token"})";
+
+  const auto result = parseTokenSourceResponseJson(json);
+  ASSERT_TRUE(result);
+  EXPECT_EQ(result.value().server_url, "wss://example.livekit.io");
+  EXPECT_EQ(result.value().participant_token, "jwt-token");
+  EXPECT_FALSE(result.value().room_name.has_value());
+  EXPECT_FALSE(result.value().participant_name.has_value());
+}
+
+TEST(TokenSourceJsonTest, ParseResponseSnakeCaseFull) {
   const std::string json =
-      R"({"server_url":"wss://example.livekit.io","participant_token":"jwt-token","room_name":"room-a"})";
+      R"({"server_url":"wss://example.livekit.io","participant_token":"jwt-token","room_name":"room-a","participant_name":"Alice"})";
 
   const auto result = parseTokenSourceResponseJson(json);
   ASSERT_TRUE(result);
@@ -243,20 +254,33 @@ TEST(TokenSourceJsonTest, ParseResponseSnakeCase) {
   EXPECT_EQ(result.value().participant_token, "jwt-token");
   ASSERT_TRUE(result.value().room_name.has_value());
   EXPECT_EQ(*result.value().room_name, "room-a");
-  EXPECT_FALSE(result.value().participant_name.has_value());
+  ASSERT_TRUE(result.value().participant_name.has_value());
+  EXPECT_EQ(*result.value().participant_name, "Alice");
 }
 
-TEST(TokenSourceJsonTest, ParseResponseCamelCase) {
-  const std::string json =
-      R"({"serverUrl":"wss://example.livekit.io","participantToken":"jwt-token","participantName":"Alice"})";
+TEST(TokenSourceJsonTest, ParseResponseCamelCaseMinimal) {
+  const std::string json = R"({"serverUrl":"wss://example.livekit.io","participantToken":"jwt-token"})";
 
   const auto result = parseTokenSourceResponseJson(json);
   ASSERT_TRUE(result);
   EXPECT_EQ(result.value().server_url, "wss://example.livekit.io");
   EXPECT_EQ(result.value().participant_token, "jwt-token");
+  EXPECT_FALSE(result.value().room_name.has_value());
+  EXPECT_FALSE(result.value().participant_name.has_value());
+}
+
+TEST(TokenSourceJsonTest, ParseResponseCamelCaseFull) {
+  const std::string json =
+      R"({"serverUrl":"wss://example.livekit.io","participantToken":"jwt-token","roomName":"room-a","participantName":"Alice"})";
+
+  const auto result = parseTokenSourceResponseJson(json);
+  ASSERT_TRUE(result);
+  EXPECT_EQ(result.value().server_url, "wss://example.livekit.io");
+  EXPECT_EQ(result.value().participant_token, "jwt-token");
+  ASSERT_TRUE(result.value().room_name.has_value());
+  EXPECT_EQ(*result.value().room_name, "room-a");
   ASSERT_TRUE(result.value().participant_name.has_value());
   EXPECT_EQ(*result.value().participant_name, "Alice");
-  EXPECT_FALSE(result.value().room_name.has_value());
 }
 
 TEST(TokenSourceJsonTest, ParseResponseInvalidJsonFails) {
