@@ -398,10 +398,8 @@ all filtered stages; normal pull requests and pushes use the path filters.
  feedback.
 - `.github/workflows/license_check.yml` — Cheap license check, run on every CI
   invocation.
-- `.github/workflows/docker-images.yml` — Docker image build/publish workflow,
-  outside PR-review aggregation.
-- `.github/workflows/docker-validate.yml` — Docker image validation workflow,
-  outside PR-review aggregation.
+- `.github/workflows/docker-images.yml` — Reusable Docker image smoke-test and
+  publish workflow (optional push via input), called by CI and release workflows.
 
 When adding or renaming files that affect a CI stage, update the matching
 `ci.yml` `changes` filter in the same PR. For example, new build scripts,

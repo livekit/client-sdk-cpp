@@ -1,115 +1,117 @@
 name: Docker Images
 
+# Called by top-level ci.yml and make-release.yml
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - src/**
-      - include/**
-      - client-sdk-rust/**
-      - CMakeLists.txt
-      - build.sh
-      - build.cmd
-      - build.h.in
-      - .build-info.json.in
-      - CMakePresets.json
-      - cmake/**
-      - data/**
-      - cpp-example-collection
-      - docker/Dockerfile.base
-      - docker/Dockerfile.sdk
-      - .github/workflows/docker-images.yml
-      - .github/workflows/docker-validate.yml
+  workflow_call:
+    inputs:
+      push_images:
+        description: "When true, publish built images to GHCR."
+        required: true
+        type: boolean
+      push_tag:
+        description: "Primary image tag to publish when push_images is true (for example v1.2.3)."
+        required: false
+        default: ""
+        type: string
+  workflow_dispatch:
+    inputs:
+      push_images:
+        description: "When true, publish built images to GHCR."
+        required: true
+        default: false
+        type: boolean
+      push_tag:
+        description: "Primary image tag to publish when push_images is true (for example v1.2.3)."
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: read
+  actions: read
   packages: write
 
 jobs:
   detect-changes:
-    name: Detect Docker image changes
+    name: Detect Docker input changes
     runs-on: ubuntu-latest
     outputs:
-      base_changed: ${{ steps.changes.outputs.base_changed }}
-      sdk_changed: ${{ steps.changes.outputs.sdk_changed }}
-      base_hash: ${{ steps.hash.outputs.base_hash }}
-      base_image: ${{ steps.refs.outputs.base_image }}
-      sdk_image: ${{ steps.refs.outputs.sdk_image }}
+      base_changed: ${{ steps.detect.outputs.base_changed }}
+      sdk_changed: ${{ steps.detect.outputs.sdk_changed }}
+
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
-      - name: Resolve GHCR image names
-        id: refs
-        shell: bash
-        run: |
-          set -euo pipefail
-          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
-          echo "base_image=ghcr.io/${owner}/client-sdk-cpp-base" >> "$GITHUB_OUTPUT"
-          echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp" >> "$GITHUB_OUTPUT"
-
-      - name: Hash base Dockerfile
-        id: hash
-        shell: bash
-        run: |
-          set -euo pipefail
-          base_hash="$(shasum -a 256 docker/Dockerfile.base | awk '{print substr($1,1,12)}')"
-          echo "base_hash=${base_hash}" >> "$GITHUB_OUTPUT"
-
       - name: Detect changed inputs
-        id: changes
+        id: detect
         shell: bash
         run: |
           set -euo pipefail
 
-          if [[ "${{ github.event.before }}" == "0000000000000000000000000000000000000000" ]]; then
-            changed_files="$(git ls-tree -r --name-only "${{ github.sha }}")"
-          else
-            changed_files="$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}")"
+          base_ref="${{ github.base_ref }}"
+          if [[ -z "${base_ref}" ]]; then
+            base_ref="${{ github.event.pull_request.base.ref }}"
           fi
 
-          echo "Changed files:"
-          if [[ -n "${changed_files}" ]]; then
+          before_sha="${{ github.event.before }}"
+          changed_files=""
+          has_diff_context=false
+
+          if [[ -n "${base_ref}" ]]; then
+            git fetch --no-tags --depth=1 origin "${base_ref}" >/dev/null 2>&1 || true
+          fi
+
+          if [[ -n "${base_ref}" ]] && git rev-parse --verify --quiet "origin/${base_ref}" >/dev/null; then
+            changed_files="$(git diff --name-only "origin/${base_ref}...HEAD")"
+            has_diff_context=true
+          elif [[ -n "${before_sha}" ]] && [[ "${before_sha}" != "0000000000000000000000000000000000000000" ]]; then
+            changed_files="$(git diff --name-only "${before_sha}" "${{ github.sha }}")"
+            has_diff_context=true
+          fi
+
+          if [[ "${has_diff_context}" != "true" ]]; then
+            # Tag/manual workflow calls do not always have an obvious diff base.
+            # Fall back to full docker flow for deterministic smoke/publish behavior.
+            base_changed=true
+            sdk_changed=true
+          else
+            base_changed=false
+            sdk_changed=false
+
             while IFS= read -r path; do
               [[ -z "${path}" ]] && continue
-              echo "  ${path}"
-            done <<< "${changed_files}"
-          else
-            echo "  <none>"
-          fi
 
-          base_changed=false
-          sdk_changed=false
-
-          while IFS= read -r path; do
-            [[ -z "${path}" ]] && continue
-
-            if [[ "${path}" == "docker/Dockerfile.base" ]]; then
-              base_changed=true
-              sdk_changed=true
-            fi
-
-            case "${path}" in
-              docker/Dockerfile.sdk|src/*|include/*|client-sdk-rust/*|cmake/*|data/*|cpp-example-collection|CMakeLists.txt|build.sh|build.cmd|build.h.in|.build-info.json.in|CMakePresets.json|.github/workflows/docker-images.yml|.github/workflows/docker-validate.yml)
+              if [[ "${path}" == "docker/Dockerfile.base" ]]; then
+                base_changed=true
                 sdk_changed=true
-                ;;
-            esac
-          done <<< "${changed_files}"
+              fi
+
+              case "${path}" in
+                docker/Dockerfile.sdk|src/*|include/*|client-sdk-rust/*|cmake/*|data/*|cpp-example-collection|CMakeLists.txt|build.sh|build.cmd|build.h.in|.build-info.json.in|CMakePresets.json|.github/workflows/docker-images.yml)
+                  sdk_changed=true
+                  ;;
+              esac
+            done <<< "${changed_files}"
+          fi
 
           echo "base_changed=${base_changed}" >> "$GITHUB_OUTPUT"
           echo "sdk_changed=${sdk_changed}" >> "$GITHUB_OUTPUT"
 
-  build-base-amd64:
-    name: Publish base image (amd64)
+  docker-build-x64:
+    name: Build (docker-linux-x64)
     runs-on: ubuntu-latest
     needs: detect-changes
-    if: needs.detect-changes.outputs.base_changed == 'true'
+    if: ${{ needs.detect-changes.outputs.sdk_changed == 'true' }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Checkout (with submodules)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
       - name: Free disk space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
@@ -122,10 +124,58 @@ jobs:
           docker-images: true
           swap-storage: true
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - name: Pull base image from GHCR
+        if: needs.detect-changes.outputs.base_changed == 'false'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker pull "ghcr.io/${owner}/client-sdk-cpp-base:base-main-amd64"
+          docker tag "ghcr.io/${owner}/client-sdk-cpp-base:base-main-amd64" \
+            "livekit-cpp-sdk-base-x64:${{ github.sha }}"
 
-      - name: Login to GHCR
+      - name: Build base Docker image
+        if: needs.detect-changes.outputs.base_changed == 'true'
+        run: |
+          docker build \
+            --build-arg TARGETARCH=amd64 \
+            -t livekit-cpp-sdk-base-x64:${{ github.sha }} \
+            -f docker/Dockerfile.base \
+            docker
+
+      - name: Build SDK Docker image
+        run: |
+          docker build \
+            --build-arg BASE_IMAGE=livekit-cpp-sdk-base-x64:${{ github.sha }} \
+            -t livekit-cpp-sdk-x64:${{ github.sha }} \
+            . \
+            -f docker/Dockerfile.sdk
+
+      - name: Verify installed SDK inside image
+        run: |
+          docker run --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -c \
+            'test -f /opt/livekit-sdk/lib/cmake/LiveKit/LiveKitConfig.cmake'
+
+      - name: Resolve image refs for push
+        if: ${{ inputs.push_images }}
+        id: push_refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          resolved_tag="${{ inputs.push_tag }}"
+          if [[ -z "${resolved_tag}" ]]; then
+            resolved_tag="sha-${GITHUB_SHA}"
+          fi
+          echo "base_image=ghcr.io/${owner}/client-sdk-cpp-base" >> "$GITHUB_OUTPUT"
+          echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp" >> "$GITHUB_OUTPUT"
+          echo "resolved_tag=${resolved_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR (push)
+        if: ${{ inputs.push_images }}
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -133,27 +183,63 @@ jobs:
           set -euo pipefail
           echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Build and push base image
+      - name: Push base image (amd64)
+        if: ${{ inputs.push_images && needs.detect-changes.outputs.base_changed == 'true' }}
         shell: bash
         run: |
           set -euxo pipefail
-          docker buildx build \
-            --platform linux/amd64 \
-            --push \
-            -t "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-amd64" \
-            -t "${{ needs.detect-changes.outputs.base_image }}:base-main-amd64" \
-            -f docker/Dockerfile.base \
-            docker
+          primary_tag="${{ steps.push_refs.outputs.resolved_tag }}"
+          sha_tag="sha-${GITHUB_SHA}"
+          base_image="${{ steps.push_refs.outputs.base_image }}"
 
-  build-base-arm64:
-    name: Publish base image (arm64)
+          docker tag livekit-cpp-sdk-base-x64:${{ github.sha }} "${base_image}:${primary_tag}-amd64"
+          docker push "${base_image}:${primary_tag}-amd64"
+
+          if [[ "${primary_tag}" != "${sha_tag}" ]]; then
+            docker tag livekit-cpp-sdk-base-x64:${{ github.sha }} "${base_image}:${sha_tag}-amd64"
+            docker push "${base_image}:${sha_tag}-amd64"
+          fi
+
+      - name: Push SDK image (amd64)
+        if: ${{ inputs.push_images }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          primary_tag="${{ steps.push_refs.outputs.resolved_tag }}"
+          sha_tag="sha-${GITHUB_SHA}"
+          sdk_image="${{ steps.push_refs.outputs.sdk_image }}"
+
+          docker tag livekit-cpp-sdk-x64:${{ github.sha }} "${sdk_image}:${primary_tag}-amd64"
+          docker push "${sdk_image}:${primary_tag}-amd64"
+
+          if [[ "${primary_tag}" != "${sha_tag}" ]]; then
+            docker tag livekit-cpp-sdk-x64:${{ github.sha }} "${sdk_image}:${sha_tag}-amd64"
+            docker push "${sdk_image}:${sha_tag}-amd64"
+          fi
+
+      - name: Save Docker image artifact
+        run: |
+          docker save livekit-cpp-sdk-x64:${{ github.sha }} | gzip > livekit-cpp-sdk-x64-docker.tar.gz
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: livekit-cpp-sdk-docker-x64
+          path: livekit-cpp-sdk-x64-docker.tar.gz
+          retention-days: 7
+
+  docker-build-linux-arm64:
+    name: Build (docker-linux-arm64)
     runs-on: ubuntu-24.04-arm
     needs: detect-changes
-    if: needs.detect-changes.outputs.base_changed == 'true'
+    if: ${{ needs.detect-changes.outputs.sdk_changed == 'true' }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - name: Checkout (with submodules)
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
       - name: Free disk space
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
@@ -166,10 +252,58 @@ jobs:
           docker-images: true
           swap-storage: true
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - name: Pull base image from GHCR
+        if: needs.detect-changes.outputs.base_changed == 'false'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euxo pipefail
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker pull "ghcr.io/${owner}/client-sdk-cpp-base:base-main-arm64"
+          docker tag "ghcr.io/${owner}/client-sdk-cpp-base:base-main-arm64" \
+            "livekit-cpp-sdk-base-arm64:${{ github.sha }}"
 
-      - name: Login to GHCR
+      - name: Build base Docker image
+        if: needs.detect-changes.outputs.base_changed == 'true'
+        run: |
+          docker build \
+            --build-arg TARGETARCH=arm64 \
+            -t livekit-cpp-sdk-base-arm64:${{ github.sha }} \
+            -f docker/Dockerfile.base \
+            docker
+
+      - name: Build SDK Docker image
+        run: |
+          docker build \
+            --build-arg BASE_IMAGE=livekit-cpp-sdk-base-arm64:${{ github.sha }} \
+            -t livekit-cpp-sdk:${{ github.sha }} \
+            . \
+            -f docker/Dockerfile.sdk
+
+      - name: Verify installed SDK inside image
+        run: |
+          docker run --rm livekit-cpp-sdk:${{ github.sha }} bash -c \
+            'test -f /opt/livekit-sdk/lib/cmake/LiveKit/LiveKitConfig.cmake'
+
+      - name: Resolve image refs for push
+        if: ${{ inputs.push_images }}
+        id: push_refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          resolved_tag="${{ inputs.push_tag }}"
+          if [[ -z "${resolved_tag}" ]]; then
+            resolved_tag="sha-${GITHUB_SHA}"
+          fi
+          echo "base_image=ghcr.io/${owner}/client-sdk-cpp-base" >> "$GITHUB_OUTPUT"
+          echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp" >> "$GITHUB_OUTPUT"
+          echo "resolved_tag=${resolved_tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to GHCR (push)
+        if: ${{ inputs.push_images }}
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -177,28 +311,187 @@ jobs:
           set -euo pipefail
           echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: Build and push base image
+      - name: Push base image (arm64)
+        if: ${{ inputs.push_images && needs.detect-changes.outputs.base_changed == 'true' }}
         shell: bash
         run: |
           set -euxo pipefail
-          docker buildx build \
-            --platform linux/arm64 \
-            --push \
-            -t "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-arm64" \
-            -t "${{ needs.detect-changes.outputs.base_image }}:base-main-arm64" \
-            -f docker/Dockerfile.base \
-            docker
+          primary_tag="${{ steps.push_refs.outputs.resolved_tag }}"
+          sha_tag="sha-${GITHUB_SHA}"
+          base_image="${{ steps.push_refs.outputs.base_image }}"
+
+          docker tag livekit-cpp-sdk-base-arm64:${{ github.sha }} "${base_image}:${primary_tag}-arm64"
+          docker push "${base_image}:${primary_tag}-arm64"
+
+          if [[ "${primary_tag}" != "${sha_tag}" ]]; then
+            docker tag livekit-cpp-sdk-base-arm64:${{ github.sha }} "${base_image}:${sha_tag}-arm64"
+            docker push "${base_image}:${sha_tag}-arm64"
+          fi
+
+      - name: Push SDK image (arm64)
+        if: ${{ inputs.push_images }}
+        shell: bash
+        run: |
+          set -euxo pipefail
+          primary_tag="${{ steps.push_refs.outputs.resolved_tag }}"
+          sha_tag="sha-${GITHUB_SHA}"
+          sdk_image="${{ steps.push_refs.outputs.sdk_image }}"
+
+          docker tag livekit-cpp-sdk:${{ github.sha }} "${sdk_image}:${primary_tag}-arm64"
+          docker push "${sdk_image}:${primary_tag}-arm64"
+
+          if [[ "${primary_tag}" != "${sha_tag}" ]]; then
+            docker tag livekit-cpp-sdk:${{ github.sha }} "${sdk_image}:${sha_tag}-arm64"
+            docker push "${sdk_image}:${sha_tag}-arm64"
+          fi
+
+      - name: Save Docker image artifact
+        run: |
+          docker save livekit-cpp-sdk:${{ github.sha }} | gzip > livekit-cpp-sdk-arm64-docker.tar.gz
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: livekit-cpp-sdk-docker-arm64
+          path: livekit-cpp-sdk-arm64-docker.tar.gz
+          retention-days: 7
+
+  build-collections-linux-arm64:
+    name: Build (cpp-example-collection-linux-arm64)
+    runs-on: ubuntu-24.04-arm
+    needs:
+      - detect-changes
+      - docker-build-linux-arm64
+    if: |
+      always() &&
+      needs.detect-changes.outputs.sdk_changed == 'true' &&
+      needs.docker-build-linux-arm64.result != 'failure' &&
+      needs.docker-build-linux-arm64.result != 'cancelled'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      # Reclaim ~30GB before loading the multi-GB SDK image and building the
+      # example collection inside it. Mirrors the docker-build jobs; without it
+      # the x64 collection build has hit "no space left on device".
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: livekit-cpp-sdk-docker-arm64
+
+      - name: Load Docker image
+        run: gzip -dc livekit-cpp-sdk-arm64-docker.tar.gz | docker load
+
+      - name: Build cpp-example-collection against installed SDK
+        run: |
+          cpp_ex_ref="$(git rev-parse HEAD:cpp-example-collection)"
+          docker run -e CPP_EX_REF="${cpp_ex_ref}" --rm livekit-cpp-sdk:${{ github.sha }} bash -lc '
+            set -euxo pipefail
+            git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
+            cd /tmp/cpp-example-collection
+            git fetch --depth 1 origin "$CPP_EX_REF"
+            git checkout "$CPP_EX_REF"
+            cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
+            cmake --build build --parallel
+          '
+
+  build-collections-x64:
+    name: Build (cpp-example-collection-x64)
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - docker-build-x64
+    if: |
+      always() &&
+      needs.detect-changes.outputs.sdk_changed == 'true' &&
+      needs.docker-build-x64.result != 'failure' &&
+      needs.docker-build-x64.result != 'cancelled'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      # Reclaim ~30GB before loading the multi-GB SDK image and building the
+      # example collection inside it. The standard ubuntu-latest runner has hit
+      # "no space left on device" here without this step.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: Download Docker image artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: livekit-cpp-sdk-docker-x64
+
+      - name: Load Docker image
+        run: gzip -dc livekit-cpp-sdk-x64-docker.tar.gz | docker load
+
+      - name: Build cpp-example-collection against installed SDK
+        run: |
+          cpp_ex_ref="$(git rev-parse HEAD:cpp-example-collection)"
+          docker run -e CPP_EX_REF="${cpp_ex_ref}" --rm livekit-cpp-sdk-x64:${{ github.sha }} bash -lc '
+            set -euxo pipefail
+            git clone https://github.com/livekit-examples/cpp-example-collection.git /tmp/cpp-example-collection
+            cd /tmp/cpp-example-collection
+            git fetch --depth 1 origin "$CPP_EX_REF"
+            git checkout "$CPP_EX_REF"
+            cmake -S . -B build -DLIVEKIT_LOCAL_SDK_DIR=/opt/livekit-sdk
+            cmake --build build --parallel
+          '
 
   publish-base-manifest:
     name: Publish base manifest
     runs-on: ubuntu-latest
     needs:
       - detect-changes
-      - build-base-amd64
-      - build-base-arm64
-    if: needs.detect-changes.outputs.base_changed == 'true'
+      - docker-build-x64
+      - docker-build-linux-arm64
+    if: |
+      always() &&
+      inputs.push_images &&
+      needs.detect-changes.outputs.base_changed == 'true' &&
+      needs.docker-build-x64.result != 'failure' &&
+      needs.docker-build-x64.result != 'cancelled' &&
+      needs.docker-build-linux-arm64.result != 'failure' &&
+      needs.docker-build-linux-arm64.result != 'cancelled'
 
     steps:
+      - name: Resolve image refs for push
+        id: push_refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          resolved_tag="${{ inputs.push_tag }}"
+          if [[ -z "${resolved_tag}" ]]; then
+            resolved_tag="sha-${GITHUB_SHA}"
+          fi
+          echo "base_image=ghcr.io/${owner}/client-sdk-cpp-base" >> "$GITHUB_OUTPUT"
+          echo "resolved_tag=${resolved_tag}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
@@ -214,136 +507,52 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          base_image="${{ steps.push_refs.outputs.base_image }}"
+          primary_tag="${{ steps.push_refs.outputs.resolved_tag }}"
+          sha_tag="sha-${GITHUB_SHA}"
+
           docker buildx imagetools create \
-            -t "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}" \
-            -t "${{ needs.detect-changes.outputs.base_image }}:base-main" \
-            "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-amd64" \
-            "${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-arm64"
+            -t "${base_image}:${primary_tag}" \
+            "${base_image}:${primary_tag}-amd64" \
+            "${base_image}:${primary_tag}-arm64"
 
-  build-sdk-amd64:
-    name: Publish SDK image (amd64)
-    runs-on: ubuntu-latest
-    needs:
-      - detect-changes
-      - build-base-amd64
-    if: |
-      always() &&
-      needs.detect-changes.outputs.sdk_changed == 'true' &&
-      needs.build-base-amd64.result != 'failure' &&
-      needs.build-base-amd64.result != 'cancelled'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
-
-      - name: Login to GHCR
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Build and push SDK image
-        shell: bash
-        run: |
-          set -euxo pipefail
-          docker buildx build \
-            --platform linux/amd64 \
-            --build-arg BASE_IMAGE="${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-amd64" \
-            --push \
-            -t "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}-amd64" \
-            -t "${{ needs.detect-changes.outputs.sdk_image }}:main-amd64" \
-            . \
-            -f docker/Dockerfile.sdk
-
-  build-sdk-arm64:
-    name: Publish SDK image (arm64)
-    runs-on: ubuntu-24.04-arm
-    needs:
-      - detect-changes
-      - build-base-arm64
-    if: |
-      always() &&
-      needs.detect-changes.outputs.sdk_changed == 'true' &&
-      needs.build-base-arm64.result != 'failure' &&
-      needs.build-base-arm64.result != 'cancelled'
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
-
-      - name: Login to GHCR
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "${GITHUB_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-
-      - name: Build and push SDK image
-        shell: bash
-        run: |
-          set -euxo pipefail
-          docker buildx build \
-            --platform linux/arm64 \
-            --build-arg BASE_IMAGE="${{ needs.detect-changes.outputs.base_image }}:base-${{ needs.detect-changes.outputs.base_hash }}-arm64" \
-            --push \
-            -t "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}-arm64" \
-            -t "${{ needs.detect-changes.outputs.sdk_image }}:main-arm64" \
-            . \
-            -f docker/Dockerfile.sdk
+          if [[ "${primary_tag}" != "${sha_tag}" ]]; then
+            docker buildx imagetools create \
+              -t "${base_image}:${sha_tag}" \
+              "${base_image}:${sha_tag}-amd64" \
+              "${base_image}:${sha_tag}-arm64"
+          fi
 
   publish-sdk-manifest:
     name: Publish SDK manifest
     runs-on: ubuntu-latest
     needs:
       - detect-changes
-      - build-sdk-amd64
-      - build-sdk-arm64
+      - docker-build-x64
+      - docker-build-linux-arm64
     if: |
       always() &&
+      inputs.push_images &&
       needs.detect-changes.outputs.sdk_changed == 'true' &&
-      needs.build-sdk-amd64.result != 'failure' &&
-      needs.build-sdk-amd64.result != 'cancelled' &&
-      needs.build-sdk-arm64.result != 'failure' &&
-      needs.build-sdk-arm64.result != 'cancelled'
+      needs.docker-build-x64.result != 'failure' &&
+      needs.docker-build-x64.result != 'cancelled' &&
+      needs.docker-build-linux-arm64.result != 'failure' &&
+      needs.docker-build-linux-arm64.result != 'cancelled'
 
     steps:
+      - name: Resolve image refs for push
+        id: push_refs
+        shell: bash
+        run: |
+          set -euo pipefail
+          owner="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          resolved_tag="${{ inputs.push_tag }}"
+          if [[ -z "${resolved_tag}" ]]; then
+            resolved_tag="sha-${GITHUB_SHA}"
+          fi
+          echo "sdk_image=ghcr.io/${owner}/client-sdk-cpp" >> "$GITHUB_OUTPUT"
+          echo "resolved_tag=${resolved_tag}" >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
@@ -359,8 +568,18 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
+          sdk_image="${{ steps.push_refs.outputs.sdk_image }}"
+          primary_tag="${{ steps.push_refs.outputs.resolved_tag }}"
+          sha_tag="sha-${GITHUB_SHA}"
+
           docker buildx imagetools create \
-            -t "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}" \
-            -t "${{ needs.detect-changes.outputs.sdk_image }}:main" \
-            "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}-amd64" \
-            "${{ needs.detect-changes.outputs.sdk_image }}:sha-${{ github.sha }}-arm64"
+            -t "${sdk_image}:${primary_tag}" \
+            "${sdk_image}:${primary_tag}-amd64" \
+            "${sdk_image}:${primary_tag}-arm64"
+
+          if [[ "${primary_tag}" != "${sha_tag}" ]]; then
+            docker buildx imagetools create \
+              -t "${sdk_image}:${sha_tag}" \
+              "${sdk_image}:${sha_tag}-amd64" \
+              "${sdk_image}:${sha_tag}-arm64"
+          fi
