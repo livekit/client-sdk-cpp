@@ -122,7 +122,7 @@ Static credentials you already have, or credentials loaded asynchronously
 #include <livekit/token_source.h>
 
 // Static URL + JWT
-auto source = livekit::LiteralTokenSource::fromLiteral(url, jwt);
+auto source = livekit::LiteralTokenSource::create(url, jwt);
 auto credentials = source->fetch().get();
 if (!credentials ||
     !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
@@ -130,7 +130,7 @@ if (!credentials ||
 }
 
 // Async provider (same contract as JS TokenSource.literal(async () => …))
-auto source2 = livekit::LiteralTokenSource::fromProvider([]() {
+auto source2 = livekit::LiteralTokenSource::create([]() {
   return std::async(std::launch::async, [] {
     livekit::TokenSourceResponse details;
     details.server_url = /* ... */;
@@ -157,7 +157,7 @@ livekit::TokenEndpointOptions endpoint_options;
 endpoint_options.method = "POST";  // default; set to "GET" if your server requires it
 endpoint_options.headers["Authorization"] = "Bearer your-api-token";
 
-auto source = livekit::EndpointTokenSource::fromEndpoint(
+auto source = livekit::EndpointTokenSource::create(
     "https://your-backend.example.com/token",
     std::move(endpoint_options));
 
@@ -173,7 +173,7 @@ if (!credentials ||
 Uses the LiveKit Cloud sandbox token server. Do not use in production.
 
 ```cpp
-auto source = livekit::SandboxTokenSource::fromSandboxTokenServer("your-sandbox-id");
+auto source = livekit::SandboxTokenSource::create("your-sandbox-id");
 
 livekit::TokenRequestOptions request;
 request.agent_name = "my-agent";  // optional agent dispatch
@@ -193,7 +193,7 @@ Integrate an existing auth system without adopting the standard endpoint wire
 format:
 
 ```cpp
-auto source = livekit::CustomTokenSource::fromCustom(
+auto source = livekit::CustomTokenSource::create(
     [](const livekit::TokenRequestOptions& options)
         -> std::future<livekit::Result<livekit::TokenSourceResponse, livekit::TokenSourceError>> {
       std::promise<livekit::Result<livekit::TokenSourceResponse, livekit::TokenSourceError>> promise;
@@ -215,8 +215,8 @@ so the next `fetch()` re-queries the inner source — useful when calling
 session. `cachedResponse()` returns the currently cached credentials, if any.
 
 ```cpp
-auto inner = livekit::EndpointTokenSource::fromEndpoint("https://your-backend.example.com/token");
-auto source = livekit::CachingTokenSource::wrap(std::move(inner));
+auto inner = livekit::EndpointTokenSource::create("https://your-backend.example.com/token");
+auto source = livekit::CachingTokenSource::create(std::move(inner));
 
 auto credentials = source->fetch(request).get();
 if (!credentials ||

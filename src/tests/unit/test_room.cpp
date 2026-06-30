@@ -47,7 +47,7 @@ TEST_F(RoomTest, ConnectWithoutInitialize) {
 }
 
 TEST_F(RoomTest, LiteralTokenSourceEmptyCredentialsFails) {
-  auto source = LiteralTokenSource::fromLiteral("wss://localhost:7880", "");
+  auto source = LiteralTokenSource::create("wss://localhost:7880", "");
   const auto result = source->fetch().get();
   EXPECT_FALSE(result) << "Fetching empty credentials should fail before connect";
 }
@@ -57,7 +57,7 @@ TEST_F(RoomTest, ConnectWithLiteralTokenSourceWithoutInitialize) {
   livekit::shutdown();
 
   Room room;
-  auto source = LiteralTokenSource::fromLiteral("wss://localhost:7880", "jwt-token");
+  auto source = LiteralTokenSource::create("wss://localhost:7880", "jwt-token");
   const auto details = source->fetch().get();
   ASSERT_TRUE(details);
 
@@ -66,7 +66,7 @@ TEST_F(RoomTest, ConnectWithLiteralTokenSourceWithoutInitialize) {
 }
 
 TEST_F(RoomTest, CustomTokenSourceThrowFails) {
-  auto source = CustomTokenSource::fromCustom(
+  auto source = CustomTokenSource::create(
       [](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         promise.set_exception(std::make_exception_ptr(std::runtime_error("token fetch failed")));
@@ -77,7 +77,7 @@ TEST_F(RoomTest, CustomTokenSourceThrowFails) {
 }
 
 TEST_F(RoomTest, CustomTokenSourceErrorFails) {
-  auto source = CustomTokenSource::fromCustom(
+  auto source = CustomTokenSource::create(
       [](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         promise.set_value(
@@ -95,7 +95,7 @@ TEST_F(RoomTest, ConnectWithLiteralProvider) {
   Room room;
   int fetch_count = 0;
   auto source =
-      LiteralTokenSource::fromProvider([&fetch_count]() -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
+      LiteralTokenSource::create([&fetch_count]() -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         ++fetch_count;
         TokenSourceResponse details;
         details.server_url = "wss://localhost:7880";

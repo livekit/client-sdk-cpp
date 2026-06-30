@@ -72,7 +72,7 @@ TEST_F(TokenSourceEndpointConnectTest, EndpointMintsConnectableToken) {
     GTEST_SKIP() << "LIVEKIT_CREATE_TOKEN_URL not set";
   }
 
-  auto source = EndpointTokenSource::fromEndpoint(create_token_url_);
+  auto source = EndpointTokenSource::create(create_token_url_);
 
   TokenRequestOptions request;
   request.room_name = "cpp_endpoint_e2e";

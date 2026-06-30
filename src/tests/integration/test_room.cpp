@@ -94,7 +94,7 @@ TEST_F(RoomTest, ConnectWithLiteralTokenSource) {
   Room room;
   RoomOptions options;
 
-  auto token_source = LiteralTokenSource::fromLiteral(server_url_, token_);
+  auto token_source = LiteralTokenSource::create(server_url_, token_);
   const auto details = token_source->fetch().get();
   ASSERT_TRUE(details);
 
@@ -113,7 +113,7 @@ TEST_F(RoomTest, ConnectWithCustomTokenSource) {
   Room room;
   RoomOptions options;
 
-  auto token_source = CustomTokenSource::fromCustom(
+  auto token_source = CustomTokenSource::create(
       [this](const TokenRequestOptions& options) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         TokenSourceResponse details;

@@ -32,12 +32,13 @@ Example:
 auto source = SandboxTokenSource::fromSandboxTokenServer("sandbox-id");
 ```
 
-## 2. Per-Class `create()`
+## 2. Per-Class `create()` (selected)
 
 Keep concrete classes, but standardize factory names:
 
 ```cpp
 LiteralTokenSource::create(url, token);
+LiteralTokenSource::create(provider);
 CustomTokenSource::create(callback);
 EndpointTokenSource::create(url, options);
 SandboxTokenSource::create(sandbox_id, options);
@@ -54,8 +55,8 @@ Pros:
 Cons:
 
 - Less directly aligned with Android/JS names.
-- `LiteralTokenSource::fromProvider` may still need a distinct name or a very
-  clear overload.
+- The provider overload needs clear documentation because it shares the same
+  name as the static literal credential factory.
 
 Example:
 

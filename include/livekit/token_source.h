@@ -34,7 +34,7 @@ namespace livekit {
 /// This is an output type: it is what a @ref TokenSourceFixed or
 /// @ref TokenSourceConfigurable returns from @c fetch. Applications typically read
 /// it rather than construct it. For static credentials, prefer
-/// @ref LiteralTokenSource::fromLiteral, which takes the server URL and token
+/// @c LiteralTokenSource::create, which takes the server URL and token
 /// directly instead of requiring you to populate this struct.
 ///
 /// Mirrors the @c livekit.TokenSourceResponse wire shape for connection
@@ -187,7 +187,8 @@ public:
   ///
   /// @param server_url WebSocket URL of the LiveKit server.
   /// @param participant_token JWT access token for the participant.
-  static std::unique_ptr<LiteralTokenSource> fromLiteral(std::string server_url, std::string participant_token);
+  /// @return A fixed token source that returns the provided credentials.
+  static std::unique_ptr<LiteralTokenSource> create(std::string server_url, std::string participant_token);
 
   /// @brief Create a token source from an async provider that returns full credentials.
   ///
@@ -198,7 +199,10 @@ public:
   /// cannot be influenced by @ref TokenRequestOptions. If you need a configurable
   /// source whose callback receives request options and can re-fetch on demand,
   /// use @ref CustomTokenSource instead.
-  static std::unique_ptr<LiteralTokenSource> fromProvider(
+  ///
+  /// @param provider Async provider that returns full connection credentials.
+  /// @return A fixed token source backed by @p provider.
+  static std::unique_ptr<LiteralTokenSource> create(
       std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>()> provider);
 
   std::future<Result<TokenSourceResponse, TokenSourceError>> fetch() override;
@@ -222,7 +226,10 @@ public:
   ///
   /// The callback receives @ref TokenRequestOptions for each fetch and returns
   /// @ref TokenSourceResponse produced by your application.
-  static std::unique_ptr<CustomTokenSource> fromCustom(
+  ///
+  /// @param provider Async provider called for each fetch.
+  /// @return A configurable token source backed by @p provider.
+  static std::unique_ptr<CustomTokenSource> create(
       std::function<std::future<Result<TokenSourceResponse, TokenSourceError>>(const TokenRequestOptions&)> provider);
 
   /// @note This source holds no cache and invokes the provider fresh on every
@@ -249,7 +256,8 @@ public:
   ///
   /// @param endpoint_url URL of your backend token endpoint.
   /// @param options HTTP transport options (method, headers, timeout).
-  static std::unique_ptr<EndpointTokenSource> fromEndpoint(std::string endpoint_url, TokenEndpointOptions options = {});
+  /// @return A configurable token source backed by @p endpoint_url.
+  static std::unique_ptr<EndpointTokenSource> create(std::string endpoint_url, TokenEndpointOptions options = {});
 
   /// @note Every fetch issues a fresh HTTP request. Wrap it in
   /// @ref CachingTokenSource to reuse credentials between calls.
@@ -287,8 +295,9 @@ public:
   ///
   /// @param sandbox_id Sandbox identifier from LiveKit Cloud (surrounding whitespace is trimmed).
   /// @param options Sandbox token server options.
-  static std::unique_ptr<SandboxTokenSource> fromSandboxTokenServer(const std::string& sandbox_id,
-                                                                    const SandboxTokenServerOptions& options = {});
+  /// @return A configurable token source backed by the sandbox token server.
+  static std::unique_ptr<SandboxTokenSource> create(const std::string& sandbox_id,
+                                                    const SandboxTokenServerOptions& options = {});
 
   std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
 
@@ -311,7 +320,10 @@ public:
   /// @brief Wrap @p inner with JWT-aware caching.
   ///
   /// Cached values are keyed by @ref TokenRequestOptions.
-  static std::unique_ptr<CachingTokenSource> wrap(std::unique_ptr<TokenSourceConfigurable> inner);
+  ///
+  /// @param inner Configurable token source to cache.
+  /// @return A configurable token source that caches @p inner responses.
+  static std::unique_ptr<CachingTokenSource> create(std::unique_ptr<TokenSourceConfigurable> inner);
 
   std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
 
