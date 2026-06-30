@@ -118,11 +118,12 @@ TEST(VideoFrameMetadataTest, EmptyProtoMetadataIsIgnored) {
   EXPECT_FALSE(fromProto(metadata).has_value());
 }
 
-TEST(TrackPublishOptionsTest, PacketTrailerFeaturesRoundTrip) {
+TEST(TrackPublishOptionsTest, FrameMetadataFeaturesRoundTrip) {
   TrackPublishOptions options;
-  options.packet_trailer_features.user_timestamp = true;
-  options.packet_trailer_features.frame_id = true;
-  options.packet_trailer_features.user_data = true;
+  options.frame_metadata_features.emplace();
+  options.frame_metadata_features->user_timestamp = true;
+  options.frame_metadata_features->frame_id = true;
+  options.frame_metadata_features->user_data = true;
 
   proto::TrackPublishOptions proto_options = toProto(options);
   ASSERT_EQ(proto_options.frame_metadata_features_size(), 3);
@@ -131,9 +132,60 @@ TEST(TrackPublishOptionsTest, PacketTrailerFeaturesRoundTrip) {
   EXPECT_EQ(proto_options.frame_metadata_features(2), proto::FrameMetadataFeature::FMF_USER_DATA);
 
   TrackPublishOptions round_trip = fromProto(proto_options);
+  ASSERT_TRUE(round_trip.frame_metadata_features.has_value());
+  EXPECT_TRUE(round_trip.frame_metadata_features->user_timestamp);
+  EXPECT_TRUE(round_trip.frame_metadata_features->frame_id);
+  EXPECT_TRUE(round_trip.frame_metadata_features->user_data);
+}
+
+TEST(TrackPublishOptionsTest, DeprecatedPacketTrailerFeaturesAreMerged) {
+  TrackPublishOptions options;
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+  PacketTrailerFeatures legacy_features;
+  legacy_features.user_timestamp = true;
+  legacy_features.frame_id = true;
+  legacy_features.user_data = true;
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
+  options.packet_trailer_features = legacy_features;
+
+  proto::TrackPublishOptions proto_options = toProto(options);
+  ASSERT_EQ(proto_options.frame_metadata_features_size(), 3);
+  EXPECT_EQ(proto_options.frame_metadata_features(0), proto::FrameMetadataFeature::FMF_USER_TIMESTAMP);
+  EXPECT_EQ(proto_options.frame_metadata_features(1), proto::FrameMetadataFeature::FMF_FRAME_ID);
+  EXPECT_EQ(proto_options.frame_metadata_features(2), proto::FrameMetadataFeature::FMF_USER_DATA);
+
+  TrackPublishOptions round_trip = fromProto(proto_options);
+  ASSERT_TRUE(round_trip.frame_metadata_features.has_value());
+  EXPECT_TRUE(round_trip.frame_metadata_features->user_timestamp);
+  EXPECT_TRUE(round_trip.frame_metadata_features->frame_id);
+  EXPECT_TRUE(round_trip.frame_metadata_features->user_data);
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
   EXPECT_TRUE(round_trip.packet_trailer_features.user_timestamp);
   EXPECT_TRUE(round_trip.packet_trailer_features.frame_id);
   EXPECT_TRUE(round_trip.packet_trailer_features.user_data);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 }
 
 } // namespace livekit::test

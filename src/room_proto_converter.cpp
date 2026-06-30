@@ -28,7 +28,7 @@ std::string bytesToString(const std::vector<std::uint8_t>& bytes) {
   return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
 }
 
-std::vector<proto::FrameMetadataFeature> toProto(const PacketTrailerFeatures& features) {
+std::vector<proto::FrameMetadataFeature> toProto(const FrameMetadataFeatures& features) {
   std::vector<proto::FrameMetadataFeature> out;
   out.reserve(3);
   if (features.user_timestamp) {
@@ -43,8 +43,8 @@ std::vector<proto::FrameMetadataFeature> toProto(const PacketTrailerFeatures& fe
   return out;
 }
 
-PacketTrailerFeatures fromProto(const google::protobuf::RepeatedField<int>& features) {
-  PacketTrailerFeatures out{};
+FrameMetadataFeatures fromProto(const google::protobuf::RepeatedField<int>& features) {
+  FrameMetadataFeatures out{};
   for (const int feature : features) {
     switch (feature) {
       case proto::FrameMetadataFeature::FMF_USER_TIMESTAMP:
@@ -60,6 +60,15 @@ PacketTrailerFeatures fromProto(const google::protobuf::RepeatedField<int>& feat
         break;
     }
   }
+  return out;
+}
+
+// Compatibility shim: only needed while deprecated packet_trailer_features remains public.
+FrameMetadataFeatures mergedFrameMetadataFeatures(const TrackPublishOptions& in) {
+  FrameMetadataFeatures out = in.frame_metadata_features.value_or(FrameMetadataFeatures{});
+  out.user_timestamp = out.user_timestamp || in.packet_trailer_features.user_timestamp;
+  out.frame_id = out.frame_id || in.packet_trailer_features.frame_id;
+  out.user_data = out.user_data || in.packet_trailer_features.user_data;
   return out;
 }
 
@@ -508,7 +517,7 @@ proto::TrackPublishOptions toProto(const TrackPublishOptions& in) {
   if (in.preconnect_buffer) {
     msg.set_preconnect_buffer(*in.preconnect_buffer);
   }
-  for (const proto::FrameMetadataFeature feature : toProto(in.packet_trailer_features)) {
+  for (const proto::FrameMetadataFeature feature : toProto(mergedFrameMetadataFeatures(in))) {
     msg.add_frame_metadata_features(feature);
   }
   return msg;
@@ -543,7 +552,11 @@ TrackPublishOptions fromProto(const proto::TrackPublishOptions& in) {
   if (in.has_preconnect_buffer()) {
     out.preconnect_buffer = in.preconnect_buffer();
   }
-  out.packet_trailer_features = fromProto(in.frame_metadata_features());
+  const FrameMetadataFeatures frame_metadata_features = fromProto(in.frame_metadata_features());
+  if (in.frame_metadata_features_size() > 0) {
+    out.frame_metadata_features = frame_metadata_features;
+  }
+  out.packet_trailer_features = frame_metadata_features;
   return out;
 }
 

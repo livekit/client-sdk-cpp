@@ -70,7 +70,8 @@ TEST_F(VideoFrameMetadataServerTest, UserTimestampRoundTripsToReceiverEventCallb
   TrackPublishOptions publish_options;
   publish_options.source = TrackSource::SOURCE_CAMERA;
   publish_options.simulcast = false;
-  publish_options.packet_trailer_features.user_timestamp = true;
+  publish_options.frame_metadata_features.emplace();
+  publish_options.frame_metadata_features->user_timestamp = true;
 
   ASSERT_NO_THROW(lockLocalParticipant(sender_room)->publishTrack(track, publish_options));
 
@@ -197,7 +198,8 @@ TEST_F(VideoFrameMetadataServerTest, UserDataRoundTripsToReceiverEventCallback) 
   TrackPublishOptions publish_options;
   publish_options.source = TrackSource::SOURCE_CAMERA;
   publish_options.simulcast = false;
-  publish_options.packet_trailer_features.user_data = true;
+  publish_options.frame_metadata_features.emplace();
+  publish_options.frame_metadata_features->user_data = true;
 
   ASSERT_NO_THROW(lockLocalParticipant(sender_room)->publishTrack(track, publish_options));
 
