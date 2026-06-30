@@ -547,6 +547,14 @@ TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) {
     }
   });
 
+  // RAII wrapper to ensure publisher thread is joined on scope exit
+  const auto stop_publisher = std::shared_ptr<void>(nullptr, [&](void*) {
+    keep_publishing.store(false); // stops thread while loop
+    if (publisher.joinable()) {
+      publisher.join();
+    }
+  });
+
   auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
   ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
 
@@ -563,9 +571,6 @@ TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) {
     subscription->close();
     std::this_thread::sleep_for(50ms);
   }
-
-  keep_publishing.store(false);
-  publisher.join();
 
   if (publish_error) {
     std::rethrow_exception(publish_error);

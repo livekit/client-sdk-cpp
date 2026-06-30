@@ -2,8 +2,133 @@ name: Tests
 
 # Called by top-level ci.yml
 on:
-  workflow_call: {}
-  workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      build_type:
+        description: Debug or release test build.
+        required: false
+        type: string
+        default: release
+      unit_repeat:
+        description: Number of times to repeat unit tests.
+        required: false
+        type: number
+        default: 1
+      integration_repeat:
+        description: Number of times to repeat integration tests.
+        required: false
+        type: number
+        default: 1
+      integration_rust_log:
+        description: RUST_LOG value for the integration test step.
+        required: false
+        type: string
+        default: metrics=debug
+      run_stress_tests:
+        description: Run stress tests that require LiveKit server setup.
+        required: false
+        type: boolean
+        default: false
+      stress_repeat:
+        description: Number of times to repeat stress tests.
+        required: false
+        type: number
+        default: 1
+      unit_timeout_minutes:
+        description: Unit test step timeout in minutes.
+        required: false
+        type: number
+        default: 10
+      integration_timeout_minutes:
+        description: Integration test step timeout in minutes.
+        required: false
+        type: number
+        default: 5
+      stress_timeout_minutes:
+        description: Stress test step timeout in minutes.
+        required: false
+        type: number
+        default: 20
+      job_timeout_minutes:
+        description: Matrix test job timeout in minutes.
+        required: false
+        type: number
+        default: 60
+      artifact_retention_days:
+        description: Test artifact retention in days.
+        required: false
+        type: number
+        default: 7
+      run_coverage:
+        description: Run the Linux coverage job.
+        required: false
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: Debug or release test build.
+        required: false
+        type: choice
+        options:
+          - release
+          - debug
+        default: release
+      unit_repeat:
+        description: Number of times to repeat unit tests.
+        required: false
+        type: number
+        default: 1
+      integration_repeat:
+        description: Number of times to repeat integration tests.
+        required: false
+        type: number
+        default: 1
+      integration_rust_log:
+        description: RUST_LOG value for the integration test step.
+        required: false
+        type: string
+        default: metrics=debug
+      run_stress_tests:
+        description: Run stress tests that require LiveKit server setup.
+        required: false
+        type: boolean
+        default: false
+      stress_repeat:
+        description: Number of times to repeat stress tests.
+        required: false
+        type: number
+        default: 1
+      unit_timeout_minutes:
+        description: Unit test step timeout in minutes.
+        required: false
+        type: number
+        default: 10
+      integration_timeout_minutes:
+        description: Integration test step timeout in minutes.
+        required: false
+        type: number
+        default: 5
+      stress_timeout_minutes:
+        description: Stress test step timeout in minutes.
+        required: false
+        type: number
+        default: 20
+      job_timeout_minutes:
+        description: Matrix test job timeout in minutes.
+        required: false
+        type: number
+        default: 60
+      artifact_retention_days:
+        description: Test artifact retention in days.
+        required: false
+        type: number
+        default: 7
+      run_coverage:
+        description: Run the Linux coverage job.
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -35,19 +160,18 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
-            build_cmd: ./build.sh release-tests
             e2e-testing: true
+            # Extra FFI logging on linux-x64 to diagnose timing-sensitive integration hangs.
+            integration_rust_log: info,livekit_ffi::server=debug
           - os: ubuntu-24.04-arm
             name: linux-arm64
-            build_cmd: ./build.sh release-tests
             e2e-testing: true
           - os: macos-26-xlarge
             name: macos-arm64
-            build_cmd: ./build.sh release-tests
             e2e-testing: true
           - os: macos-26-large
             name: macos-x64
-            build_cmd: ./build.sh release-tests --macos-arch x86_64
+            macos_arch: x86_64
             e2e-testing: true
           # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
@@ -57,6 +181,9 @@ jobs:
 
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ inputs.job_timeout_minutes }}
+    env:
+      BUILD_DIR: ${{ inputs.build_type == 'debug' && 'build-debug' || 'build-release' }}
 
     steps:
       - name: Checkout (with submodules)
@@ -67,6 +194,13 @@ jobs:
 
       - name: Pull LFS files
         run: git lfs pull
+
+      - name: Prepare CI test scripts
+        if: runner.os != 'Windows' && inputs.build_type == 'debug'
+        shell: bash
+        run: |
+          chmod +x .github/scripts/run_tests_with_backtrace.sh
+          chmod +x .github/scripts/stage_crash_diagnostics.sh
 
       # Cargo's freshness check is mtime-based. A fresh `actions/checkout`
       # stamps every submodule source file with the checkout time, which is
@@ -169,56 +303,164 @@ jobs:
       - name: Set Linux build environment
         if: runner.os == 'Linux'
         run: |
-          echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
-          echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
+          flags="-Wno-deprecated-declarations"
+          if [[ "${{ inputs.build_type }}" == "debug" ]]; then
+            flags="${flags} -fno-omit-frame-pointer"
+          fi
+          echo "CXXFLAGS=${flags}" >> "$GITHUB_ENV"
+          echo "CFLAGS=${flags}" >> "$GITHUB_ENV"
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
           echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
+
+      - name: Set macOS debug backtrace flags
+        if: runner.os == 'macOS' && inputs.build_type == 'debug'
+        run: |
+          echo "CXXFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
+          echo "CFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
 
       # ---------- Build (release-tests: tests on, examples off) ----------
       - name: Build tests (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
+          set -euo pipefail
           chmod +x build.sh
-          ${{ matrix.build_cmd }}
+          build_cmd="./build.sh ${{ inputs.build_type }}-tests"
+          if [[ -n "${{ matrix.macos_arch || '' }}" ]]; then
+            build_cmd="${build_cmd} --macos-arch ${{ matrix.macos_arch }}"
+          fi
+          ${build_cmd}
 
       - name: Build tests (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ${{ matrix.build_cmd }}
+        run: .\build.cmd ${{ inputs.build_type }}-tests
 
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
         if: runner.os != 'Windows'
-        timeout-minutes: 10
+        timeout-minutes: ${{ inputs.unit_timeout_minutes }}
         shell: bash
+        env:
+          RUST_BACKTRACE: full
         run: |
-          build-release/bin/livekit_unit_tests \
-            --gtest_repeat=100 \
-            --gtest_brief=1 \
-            --gtest_output=xml:build-release/unit-test-results.xml
+          set -euo pipefail
+          bin="${{ env.BUILD_DIR }}/bin/livekit_unit_tests"
+          args=(
+            --gtest_repeat=${{ inputs.unit_repeat }}
+            --gtest_output=xml:${{ env.BUILD_DIR }}/unit-test-results.xml
+          )
+          if [[ "${{ inputs.build_type }}" == "debug" ]]; then
+            .github/scripts/run_tests_with_backtrace.sh "$bin" "${args[@]}"
+          else
+            "$bin" "${args[@]}"
+          fi
 
       - name: Run unit tests (Windows)
         if: runner.os == 'Windows'
-        timeout-minutes: 10
+        timeout-minutes: ${{ inputs.unit_timeout_minutes }}
         shell: pwsh
         run: |
-          build-release\bin\livekit_unit_tests.exe `
-            --gtest_repeat=100 `
-            --gtest_brief=1 `
-            --gtest_output="xml:build-release\unit-test-results.xml"
+          $unitArgs = @(
+            "--gtest_repeat=${{ inputs.unit_repeat }}"
+            "--gtest_output=xml:${{ env.BUILD_DIR }}\unit-test-results.xml"
+          )
+          & "${{ env.BUILD_DIR }}\bin\livekit_unit_tests.exe" @unitArgs
 
       # ---------- Start livekit-server for integration tests ----------
       - name: Start livekit-server
-        if: matrix.e2e-testing
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         id: livekit_server
         uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
+        continue-on-error: true
         with:
           github-token: ${{ github.token }}
 
+      - name: Start livekit-server fallback
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests) && steps.livekit_server.outcome == 'failure'
+        id: livekit_server_fallback
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            brew install livekit
+            livekit_cmd="livekit-server"
+          else
+            case "${RUNNER_OS}-${RUNNER_ARCH}" in
+              Linux-X64)     suffix='linux_amd64.tar.gz' ;;
+              Linux-ARM64)   suffix='linux_arm64.tar.gz' ;;
+              Windows-X64)   suffix='windows_amd64.zip' ;;
+              Windows-ARM64) suffix='windows_arm64.zip' ;;
+              *) echo "Unsupported platform: ${RUNNER_OS}-${RUNNER_ARCH}"; exit 1 ;;
+            esac
+
+            tag="$(
+              gh api repos/livekit/livekit/releases \
+                --jq "limit(1; .[] | select([.assets[].name] | any(endswith(\"_${suffix}\"))) | .tag_name)"
+            )"
+            if [[ -z "$tag" ]]; then
+              echo "::error::Could not find a LiveKit release with artifact suffix ${suffix}"
+              exit 1
+            fi
+            echo "Using LiveKit server ${tag} (${suffix})"
+
+            gh release download "${tag}" \
+              --repo livekit/livekit \
+              --pattern "*_${suffix}" \
+              --output "$RUNNER_TEMP/livekit-server-archive"
+
+            case "${RUNNER_OS}" in
+              Linux)
+                tar -xzf "$RUNNER_TEMP/livekit-server-archive" -C "$RUNNER_TEMP"
+                chmod +x "$RUNNER_TEMP/livekit-server"
+                livekit_cmd="$RUNNER_TEMP/livekit-server"
+                ;;
+              Windows)
+                unzip -o "$RUNNER_TEMP/livekit-server-archive" -d "$RUNNER_TEMP"
+                livekit_cmd="$RUNNER_TEMP/livekit-server.exe"
+                ;;
+            esac
+          fi
+
+          "$livekit_cmd" --version
+          cat > "$RUNNER_TEMP/livekit.yaml" <<'EOF'
+          logging: { json: true }
+          EOF
+          "$livekit_cmd" --config "$RUNNER_TEMP/livekit.yaml" --dev > "$RUNNER_TEMP/livekit.jsonl" 2>&1 &
+          pid=$!
+          echo "Running server in the background: pid=$pid"
+          echo "pid=$pid" >> "$GITHUB_OUTPUT"
+          echo "log-path=$RUNNER_TEMP/livekit.jsonl" >> "$GITHUB_OUTPUT"
+
+          for i in $(seq 1 30); do
+            if [[ "$(curl -fsS http://localhost:7880/ || true)" == "OK" ]]; then
+              echo "Server passed health check"
+              exit 0
+            fi
+            echo "Waiting for server... (retry $i/30)"
+            sleep 1
+          done
+          echo "::error::livekit-server fallback did not pass health check"
+          tail -n 500 "$RUNNER_TEMP/livekit.jsonl" || true
+          exit 1
+
+      - name: Resolve livekit-server log path
+        if: always() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        id: livekit_server_log
+        shell: bash
+        run: |
+          log_path="${{ steps.livekit_server.outputs.log-path }}"
+          if [[ -z "$log_path" ]]; then
+            log_path="${{ steps.livekit_server_fallback.outputs.log-path }}"
+          fi
+          echo "log-path=${log_path}" >> "$GITHUB_OUTPUT"
+
       # Needed by token helper script
       - name: Install livekit-cli
-        if: matrix.e2e-testing
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         shell: bash
         env:
           # Windows installs lk via `gh api` / `gh release download`, which need this env var
@@ -249,21 +491,70 @@ jobs:
           lk --version
 
       - name: Run integration tests
-        if: matrix.e2e-testing
-        timeout-minutes: 10
+        if: matrix.e2e-testing && inputs.integration_repeat > 0
+        timeout-minutes: ${{ inputs.integration_timeout_minutes }}
         shell: bash
         env:
-          RUST_LOG: "metrics=debug"
+          RUST_LOG: ${{ matrix.integration_rust_log || inputs.integration_rust_log }}
+          RUST_BACKTRACE: full
+          # linux-x64: verbose C++ logs + stall watchdog (see run_tests_with_backtrace.sh).
+          LIVEKIT_TEST_LOG_LEVEL: ${{ matrix.name == 'linux-x64' && 'debug' || '' }}
+          LIVEKIT_TEST_STALL_SECONDS: ${{ matrix.name == 'linux-x64' && '90' || '0' }}
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
-          build-release/bin/livekit_integration_tests \
-            --gtest_output=xml:build-release/integration-test-results.xml
+          bin="${{ env.BUILD_DIR }}/bin/livekit_integration_tests"
+          args=(
+            --gtest_repeat=${{ inputs.integration_repeat }}
+            --gtest_recreate_environments_when_repeating=1
+            --gtest_output=xml:${{ env.BUILD_DIR }}/integration-test-results.xml
+          )
+          if [[ "${{ inputs.build_type }}" == "debug" ]]; then
+            .github/scripts/run_tests_with_backtrace.sh "$bin" "${args[@]}"
+          else
+            "$bin" "${args[@]}"
+          fi
+
+      - name: Run stress tests
+        if: matrix.e2e-testing && inputs.run_stress_tests
+        timeout-minutes: ${{ inputs.stress_timeout_minutes }}
+        shell: bash
+        env:
+          RUST_LOG: "metrics=debug"
+          RUST_BACKTRACE: full
+        run: |
+          set -euo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          bin="${{ env.BUILD_DIR }}/bin/livekit_stress_tests"
+          args=(
+            --gtest_repeat=${{ inputs.stress_repeat }}
+            --gtest_recreate_environments_when_repeating=1
+            --gtest_output=xml:${{ env.BUILD_DIR }}/stress-test-results.xml
+          )
+          if [[ "${{ inputs.build_type }}" == "debug" ]]; then
+            .github/scripts/run_tests_with_backtrace.sh "$bin" "${args[@]}"
+          else
+            "$bin" "${args[@]}"
+          fi
 
       - name: Dump livekit-server log on failure
-        if: failure() && matrix.e2e-testing
+        if: failure() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         shell: bash
-        run: tail -n 500 "${{ steps.livekit_server.outputs.log-path }}" || true
+        run: tail -n 500 "${{ steps.livekit_server_log.outputs.log-path }}" || true
+
+      - name: Stage crash diagnostics
+        if: failure() && inputs.build_type == 'debug' && runner.os != 'Windows'
+        shell: bash
+        run: .github/scripts/stage_crash_diagnostics.sh "${{ env.BUILD_DIR }}"
+
+      - name: Upload crash diagnostics
+        if: failure() && inputs.build_type == 'debug' && runner.os != 'Windows'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: crash-diagnostics-${{ matrix.name }}
+          path: ${{ runner.temp }}/crash-diagnostics/
+          if-no-files-found: ignore
+          retention-days: ${{ inputs.artifact_retention_days }}
 
       # ---------- Upload results ----------
       - name: Upload test results
@@ -272,11 +563,12 @@ jobs:
         with:
           name: test-results-${{ matrix.name }}
           path: |
-            build-release/unit-test-results.xml
-            build-release/integration-test-results.xml
-            ${{ steps.livekit_server.outputs.log-path }}
+            ${{ env.BUILD_DIR }}/unit-test-results.xml
+            ${{ env.BUILD_DIR }}/integration-test-results.xml
+            ${{ env.BUILD_DIR }}/stress-test-results.xml
+            ${{ steps.livekit_server_log.outputs.log-path }}
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: ${{ inputs.artifact_retention_days }}
 
   # ============================================================================
   # Code Coverage (Linux only)
@@ -285,6 +577,7 @@ jobs:
   # ============================================================================
   coverage:
     name: Code Coverage
+    if: inputs.run_coverage
     runs-on: ubuntu-latest
     # A debug build instrumented with --coverage is far heavier (RAM + disk)
     # than the release builds. Cap the wall-clock so a stuck/OOM build fails

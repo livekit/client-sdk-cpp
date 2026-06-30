@@ -1,0 +1,221 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+  # TEMPORARY: enables validating this new workflow from the PR before it exists
+  # on the default branch. Remove this pull_request trigger before merging.
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: ["main"]
+
+permissions:
+  contents: read
+  actions: read
+  packages: write
+
+# concurrency:
+#   group: nightly-${{ github.ref }}
+#   cancel-in-progress: false
+
+jobs:
+  debug-tests:
+    name: Debug Tests
+    uses: ./.github/workflows/tests.yml
+    with:
+      build_type: debug
+      unit_repeat: ${{ github.event_name == 'pull_request' && 1 || 100 }}
+      integration_repeat: 10
+      integration_rust_log: info,livekit_ffi::server=debug
+      run_stress_tests: true
+      stress_repeat: 1
+      unit_timeout_minutes: 60
+      integration_timeout_minutes: 120
+      stress_timeout_minutes: 120
+      job_timeout_minutes: 180
+      artifact_retention_days: 14
+      run_coverage: false
+    secrets: inherit
+
+  cpp-checks:
+    name: C++ Checks
+    uses: ./.github/workflows/cpp-checks.yml
+
+  generate-docs:
+    name: Generate Docs
+    uses: ./.github/workflows/generate-docs.yml
+    with:
+      upload_artifact: false
+
+  docker-images:
+    name: Docker Images
+    uses: ./.github/workflows/docker-images.yml
+    with:
+      push_images: ${{ github.event_name != 'pull_request' }}
+      push_tag: nightly
+    secrets: inherit
+
+  sanitizer:
+    name: Sanitizer Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      RUST_BACKTRACE: full
+      ASAN_OPTIONS: detect_leaks=0:halt_on_error=1:symbolize=1:print_stacktrace=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Pull LFS files
+        run: git lfs pull
+
+      - name: Prepare CI test scripts
+        run: |
+          chmod +x .github/scripts/run_tests_with_backtrace.sh
+          chmod +x .github/scripts/stage_crash_diagnostics.sh
+
+      - name: Install deps
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            llvm-dev libclang-dev clang \
+            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+            libxrandr-dev libxi-dev libxkbcommon-dev \
+            libasound2-dev libpulse-dev \
+            libssl-dev \
+            libprotobuf-dev protobuf-compiler \
+            libabsl-dev \
+            libwayland-dev libdecor-0-dev \
+            jq
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
+
+      - name: Set build environment
+        run: |
+          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+          {
+            echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib"
+            echo "CXXFLAGS=-Wno-deprecated-declarations -fno-omit-frame-pointer"
+            echo "CFLAGS=-Wno-deprecated-declarations -fno-omit-frame-pointer"
+          } >> "$GITHUB_ENV"
+
+      - name: Configure sanitizer build
+        run: |
+          cmake --preset linux-debug-tests \
+            -DCMAKE_C_FLAGS="-Wno-deprecated-declarations -fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_CXX_FLAGS="-Wno-deprecated-declarations -fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+
+      - name: Build sanitizer tests
+        run: cmake --build build-debug --target livekit_unit_tests livekit_integration_tests --parallel 2
+
+      - name: Run sanitizer unit tests
+        timeout-minutes: 20
+        run: |
+          .github/scripts/run_tests_with_backtrace.sh \
+            build-debug/bin/livekit_unit_tests \
+            --gtest_output=xml:build-debug/sanitizer-unit-test-results.xml
+
+      - name: Start livekit-server
+        id: livekit_server
+        uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
+        continue-on-error: true
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Start livekit-server fallback
+        if: steps.livekit_server.outcome == 'failure'
+        id: livekit_server_fallback
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euxo pipefail
+          tag="$(
+            gh api repos/livekit/livekit/releases \
+              --jq 'limit(1; .[] | select([.assets[].name] | any(endswith("_linux_amd64.tar.gz"))) | .tag_name)'
+          )"
+          gh release download "${tag}" \
+            --repo livekit/livekit \
+            --pattern "*_linux_amd64.tar.gz" \
+            --output "$RUNNER_TEMP/livekit-server-archive"
+          tar -xzf "$RUNNER_TEMP/livekit-server-archive" -C "$RUNNER_TEMP"
+          chmod +x "$RUNNER_TEMP/livekit-server"
+          cat > "$RUNNER_TEMP/livekit.yaml" <<'EOF'
+          logging: { json: true }
+          EOF
+          "$RUNNER_TEMP/livekit-server" --config "$RUNNER_TEMP/livekit.yaml" --dev > "$RUNNER_TEMP/livekit.jsonl" 2>&1 &
+          echo "log-path=$RUNNER_TEMP/livekit.jsonl" >> "$GITHUB_OUTPUT"
+          for _ in $(seq 1 30); do
+            if [[ "$(curl -fsS http://localhost:7880/ || true)" == "OK" ]]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+
+      - name: Install livekit-cli
+        shell: bash
+        run: curl -sSL https://get.livekit.io/cli | bash
+
+      - name: Run sanitizer integration tests (lifecycle subset)
+        timeout-minutes: 30
+        shell: bash
+        run: |
+          set -euo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          .github/scripts/run_tests_with_backtrace.sh \
+            build-debug/bin/livekit_integration_tests \
+            --gtest_filter='PlatformAudioIntegrationTest.*:DataTrackE2ETest.UnpublishUpdatesPublishedStateEndToEnd:DataTrackPayloads/DataTrackTransportTest.PublishesAndReceivesFramesEndToEnd/MultiPacket' \
+            --gtest_repeat=10 \
+            --gtest_recreate_environments_when_repeating=1 \
+            --gtest_output=xml:build-debug/sanitizer-integration-test-results.xml
+
+      - name: Dump livekit-server log on failure
+        if: failure()
+        shell: bash
+        run: |
+          log_path="${{ steps.livekit_server.outputs.log-path }}"
+          if [[ -z "$log_path" ]]; then
+            log_path="${{ steps.livekit_server_fallback.outputs.log-path }}"
+          fi
+          tail -n 500 "$log_path" || true
+
+      - name: Stage crash diagnostics
+        if: failure()
+        run: .github/scripts/stage_crash_diagnostics.sh build-debug
+
+      - name: Upload sanitizer test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sanitizer-test-results
+          path: |
+            build-debug/sanitizer-unit-test-results.xml
+            build-debug/sanitizer-integration-test-results.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload sanitizer crash diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sanitizer-crash-diagnostics
+          path: ${{ runner.temp }}/crash-diagnostics/
+          if-no-files-found: ignore
+          retention-days: 14

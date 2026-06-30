@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+#
 # Copyright 2026 LiveKit
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,7 +47,11 @@ RUN mkdir -p /client-sdk-cpp/client-sdk-rust/.cargo \
 
 # Build and install the SDK into a fixed prefix so downstream projects can
 # consume the image as a prebuilt LiveKit SDK environment.
-RUN LLVM_VERSION="$(llvm-config --version | cut -d. -f1)" \
+RUN --mount=type=cache,target=/root/.cargo/registry,sharing=locked \
+    --mount=type=cache,target=/root/.cargo/git,sharing=locked \
+    --mount=type=cache,target=/client-sdk-cpp/client-sdk-rust/target,sharing=locked \
+    --mount=type=cache,target=/client-sdk-cpp/build-release,sharing=locked \
+    LLVM_VERSION="$(llvm-config --version | cut -d. -f1)" \
     && export LIBCLANG_PATH="/usr/lib/llvm-${LLVM_VERSION}/lib" \
     && export CXXFLAGS="-Wno-deprecated-declarations" \
     && export CFLAGS="-Wno-deprecated-declarations" \

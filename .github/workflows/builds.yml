@@ -94,7 +94,7 @@ jobs:
 
       - name: Setup vcpkg (Windows only)
         if: runner.os == 'Windows'
-        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11.5
+        uses: lukka/run-vcpkg@6fe69898af670ac05f4a8427cc5cff4fb361cee5 # v11.5
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT }}
 
@@ -125,7 +125,7 @@ jobs:
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
         with:
           toolchain: stable
 

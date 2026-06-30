@@ -62,6 +62,7 @@ jobs:
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/tests.yml
+              - .github/workflows/nightly.yml
             docs:
               - README.md
               - include/**
