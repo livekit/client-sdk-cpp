@@ -85,9 +85,9 @@ TEST(TrackPublishOptionsTest, PacketTrailerFeaturesRoundTrip) {
   options.packet_trailer_features.frame_id = true;
 
   proto::TrackPublishOptions proto_options = toProto(options);
-  ASSERT_EQ(proto_options.packet_trailer_features_size(), 2);
-  EXPECT_EQ(proto_options.packet_trailer_features(0), proto::PacketTrailerFeature::PTF_USER_TIMESTAMP);
-  EXPECT_EQ(proto_options.packet_trailer_features(1), proto::PacketTrailerFeature::PTF_FRAME_ID);
+  ASSERT_EQ(proto_options.frame_metadata_features_size(), 2);
+  EXPECT_EQ(proto_options.frame_metadata_features(0), proto::FrameMetadataFeature::FMF_USER_TIMESTAMP);
+  EXPECT_EQ(proto_options.frame_metadata_features(1), proto::FrameMetadataFeature::FMF_FRAME_ID);
 
   TrackPublishOptions round_trip = fromProto(proto_options);
   EXPECT_TRUE(round_trip.packet_trailer_features.user_timestamp);
