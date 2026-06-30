@@ -277,9 +277,9 @@ struct AudioEncodingOptions {
 enum class DegradationPreference {
   /// Balance between framerate and resolution degradation.
   Balanced = 0,
-  /// Degrade framerate to maintain resolution.
+  /// Degrade resolution to maintain framerate (prioritize smooth motion).
   MaintainFramerate = 1,
-  /// Degrade resolution to maintain framerate (drop frames to keep clarity).
+  /// Degrade framerate to maintain resolution (prioritize image clarity).
   MaintainResolution = 2,
   /// Maintain both framerate and resolution. Frames may be dropped before
   /// encoding if necessary to avoid overusing network and encoder resources.
