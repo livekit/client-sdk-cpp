@@ -273,6 +273,19 @@ struct AudioEncodingOptions {
   std::uint64_t max_bitrate = 0;
 };
 
+/// Controls how the encoder degrades quality when bandwidth is constrained.
+enum class DegradationPreference {
+  /// Balance between framerate and resolution degradation.
+  Balanced = 0,
+  /// Degrade resolution to maintain framerate (prioritize smooth motion).
+  MaintainFramerate = 1,
+  /// Degrade framerate to maintain resolution (prioritize image clarity).
+  MaintainResolution = 2,
+  /// Maintain both framerate and resolution. Frames may be dropped before
+  /// encoding if necessary to avoid overusing network and encoder resources.
+  MaintainFramerateAndResolution = 4,
+};
+
 /// Optional RTP packet-trailer features for published video tracks.
 struct PacketTrailerFeatures {
   /// Embed a user-supplied wall-clock timestamp.
@@ -313,6 +326,10 @@ struct TrackPublishOptions {
 
   /// Optional packet-trailer features to enable for published video.
   PacketTrailerFeatures packet_trailer_features{};
+
+  /// Controls how the encoder trades off between resolution and framerate
+  /// when bandwidth is constrained. Default is MaintainResolution.
+  std::optional<DegradationPreference> degradation_preference;
 };
 
 // ---------------------------------------------------------

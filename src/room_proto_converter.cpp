@@ -505,6 +505,9 @@ proto::TrackPublishOptions toProto(const TrackPublishOptions& in) {
   for (const proto::PacketTrailerFeature feature : toProto(in.packet_trailer_features)) {
     msg.add_packet_trailer_features(feature);
   }
+  if (in.degradation_preference) {
+    msg.set_degradation_preference(static_cast<proto::DegradationPreference>(*in.degradation_preference));
+  }
   return msg;
 }
 
@@ -538,6 +541,9 @@ TrackPublishOptions fromProto(const proto::TrackPublishOptions& in) {
     out.preconnect_buffer = in.preconnect_buffer();
   }
   out.packet_trailer_features = fromProto(in.packet_trailer_features());
+  if (in.has_degradation_preference()) {
+    out.degradation_preference = static_cast<DegradationPreference>(in.degradation_preference());
+  }
   return out;
 }
 
