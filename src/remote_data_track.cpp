@@ -46,7 +46,7 @@ bool RemoteDataTrack::isPublished() const {
   return resp.remote_data_track_is_published().is_published();
 }
 
-void RemoteDataTrack::setPipelineOptions(const PipelineOptions& options) {
+void RemoteDataTrack::setPipelineOptions(const DataTrackPipelineOptions& options) {
   if (!handle_.valid()) {
     return;
   }
