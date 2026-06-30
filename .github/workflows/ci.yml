@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
   actions: read
-  packages: write
+  packages: read
 
 jobs:
   # Compute once which path groups changed; every other job references these
@@ -23,13 +23,13 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       builds: ${{ steps.filter.outputs.builds }}
-      docker: ${{ steps.filter.outputs.docker }}
       tests:  ${{ steps.filter.outputs.tests }}
       docs:   ${{ steps.filter.outputs.docs }}
       cpp_checks: ${{ steps.filter.outputs.cpp_checks }}
       rust_release_check: ${{ steps.filter.outputs.rust_release_check }}
+      docker: ${{ steps.filter.outputs.docker }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d  # v4.0.1
         id: filter
         with:
@@ -49,16 +49,6 @@ jobs:
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
-            docker:
-              - docker/**
-              - .dockerignore
-              - CMakeLists.txt
-              - CMakePresets.json
-              - build*
-              - .build*
-              - cmake/**
-              - .github/workflows/ci.yml
-              - .github/workflows/docker-images.yml
             tests:
               - src/**
               - include/**
@@ -95,6 +85,10 @@ jobs:
               - .clang-tidy
               - .github/workflows/ci.yml
               - .github/workflows/cpp-checks.yml
+            docker:
+              - docker/**
+              - .github/workflows/ci.yml
+              - .github/workflows/docker-images.yml
             rust_release_check:
               - client-sdk-rust
 
@@ -108,8 +102,14 @@ jobs:
   docker-images:
     name: Docker Images
     needs: changes
-    if: ${{ needs.changes.outputs.docker == 'true' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'pull_request' && needs.changes.outputs.docker == 'true') || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: read
+      actions: read
+      packages: write
     uses: ./.github/workflows/docker-images.yml
+    with:
+      push_images: false
     secrets: inherit
 
   tests:

@@ -52,9 +52,8 @@ jobs:
     name: Docker Images
     uses: ./.github/workflows/docker-images.yml
     with:
-      publish_images: true
-      cleanup_nightly_images: true
-      nightly_retention_days: 7
+      push_images: ${{ github.event_name != 'pull_request' }}
+      push_tag: nightly
     secrets: inherit
 
   sanitizer:
