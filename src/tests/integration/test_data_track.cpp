@@ -394,7 +394,9 @@ TEST_F(DataTrackE2ETest, ReceivesFramesWithCustomPipelineOptionsEndToEnd) {
   EXPECT_EQ(remote_track->info().name, track_name);
   EXPECT_EQ(remote_track->publisherIdentity(), publisher_identity);
 
-  remote_track->setPipelineOptions({.max_partial_frames = 4});
+  DataTrackPipelineOptions pipeline_options;
+  pipeline_options.max_partial_frames = 4;
+  remote_track->setPipelineOptions(pipeline_options);
 
   auto subscribe_result = remote_track->subscribe();
   if (!subscribe_result) {
