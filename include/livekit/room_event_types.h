@@ -322,6 +322,7 @@ struct TrackPublishOptions {
   std::optional<FrameMetadataFeatures> frame_metadata_features;
 
   /// @deprecated Use frame_metadata_features instead.
+  [[deprecated("TrackPublishOptions::packet_trailer_features is deprecated; use frame_metadata_features instead")]]
   FrameMetadataFeatures packet_trailer_features{};
 };
 

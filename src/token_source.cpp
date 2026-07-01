@@ -78,7 +78,13 @@ std::string joinUrlPath(const std::string& base_url, const std::string& path) {
     return path;
   }
   if (base_url.back() == '/') {
-    return base_url + (path.empty() || path.front() == '/' ? path.substr(path.front() == '/' ? 1 : 0) : path);
+    if (path.empty()) {
+      return base_url;
+    }
+    if (path.front() == '/') {
+      return base_url + path.substr(1);
+    }
+    return base_url + path;
   }
   if (path.empty()) {
     return base_url;
