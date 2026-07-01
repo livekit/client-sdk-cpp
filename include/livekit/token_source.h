@@ -234,7 +234,7 @@ public:
 
   /// @note This source holds no cache and invokes the provider fresh on every
   /// call. Wrap it in @ref CachingTokenSource to reuse credentials.
-  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options = {}) override;
 
 private:
   explicit CustomTokenSource(
@@ -261,7 +261,7 @@ public:
 
   /// @note Every fetch issues a fresh HTTP request. Wrap it in
   /// @ref CachingTokenSource to reuse credentials between calls.
-  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options = {}) override;
 
 private:
   // Network transport seam. Mirrors the internal HTTP client signature
@@ -299,7 +299,7 @@ public:
   static std::unique_ptr<SandboxTokenSource> create(const std::string& sandbox_id,
                                                     const SandboxTokenServerOptions& options = {});
 
-  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options = {}) override;
 
 private:
   explicit SandboxTokenSource(std::unique_ptr<TokenSourceConfigurable> endpoint);
@@ -325,7 +325,7 @@ public:
   /// @return A configurable token source that caches @p inner responses.
   static std::unique_ptr<CachingTokenSource> create(std::unique_ptr<TokenSourceConfigurable> inner);
 
-  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options) override;
+  std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options = {}) override;
 
   /// @brief Clear any cached credentials so the next @ref fetch re-queries the inner source.
   void invalidate();
