@@ -435,7 +435,7 @@ jobs:
         run: ls -la ${{ github.workspace }}/release-assets/
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: LiveKit C++ SDK v${{ steps.version.outputs.version }}
