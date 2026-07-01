@@ -114,6 +114,7 @@ jobs:
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
             libabsl-dev \
+            libcurl4-openssl-dev \
             libwayland-dev libdecor-0-dev
 
       - name: Install deps (macOS)
@@ -168,6 +169,13 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-target-
+
+      # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
+      # artifacts in webrtc-sys are not compatible across those bumps.
+      - name: Drop stale cargo target on submodule SHA cache miss
+        if: steps.cache-cargo-target.outputs.cache-hit != 'true'
+        shell: bash
+        run: rm -rf client-sdk-rust/target/
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment

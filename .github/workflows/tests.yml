@@ -115,6 +115,7 @@ jobs:
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
             libabsl-dev \
+            libcurl4-openssl-dev \
             libwayland-dev libdecor-0-dev \
             jq
 
@@ -165,6 +166,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-target-
 
+      # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
+      # artifacts in webrtc-sys are not compatible across those bumps.
+      - name: Drop stale cargo target on submodule SHA cache miss
+        if: steps.cache-cargo-target.outputs.cache-hit != 'true'
+        shell: bash
+        run: rm -rf client-sdk-rust/target/
+
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
         if: runner.os == 'Linux'
@@ -208,7 +216,6 @@ jobs:
             --gtest_brief=1 `
             --gtest_output="xml:build-release\unit-test-results.xml"
 
-      # ---------- Start livekit-server for integration tests ----------
       - name: Start livekit-server
         if: matrix.e2e-testing
         id: livekit_server
@@ -248,12 +255,22 @@ jobs:
           fi
           lk --version
 
+      - name: Start token server
+        if: matrix.e2e-testing
+        id: token_server
+        uses: livekit/token-server-action@a1e42c649a1998d5b224f5102f252c07762024f0 # v0.0.1
+        with:
+          livekit-url: ws://localhost:7880
+          api-key: devkey
+          api-secret: secret
+
       - name: Run integration tests
         if: matrix.e2e-testing
         timeout-minutes: 10
         shell: bash
         env:
           RUST_LOG: "metrics=debug"
+          LIVEKIT_CREATE_TOKEN_URL: ${{ steps.token_server.outputs.token-url }}
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
@@ -264,6 +281,11 @@ jobs:
         if: failure() && matrix.e2e-testing
         shell: bash
         run: tail -n 500 "${{ steps.livekit_server.outputs.log-path }}" || true
+
+      - name: Dump token server log on failure
+        if: failure() && matrix.e2e-testing && steps.token_server.outputs.log-path != ''
+        shell: bash
+        run: tail -n 200 "${{ steps.token_server.outputs.log-path }}" || true
 
       # ---------- Upload results ----------
       - name: Upload test results
@@ -329,6 +351,7 @@ jobs:
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
             libabsl-dev \
+            libcurl4-openssl-dev \
             libwayland-dev libdecor-0-dev
           pip install --break-system-packages gcovr
 

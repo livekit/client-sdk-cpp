@@ -17,7 +17,7 @@
 Verify that liblivekit's exported ABI does not leak private dependency symbols.
 
 The LiveKit SDK statically links several private dependencies (spdlog, fmt,
-google::protobuf, absl).  When those symbols escape the dynamic symbol table
+google::protobuf, absl, nlohmann/json).  When those symbols escape the dynamic symbol table
 of liblivekit.{so,dylib,dll}, they collide at runtime with the same libraries
 loaded elsewhere in the host process (a common failure mode is ROS 2's
 rcl_logging_spdlog ABI-clashing with our vendored spdlog and crashing inside
@@ -52,6 +52,7 @@ DEFAULT_FORBIDDEN = [
     "fmt::v",
     "google::protobuf",
     "absl::",
+    "nlohmann::",
 ]
 
 MAX_REPORTED_LEAKS = 20

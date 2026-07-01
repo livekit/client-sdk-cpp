@@ -21,7 +21,7 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 
 - [LiveKit docs](https://docs.livekit.io)
 - [SDK reference](https://docs.livekit.io/reference/client-sdk-cpp/)
-- [Repository docs](./docs/README.md)
+- [Repository docs](./docs/README.md) — building, [authentication](./docs/authentication.md), testing, logging, tracing
 
 ## Using the SDK
 
@@ -187,9 +187,33 @@ room->addOnDataFrameCallback(sender_identity, "app-data",
 
 For end-to-end samples and a fuller set of demos, see the [cpp-example-collection repo](https://github.com/livekit-examples/cpp-example-collection).
 
+### Generating tokens
+
+For local development, install [`livekit-cli`](https://docs.livekit.io/home/cli/cli-setup/)
+and mint a participant JWT against a dev server (`livekit-server --dev` uses
+`devkey` / `secret`):
+
+```bash
+export LIVEKIT_URL=ws://localhost:7880
+export LIVEKIT_TOKEN=$(lk token create \
+  --api-key devkey \
+  --api-secret secret \
+  -i my-participant \
+  --join \
+  --valid-for 24h \
+  --room my-room \
+  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}' \
+  --token-only)
+```
+
+Pass `LIVEKIT_URL` and `LIVEKIT_TOKEN` into `Room::connect`, or use the SDK's
+token source helpers for endpoint, sandbox, and custom backends. See
+[docs/authentication.md](docs/authentication.md).
+
 ## Features
 
 - Connect to LiveKit rooms (Cloud or self-hosted)
+- Dynamic token sourcing (literal, custom, endpoint, sandbox, caching)
 - Receive remote audio/video tracks
 - Publish local audio/video tracks
 - Data tracks (low-level) and data streams (high-level)
@@ -233,7 +257,10 @@ See [docs/tools.md](docs/tools.md).
 
 ## Deprecation
 
-Future deprecations and deprecation dates will be listed here for the next major release.
+The following features are deprecated and will be removed in the next major release.
+
+- `PacketTrailerFeatures` is deprecated. Use `FrameMetadataFeatures` via
+  `TrackPublishOptions::frame_metadata_features` instead.
 
 ### `v1.0.0`
 

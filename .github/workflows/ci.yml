@@ -101,14 +101,14 @@ jobs:
   docker-images:
     name: Docker Images
     needs: changes
-    if: ${{ (github.event_name == 'pull_request' && needs.changes.outputs.docker == 'true') || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'pull_request' && needs.changes.outputs.docker == 'true') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.docker == 'true') || github.event_name == 'workflow_dispatch' }}
     permissions:
       contents: read
       actions: read
       packages: write
     uses: ./.github/workflows/docker-images.yml
     with:
-      push_images: false
+      push_images: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     secrets: inherit
 
   tests:

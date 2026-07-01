@@ -200,6 +200,9 @@ jobs:
             docker push "${base_image}:${sha_tag}-amd64"
           fi
 
+          docker tag livekit-cpp-sdk-base-x64:${{ github.sha }} "${base_image}:base-main-amd64"
+          docker push "${base_image}:base-main-amd64"
+
       - name: Push SDK image (amd64)
         if: ${{ inputs.push_images }}
         shell: bash
@@ -327,6 +330,9 @@ jobs:
             docker tag livekit-cpp-sdk-base-arm64:${{ github.sha }} "${base_image}:${sha_tag}-arm64"
             docker push "${base_image}:${sha_tag}-arm64"
           fi
+
+          docker tag livekit-cpp-sdk-base-arm64:${{ github.sha }} "${base_image}:base-main-arm64"
+          docker push "${base_image}:base-main-arm64"
 
       - name: Push SDK image (arm64)
         if: ${{ inputs.push_images }}
@@ -522,6 +528,11 @@ jobs:
               "${base_image}:${sha_tag}-amd64" \
               "${base_image}:${sha_tag}-arm64"
           fi
+
+          docker buildx imagetools create \
+            -t "${base_image}:base-main" \
+            "${base_image}:base-main-amd64" \
+            "${base_image}:base-main-arm64"
 
   publish-sdk-manifest:
     name: Publish SDK manifest
