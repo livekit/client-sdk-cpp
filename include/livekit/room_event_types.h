@@ -273,14 +273,21 @@ struct AudioEncodingOptions {
   std::uint64_t max_bitrate = 0;
 };
 
-/// Optional RTP packet-trailer features for published video tracks.
-struct PacketTrailerFeatures {
+/// Optional frame metadata features for published video tracks.
+struct FrameMetadataFeatures {
   /// Embed a user-supplied wall-clock timestamp.
   bool user_timestamp = false;
 
   /// Embed a monotonically increasing frame identifier.
   bool frame_id = false;
+
+  /// Embed user-supplied data.
+  bool user_data = false;
 };
+
+/// @deprecated Use FrameMetadataFeatures instead.
+using PacketTrailerFeatures [[deprecated("PacketTrailerFeatures is deprecated; use FrameMetadataFeatures instead")]] =
+    FrameMetadataFeatures;
 
 /// Options for publishing a track to the room.
 struct TrackPublishOptions {
@@ -311,8 +318,11 @@ struct TrackPublishOptions {
   /// Enable pre-connect buffering for lower startup latency.
   std::optional<bool> preconnect_buffer;
 
-  /// Optional packet-trailer features to enable for published video.
-  PacketTrailerFeatures packet_trailer_features{};
+  /// Optional frame metadata features to enable for published video.
+  std::optional<FrameMetadataFeatures> frame_metadata_features;
+
+  /// @deprecated Use frame_metadata_features instead.
+  FrameMetadataFeatures packet_trailer_features{};
 };
 
 // ---------------------------------------------------------

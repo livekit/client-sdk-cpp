@@ -545,6 +545,13 @@ protected:
     }
   }
 
+  /// Fail the test if the required environment variables are not set
+  void failIfNotConfigured() {
+    if (!config_.available) {
+      FAIL() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+    }
+  }
+
   /**
    * Register a custom trace event to analyze in TearDown().
    *

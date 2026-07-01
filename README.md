@@ -257,7 +257,10 @@ See [docs/tools.md](docs/tools.md).
 
 ## Deprecation
 
-Future deprecations and deprecation dates will be listed here for the next major release.
+The following features are deprecated and will be removed in the next major release.
+
+- `PacketTrailerFeatures` is deprecated. Use `FrameMetadataFeatures` via
+  `TrackPublishOptions::frame_metadata_features` instead.
 
 ### `v1.0.0`
 
