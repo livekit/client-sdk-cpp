@@ -338,6 +338,12 @@ ReconnectingEvent fromProto(const proto::Reconnecting& /*in*/) { return Reconnec
 
 ReconnectedEvent fromProto(const proto::Reconnected& /*in*/) { return ReconnectedEvent{}; }
 
+TokenRefreshedEvent fromProto(const proto::TokenRefreshed& in) {
+  TokenRefreshedEvent ev;
+  ev.token = in.token();
+  return ev;
+}
+
 RoomEosEvent fromProto(const proto::RoomEOS& /*in*/) { return RoomEosEvent{}; }
 
 DataStreamHeaderReceivedEvent fromProto(const proto::DataStreamHeaderReceived& in) {

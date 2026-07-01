@@ -322,6 +322,7 @@ struct TrackPublishOptions {
   std::optional<FrameMetadataFeatures> frame_metadata_features;
 
   /// @deprecated Use frame_metadata_features instead.
+  [[deprecated("TrackPublishOptions::packet_trailer_features is deprecated; use frame_metadata_features instead")]]
   FrameMetadataFeatures packet_trailer_features{};
 };
 
@@ -554,6 +555,15 @@ struct ReconnectingEvent {};
 
 /// Fired after successfully reconnecting.
 struct ReconnectedEvent {};
+
+/// Fired when the server refreshes the session access token.
+///
+/// The SDK applies the refreshed token internally for reconnect; this event is
+/// informational so applications can log or cache the latest token.
+struct TokenRefreshedEvent {
+  /// Refreshed access token.
+  std::string token;
+};
 
 /// Fired when the room has reached end-of-stream (no more events).
 struct RoomEosEvent {};

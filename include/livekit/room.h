@@ -145,7 +145,7 @@ public:
   ///     room.setDelegate(&del);
   void setDelegate(RoomDelegate* delegate);
 
-  /// Connect to a LiveKit room using the given URL and token,  applying the
+  /// Connect to a LiveKit room using the given URL and token, applying the
   /// supplied connection options.
   ///
   /// @param url      WebSocket URL of the LiveKit server.

@@ -120,7 +120,15 @@ struct TestRoomConnectionOptions {
 // Utility Functions
 // =============================================================================
 
-/// Get current timestamp in microseconds
+/// Check if the test is running in CI.
+/// Context: some tests are harder to run locally but should be run in CI.
+/// @return True if the test is running in CI, false otherwise.
+inline bool runningInCi() {
+  const char* gha = std::getenv("GITHUB_ACTIONS");
+  return gha != nullptr && std::string(gha) == "true"; // GITHUB_ACTIONS is set to true in CI
+}
+
+/// Get current timestamp in microseconds.
 inline uint64_t getTimestampUs() {
   return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch())
       .count();
