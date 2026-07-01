@@ -82,12 +82,14 @@ public:
   /// Whether the track is still published by the remote participant.
   LIVEKIT_API bool isPublished() const;
 
-  /// Configures options for the pipeline handling incoming packets for this
-  /// track.
+  /// @brief Configures options for the pipeline handling incoming packets for
+  /// this track.
   ///
   /// These options apply to all current and future subscriptions of this
   /// track, and may be set at any time. New options take effect with the
   /// next received packet.
+  ///
+  /// @param options Pipeline options to apply to this remote data track.
   LIVEKIT_API void setPipelineOptions(const DataTrackPipelineOptions& options);
 
 #ifdef LIVEKIT_TEST_ACCESS
