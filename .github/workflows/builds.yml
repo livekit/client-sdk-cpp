@@ -205,14 +205,14 @@ jobs:
       # large PR-scoped target caches that quickly evict useful entries.
       - name: Save cargo target
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache-cargo-target.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: client-sdk-rust/target/
           key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
 
       - name: Save vcpkg binary cache
         if: runner.os == 'Windows' && steps.cache-vcpkg-binary.outputs.cache-hit != 'true'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.VCPKG_BINARY_CACHE_DIR }}
           key: ${{ runner.os }}-${{ matrix.name }}-vcpkg-binary-${{ env.VCPKG_TARGET_TRIPLET }}-${{ env.VCPKG_GIT_COMMIT }}-${{ hashFiles('vcpkg.json') }}
