@@ -1,0 +1,523 @@
+name: PlatformAudio Triage
+
+# Focused, mac-only crash-hunting harness for the PlatformAudio instability.
+# It builds ONLY the integration test binary and runs the PlatformAudio cases
+# in a tight, high-repeat loop with backtrace + crash-report capture.
+#
+# The instability reproduces on BOTH macOS architectures (Intel x64 hits an
+# assertion timeout / no-frames; Apple Silicon arm64 has been seen to SIGSEGV),
+# so by default this fans out across one Intel and one arm64 runner.
+#
+# Two arms run so a failure is diagnostic, not just a red X:
+#   - repeat arm: the standard cases under --gtest_repeat. Each iteration calls
+#     livekit::shutdown() -> FFI dispose -> Arc<LkRuntime> drop ->
+#     AdmProxy::~AdmProxy() -> CoreAudio ADM Terminate(). This is the suspected
+#     crash path (full ADM teardown/recreate every iteration).
+#   - pinned arm: PinnedRuntimeRepeatedPublishStress holds one PlatformAudio for
+#     the whole test, so the ADM is created once and never terminated between
+#     cycles. If the repeat arm crashes but this stays green, the bug is in ADM
+#     teardown, not the steady media path.
+#
+# Trigger from the Actions tab (workflow_dispatch) and tune the inputs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runners:
+        description: "Which macOS runners to triage (the instability reproduces on both Intel x64 and Apple Silicon arm64)"
+        type: choice
+        default: all
+        options:
+          - all              # both arches: macos-15-large (x64) + macos-15 (arm64)
+          - macos-15-large   # Intel x64
+          - macos-15         # Apple Silicon arm64
+          - macos-13         # Intel x64 (older)
+          - macos-14         # Apple Silicon arm64 (older)
+          - macos-26-xlarge  # Apple Silicon arm64 (newer, larger)
+      rust_pin:
+        description: "Which client-sdk-rust pin to triage"
+        type: choice
+        default: plan-pins
+        options:
+          - plan-pins        # 8e551062 + 2e83ff6b + d3bb1453
+          - current          # submodule commit checked into this branch
+          - 8e551062         # old baseline before the signaling regression
+          - 2e83ff6b         # upstream base before the ADM fix commits
+          - d3bb1453         # ADM fix with PR feedback
+      repeat:
+        description: "gtest_repeat count for the dispose-each-iteration arm"
+        type: string
+        default: "200"
+      pin_iterations:
+        description: "PLATFORM_AUDIO_PIN_ITERATIONS for the pinned control arm"
+        type: string
+        default: "200"
+      leak_iterations:
+        description: "Pinned-cycle iterations for the leaks arm (kept small; MallocStackLogging is heavy)"
+        type: string
+        default: "40"
+      ubsan:
+        description: "Build with UndefinedBehaviorSanitizer (ASan is incompatible with macOS CoreAudio)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  # Expand runner and Rust-pin selections into a matrix. "all" fans out across
+  # both architectures; "plan-pins" fans out across the three SHAs named in the
+  # investigation plan so the frame-flow regression can be attributed.
+  prepare:
+    name: Resolve triage matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - id: set
+        shell: bash
+        run: |
+          sel="${{ github.event.inputs.runners || 'all' }}"
+          pin_sel="${{ github.event.inputs.rust_pin || 'plan-pins' }}"
+
+          if [[ "${sel}" == "all" ]]; then
+            runners=("macos-15-large" "macos-15")
+          else
+            runners=("${sel}")
+          fi
+
+          case "${pin_sel}" in
+            plan-pins)
+              pins=("old-baseline:8e551062" "new-upstream-base:2e83ff6b" "adm-fix:d3bb1453")
+              ;;
+            current)
+              pins=("current:")
+              ;;
+            8e551062)
+              pins=("old-baseline:8e551062")
+              ;;
+            2e83ff6b)
+              pins=("new-upstream-base:2e83ff6b")
+              ;;
+            d3bb1453)
+              pins=("adm-fix:d3bb1453")
+              ;;
+            *)
+              echo "::error::Unsupported rust_pin '${pin_sel}'"
+              exit 1
+              ;;
+          esac
+
+          matrix='{"include":['
+          first=1
+          for runner in "${runners[@]}"; do
+            for pin in "${pins[@]}"; do
+              name="${pin%%:*}"
+              sha="${pin#*:}"
+              if (( first )); then
+                first=0
+              else
+                matrix+=","
+              fi
+              matrix+="{\"runner\":\"${runner}\",\"rust_pin_name\":\"${name}\",\"rust_sha\":\"${sha}\"}"
+            done
+          done
+          matrix+=']}'
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
+  triage:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    name: PlatformAudio Triage (${{ matrix.runner }}, ${{ matrix.rust_pin_name }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      RUST_BACKTRACE: full
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+      REPEAT: ${{ github.event.inputs.repeat || '200' }}
+      PIN_ITERATIONS: ${{ github.event.inputs.pin_iterations || '200' }}
+      USE_UBSAN: ${{ github.event.inputs.ubsan || 'true' }}
+
+    steps:
+      - name: Checkout (with submodules)
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Pull LFS files
+        run: git lfs pull
+
+      - name: Select Rust submodule pin
+        if: matrix.rust_sha != ''
+        shell: bash
+        run: |
+          set -eux
+          git -C client-sdk-rust fetch --depth=1 origin "${{ matrix.rust_sha }}"
+          git -C client-sdk-rust checkout --detach "${{ matrix.rust_sha }}"
+          git -C client-sdk-rust rev-parse HEAD
+
+      - name: Prepare CI test scripts
+        run: |
+          chmod +x .github/scripts/run_tests_with_backtrace.sh
+          chmod +x .github/scripts/stage_crash_diagnostics.sh
+          chmod +x .github/scripts/sample_process_resources.sh
+          chmod +x .github/scripts/heap_snapshots.sh
+
+      - name: Install deps
+        run: |
+          set -eux
+          brew update
+          brew install cmake ninja protobuf abseil
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
+
+      # Cache the Rust submodule build so re-runs skip the ~20-minute cold build.
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: client-sdk-rust
+
+      - name: Set build environment
+        run: |
+          echo "CXXFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
+          echo "CFLAGS=-fno-omit-frame-pointer" >> "$GITHUB_ENV"
+
+      - name: Configure build
+        run: |
+          if [[ "${USE_UBSAN}" == "true" ]]; then
+            cmake --preset macos-debug-tests \
+              -DCMAKE_C_FLAGS="-fsanitize=undefined -fno-omit-frame-pointer" \
+              -DCMAKE_CXX_FLAGS="-fsanitize=undefined -fno-omit-frame-pointer" \
+              -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=undefined" \
+              -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=undefined"
+          else
+            cmake --preset macos-debug-tests
+          fi
+
+      - name: Build integration tests only
+        run: cmake --build build-debug --target livekit_integration_tests --parallel 2
+
+      - name: Start livekit-server
+        id: livekit_server
+        uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
+        continue-on-error: true
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Start livekit-server fallback
+        if: steps.livekit_server.outcome == 'failure'
+        id: livekit_server_fallback
+        shell: bash
+        run: |
+          set -euxo pipefail
+          brew install livekit
+          cat > "$RUNNER_TEMP/livekit.yaml" <<'EOF'
+          logging: { json: true }
+          EOF
+          livekit-server --config "$RUNNER_TEMP/livekit.yaml" --dev > "$RUNNER_TEMP/livekit.jsonl" 2>&1 &
+          echo "log-path=$RUNNER_TEMP/livekit.jsonl" >> "$GITHUB_OUTPUT"
+          for i in $(seq 1 30); do
+            if [[ "$(curl -fsS http://localhost:7880/ || true)" == "OK" ]]; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+
+      - name: Install livekit-cli
+        shell: bash
+        run: brew install livekit-cli
+
+      # Arm A: full ADM teardown/recreate every iteration (suspected crash path).
+      - name: "Arm A — repeat (dispose+ADM Terminate each iteration)"
+        id: repeat_arm
+        continue-on-error: true
+        timeout-minutes: 40
+        shell: bash
+        env:
+          RUST_LOG: info,livekit_ffi::server=debug,livekit_ffi::server::platform_audio=debug,livekit::platform_audio=debug
+          RUST_BACKTRACE: full
+        run: |
+          set -euo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          # Sample process resources in the background; it self-exits with the test.
+          .github/scripts/sample_process_resources.sh \
+            livekit_integration_tests "$RUNNER_TEMP/resources-arm-a.csv" 3 &
+          .github/scripts/run_tests_with_backtrace.sh \
+            build-debug/bin/livekit_integration_tests \
+            --gtest_filter='PlatformAudioIntegrationTest.*-PlatformAudioIntegrationTest.PinnedRuntimeRepeatedPublishStress' \
+            --gtest_repeat="${REPEAT}" \
+            --gtest_recreate_environments_when_repeating=1 \
+            --gtest_output=xml:build-debug/triage-repeat-arm.xml
+
+      # Arm B: control. Runtime/ADM pinned alive for the whole test.
+      - name: "Arm B — pinned runtime (ADM created once, never terminated)"
+        id: pinned_arm
+        continue-on-error: true
+        timeout-minutes: 40
+        shell: bash
+        env:
+          RUST_LOG: info,livekit_ffi::server=debug,livekit_ffi::server::platform_audio=debug,livekit::platform_audio=debug
+          RUST_BACKTRACE: full
+          PLATFORM_AUDIO_PIN_ITERATIONS: ${{ env.PIN_ITERATIONS }}
+        run: |
+          set -euo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          # Sample process resources in the background; it self-exits with the test.
+          .github/scripts/sample_process_resources.sh \
+            livekit_integration_tests "$RUNNER_TEMP/resources-arm-b.csv" 3 &
+          .github/scripts/run_tests_with_backtrace.sh \
+            build-debug/bin/livekit_integration_tests \
+            --gtest_filter='PlatformAudioIntegrationTest.PinnedRuntimeRepeatedPublishStress' \
+            --gtest_output=xml:build-debug/triage-pinned-arm.xml
+
+      # Arm C: isolates the frame-flow check. Running only this test with a small
+      # repeat (fresh ADM recreated each iteration, no sibling tests churning it
+      # first) distinguishes "frame flow is dead even on a fresh ADM" from "frame
+      # flow only dies after prior teardown/recreate cycles".
+      - name: "Arm C — frame-flow only (fresh ADM each iteration, isolated)"
+        id: frames_arm
+        continue-on-error: true
+        timeout-minutes: 30
+        shell: bash
+        env:
+          RUST_LOG: info,livekit_ffi::server=debug,livekit_ffi::server::platform_audio=debug,livekit::platform_audio=debug
+          RUST_BACKTRACE: full
+        run: |
+          set -euo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          # Sample process resources in the background; it self-exits with the test.
+          .github/scripts/sample_process_resources.sh \
+            livekit_integration_tests "$RUNNER_TEMP/resources-arm-c.csv" 3 &
+          .github/scripts/run_tests_with_backtrace.sh \
+            build-debug/bin/livekit_integration_tests \
+            --gtest_filter='PlatformAudioIntegrationTest.PlatformAudioFramesReachRemote' \
+            --gtest_repeat=5 \
+            --gtest_recreate_environments_when_repeating=1 \
+            --gtest_output=xml:build-debug/triage-frames-arm.xml
+
+      # Arm D: name the leak. The pinned-cycle reproducer (ADM held alive, rooms
+      # recycled each cycle) is run under macOS `leaks` with MallocStackLogging so
+      # every still-allocated block is reported with the backtrace that allocated
+      # it. This points directly at the leaking call site (C++ SDK vs Rust FFI)
+      # instead of us guessing. A small iteration count keeps the stack-logging
+      # overhead bounded while leaking enough to aggregate clear stacks.
+      - name: "Arm D — leak backtraces (pinned cycle under leaks)"
+        id: leaks_arm
+        continue-on-error: true
+        timeout-minutes: 40
+        shell: bash
+        env:
+          # Quieter than the other arms: the leak report is the signal here.
+          RUST_LOG: warn
+          RUST_BACKTRACE: "1"
+          MallocStackLogging: "1"
+          PLATFORM_AUDIO_PIN_ITERATIONS: ${{ github.event.inputs.leak_iterations || '40' }}
+        run: |
+          set -uo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          report="$RUNNER_TEMP/leaks-report.txt"
+          # `leaks --atExit -- <cmd>` launches the binary, lets it run to normal
+          # exit, then dumps leaks (grouped by identical backtrace with counts).
+          leaks --atExit -- \
+            build-debug/bin/livekit_integration_tests \
+            --gtest_filter='PlatformAudioIntegrationTest.PinnedRuntimeRepeatedPublishStress' \
+            > "$report" 2>&1
+          status=$?
+          echo "leaks exit status: ${status}"
+          # Surface the leak summary + the largest stacks in the step log.
+          grep -E "Process [0-9]+: .* leaks for|leaks for [0-9,]+ total|^[[:space:]]*[0-9]+ \(" "$report" | head -40 || true
+          echo "--- top of leaks report ---"
+          tail -n 200 "$report" || true
+          # leaks exits non-zero when leaks are found; treat that as success for
+          # this diagnostic arm (the report is the deliverable).
+          exit 0
+
+      # Arm E: attribute the reachable retention. `leaks` reports 0 (the growth is
+      # still-referenced, not lost) so we instead sample the LIVE heap mid-run on
+      # the dispose+recreate path (the worst leaker) with MallocStackLogging, then
+      # diff successive `heap` summaries + read `malloc_history` stacks to name the
+      # growing allocation type and its call site.
+      - name: "Arm E — live-heap attribution (dispose path under heap/malloc_history)"
+        id: heap_arm
+        continue-on-error: true
+        timeout-minutes: 40
+        shell: bash
+        env:
+          RUST_LOG: warn
+          RUST_BACKTRACE: "1"
+          MallocStackLogging: "1"
+        run: |
+          set -uo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          mkdir -p "$RUNNER_TEMP/heap-snapshots"
+          # Snapshot the live heap every 10s while the dispose-path test repeats.
+          # Frequent early ticks catch the growth curve (not just a plateau), and
+          # malloc_history is captured on every tick so we always get stacks.
+          # A larger repeat keeps the process churning across the whole window.
+          .github/scripts/heap_snapshots.sh \
+            livekit_integration_tests "$RUNNER_TEMP/heap-snapshots" 10 30 &
+          .github/scripts/run_tests_with_backtrace.sh \
+            build-debug/bin/livekit_integration_tests \
+            --gtest_filter='PlatformAudioIntegrationTest.*-PlatformAudioIntegrationTest.PinnedRuntimeRepeatedPublishStress' \
+            --gtest_repeat=60 \
+            --gtest_recreate_environments_when_repeating=1 \
+            --gtest_output=xml:build-debug/triage-heap-arm.xml || true
+          echo "--- heap snapshots captured ---"
+          ls -la "$RUNNER_TEMP/heap-snapshots" || true
+          # Surface the 'all zones' growth across the first vs last heap summary.
+          first=$(ls "$RUNNER_TEMP"/heap-snapshots/heap-*.txt 2>/dev/null | head -1)
+          last=$(ls "$RUNNER_TEMP"/heap-snapshots/heap-*.txt 2>/dev/null | tail -1)
+          if [[ -n "${first}" && -n "${last}" && "${first}" != "${last}" ]]; then
+            echo "=== FIRST heap summary (${first##*/}) ==="; grep -E "Process [0-9]+:|total|COUNT" "${first}" | head -25 || true
+            echo "=== LAST heap summary (${last##*/}) ==="; grep -E "Process [0-9]+:|total|COUNT" "${last}" | head -25 || true
+          fi
+          exit 0
+
+      - name: Dump livekit-server log on failure
+        if: failure() || steps.repeat_arm.outcome == 'failure' || steps.pinned_arm.outcome == 'failure' || steps.frames_arm.outcome == 'failure'
+        shell: bash
+        run: |
+          log_path="${{ steps.livekit_server.outputs.log-path }}"
+          if [[ -z "$log_path" ]]; then
+            log_path="${{ steps.livekit_server_fallback.outputs.log-path }}"
+          fi
+          tail -n 500 "$log_path" || true
+
+      - name: Stage crash diagnostics
+        if: steps.repeat_arm.outcome == 'failure' || steps.pinned_arm.outcome == 'failure' || steps.frames_arm.outcome == 'failure'
+        run: .github/scripts/stage_crash_diagnostics.sh build-debug
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: platform-audio-triage-results-${{ matrix.runner }}-${{ matrix.rust_pin_name }}
+          path: |
+            build-debug/triage-repeat-arm.xml
+            build-debug/triage-pinned-arm.xml
+            build-debug/triage-frames-arm.xml
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload crash diagnostics
+        if: steps.repeat_arm.outcome == 'failure' || steps.pinned_arm.outcome == 'failure' || steps.frames_arm.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: platform-audio-triage-crash-diagnostics-${{ matrix.runner }}-${{ matrix.rust_pin_name }}
+          path: ${{ runner.temp }}/crash-diagnostics/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload resource samples
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: platform-audio-triage-resource-samples-${{ matrix.runner }}-${{ matrix.rust_pin_name }}
+          path: |
+            ${{ runner.temp }}/resources-arm-a.csv
+            ${{ runner.temp }}/resources-arm-b.csv
+            ${{ runner.temp }}/resources-arm-c.csv
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload leak report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: platform-audio-triage-leak-report-${{ matrix.runner }}-${{ matrix.rust_pin_name }}
+          path: ${{ runner.temp }}/leaks-report.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload heap snapshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: platform-audio-triage-heap-snapshots-${{ matrix.runner }}-${{ matrix.rust_pin_name }}
+          path: ${{ runner.temp }}/heap-snapshots/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # Surface the diagnostic contrast and fail the job if either arm failed.
+      - name: Triage summary
+        if: always()
+        shell: bash
+        run: |
+          repeat="${{ steps.repeat_arm.outcome }}"
+          pinned="${{ steps.pinned_arm.outcome }}"
+          frames="${{ steps.frames_arm.outcome }}"
+          leaks="${{ steps.leaks_arm.outcome }}"
+          heap="${{ steps.heap_arm.outcome }}"
+          rust_pin="${{ matrix.rust_pin_name }}"
+          rust_sha="${{ matrix.rust_sha }}"
+          if [[ -z "${rust_sha}" ]]; then
+            rust_sha="$(git -C client-sdk-rust rev-parse --short HEAD)"
+          fi
+
+          # Print first vs last resource sample so the leak curve is visible inline.
+          resource_delta() {
+            local csv=$1
+            [[ -f "${csv}" ]] || { echo "| (no samples) | | | | |"; return; }
+            local first last
+            first=$(tail -n +2 "${csv}" | head -1)
+            last=$(tail -n 1 "${csv}")
+            [[ -n "${first}" && "${first}" != "${last}" ]] || { echo "| (insufficient samples) | | | | |"; return; }
+            IFS=, read -r _ _ _ frss fthreads ffds fports <<< "${first}"
+            IFS=, read -r _ le _ lrss lthreads lfds lports <<< "${last}"
+            echo "| rss_kb | ${frss} | ${lrss} | over ${le}s |"
+            echo "| threads | ${fthreads} | ${lthreads} | |"
+            echo "| fds | ${ffds} | ${lfds} | |"
+            echo "| mach_ports | ${fports} | ${lports} | |"
+          }
+
+          {
+            echo "## PlatformAudio triage"
+            echo ""
+            echo "**Rust pin:** ${rust_pin} (${rust_sha})"
+            echo ""
+            echo "| Arm | Outcome |"
+            echo "| --- | --- |"
+            echo "| A — Repeat (dispose+ADM Terminate each iter) | ${repeat} |"
+            echo "| B — Pinned runtime (ADM never terminated) | ${pinned} |"
+            echo "| C — Frame-flow only (fresh ADM each iter) | ${frames} |"
+            echo "| D — Leak backtraces (see leak-report artifact) | ${leaks} |"
+            echo "| E — Live-heap attribution (see heap-snapshots artifact) | ${heap} |"
+            echo ""
+            if [[ "${repeat}" == "failure" && "${pinned}" == "success" ]]; then
+              echo "➡️ Repeat failed while pinned passed: consistent with an ADM teardown/recreate bug."
+            elif [[ "${repeat}" == "failure" && "${pinned}" == "failure" ]]; then
+              echo "➡️ Both repeat and pinned failed: instability is not exclusive to ADM teardown."
+            elif [[ "${repeat}" == "success" && "${pinned}" == "success" ]]; then
+              echo "➡️ Repeat and pinned both passed this run (did not reproduce). Try a higher repeat count."
+            fi
+            echo ""
+            echo "_Arm C (frame-flow isolated): if iteration 1 passes but later iterations fail,"
+            echo "frame delivery degrades with each fresh ADM recreate; if it fails on iteration 1,"
+            echo "frame flow is broken even on a first/fresh ADM on this runner._"
+            echo ""
+            echo "### Resource growth — Arm A (dispose each iteration)"
+            echo "| metric | first | last | note |"
+            echo "| --- | --- | --- | --- |"
+            resource_delta "$RUNNER_TEMP/resources-arm-a.csv"
+            echo ""
+            echo "### Resource growth — Arm B (pinned)"
+            echo "| metric | first | last | note |"
+            echo "| --- | --- | --- | --- |"
+            resource_delta "$RUNNER_TEMP/resources-arm-b.csv"
+            echo ""
+            echo "### Resource growth — Arm C (frame-flow isolated)"
+            echo "| metric | first | last | note |"
+            echo "| --- | --- | --- | --- |"
+            resource_delta "$RUNNER_TEMP/resources-arm-c.csv"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [[ "${repeat}" == "success" && "${pinned}" == "success" && "${frames}" == "success" ]]
