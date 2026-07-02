@@ -219,9 +219,13 @@ jobs:
       - name: Start livekit-server
         if: matrix.e2e-testing
         id: livekit_server
-        uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
+        uses: alan-george-lk/dev-server-action@44d92cc55c3f753616444aa48cc624f0d4c551d3
         with:
           github-token: ${{ github.token }}
+          version: a47e21b6cb945aabee88c98650366cef8cbf7a99
+          config: |
+            enable_data_tracks: true
+            enable_participant_data_blob: true
 
       # Needed by token helper script
       - name: Install livekit-cli

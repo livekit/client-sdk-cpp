@@ -139,6 +139,10 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
     // data track async completions
     case E::kPublishDataTrack:
       return event.publish_data_track().async_id();
+    case E::kDefineSchema:
+      return event.define_schema().async_id();
+    case E::kGetSchema:
+      return event.get_schema().async_id();
 
     // NOT async completion:
     case E::kRoomEvent:

@@ -33,7 +33,7 @@ namespace livekit {
  *   DataTrackSchemaEncoding encoding = DataTrackSchemaEncoding::Protobuf;
  * \endcode
  * For the uncommon case of an encoding outside the well-known set, use
- * \ref DataTrackSchemaEncoding::Custom.
+ * \ref DataTrackSchemaEncoding::custom.
  */
 class DataTrackSchemaEncoding {
 public:
@@ -58,7 +58,7 @@ public:
   };
 
   /** Constructs a well-known encoding. Implicit by design, for the common case. */
-  DataTrackSchemaEncoding(WellKnown well_known) : well_known_(well_known) {}
+  DataTrackSchemaEncoding(WellKnown wellKnown) : well_known_(wellKnown) {}
 
   /**
    * Constructs a custom, application-defined encoding.
@@ -66,20 +66,20 @@ public:
    * Prefer a well-known encoding wherever one applies. The identifier must be
    * non-empty and no longer than 25 characters.
    */
-  static DataTrackSchemaEncoding Custom(std::string identifier) {
+  static DataTrackSchemaEncoding custom(std::string identifier) {
     DataTrackSchemaEncoding encoding;
     encoding.custom_ = std::move(identifier);
     return encoding;
   }
 
   /** Whether this is a custom encoding rather than a well-known one. */
-  bool is_custom() const { return !custom_.empty(); }
+  bool isCustom() const { return !custom_.empty(); }
 
-  /** The well-known encoding. Only meaningful when \ref is_custom is false. */
-  WellKnown well_known() const { return well_known_; }
+  /** The well-known encoding. Only meaningful when \ref isCustom is false. */
+  WellKnown wellKnown() const { return well_known_; }
 
-  /** The custom identifier. Empty when \ref is_custom is false. */
-  const std::string& custom_identifier() const { return custom_; }
+  /** The custom identifier. Empty when \ref isCustom is false. */
+  const std::string& customIdentifier() const { return custom_; }
 
 private:
   DataTrackSchemaEncoding() = default;
@@ -89,10 +89,10 @@ private:
 };
 
 inline bool operator==(const DataTrackSchemaEncoding& a, const DataTrackSchemaEncoding& b) {
-  if (a.is_custom() || b.is_custom()) {
-    return a.custom_identifier() == b.custom_identifier();
+  if (a.isCustom() || b.isCustom()) {
+    return a.customIdentifier() == b.customIdentifier();
   }
-  return a.well_known() == b.well_known();
+  return a.wellKnown() == b.wellKnown();
 }
 inline bool operator!=(const DataTrackSchemaEncoding& a, const DataTrackSchemaEncoding& b) { return !(a == b); }
 
@@ -108,7 +108,7 @@ inline bool operator!=(const DataTrackSchemaEncoding& a, const DataTrackSchemaEn
  *   options.frame_encoding = DataTrackFrameEncoding::Json;
  * \endcode
  * For the uncommon case of an encoding outside the well-known set, use
- * \ref DataTrackFrameEncoding::Custom.
+ * \ref DataTrackFrameEncoding::custom.
  */
 class DataTrackFrameEncoding {
 public:
@@ -133,7 +133,7 @@ public:
   };
 
   /** Constructs a well-known encoding. Implicit by design, for the common case. */
-  DataTrackFrameEncoding(WellKnown well_known) : well_known_(well_known) {}
+  DataTrackFrameEncoding(WellKnown wellKnown) : well_known_(wellKnown) {}
 
   /**
    * Constructs a custom, application-defined encoding.
@@ -141,20 +141,20 @@ public:
    * Prefer a well-known encoding wherever one applies. The identifier must be
    * non-empty and no longer than 25 characters.
    */
-  static DataTrackFrameEncoding Custom(std::string identifier) {
+  static DataTrackFrameEncoding custom(std::string identifier) {
     DataTrackFrameEncoding encoding;
     encoding.custom_ = std::move(identifier);
     return encoding;
   }
 
   /** Whether this is a custom encoding rather than a well-known one. */
-  bool is_custom() const { return !custom_.empty(); }
+  bool isCustom() const { return !custom_.empty(); }
 
-  /** The well-known encoding. Only meaningful when \ref is_custom is false. */
-  WellKnown well_known() const { return well_known_; }
+  /** The well-known encoding. Only meaningful when \ref isCustom is false. */
+  WellKnown wellKnown() const { return well_known_; }
 
-  /** The custom identifier. Empty when \ref is_custom is false. */
-  const std::string& custom_identifier() const { return custom_; }
+  /** The custom identifier. Empty when \ref isCustom is false. */
+  const std::string& customIdentifier() const { return custom_; }
 
 private:
   DataTrackFrameEncoding() = default;
@@ -164,10 +164,10 @@ private:
 };
 
 inline bool operator==(const DataTrackFrameEncoding& a, const DataTrackFrameEncoding& b) {
-  if (a.is_custom() || b.is_custom()) {
-    return a.custom_identifier() == b.custom_identifier();
+  if (a.isCustom() || b.isCustom()) {
+    return a.customIdentifier() == b.customIdentifier();
   }
-  return a.well_known() == b.well_known();
+  return a.wellKnown() == b.wellKnown();
 }
 inline bool operator!=(const DataTrackFrameEncoding& a, const DataTrackFrameEncoding& b) { return !(a == b); }
 

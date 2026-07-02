@@ -20,11 +20,11 @@ namespace livekit {
 
 proto::DataTrackSchemaEncoding toProto(const DataTrackSchemaEncoding& in) {
   proto::DataTrackSchemaEncoding out;
-  if (in.is_custom()) {
-    out.set_custom(in.custom_identifier());
+  if (in.isCustom()) {
+    out.set_custom(in.customIdentifier());
     return out;
   }
-  switch (in.well_known()) {
+  switch (in.wellKnown()) {
     case DataTrackSchemaEncoding::Protobuf:
       out.set_well_known(proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_PROTOBUF);
       break;
@@ -55,7 +55,7 @@ proto::DataTrackSchemaEncoding toProto(const DataTrackSchemaEncoding& in) {
 
 DataTrackSchemaEncoding fromProto(const proto::DataTrackSchemaEncoding& in) {
   if (in.encoding_case() == proto::DataTrackSchemaEncoding::kCustom) {
-    return DataTrackSchemaEncoding::Custom(in.custom());
+    return DataTrackSchemaEncoding::custom(in.custom());
   }
   switch (in.well_known()) {
     case proto::DataTrackSchemaEncoding::WELL_KNOWN_SCHEMA_ENCODING_PROTOBUF:
@@ -79,11 +79,11 @@ DataTrackSchemaEncoding fromProto(const proto::DataTrackSchemaEncoding& in) {
 
 proto::DataTrackFrameEncoding toProto(const DataTrackFrameEncoding& in) {
   proto::DataTrackFrameEncoding out;
-  if (in.is_custom()) {
-    out.set_custom(in.custom_identifier());
+  if (in.isCustom()) {
+    out.set_custom(in.customIdentifier());
     return out;
   }
-  switch (in.well_known()) {
+  switch (in.wellKnown()) {
     case DataTrackFrameEncoding::Ros1:
       out.set_well_known(proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_ROS1);
       break;
@@ -114,7 +114,7 @@ proto::DataTrackFrameEncoding toProto(const DataTrackFrameEncoding& in) {
 
 DataTrackFrameEncoding fromProto(const proto::DataTrackFrameEncoding& in) {
   if (in.encoding_case() == proto::DataTrackFrameEncoding::kCustom) {
-    return DataTrackFrameEncoding::Custom(in.custom());
+    return DataTrackFrameEncoding::custom(in.custom());
   }
   switch (in.well_known()) {
     case proto::DataTrackFrameEncoding::WELL_KNOWN_FRAME_ENCODING_ROS1:
