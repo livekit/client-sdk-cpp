@@ -17,6 +17,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -31,6 +32,12 @@ using namespace std::chrono_literals;
 namespace {
 
 constexpr auto kSubscriptionTimeout = 20s;
+constexpr const char* kRunPlatformAudioFrameFlowEnv = "LIVEKIT_RUN_PLATFORM_AUDIO_FRAME_FLOW_TEST";
+
+bool envFlagEnabled(const char* name) {
+  const char* value = std::getenv(name);
+  return value != nullptr && std::string(value) != "0";
+}
 
 /// Tracks subscription/unpublish events seen by the receiver so tests can wait
 /// for the platform-audio track to round-trip through the SFU.
@@ -240,6 +247,13 @@ TEST_F(PlatformAudioIntegrationTest, MultipleSourcesFromOneManagerPublish) {
 // headless runner with no audio subsystem).
 TEST_F(PlatformAudioIntegrationTest, PlatformAudioFramesReachRemote) {
   EXPECT_TRUE(config_.available) << "Missing integration configuration";
+
+#if defined(__APPLE__)
+  if (envFlagEnabled("CI") && !envFlagEnabled(kRunPlatformAudioFrameFlowEnv)) {
+    GTEST_SKIP() << "PlatformAudio frame-flow canary is quarantined on macOS CI; set " << kRunPlatformAudioFrameFlowEnv
+                 << "=1 to run it in the triage workflow";
+  }
+#endif
 
   std::unique_ptr<PlatformAudio> platform_audio;
   try {

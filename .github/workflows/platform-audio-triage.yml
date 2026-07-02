@@ -292,6 +292,7 @@ jobs:
         env:
           RUST_LOG: info,livekit_ffi::server=debug,livekit_ffi::server::platform_audio=debug,livekit::platform_audio=debug
           RUST_BACKTRACE: full
+          LIVEKIT_RUN_PLATFORM_AUDIO_FRAME_FLOW_TEST: "1"
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
