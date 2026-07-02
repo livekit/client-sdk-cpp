@@ -106,7 +106,7 @@ jobs:
           set -eux
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential cmake ninja-build pkg-config gdb \
+            build-essential cmake ninja-build pkg-config \
             llvm-dev libclang-dev clang \
             libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
             libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
@@ -271,19 +271,11 @@ jobs:
         env:
           RUST_LOG: "metrics=debug"
           LIVEKIT_CREATE_TOKEN_URL: ${{ steps.token_server.outputs.token-url }}
-          LIVEKIT_TEST_STALL_SECONDS: 120
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            build-release/bin/livekit_integration_tests \
-              --gtest_output=xml:build-release/integration-test-results.xml
-          else
-            chmod +x .github/scripts/run_tests_with_backtrace.sh
-            .github/scripts/run_tests_with_backtrace.sh \
-              build-release/bin/livekit_integration_tests \
-              --gtest_output=xml:build-release/integration-test-results.xml
-          fi
+          build-release/bin/livekit_integration_tests \
+            --gtest_output=xml:build-release/integration-test-results.xml
 
       - name: Dump livekit-server log on failure
         if: failure() && matrix.e2e-testing
