@@ -34,6 +34,16 @@ on:
           - macos-13         # Intel x64 (older)
           - macos-14         # Apple Silicon arm64 (older)
           - macos-26-xlarge  # Apple Silicon arm64 (newer, larger)
+      rust_pin:
+        description: "Which client-sdk-rust pin to triage"
+        type: choice
+        default: plan-pins
+        options:
+          - plan-pins        # 8e551062 + 2e83ff6b + d3bb1453
+          - current          # submodule commit checked into this branch
+          - 8e551062         # old baseline before the signaling regression
+          - 2e83ff6b         # upstream base before the ADM fix commits
+          - d3bb1453         # ADM fix with PR feedback
       repeat:
         description: "gtest_repeat count for the dispose-each-iteration arm"
         type: string
@@ -56,11 +66,11 @@ permissions:
   actions: read
 
 jobs:
-  # Expand the runner selection into a matrix. "all" fans out across both
-  # architectures so a single dispatch confirms whether the instability
-  # reproduces on Intel x64 and Apple Silicon arm64.
+  # Expand runner and Rust-pin selections into a matrix. "all" fans out across
+  # both architectures; "plan-pins" fans out across the three SHAs named in the
+  # investigation plan so the frame-flow regression can be attributed.
   prepare:
-    name: Resolve runner matrix
+    name: Resolve triage matrix
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
@@ -69,18 +79,59 @@ jobs:
         shell: bash
         run: |
           sel="${{ github.event.inputs.runners || 'all' }}"
+          pin_sel="${{ github.event.inputs.rust_pin || 'plan-pins' }}"
+
           if [[ "${sel}" == "all" ]]; then
-            echo 'matrix={"runner":["macos-15-large","macos-15"]}' >> "$GITHUB_OUTPUT"
+            runners=("macos-15-large" "macos-15")
           else
-            printf 'matrix={"runner":["%s"]}\n' "${sel}" >> "$GITHUB_OUTPUT"
+            runners=("${sel}")
           fi
+
+          case "${pin_sel}" in
+            plan-pins)
+              pins=("old-baseline:8e551062" "new-upstream-base:2e83ff6b" "adm-fix:d3bb1453")
+              ;;
+            current)
+              pins=("current:")
+              ;;
+            8e551062)
+              pins=("old-baseline:8e551062")
+              ;;
+            2e83ff6b)
+              pins=("new-upstream-base:2e83ff6b")
+              ;;
+            d3bb1453)
+              pins=("adm-fix:d3bb1453")
+              ;;
+            *)
+              echo "::error::Unsupported rust_pin '${pin_sel}'"
+              exit 1
+              ;;
+          esac
+
+          matrix='{"include":['
+          first=1
+          for runner in "${runners[@]}"; do
+            for pin in "${pins[@]}"; do
+              name="${pin%%:*}"
+              sha="${pin#*:}"
+              if (( first )); then
+                first=0
+              else
+                matrix+=","
+              fi
+              matrix+="{\"runner\":\"${runner}\",\"rust_pin_name\":\"${name}\",\"rust_sha\":\"${sha}\"}"
+            done
+          done
+          matrix+=']}'
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
 
   triage:
     needs: prepare
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
-    name: PlatformAudio Triage (${{ matrix.runner }})
+    name: PlatformAudio Triage (${{ matrix.runner }}, ${{ matrix.rust_pin_name }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 90
     env:
@@ -101,6 +152,15 @@ jobs:
 
       - name: Pull LFS files
         run: git lfs pull
+
+      - name: Select Rust submodule pin
+        if: matrix.rust_sha != ''
+        shell: bash
+        run: |
+          set -eux
+          git -C client-sdk-rust fetch --depth=1 origin "${{ matrix.rust_sha }}"
+          git -C client-sdk-rust checkout --detach "${{ matrix.rust_sha }}"
+          git -C client-sdk-rust rev-parse HEAD
 
       - name: Prepare CI test scripts
         run: |
@@ -341,7 +401,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: platform-audio-triage-results-${{ matrix.runner }}
+          name: platform-audio-triage-results-${{ matrix.runner }}-${{ matrix.rust_pin_name }}
           path: |
             build-debug/triage-repeat-arm.xml
             build-debug/triage-pinned-arm.xml
@@ -353,7 +413,7 @@ jobs:
         if: steps.repeat_arm.outcome == 'failure' || steps.pinned_arm.outcome == 'failure' || steps.frames_arm.outcome == 'failure'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: platform-audio-triage-crash-diagnostics-${{ matrix.runner }}
+          name: platform-audio-triage-crash-diagnostics-${{ matrix.runner }}-${{ matrix.rust_pin_name }}
           path: ${{ runner.temp }}/crash-diagnostics/
           if-no-files-found: ignore
           retention-days: 14
@@ -362,7 +422,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: platform-audio-triage-resource-samples-${{ matrix.runner }}
+          name: platform-audio-triage-resource-samples-${{ matrix.runner }}-${{ matrix.rust_pin_name }}
           path: |
             ${{ runner.temp }}/resources-arm-a.csv
             ${{ runner.temp }}/resources-arm-b.csv
@@ -374,7 +434,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: platform-audio-triage-leak-report-${{ matrix.runner }}
+          name: platform-audio-triage-leak-report-${{ matrix.runner }}-${{ matrix.rust_pin_name }}
           path: ${{ runner.temp }}/leaks-report.txt
           if-no-files-found: ignore
           retention-days: 14
@@ -383,7 +443,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: platform-audio-triage-heap-snapshots-${{ matrix.runner }}
+          name: platform-audio-triage-heap-snapshots-${{ matrix.runner }}-${{ matrix.rust_pin_name }}
           path: ${{ runner.temp }}/heap-snapshots/
           if-no-files-found: ignore
           retention-days: 14
@@ -398,6 +458,11 @@ jobs:
           frames="${{ steps.frames_arm.outcome }}"
           leaks="${{ steps.leaks_arm.outcome }}"
           heap="${{ steps.heap_arm.outcome }}"
+          rust_pin="${{ matrix.rust_pin_name }}"
+          rust_sha="${{ matrix.rust_sha }}"
+          if [[ -z "${rust_sha}" ]]; then
+            rust_sha="$(git -C client-sdk-rust rev-parse --short HEAD)"
+          fi
 
           # Print first vs last resource sample so the leak curve is visible inline.
           resource_delta() {
@@ -417,6 +482,8 @@ jobs:
 
           {
             echo "## PlatformAudio triage"
+            echo ""
+            echo "**Rust pin:** ${rust_pin} (${rust_sha})"
             echo ""
             echo "| Arm | Outcome |"
             echo "| --- | --- |"
