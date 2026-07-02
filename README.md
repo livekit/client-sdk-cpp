@@ -21,7 +21,7 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 
 - [LiveKit docs](https://docs.livekit.io)
 - [SDK reference](https://docs.livekit.io/reference/client-sdk-cpp/)
-- [Repository docs](./docs/README.md) — building, [authentication](./docs/authentication.md), testing, logging, tracing
+- [Repository docs](./docs/README.md) — building, authentication, testing, logging, tracing
 
 ## Using the SDK
 
