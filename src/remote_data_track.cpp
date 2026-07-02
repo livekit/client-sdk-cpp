@@ -44,6 +44,22 @@ bool RemoteDataTrack::isPublished() const {
   return resp.remote_data_track_is_published().is_published();
 }
 
+void RemoteDataTrack::setPipelineOptions(const DataTrackPipelineOptions& options) {
+  if (!handle_.valid()) {
+    return;
+  }
+
+  proto::FfiRequest req;
+  auto* msg = req.mutable_remote_data_track_set_pipeline_options();
+  msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
+  auto* opts = msg->mutable_options();
+  if (options.max_partial_frames) {
+    opts->set_max_partial_frames(*options.max_partial_frames);
+  }
+
+  FfiClient::instance().sendRequest(req);
+}
+
 Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> RemoteDataTrack::subscribe(
     const DataTrackStream::Options& options) {
   if (!handle_.valid()) {

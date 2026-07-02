@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           # No submodules: scripts/clang-format.sh only walks our own src/ tree
           fetch-depth: 1
@@ -50,7 +50,7 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: recursive
           fetch-depth: 1
@@ -62,7 +62,7 @@ jobs:
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
             llvm-dev libclang-dev clang \
-            libssl-dev wget ca-certificates gnupg
+            libssl-dev libcurl4-openssl-dev wget ca-certificates gnupg
 
       - name: Install clang-tidy 19 (for ExcludeHeaderFilterRegex support)
         run: |
@@ -85,7 +85,7 @@ jobs:
           run-clang-tidy --help | head -1 || true
 
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537
         with:
           toolchain: stable
 

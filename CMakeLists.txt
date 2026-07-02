@@ -93,6 +93,8 @@ file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
 include(protobuf)
 # spdlog logging library (PRIVATE dependency).
 include(spdlog)
+# nlohmann/json header-only library (PRIVATE dependency).
+include(nlohmann_json)
 # Ensure protoc executable is found.
 if(TARGET protobuf::protoc)
   set(Protobuf_PROTOC_EXECUTABLE "$<TARGET_FILE:protobuf::protoc>")
@@ -393,6 +395,11 @@ add_library(livekit SHARED
   src/room_proto_converter.cpp
   src/room_proto_converter.h
   src/subscription_thread_dispatcher.cpp
+  src/token_source.cpp
+  src/token_source_http.cpp
+  src/token_source_json.cpp
+  src/token_source_jwt.cpp
+  src/token_source_internal.h
   src/local_participant.cpp
   src/remote_participant.cpp
   src/stats.cpp
@@ -458,9 +465,17 @@ target_include_directories(livekit SYSTEM PRIVATE
 target_link_libraries(livekit
   PRIVATE
     spdlog::spdlog
+    nlohmann_json::nlohmann_json
     livekit_ffi
     ${LIVEKIT_PROTOBUF_TARGET}
 )
+
+if(WIN32)
+  target_link_libraries(livekit PRIVATE winhttp)
+else()
+  find_package(CURL REQUIRED)
+  target_link_libraries(livekit PRIVATE CURL::libcurl)
+endif()
 
 target_compile_definitions(livekit
   PRIVATE

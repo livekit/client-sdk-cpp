@@ -157,7 +157,7 @@ cmake --build build --config Release
 # With examples:
 cmake -B build -S . `
   -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake `
-  -DLIVEKIT_BUILD_EXAMPLES=ON -DVCPKG_MANIFEST_FEATURES=examples
+  -DLIVEKIT_BUILD_EXAMPLES=ON
 cmake --build build --config Release
 ```
 
@@ -172,7 +172,7 @@ cmake --build build
 cmake -B build -S . \
   -DCMAKE_TOOLCHAIN_FILE=<vcpkg-root>/scripts/buildsystems/vcpkg.cmake \
   -DCMAKE_BUILD_TYPE=Release \
-  -DLIVEKIT_BUILD_EXAMPLES=ON -DVCPKG_MANIFEST_FEATURES=examples
+  -DLIVEKIT_BUILD_EXAMPLES=ON
 cmake --build build
 ```
 
