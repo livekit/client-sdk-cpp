@@ -215,7 +215,10 @@ configure_file(
 find_program(CARGO_EXECUTABLE NAMES cargo REQUIRED)
 
 # Determine Rust target triple for cross-compilation on macOS
-set(RUST_TARGET_TRIPLE "")
+# (may also be pre-set by a cross toolchain file, e.g. cross/toolchain-ameba-armv7.cmake)
+if(NOT DEFINED RUST_TARGET_TRIPLE)
+  set(RUST_TARGET_TRIPLE "")
+endif()
 if(APPLE AND CMAKE_OSX_ARCHITECTURES)
   if(CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64")
     set(RUST_TARGET_TRIPLE "x86_64-apple-darwin")
@@ -256,7 +259,7 @@ if(NOT DEFINED CARGO)
   message(FATAL_ERROR \"CARGO not set\")
 endif()
 
-set(ARGS build)
+set(ARGS build -p livekit-ffi)
 if(NOT CFG STREQUAL \"Debug\")
   list(APPEND ARGS --release)
 endif()

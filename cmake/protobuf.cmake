@@ -149,7 +149,19 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON CACHE BOOL "" FORCE)
 set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(protobuf_BUILD_CONFORMANCE OFF CACHE BOOL "" FORCE)
-set(protobuf_BUILD_PROTOC_BINARIES ON CACHE BOOL "" FORCE)
+if(CMAKE_CROSSCOMPILING)
+  # protoc must run on the build host, so don't cross-compile it; a host
+  # protoc matching LIVEKIT_PROTOBUF_VERSION must be provided instead via
+  # -DProtobuf_PROTOC_EXECUTABLE.
+  set(protobuf_BUILD_PROTOC_BINARIES OFF CACHE BOOL "" FORCE)
+  if(NOT Protobuf_PROTOC_EXECUTABLE)
+    message(FATAL_ERROR
+      "Cross-compiling: pass -DProtobuf_PROTOC_EXECUTABLE=<host protoc "
+      "v${LIVEKIT_PROTOBUF_VERSION} binary>")
+  endif()
+else()
+  set(protobuf_BUILD_PROTOC_BINARIES ON CACHE BOOL "" FORCE)
+endif()
 set(protobuf_WITH_ZLIB OFF CACHE BOOL "" FORCE)
 
 set(protobuf_ABSL_PROVIDER "package" CACHE STRING "" FORCE)
@@ -198,12 +210,16 @@ foreach(_livekit_protobuf_target IN LISTS _livekit_protobuf_targets)
 endforeach()
 
 # Protobuf targets: modern protobuf exports protobuf::protoc etc.
-if(TARGET protobuf::protoc)
-  set(Protobuf_PROTOC_EXECUTABLE "$<TARGET_FILE:protobuf::protoc>" CACHE STRING "protoc (vendored)" FORCE)
-elseif(TARGET protoc)
-  set(Protobuf_PROTOC_EXECUTABLE "$<TARGET_FILE:protoc>" CACHE STRING "protoc (vendored)" FORCE)
-else()
-  message(FATAL_ERROR "Vendored protobuf did not create a protoc target")
+# When cross-compiling, protoc binaries are not built; the host protoc
+# supplied via Protobuf_PROTOC_EXECUTABLE is used as-is.
+if(NOT CMAKE_CROSSCOMPILING)
+  if(TARGET protobuf::protoc)
+    set(Protobuf_PROTOC_EXECUTABLE "$<TARGET_FILE:protobuf::protoc>" CACHE STRING "protoc (vendored)" FORCE)
+  elseif(TARGET protoc)
+    set(Protobuf_PROTOC_EXECUTABLE "$<TARGET_FILE:protoc>" CACHE STRING "protoc (vendored)" FORCE)
+  else()
+    message(FATAL_ERROR "Vendored protobuf did not create a protoc target")
+  endif()
 endif()
 
 # Prefer protobuf-lite (optional; keep libprotobuf around too)
