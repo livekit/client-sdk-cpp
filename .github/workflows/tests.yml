@@ -219,7 +219,7 @@ jobs:
       - name: Start livekit-server
         if: matrix.e2e-testing
         id: livekit_server
-        uses: alan-george-lk/dev-server-action@7c4429faa77dfdecda56ed164d3bdb1cda28f1bc
+        uses: alan-george-lk/dev-server-action@2c3c9dd34a403348bf3d119ba6e2cf42c2e03da4
         with:
           github-token: ${{ github.token }}
           version: a47e21b6cb945aabee88c98650366cef8cbf7a99
