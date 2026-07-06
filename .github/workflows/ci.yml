@@ -143,6 +143,12 @@ jobs:
       doxygen: true
       checkout_submodules: recursive
       clang_format_paths: src include benchmarks
+      clang_tidy_dependencies_command: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential cmake ninja-build pkg-config \
+          llvm-dev libclang-dev clang \
+          libssl-dev libcurl4-openssl-dev wget ca-certificates gnupg
       clang_tidy_install_rust: true
       clang_tidy_setup_command: |
         echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
