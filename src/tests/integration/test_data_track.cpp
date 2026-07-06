@@ -29,6 +29,7 @@
 #include <exception>
 #include <future>
 
+#include "../common/remote_data_track_test_access.h"
 #include "../common/test_common.h"
 #include "ffi_client.h"
 
@@ -468,6 +469,104 @@ TEST_F(DataTrackE2ETest, UnpublishUpdatesPublishedStateEndToEnd) {
       << "Remote track did not report unpublished state";
 }
 
+// Verifies that an auto-wired data callback (Room::addOnDataFrameCallback)
+// follows a republished track: after unpublish + republish under the same
+// (participant, track name) but a new SID, the previous reader is torn down and
+// a fresh reader delivers frames from the new publication.
+TEST_F(DataTrackE2ETest, RepublishRewiresDataCallbackToNewPublication) {
+  const auto track_name = makeTrackName("republish");
+
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[0].room_options.single_peer_connection = false;
+  room_configs[1].room_options.single_peer_connection = false;
+
+  DataTrackPublishedDelegate subscriber_delegate;
+  room_configs[1].delegate = &subscriber_delegate;
+
+  auto rooms = testRooms(room_configs);
+  auto& publisher_room = rooms[0];
+  auto& subscriber_room = rooms[1];
+  const auto publisher_identity = lockLocalParticipant(*publisher_room)->identity();
+
+  std::atomic<int> frames_received{0};
+  std::mutex payload_mutex;
+  std::vector<std::uint8_t> last_payload;
+  subscriber_room->addOnDataFrameCallback(publisher_identity, track_name,
+                                          [&](const std::vector<std::uint8_t>& payload, std::optional<std::uint64_t>) {
+                                            {
+                                              const std::scoped_lock<std::mutex> lock(payload_mutex);
+                                              last_payload = payload;
+                                            }
+                                            frames_received.fetch_add(1);
+                                          });
+
+  auto publish_with_retry = [&](const std::string& name) -> std::shared_ptr<LocalDataTrack> {
+    std::shared_ptr<LocalDataTrack> track;
+    waitForCondition(
+        [&]() {
+          auto result = lockLocalParticipant(*publisher_room)->publishDataTrack(name);
+          if (result) {
+            track = result.value();
+            return true;
+          }
+          return false;
+        },
+        kTrackWaitTimeout);
+    return track;
+  };
+
+  // First publication.
+  auto first_track = publish_with_retry(track_name);
+  ASSERT_NE(first_track, nullptr) << "Failed to publish first data track";
+  auto first_remote = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
+  ASSERT_NE(first_remote, nullptr) << "Timed out waiting for first remote data track";
+  const std::string first_sid = first_remote->info().sid;
+
+  DataTrackFrame first_frame;
+  first_frame.payload.assign(64, 0xA1);
+  ASSERT_TRUE(waitForCondition(
+      [&]() {
+        requirePushSuccess(first_track->tryPush(first_frame), "Failed to push first-publication frame");
+        return frames_received.load() > 0;
+      },
+      kTransportFrameTimeout))
+      << "Auto-wired callback never received a frame from the first publication";
+
+  // Unpublish: the reader for the first publication must be torn down.
+  first_track->unpublishDataTrack();
+  ASSERT_TRUE(waitForCondition([&]() { return !first_remote->isPublished(); }, kTrackWaitTimeout))
+      << "First remote track did not report unpublished state";
+  const int frames_before_republish = frames_received.load();
+
+  // Republish under the same name; the server assigns a new SID.
+  auto second_track = publish_with_retry(track_name);
+  ASSERT_NE(second_track, nullptr) << "Failed to republish data track";
+  auto remotes = subscriber_delegate.waitForTracks(2, kTrackWaitTimeout);
+  ASSERT_EQ(remotes.size(), 2u) << "Timed out waiting for republished remote data track";
+  auto second_remote = remotes.back();
+  const std::string second_sid = second_remote->info().sid;
+  EXPECT_NE(first_sid, second_sid) << "Republish should produce a new SID";
+
+  DataTrackFrame second_frame;
+  second_frame.payload.assign(64, 0xB2);
+  ASSERT_TRUE(waitForCondition(
+      [&]() {
+        requirePushSuccess(second_track->tryPush(second_frame), "Failed to push republished frame");
+        return frames_received.load() > frames_before_republish;
+      },
+      kTransportFrameTimeout))
+      << "Auto-wired callback did not re-wire to the republished track";
+
+  {
+    const std::scoped_lock<std::mutex> lock(payload_mutex);
+    EXPECT_EQ(last_payload, second_frame.payload) << "Callback delivered stale payload after republish";
+  }
+
+  second_track->unpublishDataTrack();
+  ASSERT_TRUE(waitForCondition([&]() { return !second_remote->isPublished(); }, kTrackWaitTimeout))
+      << "Second remote track did not report unpublished state";
+}
+
 TEST_F(DataTrackE2ETest, SubscribeAfterUnpublishReportsTerminalError) {
   const auto track_name = makeTrackName("subscribe_after_unpublish");
 
@@ -687,8 +786,8 @@ TEST_F(DataTrackE2ETest, FfiClientSubscribeDataTrackReturnsSyncResult) {
     EXPECT_EQ(remote_track->info().name, expected_name);
 
     const auto subscribe_start = std::chrono::steady_clock::now();
-    auto subscribe_result =
-        FfiClient::instance().subscribeDataTrack(static_cast<std::uint64_t>(remote_track->testFfiHandleId()));
+    auto subscribe_result = FfiClient::instance().subscribeDataTrack(
+        static_cast<std::uint64_t>(RemoteDataTrackTestAccess::ffiHandleId(*remote_track)));
     const auto subscribe_elapsed = std::chrono::steady_clock::now() - subscribe_start;
     const auto subscribe_elapsed_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(subscribe_elapsed).count();
 

@@ -92,9 +92,7 @@ public:
 
 private:
   friend class RemoteDataTrack;
-#ifdef LIVEKIT_TEST_ACCESS
   friend class DataTrackStreamTest;
-#endif
 
   DataTrackStream() = default;
   /// Internal init helper, called by RemoteDataTrack.
