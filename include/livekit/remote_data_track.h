@@ -16,7 +16,9 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "livekit/data_track_error.h"
@@ -31,6 +33,21 @@ namespace livekit {
 namespace proto {
 class OwnedRemoteDataTrack;
 }
+
+/// Track-level options that configure how the incoming-frame pipeline
+/// reassembles packets for a remote data track.
+///
+/// Applied via RemoteDataTrack::setPipelineOptions().
+struct DataTrackPipelineOptions {
+  /// Maximum number of partial frames the depacketizer will track
+  /// concurrently for this track.
+  ///
+  /// Defaults to 1. Higher values give more out-of-order tolerance for
+  /// high-frequency senders at the cost of additional buffering. Zero is
+  /// not a valid value; if a value of zero is provided, it will be
+  /// clamped to one. Leave unset to keep the current value.
+  std::optional<std::uint32_t> max_partial_frames{std::nullopt};
+};
 
 /// Represents a data track published by a remote participant.
 ///
@@ -64,6 +81,16 @@ public:
 
   /// Whether the track is still published by the remote participant.
   LIVEKIT_API bool isPublished() const;
+
+  /// @brief Configures options for the pipeline handling incoming packets for
+  /// this track.
+  ///
+  /// These options apply to all current and future subscriptions of this
+  /// track, and may be set at any time. New options take effect with the
+  /// next received packet.
+  ///
+  /// @param options Pipeline options to apply to this remote data track.
+  LIVEKIT_API void setPipelineOptions(const DataTrackPipelineOptions& options);
 
 #ifdef LIVEKIT_TEST_ACCESS
   /// Test-only accessor for exercising lower-level FFI subscription paths.

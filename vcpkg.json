@@ -12,14 +12,7 @@
       "version>=": "5.29.5"
     },
     "abseil",
-    "spdlog"
-  ],
-  "features": {
-    "examples": {
-      "description": "Build example applications",
-      "dependencies": [
-        "nlohmann-json"
-      ]
-    }
-  }
+    "spdlog",
+    "nlohmann-json"
+  ]
 }

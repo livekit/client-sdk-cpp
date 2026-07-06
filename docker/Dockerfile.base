@@ -30,6 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2-dev \
     libabsl-dev \
     libclang-dev \
+    libcurl4-openssl-dev \
     libdrm-dev \
     libglib2.0-dev \
     libprotobuf-dev \

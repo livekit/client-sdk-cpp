@@ -29,6 +29,7 @@ namespace livekit {
 enum class RpcErrorCode;
 class RemoteParticipant;
 struct ByteStreamInfo;
+struct RoomOptions;
 struct TextStreamInfo;
 
 // --------- basic helper conversions ---------
@@ -55,6 +56,7 @@ LIVEKIT_INTERNAL_API ConnectionStateChangedEvent fromProto(const proto::Connecti
 LIVEKIT_INTERNAL_API DisconnectedEvent fromProto(const proto::Disconnected& in);
 LIVEKIT_INTERNAL_API ReconnectingEvent fromProto(const proto::Reconnecting& in);
 LIVEKIT_INTERNAL_API ReconnectedEvent fromProto(const proto::Reconnected& in);
+LIVEKIT_INTERNAL_API TokenRefreshedEvent fromProto(const proto::TokenRefreshed& in);
 LIVEKIT_INTERNAL_API RoomEosEvent fromProto(const proto::RoomEOS& in);
 
 LIVEKIT_INTERNAL_API DataStreamHeaderReceivedEvent fromProto(const proto::DataStreamHeaderReceived& in);
@@ -73,6 +75,7 @@ LIVEKIT_INTERNAL_API RoomMovedEvent roomMovedFromProto(const proto::RoomInfo& in
 // --------- room options conversions ---------
 
 LIVEKIT_INTERNAL_API proto::KeyProviderOptions toProto(const KeyProviderOptions& in);
+LIVEKIT_INTERNAL_API proto::RoomOptions toProto(const RoomOptions& in);
 
 LIVEKIT_INTERNAL_API proto::AudioEncoding toProto(const AudioEncodingOptions& in);
 LIVEKIT_INTERNAL_API AudioEncodingOptions fromProto(const proto::AudioEncoding& in);

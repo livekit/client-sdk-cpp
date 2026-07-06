@@ -17,6 +17,7 @@
 #include "room_proto_converter.h"
 
 #include "livekit/data_stream.h"
+#include "livekit/room.h"
 #include "room.pb.h"
 
 namespace livekit {
@@ -27,32 +28,47 @@ std::string bytesToString(const std::vector<std::uint8_t>& bytes) {
   return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
 }
 
-std::vector<proto::PacketTrailerFeature> toProto(const PacketTrailerFeatures& features) {
-  std::vector<proto::PacketTrailerFeature> out;
-  out.reserve(2);
+std::vector<proto::FrameMetadataFeature> toProto(const FrameMetadataFeatures& features) {
+  std::vector<proto::FrameMetadataFeature> out;
+  out.reserve(3);
   if (features.user_timestamp) {
-    out.push_back(proto::PacketTrailerFeature::PTF_USER_TIMESTAMP);
+    out.push_back(proto::FrameMetadataFeature::FMF_USER_TIMESTAMP);
   }
   if (features.frame_id) {
-    out.push_back(proto::PacketTrailerFeature::PTF_FRAME_ID);
+    out.push_back(proto::FrameMetadataFeature::FMF_FRAME_ID);
+  }
+  if (features.user_data) {
+    out.push_back(proto::FrameMetadataFeature::FMF_USER_DATA);
   }
   return out;
 }
 
-PacketTrailerFeatures fromProto(const google::protobuf::RepeatedField<int>& features) {
-  PacketTrailerFeatures out{};
+FrameMetadataFeatures fromProto(const google::protobuf::RepeatedField<int>& features) {
+  FrameMetadataFeatures out{};
   for (const int feature : features) {
     switch (feature) {
-      case proto::PacketTrailerFeature::PTF_USER_TIMESTAMP:
+      case proto::FrameMetadataFeature::FMF_USER_TIMESTAMP:
         out.user_timestamp = true;
         break;
-      case proto::PacketTrailerFeature::PTF_FRAME_ID:
+      case proto::FrameMetadataFeature::FMF_FRAME_ID:
         out.frame_id = true;
+        break;
+      case proto::FrameMetadataFeature::FMF_USER_DATA:
+        out.user_data = true;
         break;
       default:
         break;
     }
   }
+  return out;
+}
+
+// Compatibility shim: only needed while deprecated packet_trailer_features remains public.
+FrameMetadataFeatures mergedFrameMetadataFeatures(const TrackPublishOptions& in) {
+  FrameMetadataFeatures out = in.frame_metadata_features.value_or(FrameMetadataFeatures{});
+  out.user_timestamp = out.user_timestamp || in.packet_trailer_features.user_timestamp;
+  out.frame_id = out.frame_id || in.packet_trailer_features.frame_id;
+  out.user_data = out.user_data || in.packet_trailer_features.user_data;
   return out;
 }
 
@@ -322,6 +338,12 @@ ReconnectingEvent fromProto(const proto::Reconnecting& /*in*/) { return Reconnec
 
 ReconnectedEvent fromProto(const proto::Reconnected& /*in*/) { return ReconnectedEvent{}; }
 
+TokenRefreshedEvent fromProto(const proto::TokenRefreshed& in) {
+  TokenRefreshedEvent ev;
+  ev.token = in.token();
+  return ev;
+}
+
 RoomEosEvent fromProto(const proto::RoomEOS& /*in*/) { return RoomEosEvent{}; }
 
 DataStreamHeaderReceivedEvent fromProto(const proto::DataStreamHeaderReceived& in) {
@@ -402,6 +424,50 @@ proto::KeyProviderOptions toProto(const KeyProviderOptions& in) {
   return out;
 }
 
+proto::RoomOptions toProto(const RoomOptions& in) {
+  proto::RoomOptions out;
+  out.set_auto_subscribe(in.auto_subscribe);
+  if (in.adaptive_stream) {
+    out.set_adaptive_stream(*in.adaptive_stream);
+  }
+  out.set_dynacast(in.dynacast);
+
+  if (in.encryption) {
+    auto* encryption = out.mutable_encryption();
+    encryption->set_encryption_type(static_cast<proto::EncryptionType>(in.encryption->encryption_type));
+    encryption->mutable_key_provider_options()->CopyFrom(toProto(in.encryption->key_provider_options));
+  }
+
+  if (in.rtc_config) {
+    auto* rtc = out.mutable_rtc_config();
+    rtc->set_ice_transport_type(static_cast<proto::IceTransportType>(in.rtc_config->ice_transport_type));
+    rtc->set_continual_gathering_policy(
+        static_cast<proto::ContinualGatheringPolicy>(in.rtc_config->continual_gathering_policy));
+
+    for (const IceServer& ice : in.rtc_config->ice_servers) {
+      auto* server = rtc->add_ice_servers();
+      if (!ice.url.empty()) {
+        server->add_urls(ice.url);
+      }
+      if (!ice.username.empty()) {
+        server->set_username(ice.username);
+      }
+      if (!ice.credential.empty()) {
+        server->set_password(ice.credential);
+      }
+    }
+  }
+
+  if (in.join_retries) {
+    out.set_join_retries(*in.join_retries);
+  }
+  out.set_single_peer_connection(in.single_peer_connection);
+  if (in.connect_timeout) {
+    out.set_connect_timeout_ms(static_cast<std::uint64_t>(in.connect_timeout->count()));
+  }
+  return out;
+}
+
 proto::AudioEncoding toProto(const AudioEncodingOptions& in) {
   proto::AudioEncoding msg;
   msg.set_max_bitrate(in.max_bitrate);
@@ -457,8 +523,8 @@ proto::TrackPublishOptions toProto(const TrackPublishOptions& in) {
   if (in.preconnect_buffer) {
     msg.set_preconnect_buffer(*in.preconnect_buffer);
   }
-  for (const proto::PacketTrailerFeature feature : toProto(in.packet_trailer_features)) {
-    msg.add_packet_trailer_features(feature);
+  for (const proto::FrameMetadataFeature feature : toProto(mergedFrameMetadataFeatures(in))) {
+    msg.add_frame_metadata_features(feature);
   }
   return msg;
 }
@@ -492,7 +558,11 @@ TrackPublishOptions fromProto(const proto::TrackPublishOptions& in) {
   if (in.has_preconnect_buffer()) {
     out.preconnect_buffer = in.preconnect_buffer();
   }
-  out.packet_trailer_features = fromProto(in.packet_trailer_features());
+  const FrameMetadataFeatures frame_metadata_features = fromProto(in.frame_metadata_features());
+  if (in.frame_metadata_features_size() > 0) {
+    out.frame_metadata_features = frame_metadata_features;
+  }
+  out.packet_trailer_features = frame_metadata_features;
   return out;
 }
 

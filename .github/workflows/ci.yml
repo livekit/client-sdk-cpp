@@ -27,8 +27,9 @@ jobs:
       docs:   ${{ steps.filter.outputs.docs }}
       cpp_tools: ${{ steps.filter.outputs.cpp_tools }}
       rust_release_check: ${{ steps.filter.outputs.rust_release_check }}
+      docker: ${{ steps.filter.outputs.docker }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d  # v4.0.1
         id: filter
         with:
@@ -41,7 +42,6 @@ jobs:
               - cpp-example-collection/**
               - client-sdk-rust/**
               - cmake/**
-              - docker/**
               - CMakeLists.txt
               - CMakePresets.json
               - build*
@@ -87,6 +87,10 @@ jobs:
               - .clang-tidy
               - .gitmodules
               - .github/workflows/ci.yml
+            docker:
+              - docker/**
+              - .github/workflows/ci.yml
+              - .github/workflows/docker-images.yml
             rust_release_check:
               - client-sdk-rust
 
@@ -95,6 +99,19 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.builds == 'true' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/builds.yml
+    secrets: inherit
+
+  docker-images:
+    name: Docker Images
+    needs: changes
+    if: ${{ (github.event_name == 'pull_request' && needs.changes.outputs.docker == 'true') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.docker == 'true') || github.event_name == 'workflow_dispatch' }}
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    uses: ./.github/workflows/docker-images.yml
+    with:
+      push_images: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     secrets: inherit
 
   tests:
@@ -109,6 +126,11 @@ jobs:
   license-check:
     name: License Check
     uses: ./.github/workflows/license_check.yml
+
+  # link-check is cheap (seconds) and should run on every PR
+  link-check:
+    name: Link Check
+    uses: ./.github/workflows/link_check.yml
 
   cpp-tools:
     name: C++ Tools
@@ -159,10 +181,12 @@ jobs:
     needs:
       - changes
       - builds
+      - docker-images
       - tests
       - license-check
       - cpp-tools
       - generate-docs
+      - link-check
       - rust-release-check
     if: always()
     steps:

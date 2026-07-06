@@ -78,7 +78,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
 | `cpp-tools/` | Git submodule holding shared LiveKit C++ clang-format / clang-tidy configs, scripts, and docs |
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
-| `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `LiveKitConfig.cmake.in`) |
+| `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `nlohmann_json.cmake`, `LiveKitConfig.cmake.in`) |
 | `docker/` | Dockerfile for CI and SDK distribution images |
 | `scripts/` | Local helper scripts and transition wrappers that delegate shared clang tooling to `cpp-tools/` |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
@@ -339,6 +339,7 @@ Adhere to clang-tidy checks configured in `.clang-tidy`, which is a symlink to `
 |------------|-------|-------|
 | protobuf | Private (built-in) | Vendored via FetchContent (Unix) or vcpkg (Windows) |
 | spdlog | **Private** | FetchContent or system package; must NOT leak into public API |
+| nlohmann/json | **Private** | Header-only; vendored via FetchContent (Unix) or vcpkg (Windows); must NOT leak into public API |
 | client-sdk-rust | Build-time | Git submodule, built via cargo during CMake build |
 | cpp-tools | Developer / CI | Git submodule containing shared LiveKit C++ formatting and static-analysis tooling |
 | Google Test | Test only | FetchContent in `src/tests/CMakeLists.txt` |
@@ -358,7 +359,7 @@ Tests are under `src/tests/` using Google Test:
 cd build-debug && ctest
 ```
 
-Integration tests (`src/tests/integration/`) cover: room connections, callbacks, data tracks, RPC, logging, audio processing, and the subscription thread dispatcher.
+Integration tests (`src/tests/integration/`) cover: room connections, callbacks, data tracks, RPC, logging, audio processing, and the subscription thread dispatcher. The token source HTTP/JSON wire contract (request serialization, response parsing, header passthrough, GET support, sandbox URL/header resolution) is covered by mocked unit tests in `src/tests/unit/test_token_source.cpp`, which inject a stub HTTP transport so no live server is needed. For a full end-to-end check, `TokenSourceEndpointConnectTest` connects a `Room` with a real JWT minted by the `livekit/token-server-action` token server pointed at the local dev `livekit-server`. The action exposes its `/createToken` endpoint as a `token-url` output; `tests.yml` passes that to the integration test step as `LIVEKIT_CREATE_TOKEN_URL`, which the test reads to locate the endpoint. The server is started in the `e2e-testing` jobs via the token server's reusable GitHub Action, pinned by SHA in `tests.yml`.
 
 When adding new client facing functionality, add a new test case to the existing test suite.
 When adding new client facing functionality, add benchmarking to understand the limitations of the new functionality.
@@ -390,7 +391,8 @@ all filtered stages; normal pull requests and pushes use the path filters.
   matrix.
 - `.github/workflows/tests.yml` — Reusable unit/integration test matrix.
 - `livekit/cpp-tools/.github/workflows/cpp-tools.yml` — Shared reusable
-  workflow called directly by `ci.yml` for `clang-format` and `clang-tidy`.
+  workflow called directly by `ci.yml` for C++ tooling checks such as
+  `clang-format`, `clang-tidy`, and Doxygen validation.
 - `.github/workflows/generate-docs.yml` — Reusable Doxygen docs validation.
 - `.github/workflows/rust-release-check.yml` — Reusable check that the pinned
  `client-sdk-rust` submodule commit maps to a published release. Gated by the
@@ -400,19 +402,24 @@ all filtered stages; normal pull requests and pushes use the path filters.
  feedback.
 - `.github/workflows/license_check.yml` — Cheap license check, run on every CI
   invocation.
-- `.github/workflows/docker-images.yml` — Docker image build/publish workflow,
-  outside PR-review aggregation.
-- `.github/workflows/docker-validate.yml` — Docker image validation workflow,
-  outside PR-review aggregation.
+- `.github/workflows/docker-images.yml` — Reusable Docker image smoke-test and
+  publish workflow (optional push via input), called by CI and release workflows.
+
+The `tests.yml` e2e jobs consume two external, pinned composite actions:
+`livekit/dev-server-action` (local `livekit-server`) and
+`livekit/token-server-action` (a real `/createToken` endpoint used by
+`TokenSourceEndpointConnectTest`). Both are referenced by commit SHA. The token
+server action lives in its own repo on purpose — it is general-purpose like
+`dev-server-action` and is not bundled here.
 
 When adding or renaming files that affect a CI stage, update the matching
 `ci.yml` `changes` filter in the same PR. For example, new build scripts,
 CMake files, package manifests, or reusable build workflows should be added to
 the `builds` filter; test-only helpers to `tests`; formatting/static-analysis
-configuration (including `cpp-tools` submodule bumps) to `cpp_checks`; and docs
+configuration (including `cpp-tools` submodule bumps) to `cpp_tools`; and docs
 generation inputs to `docs`.
 
 Keep broad agent guidance files such as `AGENTS.md` out of the expensive
-`builds`, `tests`, `cpp_checks`, and `docs` filters unless they start affecting
+`builds`, `tests`, `cpp_tools`, and `docs` filters unless they start affecting
 generated docs or build artifacts. An `AGENTS.md`-only change should not trigger
 those stages; only the always-on cheap checks should run.

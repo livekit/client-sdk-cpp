@@ -16,8 +16,6 @@
 
 #include "livekit/room.h"
 
-#include <functional>
-
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit/audio_stream.h"
@@ -1199,6 +1197,13 @@ void Room::onEvent(const FfiEvent& event) {
           const ReconnectedEvent ev;
           if (delegate_snapshot) {
             delegate_snapshot->onReconnected(*this, ev);
+          }
+          break;
+        }
+        case proto::RoomEvent::kTokenRefreshed: {
+          const TokenRefreshedEvent ev = fromProto(re.token_refreshed());
+          if (delegate_snapshot) {
+            delegate_snapshot->onTokenRefreshed(*this, ev);
           }
           break;
         }

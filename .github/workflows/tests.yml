@@ -49,17 +49,18 @@ jobs:
             name: macos-x64
             build_cmd: ./build.sh release-tests --macos-arch x86_64
             e2e-testing: true
-            # Pinned to Windows 2022 for current VS 17 implementation
+          # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
             build_cmd: .\build.cmd release-tests
+            e2e-testing: true
 
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: recursive
           fetch-depth: 1
@@ -94,7 +95,7 @@ jobs:
 
       - name: Setup vcpkg (Windows only)
         if: runner.os == 'Windows'
-        uses: lukka/run-vcpkg@6fe69898af670ac05f4a8427cc5cff4fb361cee5 # v11.5
+        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11.5
         with:
           vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT }}
 
@@ -114,6 +115,7 @@ jobs:
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
             libabsl-dev \
+            libcurl4-openssl-dev \
             libwayland-dev libdecor-0-dev \
             jq
 
@@ -126,7 +128,7 @@ jobs:
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537
         with:
           toolchain: stable
 
@@ -163,6 +165,13 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-target-
+
+      # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
+      # artifacts in webrtc-sys are not compatible across those bumps.
+      - name: Drop stale cargo target on submodule SHA cache miss
+        if: steps.cache-cargo-target.outputs.cache-hit != 'true'
+        shell: bash
+        run: rm -rf client-sdk-rust/target/
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
@@ -207,7 +216,6 @@ jobs:
             --gtest_brief=1 `
             --gtest_output="xml:build-release\unit-test-results.xml"
 
-      # ---------- Start livekit-server for integration tests ----------
       - name: Start livekit-server
         if: matrix.e2e-testing
         id: livekit_server
@@ -219,21 +227,50 @@ jobs:
       - name: Install livekit-cli
         if: matrix.e2e-testing
         shell: bash
+        env:
+          # Windows installs lk via `gh api` / `gh release download`, which need this env var
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euxo pipefail
           if [[ "$RUNNER_OS" == "Linux" ]]; then
             curl -sSL https://get.livekit.io/cli | bash
-          else
+          elif [[ "$RUNNER_OS" == "macOS" ]]; then
             brew install livekit-cli
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+            install_dir="$RUNNER_TEMP/livekit-cli"
+            mkdir -p "$install_dir"
+            tag="$(gh api repos/livekit/livekit-cli/releases/latest --jq '.tag_name')"
+            gh release download "$tag" \
+              --repo livekit/livekit-cli \
+              --pattern "*_windows_amd64.zip" \
+              --output "$RUNNER_TEMP/lk.zip"
+            unzip -o "$RUNNER_TEMP/lk.zip" -d "$install_dir"
+            # GITHUB_PATH updates apply to subsequent steps only; export PATH here
+            # so lk --version in this step succeeds.
+            echo "$install_dir" >> "$GITHUB_PATH"
+            export PATH="$install_dir:$PATH"
+          else
+            echo "::error::Unsupported runner OS for livekit-cli install: ${RUNNER_OS}"
+            exit 1
           fi
           lk --version
 
+      - name: Start token server
+        if: matrix.e2e-testing
+        id: token_server
+        uses: livekit/token-server-action@a1e42c649a1998d5b224f5102f252c07762024f0 # v0.0.1
+        with:
+          livekit-url: ws://localhost:7880
+          api-key: devkey
+          api-secret: secret
+
       - name: Run integration tests
         if: matrix.e2e-testing
-        timeout-minutes: 5
+        timeout-minutes: 10
         shell: bash
         env:
           RUST_LOG: "metrics=debug"
+          LIVEKIT_CREATE_TOKEN_URL: ${{ steps.token_server.outputs.token-url }}
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
@@ -244,6 +281,11 @@ jobs:
         if: failure() && matrix.e2e-testing
         shell: bash
         run: tail -n 500 "${{ steps.livekit_server.outputs.log-path }}" || true
+
+      - name: Dump token server log on failure
+        if: failure() && matrix.e2e-testing && steps.token_server.outputs.log-path != ''
+        shell: bash
+        run: tail -n 200 "${{ steps.token_server.outputs.log-path }}" || true
 
       # ---------- Upload results ----------
       - name: Upload test results
@@ -273,7 +315,7 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: recursive
           fetch-depth: 1
@@ -309,12 +351,13 @@ jobs:
             libssl-dev \
             libprotobuf-dev protobuf-compiler \
             libabsl-dev \
+            libcurl4-openssl-dev \
             libwayland-dev libdecor-0-dev
           pip install --break-system-packages gcovr
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537
         with:
           toolchain: stable
 

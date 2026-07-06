@@ -18,6 +18,7 @@
 
 #include <cstring>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "ffi.pb.h"
@@ -98,8 +99,12 @@ std::optional<proto::FrameMetadata> toProto(const std::optional<VideoFrameMetada
   if (metadata->frame_id.has_value()) {
     proto_metadata.set_frame_id(*metadata->frame_id);
   }
+  if (metadata->user_data.has_value() && !metadata->user_data->empty()) {
+    const auto& bytes = *metadata->user_data;
+    proto_metadata.set_user_data(std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size()));
+  }
 
-  if (!proto_metadata.has_user_timestamp() && !proto_metadata.has_frame_id()) {
+  if (!proto_metadata.has_user_timestamp() && !proto_metadata.has_frame_id() && !proto_metadata.has_user_data()) {
     return std::nullopt;
   }
 
@@ -114,8 +119,12 @@ std::optional<VideoFrameMetadata> fromProto(const proto::FrameMetadata& metadata
   if (metadata.has_frame_id()) {
     out.frame_id = metadata.frame_id();
   }
+  if (metadata.has_user_data()) {
+    const auto& bytes = metadata.user_data();
+    out.user_data = std::vector<std::uint8_t>(bytes.begin(), bytes.end());
+  }
 
-  if (!out.user_timestamp_us.has_value() && !out.frame_id.has_value()) {
+  if (!out.user_timestamp_us.has_value() && !out.frame_id.has_value() && !out.user_data.has_value()) {
     return std::nullopt;
   }
 

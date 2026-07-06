@@ -12,7 +12,7 @@ so editor integrations can still discover them automatically.
 The shared CI workflow source of truth is
 `cpp-tools/.github/workflows/cpp-tools.yml`; this repo's `ci.yml` calls it
 directly with repo-specific inputs such as `clang_tidy: true` and
-`doxygen: false`.
+`doxygen: true`.
 
 - **`clang-tidy`** — static analysis. See
   [`.clang-tidy`](https://github.com/livekit/client-sdk-cpp/blob/main/.clang-tidy)
@@ -71,12 +71,13 @@ sudo apt-get install clang-format clang-tidy clang-tools
    ./scripts/clang-tidy.sh
    ```
 
-The wrapper forwards extra arguments to `run-clang-tidy`:
+With no arguments, runs against every relevant file in the repository against
+the checks in `.clang-tidy`.
 
 ```bash
-./scripts/clang-tidy.sh -j 4                                # Number of cores
-./scripts/clang-tidy.sh -checks='-*,misc-const-correctness' # Only specific checks
-./scripts/clang-tidy.sh --fix                               # Apply fixes
+./scripts/clang-tidy.sh src/ffi_client.cpp # Check just this file
+./scripts/clang-tidy.sh -j 4               # Override worker count
+./scripts/clang-tidy.sh --fix              # Apply fixes
 ```
 
 Output is captured to `clang-tidy.log` at the repo root, since the terminal

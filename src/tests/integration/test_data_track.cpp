@@ -367,6 +367,78 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
   EXPECT_TRUE(remote_track_published_after_read);
 }
 
+TEST_F(DataTrackE2ETest, ReceivesFramesWithCustomPipelineOptionsEndToEnd) {
+  constexpr std::size_t payload_len = 1024;
+  const auto track_name = makeTrackName("pipeline_options");
+
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[0].room_options.single_peer_connection = false;
+  room_configs[1].room_options.single_peer_connection = false;
+
+  DataTrackPublishedDelegate subscriber_delegate;
+  room_configs[1].delegate = &subscriber_delegate;
+
+  auto rooms = testRooms(room_configs);
+  auto& publisher_room = rooms[0];
+  const auto publisher_identity = lockLocalParticipant(*publisher_room)->identity();
+
+  auto local_track = requirePublishedTrack(publisher_room->localParticipant(), track_name);
+  ASSERT_TRUE(local_track->isPublished());
+  EXPECT_FALSE(local_track->info().uses_e2ee);
+  EXPECT_EQ(local_track->info().name, track_name);
+
+  auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
+  ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
+  EXPECT_TRUE(remote_track->isPublished());
+  EXPECT_FALSE(remote_track->info().uses_e2ee);
+  EXPECT_EQ(remote_track->info().name, track_name);
+  EXPECT_EQ(remote_track->publisherIdentity(), publisher_identity);
+
+  DataTrackPipelineOptions pipeline_options;
+  pipeline_options.max_partial_frames = 4;
+  remote_track->setPipelineOptions(pipeline_options);
+
+  auto subscribe_result = remote_track->subscribe();
+  if (!subscribe_result) {
+    FAIL() << describeDataTrackError(subscribe_result.error());
+  }
+  auto subscription = subscribe_result.value();
+
+  std::atomic<bool> keep_publishing{true};
+  auto publisher = std::async(std::launch::async, [&]() {
+    DataTrackFrame frame;
+    frame.payload.assign(payload_len, kTransportPayloadValue);
+    while (keep_publishing.load()) {
+      requirePushSuccess(local_track->tryPush(frame), "Failed to push data frame");
+      std::this_thread::sleep_for(50ms);
+    }
+  });
+
+  DataTrackFrame frame;
+  std::exception_ptr read_error;
+  try {
+    frame = readFrameWithTimeout(subscription, kTransportFrameTimeout);
+  } catch (...) {
+    read_error = std::current_exception();
+  }
+
+  const bool remote_track_published_after_read = remote_track->isPublished();
+  keep_publishing.store(false);
+  subscription->close();
+  local_track->unpublishDataTrack();
+
+  publisher.get();
+  if (read_error) {
+    std::rethrow_exception(read_error);
+  }
+
+  ASSERT_EQ(frame.payload.size(), payload_len);
+  EXPECT_TRUE(std::all_of(frame.payload.begin(), frame.payload.end(),
+                          [](std::uint8_t byte) { return byte == kTransportPayloadValue; }));
+  EXPECT_FALSE(frame.user_timestamp.has_value());
+  EXPECT_TRUE(remote_track_published_after_read);
+}
+
 TEST_F(DataTrackE2ETest, UnpublishUpdatesPublishedStateEndToEnd) {
   const auto track_name = makeTrackName("published_state");
 

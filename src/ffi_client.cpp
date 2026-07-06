@@ -18,13 +18,14 @@
 
 #include <cassert>
 #include <csignal>
+#include <cstdio>
+#include <string>
+#include <type_traits>
 
 #include "data_track.pb.h"
-#include "e2ee.pb.h"
 #include "ffi.pb.h"
 #include "livekit/build.h"
 #include "livekit/data_track_error.h"
-#include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"
@@ -36,10 +37,26 @@
 namespace livekit {
 
 namespace {
+
 inline void logAndThrow(const std::string& error_msg) {
   LK_LOG_ERROR("LiveKit SDK Error: {}", error_msg);
   throw std::runtime_error(error_msg);
 }
+
+// Helper for debug logging of optional values
+const auto optional_to_string = [](const auto& value) -> std::string {
+  if (!value) {
+    return "<unset>";
+  }
+  using Value = std::decay_t<decltype(*value)>;
+  if constexpr (std::is_same_v<Value, bool>) {
+    return *value ? "true" : "false";
+  } else if constexpr (std::is_same_v<Value, std::chrono::milliseconds>) {
+    return std::to_string(value->count());
+  } else {
+    return std::to_string(*value);
+  }
+};
 
 Result<proto::OwnedDataTrackStream, SubscribeDataTrackError> subscribeDataTrackFailure(SubscribeDataTrackErrorCode code,
                                                                                        const std::string& message) {
@@ -146,44 +163,147 @@ FfiClient& FfiClient::instance() noexcept {
   return instance;
 }
 
-// clang-tidy flags this as a trivial destructor in release mode
-// due to the assert being pre-processed out
-// NOLINTNEXTLINE(modernize-use-equals-default)
 FfiClient::~FfiClient() {
-  assert(!initialized_.load() &&
-         "LiveKit SDK was not shut down before process exit. "
-         "Call livekit::shutdown().");
+  if (lifecycle_state_.load() == LifecycleState::Initialized) {
+    // Explicitly use this over spdlog/std::cerr which can throw
+    // Wrapping spdlog try/catch also flags "empty catch" clang-tidy check
+    std::fputs("[livekit] [warning] SDK was not shut down before process exit. Use livekit::shutdown()\n", stderr);
+    std::fflush(stderr);
+  }
 }
 
 void FfiClient::shutdown() noexcept {
-  if (!isInitialized()) {
-    return;
+  // Don't use string to avoid exceptions
+  // (Also cleaner with exception.what() and printing)
+  const char* shutdown_error = nullptr;
+  try {
+    // compare_exchange_strong atomically claims Initialized -> ShuttingDown so only one
+    // concurrent shutdown() drains listeners and disposes the FFI.
+    LifecycleState expected = LifecycleState::Initialized;
+    if (!lifecycle_state_.compare_exchange_strong(expected, LifecycleState::ShuttingDown, std::memory_order_acq_rel)) {
+      // If not Initialized, return early to avoid unnecessary cleanup
+      std::fputs("[livekit] [warning] SDK was shutdown while not initialized\n", stderr);
+      std::fflush(stderr);
+      return;
+    }
+
+    std::vector<std::shared_ptr<ListenerSlot>> listeners_to_drain;
+    std::vector<std::unique_ptr<PendingBase>> pending_to_cancel;
+    {
+      const std::scoped_lock<std::mutex> guard(lock_);
+      listeners_to_drain.reserve(listeners_.size());
+      for (auto& [id, slot] : listeners_) {
+        (void)id;
+        if (slot) {
+          // Mark the listener as removed to prevent race conditions
+          {
+            const std::scoped_lock<std::mutex> slot_guard(slot->mutex);
+            slot->removed = true;
+          }
+          // Add the listener to the list of listeners to drain
+          listeners_to_drain.push_back(std::move(slot));
+        }
+      }
+      listeners_.clear();
+
+      // Add the pending operations to the list of pending operations to cancel
+      pending_to_cancel.reserve(pending_by_id_.size());
+      for (auto& [async_id, pending] : pending_by_id_) {
+        (void)async_id;
+        if (pending) {
+          pending_to_cancel.push_back(std::move(pending));
+        }
+      }
+      pending_by_id_.clear();
+    }
+
+    // Cancel the pending operations
+    for (auto& pending : pending_to_cancel) {
+      pending->cancel();
+    }
+
+    const auto this_thread = std::this_thread::get_id();
+    // Wait for all in-flight listener callbacks to complete
+    for (const auto& slot : listeners_to_drain) {
+      std::unique_lock<std::mutex> slot_lock(slot->mutex);
+
+      // When shutdown() isn't on a listener thread, self_active is 0 and we wait for active_callbacks == 0. When it's
+      // called from inside a listener, self_active is 1 and the wait succeeds immediately with active_callbacks == 1,
+      // so we don't wait on our own in-flight callback
+      slot->cv.wait(slot_lock, [&slot, this_thread] {
+        const auto thread_it = slot->active_threads.find(this_thread);
+        const int self_active = thread_it == slot->active_threads.end() ? 0 : thread_it->second;
+        return slot->active_callbacks == self_active;
+      });
+    }
+  } catch (const std::exception& e) {
+    shutdown_error = e.what();
+  } catch (...) {
+    shutdown_error = "unknown exception";
   }
-  initialized_.store(false, std::memory_order_release);
+
   livekit_ffi_dispose();
+  lifecycle_state_.store(LifecycleState::Uninitialized, std::memory_order_release);
+
+  if (shutdown_error != nullptr) {
+    // Explicitly use this over spdlog (method is noexcept)
+    (void)std::fputs("[livekit] [error] SDK shutdown failed during local cleanup: ", stderr);
+    (void)std::fputs(shutdown_error, stderr);
+    (void)std::fputs("\n", stderr);
+    (void)std::fflush(stderr);
+  }
 }
 
 bool FfiClient::initialize(bool capture_logs) {
-  if (isInitialized()) {
+  LifecycleState expected = LifecycleState::Uninitialized;
+  if (!lifecycle_state_.compare_exchange_strong(expected, LifecycleState::Initializing, std::memory_order_acq_rel)) {
     return false;
   }
-  initialized_.store(true, std::memory_order_release);
-  livekit_ffi_initialize(&ffiEventCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION);
+
+  try {
+    livekit_ffi_initialize(&ffiEventCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION);
+  } catch (...) {
+    lifecycle_state_.store(LifecycleState::Uninitialized, std::memory_order_release);
+    throw;
+  }
+
+  lifecycle_state_.store(LifecycleState::Initialized, std::memory_order_release);
   return true;
 }
 
-bool FfiClient::isInitialized() const noexcept { return initialized_.load(std::memory_order_acquire); }
+bool FfiClient::isInitialized() const noexcept {
+  return lifecycle_state_.load(std::memory_order_acquire) == LifecycleState::Initialized;
+}
 
 FfiClient::ListenerId FfiClient::addListener(const FfiClient::Listener& listener) {
   const std::scoped_lock<std::mutex> guard(lock_);
+  if (lifecycle_state_.load(std::memory_order_acquire) == LifecycleState::ShuttingDown) {
+    logAndThrow("FfiClient::addListener failed: LiveKit is shutting down");
+  }
   const FfiClient::ListenerId id = next_listener_id++;
-  listeners_[id] = listener;
+  listeners_[id] = std::make_shared<ListenerSlot>(listener);
   return id;
 }
 
 void FfiClient::removeListener(ListenerId id) {
-  const std::scoped_lock<std::mutex> guard(lock_);
-  listeners_.erase(id);
+  std::shared_ptr<ListenerSlot> slot;
+  {
+    const std::scoped_lock<std::mutex> guard(lock_);
+    auto it = listeners_.find(id);
+    if (it == listeners_.end()) {
+      return;
+    }
+    slot = std::move(it->second);
+    listeners_.erase(it);
+  }
+
+  const auto this_thread = std::this_thread::get_id();
+  std::unique_lock<std::mutex> slot_lock(slot->mutex);
+  slot->cv.wait(slot_lock, [&slot, this_thread] {
+    const auto self_active = slot->active_threads.count(this_thread) != 0;
+    return slot->active_callbacks == 0 || (self_active && slot->active_callbacks == 1);
+  });
+  slot->removed = true;
 }
 
 proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) const {
@@ -221,9 +341,12 @@ proto::FfiResponse FfiClient::sendRequest(const proto::FfiRequest& request) cons
 
 void FfiClient::pushEvent(const proto::FfiEvent& event) const {
   std::unique_ptr<PendingBase> to_complete;
-  std::vector<Listener> listeners_copy;
+  std::vector<std::shared_ptr<ListenerSlot>> listeners_copy;
   {
     const std::scoped_lock<std::mutex> guard(lock_);
+    if (lifecycle_state_.load(std::memory_order_acquire) != LifecycleState::Initialized) {
+      return;
+    }
 
     // Complete pending future if this event is a callback with async_id
     if (auto async_id = ExtractAsyncId(event)) {
@@ -246,8 +369,41 @@ void FfiClient::pushEvent(const proto::FfiEvent& event) const {
   }
 
   // Notify listeners outside lock
-  for (auto& listener : listeners_copy) {
-    listener(event);
+  for (const auto& slot : listeners_copy) {
+    Listener listener;
+    const auto this_thread = std::this_thread::get_id();
+    {
+      const std::scoped_lock<std::mutex> slot_guard(slot->mutex);
+      if (slot->removed) {
+        continue;
+      }
+      ++slot->active_callbacks;
+      ++slot->active_threads[this_thread];
+      listener = slot->listener;
+    }
+
+    try {
+      listener(event);
+    } catch (const std::exception& e) {
+      LK_LOG_ERROR("FfiClient listener threw: {}", e.what());
+    } catch (...) {
+      LK_LOG_ERROR("FfiClient listener threw: unknown exception");
+    }
+
+    {
+      const std::scoped_lock<std::mutex> slot_guard(slot->mutex);
+      const auto thread_it = slot->active_threads.find(this_thread);
+      if (thread_it != slot->active_threads.end()) {
+        --thread_it->second;
+        if (thread_it->second == 0) {
+          slot->active_threads.erase(thread_it);
+        }
+      }
+      --slot->active_callbacks;
+    }
+
+    // Notify in case this listener was marked for removal during the callback (will be waiting on this)
+    slot->cv.notify_all();
   }
 }
 
@@ -331,50 +487,14 @@ std::future<proto::ConnectCallback> FfiClient::connectAsync(const std::string& u
   connect->set_url(url);
   connect->set_token(token);
   connect->set_request_async_id(async_id);
-  auto* opts = connect->mutable_options();
-  opts->set_auto_subscribe(options.auto_subscribe);
-  opts->set_dynacast(options.dynacast);
-  opts->set_single_peer_connection(options.single_peer_connection);
+  connect->mutable_options()->CopyFrom(toProto(options));
 
   LK_LOG_DEBUG(
-      "[FfiClient] connectAsync: auto_subscribe={}, dynacast={}, "
-      "single_peer_connection={}",
-      options.auto_subscribe, options.dynacast, options.single_peer_connection);
-
-  // --- E2EE / encryption (optional) ---
-  if (options.encryption.has_value()) {
-    const E2EEOptions& e2ee = *options.encryption;
-    const auto& kpo = e2ee.key_provider_options;
-
-    auto* enc = opts->mutable_encryption();
-    enc->set_encryption_type(static_cast<proto::EncryptionType>(e2ee.encryption_type));
-    enc->mutable_key_provider_options()->CopyFrom(toProto(kpo));
-  }
-
-  // --- RTC configuration (optional) ---
-  if (options.rtc_config.has_value()) {
-    const RtcConfig& rc = *options.rtc_config;
-    auto* rtc = opts->mutable_rtc_config();
-
-    rtc->set_ice_transport_type(static_cast<proto::IceTransportType>(rc.ice_transport_type));
-    rtc->set_continual_gathering_policy(static_cast<proto::ContinualGatheringPolicy>(rc.continual_gathering_policy));
-
-    for (const IceServer& ice : rc.ice_servers) {
-      auto* s = rtc->add_ice_servers();
-
-      // proto: repeated string urls = 1
-      if (!ice.url.empty()) {
-        s->add_urls(ice.url);
-      }
-      if (!ice.username.empty()) {
-        s->set_username(ice.username);
-      }
-      if (!ice.credential.empty()) {
-        // proto: password = 3
-        s->set_password(ice.credential);
-      }
-    }
-  }
+      "[FfiClient] connectAsync: auto_subscribe={}, adaptive_stream={}, dynacast={}, "
+      "single_peer_connection={}, join_retries={}, connect_timeout_ms={}",
+      options.auto_subscribe, optional_to_string(options.adaptive_stream), options.dynacast,
+      options.single_peer_connection, optional_to_string(options.join_retries),
+      optional_to_string(options.connect_timeout));
 
   try {
     const proto::FfiResponse resp = sendRequest(req);

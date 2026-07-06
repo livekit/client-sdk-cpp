@@ -17,6 +17,13 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
+#include <chrono>
+#include <future>
+#include <string>
+
+#include "ffi.pb.h"
+#include "room_proto_converter.h"
+
 namespace livekit::test {
 
 class RoomTest : public ::testing::Test {
@@ -31,10 +38,87 @@ TEST_F(RoomTest, ConnectWithoutInitialize) {
   livekit::shutdown();
 
   Room room;
+
+  // Default room options okay here, will return before FFI layer since not initialized
   bool result = room.connect("wss://localhost:7880", "test", livekit::RoomOptions());
   EXPECT_FALSE(result) << "Connecting without initializing should return false";
   EXPECT_TRUE(room.localParticipant().expired()) << "Local participant should be empty after failed connect";
   EXPECT_TRUE(room.remoteParticipants().empty()) << "Remote participants should be empty after failed connect";
+}
+
+TEST_F(RoomTest, LiteralTokenSourceEmptyCredentialsFails) {
+  auto source = LiteralTokenSource::create("wss://localhost:7880", "");
+  const auto result = source->fetch().get();
+  EXPECT_FALSE(result) << "Fetching empty credentials should fail before connect";
+}
+
+TEST_F(RoomTest, ConnectWithLiteralTokenSourceWithoutInitialize) {
+  // Test fixture initializes by default, do this to emulate lack of initialization
+  livekit::shutdown();
+
+  Room room;
+  auto source = LiteralTokenSource::create("wss://localhost:7880", "jwt-token");
+  const auto details = source->fetch().get();
+  ASSERT_TRUE(details);
+
+  const bool result = room.connect(details.value().server_url, details.value().participant_token, RoomOptions());
+  EXPECT_FALSE(result) << "Connecting without initializing should return false";
+}
+
+TEST_F(RoomTest, CustomTokenSourceThrowFails) {
+  auto source = CustomTokenSource::create(
+      [](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        promise.set_exception(std::make_exception_ptr(std::runtime_error("token fetch failed")));
+        return promise.get_future();
+      });
+
+  EXPECT_THROW((void)source->fetch(TokenRequestOptions{}).get(), std::runtime_error);
+}
+
+TEST_F(RoomTest, CustomTokenSourceErrorFails) {
+  auto source = CustomTokenSource::create(
+      [](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        promise.set_value(
+            Result<TokenSourceResponse, TokenSourceError>::failure(TokenSourceError{"backend unavailable"}));
+        return promise.get_future();
+      });
+
+  const auto result = source->fetch(TokenRequestOptions{}).get();
+  EXPECT_FALSE(result) << "Fetching when token source returns error should fail";
+}
+
+TEST_F(RoomTest, ConnectWithLiteralProvider) {
+  livekit::shutdown();
+
+  Room room;
+  int fetch_count = 0;
+  auto source =
+      LiteralTokenSource::create([&fetch_count]() -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
+        ++fetch_count;
+        TokenSourceResponse details;
+        details.server_url = "wss://localhost:7880";
+        details.participant_token = "fetched-token";
+        std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
+        promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
+        return promise.get_future();
+      });
+
+  const auto details = source->fetch().get();
+  ASSERT_TRUE(details);
+  EXPECT_EQ(fetch_count, 1) << "Token source should be invoked once";
+
+  const bool result = room.connect(details.value().server_url, details.value().participant_token, RoomOptions());
+  EXPECT_FALSE(result) << "Connecting without initializing should return false";
+}
+
+TEST(RoomOptionsProtoTest, TokenRefreshedFromProto) {
+  proto::TokenRefreshed refreshed;
+  refreshed.set_token("refreshed-jwt");
+
+  const livekit::TokenRefreshedEvent event = livekit::fromProto(refreshed);
+  EXPECT_EQ(event.token, "refreshed-jwt");
 }
 
 TEST_F(RoomTest, CreateRoom) {
@@ -47,9 +131,104 @@ TEST_F(RoomTest, RoomOptionsDefaults) {
   RoomOptions options;
 
   EXPECT_TRUE(options.auto_subscribe) << "auto_subscribe should default to true";
+  EXPECT_FALSE(options.adaptive_stream.has_value()) << "adaptive_stream should defer to Rust default";
   EXPECT_FALSE(options.dynacast) << "dynacast should default to false";
-  EXPECT_FALSE(options.rtc_config.has_value()) << "rtc_config should not have a value by default";
   EXPECT_FALSE(options.encryption.has_value()) << "encryption should not have a value by default";
+  EXPECT_FALSE(options.rtc_config.has_value()) << "rtc_config should not have a value by default";
+  EXPECT_FALSE(options.join_retries.has_value()) << "join_retries should defer to Rust default";
+  EXPECT_TRUE(options.single_peer_connection) << "single_peer_connection should default to true";
+  EXPECT_FALSE(options.connect_timeout.has_value()) << "connect_timeout should defer to Rust default";
+}
+
+TEST_F(RoomTest, RoomOptionsToProtoSerializesDefaults) {
+  const proto::RoomOptions proto_options = toProto(RoomOptions{});
+
+  EXPECT_TRUE(proto_options.has_auto_subscribe());
+  EXPECT_TRUE(proto_options.auto_subscribe());
+  EXPECT_FALSE(proto_options.has_adaptive_stream());
+  EXPECT_TRUE(proto_options.has_dynacast());
+  EXPECT_FALSE(proto_options.dynacast());
+  EXPECT_FALSE(proto_options.has_encryption());
+  EXPECT_FALSE(proto_options.has_rtc_config());
+  EXPECT_FALSE(proto_options.has_join_retries());
+  EXPECT_TRUE(proto_options.has_single_peer_connection());
+  EXPECT_TRUE(proto_options.single_peer_connection());
+  EXPECT_FALSE(proto_options.has_connect_timeout_ms());
+}
+
+TEST_F(RoomTest, RoomOptionsProtoConverter) {
+  RoomOptions options;
+  options.auto_subscribe = false;
+  options.adaptive_stream = true;
+  options.dynacast = true;
+  E2EEOptions encryption;
+  encryption.key_provider_options.shared_key = std::vector<std::uint8_t>{'s', 'e', 'c', 'r', 'e', 't'};
+  options.encryption = encryption;
+  RtcConfig rtc_config;
+  rtc_config.ice_transport_type = proto::TRANSPORT_ALL;
+  rtc_config.continual_gathering_policy = proto::GATHER_CONTINUALLY;
+  rtc_config.ice_servers.push_back({"stun:stun.l.google.com:19302", "", ""});
+  rtc_config.ice_servers.push_back({"turn:turn.example.com:3478", "user", "pass"});
+  options.rtc_config = rtc_config;
+  options.join_retries = 8;
+  options.single_peer_connection = false;
+  options.connect_timeout = std::chrono::milliseconds(750);
+
+  const proto::RoomOptions proto_options = toProto(options);
+
+  EXPECT_TRUE(proto_options.has_auto_subscribe());
+  EXPECT_FALSE(proto_options.auto_subscribe());
+  EXPECT_TRUE(proto_options.has_adaptive_stream());
+  EXPECT_TRUE(proto_options.adaptive_stream());
+  EXPECT_TRUE(proto_options.has_dynacast());
+  EXPECT_TRUE(proto_options.dynacast());
+  ASSERT_TRUE(proto_options.has_encryption());
+  EXPECT_EQ(proto_options.encryption().encryption_type(),
+            static_cast<proto::EncryptionType>(encryption.encryption_type));
+  ASSERT_TRUE(proto_options.encryption().has_key_provider_options());
+  EXPECT_EQ(proto_options.encryption().key_provider_options().shared_key(), "secret");
+  ASSERT_TRUE(proto_options.has_rtc_config());
+  EXPECT_EQ(proto_options.rtc_config().ice_transport_type(), proto::TRANSPORT_ALL);
+  EXPECT_EQ(proto_options.rtc_config().continual_gathering_policy(), proto::GATHER_CONTINUALLY);
+  ASSERT_EQ(proto_options.rtc_config().ice_servers_size(), 2);
+  EXPECT_EQ(proto_options.rtc_config().ice_servers(0).urls(0), "stun:stun.l.google.com:19302");
+  EXPECT_EQ(proto_options.rtc_config().ice_servers(1).urls(0), "turn:turn.example.com:3478");
+  EXPECT_EQ(proto_options.rtc_config().ice_servers(1).username(), "user");
+  EXPECT_EQ(proto_options.rtc_config().ice_servers(1).password(), "pass");
+  EXPECT_TRUE(proto_options.has_join_retries());
+  EXPECT_EQ(proto_options.join_retries(), 8U);
+  EXPECT_TRUE(proto_options.has_single_peer_connection());
+  EXPECT_FALSE(proto_options.single_peer_connection());
+  EXPECT_TRUE(proto_options.has_connect_timeout_ms());
+  EXPECT_EQ(proto_options.connect_timeout_ms(), 750U);
+}
+
+TEST(RoomOptionsProtoTest, ConnectRequestSerializesRetryOptions) {
+  RoomOptions options;
+  options.join_retries = 8;
+  options.connect_timeout = std::chrono::milliseconds(750);
+
+  proto::FfiRequest request;
+  auto* connect = request.mutable_connect();
+  connect->set_url("ws://localhost:7880");
+  connect->set_token("test-token");
+  connect->mutable_options()->CopyFrom(toProto(options));
+
+  ASSERT_TRUE(connect->options().has_join_retries());
+  EXPECT_EQ(connect->options().join_retries(), 8U);
+  ASSERT_TRUE(connect->options().has_connect_timeout_ms());
+  EXPECT_EQ(connect->options().connect_timeout_ms(), 750U);
+
+  ASSERT_TRUE(request.IsInitialized()) << request.InitializationErrorString();
+
+  std::string serialized;
+  ASSERT_TRUE(request.SerializeToString(&serialized));
+  EXPECT_FALSE(serialized.empty());
+
+  proto::FfiRequest decoded;
+  ASSERT_TRUE(decoded.ParseFromString(serialized));
+  EXPECT_EQ(decoded.connect().options().join_retries(), 8U);
+  EXPECT_EQ(decoded.connect().options().connect_timeout_ms(), 750U);
 }
 
 TEST_F(RoomTest, RtcConfigDefaults) {
