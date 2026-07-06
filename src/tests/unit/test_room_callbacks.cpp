@@ -37,10 +37,18 @@ protected:
 TEST_F(RoomCallbackTest, FrameCallbackRegistrationByTrackNameIsAccepted) {
   Room room;
 
-  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {}));
-  EXPECT_NO_THROW(room.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {}));
+  EXPECT_TRUE(room.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {}));
+  EXPECT_TRUE(room.trySetOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {}));
   EXPECT_NO_THROW(room.clearOnAudioFrameCallback("alice", "mic-main"));
   EXPECT_NO_THROW(room.clearOnVideoFrameCallback("alice", "cam-main"));
+}
+
+TEST_F(RoomCallbackTest, TrySetOnAudioReturnsTrueWithoutSubscription) {
+  // Without a subscribed track, registration succeeds and no reader starts.
+  Room room;
+  EXPECT_TRUE(room.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {}));
+  // Re-registering the same key while no reader is active is allowed.
+  EXPECT_TRUE(room.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {}));
 }
 
 TEST_F(RoomCallbackTest, DataCallbackRegistrationReturnsUsableIds) {
@@ -68,8 +76,8 @@ TEST_F(RoomCallbackTest, RemovingUnknownDataCallbackIsNoOp) {
 TEST_F(RoomCallbackTest, DestroyRoomWithRegisteredCallbacksIsSafe) {
   EXPECT_NO_THROW({
     Room room;
-    room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
-    room.setOnVideoFrameCallback("bob", "cam-main", [](const VideoFrame&, std::int64_t) {});
+    (void)room.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+    (void)room.trySetOnVideoFrameCallback("bob", "cam-main", [](const VideoFrame&, std::int64_t) {});
     room.addOnDataFrameCallback("carol", "track",
                                 [](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {});
   });
@@ -78,7 +86,7 @@ TEST_F(RoomCallbackTest, DestroyRoomWithRegisteredCallbacksIsSafe) {
 TEST_F(RoomCallbackTest, DestroyRoomAfterClearingCallbacksIsSafe) {
   EXPECT_NO_THROW({
     Room room;
-    room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+    (void)room.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
     room.clearOnAudioFrameCallback("alice", "mic-main");
 
     const auto id = room.addOnDataFrameCallback("alice", "track",
@@ -95,8 +103,8 @@ TEST_F(RoomCallbackTest, DefaultConnectionStateIsDisconnected) {
 TEST_F(RoomCallbackTest, ConnectionStateRemainsDisconnectedWithoutConnect) {
   // Register callbacks, do other operations — state must stay Disconnected.
   Room room;
-  room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
-  room.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
+  (void)room.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+  (void)room.trySetOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
   room.addOnDataFrameCallback("alice", "track", [](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {});
   room.registerTextStreamHandler("topic", [](const std::shared_ptr<TextStreamReader>&, const std::string&) {});
   EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
