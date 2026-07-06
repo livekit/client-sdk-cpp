@@ -898,4 +898,120 @@ INSTANTIATE_TEST_SUITE_P(KeyDerivationFunctions, DataTrackKeyDerivationTest,
                          ::testing::Values(KeyDerivationFunction::PBKDF2, KeyDerivationFunction::HKDF),
                          keyDerivationParamName);
 
+TEST_F(DataTrackE2ETest, DataFrameCallbackReceivesPublishedFrames) {
+  failIfNotConfigured();
+
+  const auto track_name = makeTrackName("room_callback");
+  std::atomic<int> frame_count{0};
+  std::mutex frame_mutex;
+  std::condition_variable frame_cv;
+
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[0].room_options.single_peer_connection = false;
+  room_configs[1].room_options.single_peer_connection = false;
+
+  auto rooms = testRooms(room_configs);
+  auto& publisher_room = rooms[0];
+  auto& subscriber_room = rooms[1];
+  const auto publisher_identity = lockLocalParticipant(*publisher_room)->identity();
+
+  const auto callback_id = subscriber_room->addOnDataFrameCallback(
+      publisher_identity, track_name, [&](const std::vector<std::uint8_t>& payload, std::optional<std::uint64_t>) {
+        if (payload.size() == kSinglePacketPayloadBytes &&
+            std::all_of(payload.begin(), payload.end(),
+                        [](std::uint8_t byte) { return byte == kTransportPayloadValue; })) {
+          frame_count.fetch_add(1, std::memory_order_relaxed);
+          frame_cv.notify_all();
+        }
+      });
+
+  auto local_track = requirePublishedTrack(publisher_room->localParticipant(), track_name);
+  ASSERT_TRUE(local_track->isPublished());
+
+  DataTrackFrame frame;
+  frame.payload.assign(kSinglePacketPayloadBytes, kTransportPayloadValue);
+  requirePushSuccess(local_track->tryPush(frame), "Failed to push data frame for room callback test");
+
+  ASSERT_TRUE(waitForCondition([&] { return frame_count.load(std::memory_order_relaxed) > 0; }, kTransportFrameTimeout))
+      << "Timed out waiting for Room::addOnDataFrameCallback delivery";
+  EXPECT_EQ(frame_count.load(std::memory_order_relaxed), 1);
+
+  subscriber_room->removeOnDataFrameCallback(callback_id);
+  local_track->unpublishDataTrack();
+}
+
+TEST_F(DataTrackE2ETest, DataFrameCallbackResumesAfterPublisherReconnect) {
+  failIfNotConfigured();
+
+  const auto track_name = makeTrackName("rejoin_callback");
+  std::atomic<int> frame_count{0};
+  std::atomic<int> in_flight_callbacks{0};
+  std::atomic<int> max_in_flight_callbacks{0};
+  std::mutex frame_mutex;
+  std::condition_variable frame_cv;
+
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[0].room_options.single_peer_connection = false;
+  room_configs[1].room_options.single_peer_connection = false;
+
+  auto rooms = testRooms(room_configs);
+  auto& subscriber_room = rooms[1];
+  const auto publisher_identity = lockLocalParticipant(*rooms[0])->identity();
+  const auto tokens = getDataTrackTestTokens();
+
+  const auto callback_id = subscriber_room->addOnDataFrameCallback(
+      publisher_identity, track_name, [&](const std::vector<std::uint8_t>& payload, std::optional<std::uint64_t>) {
+        if (payload.size() != kSinglePacketPayloadBytes ||
+            !std::all_of(payload.begin(), payload.end(),
+                         [](std::uint8_t byte) { return byte == kTransportPayloadValue; })) {
+          return;
+        }
+
+        const int current_in_flight = in_flight_callbacks.fetch_add(1, std::memory_order_relaxed) + 1;
+        int observed_max = max_in_flight_callbacks.load(std::memory_order_relaxed);
+        while (current_in_flight > observed_max && !max_in_flight_callbacks.compare_exchange_weak(
+                                                       observed_max, current_in_flight, std::memory_order_relaxed)) {
+        }
+
+        frame_count.fetch_add(1, std::memory_order_relaxed);
+        frame_cv.notify_all();
+        in_flight_callbacks.fetch_sub(1, std::memory_order_relaxed);
+      });
+
+  auto pushSingleFrame = [&](const std::shared_ptr<LocalDataTrack>& local_track) {
+    max_in_flight_callbacks.store(0, std::memory_order_relaxed);
+    DataTrackFrame frame;
+    frame.payload.assign(kSinglePacketPayloadBytes, kTransportPayloadValue);
+    requirePushSuccess(local_track->tryPush(frame), "Failed to push data frame after publisher reconnect");
+  };
+
+  auto waitForFrameCount = [&](int expected) {
+    return waitForCondition([&] { return frame_count.load(std::memory_order_relaxed) >= expected; },
+                            kTransportFrameTimeout);
+  };
+
+  auto local_track = requirePublishedTrack(rooms[0]->localParticipant(), track_name);
+  pushSingleFrame(local_track);
+  ASSERT_TRUE(waitForFrameCount(1)) << "Timed out waiting for initial callback frame";
+  EXPECT_EQ(max_in_flight_callbacks.load(std::memory_order_relaxed), 1);
+
+  local_track->unpublishDataTrack();
+  ASSERT_TRUE(rooms[0]->disconnect());
+  rooms[0].reset();
+
+  rooms[0] = std::make_unique<Room>();
+  ASSERT_TRUE(rooms[0]->connect(kLocalTestLiveKitUrl, tokens[0], room_configs[0].room_options));
+  waitForParticipantVisibility(rooms);
+
+  local_track = requirePublishedTrack(rooms[0]->localParticipant(), track_name);
+  pushSingleFrame(local_track);
+  ASSERT_TRUE(waitForFrameCount(2)) << "Timed out waiting for callback frame after publisher reconnect";
+  EXPECT_EQ(frame_count.load(std::memory_order_relaxed), 2);
+  EXPECT_EQ(max_in_flight_callbacks.load(std::memory_order_relaxed), 1)
+      << "Duplicate concurrent callback delivery detected after publisher reconnect";
+
+  subscriber_room->removeOnDataFrameCallback(callback_id);
+  local_track->unpublishDataTrack();
+}
+
 } // namespace livekit::test

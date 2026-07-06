@@ -18,13 +18,18 @@
 
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
+#include <livekit/remote_data_track.h>
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <thread>
 #include <unordered_map>
 #include <vector>
 
 namespace livekit {
+
+using namespace std::chrono_literals;
 
 class SubscriptionThreadDispatcherTest : public ::testing::Test {
 protected:
@@ -560,6 +565,138 @@ TEST_F(SubscriptionThreadDispatcherTest, ConcurrentDataCallbackRegistrationDoesN
 
   EXPECT_TRUE(dataCallbacks(dispatcher).empty()) << "All data callbacks should be cleared after concurrent "
                                                     "register/remove";
+}
+
+// ============================================================================
+// Data track publish lifecycle
+// ============================================================================
+
+namespace {
+
+bool waitUntil(const std::function<bool()>& predicate, std::chrono::milliseconds timeout) {
+  const auto deadline = std::chrono::steady_clock::now() + timeout;
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (predicate()) {
+      return true;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }
+  return predicate();
+}
+
+} // namespace
+
+TEST_F(SubscriptionThreadDispatcherTest, DuplicatePublishSameSidDoesNotRestartReader) {
+  SubscriptionThreadDispatcher dispatcher;
+  std::atomic<int> subscribe_calls{0};
+  std::atomic<bool> release_subscribe{false};
+
+  dispatcher.setTestDataTrackSubscribeFn([&](const std::shared_ptr<RemoteDataTrack>&, std::atomic<bool>& cancelled) {
+    subscribe_calls.fetch_add(1, std::memory_order_relaxed);
+    while (!release_subscribe.load(std::memory_order_acquire) && !cancelled.load(std::memory_order_acquire)) {
+      std::this_thread::sleep_for(1ms);
+    }
+    if (cancelled.load(std::memory_order_acquire)) {
+      return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::failure(
+          SubscribeDataTrackError{SubscribeDataTrackErrorCode::INVALID_HANDLE, "cancelled during subscribe"});
+    }
+    return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::failure(
+        SubscribeDataTrackError{SubscribeDataTrackErrorCode::INVALID_HANDLE, "test subscribe complete"});
+  });
+
+  const auto track = RemoteDataTrack::makeForTest("alice", "metrics", "sid-1");
+  dispatcher.addOnDataFrameCallback("alice", "metrics",
+                                    [](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {});
+  dispatcher.handleDataTrackPublished(track);
+
+  ASSERT_TRUE(waitUntil([&] { return subscribe_calls.load(std::memory_order_relaxed) == 1; }, 2s));
+  EXPECT_EQ(activeDataReaders(dispatcher).size(), 1u);
+
+  const auto duplicate = RemoteDataTrack::makeForTest("alice", "metrics", "sid-1");
+  dispatcher.handleDataTrackPublished(duplicate);
+  EXPECT_EQ(subscribe_calls.load(std::memory_order_relaxed), 1);
+  EXPECT_EQ(activeDataReaders(dispatcher).size(), 1u);
+  EXPECT_EQ(remoteDataTracks(dispatcher).size(), 1u);
+
+  release_subscribe.store(true, std::memory_order_release);
+  dispatcher.handleParticipantDisconnected("alice");
+  dispatcher.clearTestDataTrackSubscribeFn();
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, ReplacementDuringPendingSubscribeCancelsOldReader) {
+  SubscriptionThreadDispatcher dispatcher;
+  std::atomic<int> subscribe_calls{0};
+  std::atomic<bool> release_first_subscribe{false};
+
+  dispatcher.setTestDataTrackSubscribeFn([&](const std::shared_ptr<RemoteDataTrack>& track,
+                                             std::atomic<bool>& cancelled) {
+    const int call_index = subscribe_calls.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (call_index == 1) {
+      while (!release_first_subscribe.load(std::memory_order_acquire) && !cancelled.load(std::memory_order_acquire)) {
+        std::this_thread::sleep_for(1ms);
+      }
+      if (cancelled.load(std::memory_order_acquire)) {
+        return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::failure(
+            SubscribeDataTrackError{SubscribeDataTrackErrorCode::INVALID_HANDLE, "first subscribe cancelled"});
+      }
+    }
+
+    if (track->info().sid != "sid-2") {
+      return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::failure(
+          SubscribeDataTrackError{SubscribeDataTrackErrorCode::INVALID_HANDLE, "unexpected sid"});
+    }
+
+    return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::failure(
+        SubscribeDataTrackError{SubscribeDataTrackErrorCode::INVALID_HANDLE, "replacement subscribe complete"});
+  });
+
+  dispatcher.addOnDataFrameCallback("alice", "metrics",
+                                    [](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {});
+
+  const auto first_track = RemoteDataTrack::makeForTest("alice", "metrics", "sid-1");
+  dispatcher.handleDataTrackPublished(first_track);
+  ASSERT_TRUE(waitUntil([&] { return subscribe_calls.load(std::memory_order_relaxed) == 1; }, 2s));
+
+  const auto replacement_track = RemoteDataTrack::makeForTest("alice", "metrics", "sid-2");
+  dispatcher.handleDataTrackPublished(replacement_track);
+
+  ASSERT_TRUE(waitUntil([&] { return subscribe_calls.load(std::memory_order_relaxed) == 2; }, 2s));
+  EXPECT_EQ(activeDataReaders(dispatcher).size(), 1u);
+  EXPECT_EQ(remoteDataTracks(dispatcher).at(DataCallbackKey{"alice", "metrics"})->info().sid, "sid-2");
+
+  release_first_subscribe.store(true, std::memory_order_release);
+  dispatcher.handleParticipantDisconnected("alice");
+  dispatcher.clearTestDataTrackSubscribeFn();
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, ParticipantDisconnectedStopsReadersButKeepsCallbacks) {
+  SubscriptionThreadDispatcher dispatcher;
+  std::atomic<int> subscribe_calls{0};
+
+  dispatcher.setTestDataTrackSubscribeFn([&](const std::shared_ptr<RemoteDataTrack>&, std::atomic<bool>&) {
+    subscribe_calls.fetch_add(1, std::memory_order_relaxed);
+    return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::failure(
+        SubscribeDataTrackError{SubscribeDataTrackErrorCode::INVALID_HANDLE, "test subscribe"});
+  });
+
+  const auto callback_id = dispatcher.addOnDataFrameCallback(
+      "alice", "metrics", [](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {});
+  const auto track = RemoteDataTrack::makeForTest("alice", "metrics", "sid-1");
+  dispatcher.handleDataTrackPublished(track);
+
+  ASSERT_TRUE(waitUntil([&] { return subscribe_calls.load(std::memory_order_relaxed) == 1; }, 2s));
+  EXPECT_EQ(activeDataReaders(dispatcher).size(), 1u);
+  EXPECT_EQ(remoteDataTracks(dispatcher).size(), 1u);
+  EXPECT_EQ(dataCallbacks(dispatcher).size(), 1u);
+
+  dispatcher.handleParticipantDisconnected("alice");
+
+  EXPECT_TRUE(activeDataReaders(dispatcher).empty());
+  EXPECT_TRUE(remoteDataTracks(dispatcher).empty());
+  EXPECT_EQ(dataCallbacks(dispatcher).size(), 1u);
+  EXPECT_NE(dataCallbacks(dispatcher).find(callback_id), dataCallbacks(dispatcher).end());
+
+  dispatcher.clearTestDataTrackSubscribeFn();
 }
 
 } // namespace livekit

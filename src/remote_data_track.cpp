@@ -89,4 +89,15 @@ Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> RemoteDataTrac
   return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::success(std::move(stream));
 }
 
+#ifdef LIVEKIT_TEST_ACCESS
+std::shared_ptr<RemoteDataTrack> RemoteDataTrack::makeForTest(std::string publisher_identity, std::string name,
+                                                              std::string sid) {
+  auto track = std::shared_ptr<RemoteDataTrack>(new RemoteDataTrack());
+  track->publisher_identity_ = std::move(publisher_identity);
+  track->info_.name = std::move(name);
+  track->info_.sid = std::move(sid);
+  return track;
+}
+#endif
+
 } // namespace livekit

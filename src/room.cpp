@@ -506,6 +506,10 @@ void Room::onEvent(const FfiEvent& event) {
             }
           }
           if (removed) {
+            if (subscription_thread_dispatcher_) {
+              subscription_thread_dispatcher_->handleParticipantDisconnected(removed->identity());
+            }
+
             ParticipantDisconnectedEvent ev;
             ev.participant = removed.get();
             ev.reason = reason;

@@ -787,6 +787,7 @@ if(LIVEKIT_BUILD_EXAMPLES)
 endif()
 
 if(LIVEKIT_BUILD_TESTS)
+  target_compile_definitions(livekit PRIVATE LIVEKIT_TEST_ACCESS)
   add_subdirectory(src/tests)
 endif()
 

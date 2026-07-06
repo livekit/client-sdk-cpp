@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -27,6 +28,8 @@
 #include <vector>
 
 #include "livekit/audio_stream.h"
+#include "livekit/data_track_error.h"
+#include "livekit/result.h"
 #include "livekit/video_stream.h"
 #include "livekit/visibility.h"
 
@@ -226,11 +229,32 @@ public:
   /// @param sid The SID of the unpublished data track.
   void handleDataTrackUnpublished(const std::string& sid);
 
+  /// Notify the dispatcher that a remote participant has disconnected.
+  ///
+  /// Stops active data reader threads and removes cached remote data tracks
+  /// for @p participant_identity. Registered callbacks are preserved so a
+  /// rejoin with the same identity can resume delivery automatically.
+  ///
+  /// @param participant_identity Identity of the disconnected participant.
+  void handleParticipantDisconnected(const std::string& participant_identity);
+
   /// Stop all readers and clear all callback registrations.
   ///
   /// This is used during room teardown or EOS handling to ensure no reader
   /// thread survives beyond the lifetime of the owning @ref Room.
   void stopAll();
+
+#ifdef LIVEKIT_TEST_ACCESS
+  /// Test hook that replaces RemoteDataTrack::subscribe() in data reader threads.
+  using TestDataTrackSubscribeFn = std::function<Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>(
+      const std::shared_ptr<RemoteDataTrack>&, std::atomic<bool>& cancelled)>;
+
+  /// @brief Install a custom subscribe implementation for unit tests.
+  LIVEKIT_INTERNAL_API void setTestDataTrackSubscribeFn(TestDataTrackSubscribeFn fn);
+
+  /// @brief Remove the custom subscribe implementation installed for unit tests.
+  LIVEKIT_INTERNAL_API void clearTestDataTrackSubscribeFn();
+#endif
 
 private:
   friend class SubscriptionThreadDispatcherTest;
@@ -292,6 +316,8 @@ private:
     std::mutex sub_mutex;
     std::shared_ptr<DataTrackStream> stream; // guarded by sub_mutex
     std::thread thread;
+    /// Set when this reader is superseded or torn down before its thread exits.
+    std::atomic<bool> cancelled{false};
   };
 
   /// Stored audio callback registration plus stream-construction options.
@@ -368,6 +394,10 @@ private:
 
   /// Currently published remote data tracks, keyed by (participant, name).
   std::unordered_map<DataCallbackKey, std::shared_ptr<RemoteDataTrack>, DataCallbackKeyHash> remote_data_tracks_;
+
+#ifdef LIVEKIT_TEST_ACCESS
+  TestDataTrackSubscribeFn test_data_track_subscribe_fn_;
+#endif
 
   /// Hard limit on concurrently active per-subscription reader threads.
   static constexpr int kMaxActiveReaders = 20;

@@ -227,13 +227,32 @@ void SubscriptionThreadDispatcher::handleDataTrackPublished(const std::shared_pt
     return;
   }
 
-  LK_LOG_INFO("Handling data track published: \"{}\" from \"{}\" (sid={})", track->info().name,
-              track->publisherIdentity(), track->info().sid);
+  const DataCallbackKey key{track->publisherIdentity(), track->info().name};
+  const std::string& sid = track->info().sid;
 
   std::vector<std::thread> old_threads;
   {
     const std::scoped_lock<std::mutex> lock(lock_);
-    const DataCallbackKey key{track->publisherIdentity(), track->info().name};
+    const auto existing_it = remote_data_tracks_.find(key);
+    if (existing_it != remote_data_tracks_.end() && existing_it->second && existing_it->second->info().sid == sid) {
+      existing_it->second = track;
+      LK_LOG_DEBUG(
+          "Ignoring duplicate data track published for participant=\"{}\" "
+          "track=\"{}\" sid={} (active_readers={})",
+          key.participant_identity, key.track_name, sid, active_data_readers_.size());
+      return;
+    }
+
+    if (existing_it != remote_data_tracks_.end() && existing_it->second) {
+      LK_LOG_INFO(
+          "Replacing data track for participant=\"{}\" track=\"{}\" "
+          "old_sid={} new_sid={}",
+          key.participant_identity, key.track_name, existing_it->second->info().sid, sid);
+    } else {
+      LK_LOG_INFO("Handling data track published: \"{}\" from \"{}\" (sid={})", track->info().name,
+                  track->publisherIdentity(), sid);
+    }
+
     remote_data_tracks_[key] = track;
 
     for (auto& [id, reg] : data_callbacks_) {
@@ -259,6 +278,7 @@ void SubscriptionThreadDispatcher::handleDataTrackUnpublished(const std::string&
     for (auto it = active_data_readers_.begin(); it != active_data_readers_.end();) {
       auto& reader = it->second;
       if (reader->remote_track && reader->remote_track->info().sid == sid) {
+        reader->cancelled.store(true);
         {
           const std::scoped_lock<std::mutex> sub_guard(reader->sub_mutex);
           if (reader->stream) {
@@ -277,6 +297,44 @@ void SubscriptionThreadDispatcher::handleDataTrackUnpublished(const std::string&
       if (it->second && it->second->info().sid == sid) {
         remote_data_tracks_.erase(it);
         break;
+      }
+    }
+  }
+  for (auto& t : old_threads) {
+    t.join();
+  }
+}
+
+void SubscriptionThreadDispatcher::handleParticipantDisconnected(const std::string& participant_identity) {
+  LK_LOG_INFO("Handling participant disconnected for data tracks: identity=\"{}\"", participant_identity);
+
+  std::vector<std::thread> old_threads;
+  {
+    const std::scoped_lock<std::mutex> lock(lock_);
+    for (auto it = active_data_readers_.begin(); it != active_data_readers_.end();) {
+      auto& reader = it->second;
+      if (reader->remote_track && reader->remote_track->publisherIdentity() == participant_identity) {
+        reader->cancelled.store(true);
+        {
+          const std::scoped_lock<std::mutex> sub_guard(reader->sub_mutex);
+          if (reader->stream) {
+            reader->stream->close();
+          }
+        }
+        if (reader->thread.joinable()) {
+          old_threads.push_back(std::move(reader->thread));
+        }
+        it = active_data_readers_.erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    for (auto it = remote_data_tracks_.begin(); it != remote_data_tracks_.end();) {
+      if (it->first.participant_identity == participant_identity) {
+        it = remote_data_tracks_.erase(it);
+      } else {
+        ++it;
       }
     }
   }
@@ -312,6 +370,7 @@ void SubscriptionThreadDispatcher::stopAll() {
     video_callbacks_.clear();
 
     for (auto& [id, reader] : active_data_readers_) {
+      reader->cancelled.store(true);
       {
         const std::scoped_lock<std::mutex> sub_guard(reader->sub_mutex);
         if (reader->stream) {
@@ -522,6 +581,7 @@ std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(DataFram
   }
   auto reader = std::move(it->second);
   active_data_readers_.erase(it);
+  reader->cancelled.store(true);
   {
     const std::scoped_lock<std::mutex> guard(reader->sub_mutex);
     if (reader->stream) {
@@ -538,6 +598,7 @@ std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(const Da
         it->second->remote_track->info().name == key.track_name) {
       auto reader = std::move(it->second);
       active_data_readers_.erase(it);
+      reader->cancelled.store(true);
       {
         const std::scoped_lock<std::mutex> guard(reader->sub_mutex);
         if (reader->stream) {
@@ -570,17 +631,34 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(DataFrameCallbac
   reader->remote_track = track;
   auto identity = key.participant_identity;
   auto track_name = key.track_name;
+#ifdef LIVEKIT_TEST_ACCESS
+  auto test_subscribe_fn = test_data_track_subscribe_fn_;
+#endif
   // NOLINTBEGIN(bugprone-lambda-function-name)
-  reader->thread = std::thread([reader, track, cb, identity, track_name]() {
+  reader->thread = std::thread([reader, track, cb, identity, track_name
+#ifdef LIVEKIT_TEST_ACCESS
+                                ,
+                                test_subscribe_fn
+#endif
+  ]() {
     LK_LOG_INFO("Data reader thread: subscribing to \"{}\" track=\"{}\"", identity, track_name);
     std::shared_ptr<DataTrackStream> stream;
-    auto subscribe_result = track->subscribe();
+#ifdef LIVEKIT_TEST_ACCESS
+    const auto subscribe_result = test_subscribe_fn ? test_subscribe_fn(track, reader->cancelled) : track->subscribe();
+#else
+    const auto subscribe_result = track->subscribe();
+#endif
     if (!subscribe_result) {
       const auto& error = subscribe_result.error();
       LK_LOG_ERROR(
           "Failed to subscribe to data track \"{}\" from \"{}\": code={} "
           "message={}",
           track_name, identity, static_cast<std::uint32_t>(error.code), error.message);
+      return;
+    }
+    if (reader->cancelled.load()) {
+      subscribe_result.value()->close();
+      LK_LOG_DEBUG("Data reader thread cancelled after subscribe for \"{}\" track=\"{}\"", identity, track_name);
       return;
     }
     stream = subscribe_result.value();
@@ -593,6 +671,9 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(DataFrameCallbac
 
     DataTrackFrame frame;
     while (stream->read(frame)) {
+      if (reader->cancelled.load()) {
+        break;
+      }
       try {
         cb(frame.payload, frame.user_timestamp);
       } catch (const std::exception& e) {
@@ -612,5 +693,17 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(DataFrameCallbac
   active_data_readers_[id] = reader;
   return old_thread;
 }
+
+#ifdef LIVEKIT_TEST_ACCESS
+void SubscriptionThreadDispatcher::setTestDataTrackSubscribeFn(TestDataTrackSubscribeFn fn) {
+  const std::scoped_lock<std::mutex> lock(lock_);
+  test_data_track_subscribe_fn_ = std::move(fn);
+}
+
+void SubscriptionThreadDispatcher::clearTestDataTrackSubscribeFn() {
+  const std::scoped_lock<std::mutex> lock(lock_);
+  test_data_track_subscribe_fn_ = nullptr;
+}
+#endif
 
 } // namespace livekit

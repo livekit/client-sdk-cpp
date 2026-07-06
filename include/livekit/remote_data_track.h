@@ -104,10 +104,19 @@ public:
   LIVEKIT_API Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> subscribe(
       const DataTrackStream::Options& options = {});
 
+#ifdef LIVEKIT_TEST_ACCESS
+  /// @brief Construct a remote data track without an FFI handle for unit tests.
+  LIVEKIT_INTERNAL_API static std::shared_ptr<RemoteDataTrack> makeForTest(std::string publisher_identity,
+                                                                           std::string name, std::string sid);
+#endif
+
 private:
   friend class Room;
 
   explicit RemoteDataTrack(const proto::OwnedRemoteDataTrack& owned);
+#ifdef LIVEKIT_TEST_ACCESS
+  RemoteDataTrack() = default;
+#endif
 
   uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
   /// RAII wrapper for the Rust-owned FFI resource.
