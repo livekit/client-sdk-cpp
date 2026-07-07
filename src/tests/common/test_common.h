@@ -548,7 +548,9 @@ protected:
   /// Fail the test if the required environment variables are not set
   void failIfNotConfigured() {
     if (!config_.available) {
-      FAIL() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+      throw std::runtime_error(
+          "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set; source "
+          ".token_helpers/set_data_track_test_tokens.bash before running tests");
     }
   }
 
