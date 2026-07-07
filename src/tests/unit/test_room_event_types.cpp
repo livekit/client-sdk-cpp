@@ -49,6 +49,7 @@ TEST(RoomEventTypesTest, TrackPublishOptionsDefaults) {
   EXPECT_FALSE(options.packet_trailer_features.user_timestamp);
   EXPECT_FALSE(options.packet_trailer_features.frame_id);
   EXPECT_FALSE(options.packet_trailer_features.user_data);
+  EXPECT_FALSE(options.degradation_preference.has_value());
 }
 
 TEST(RoomEventTypesTest, UserPacketDataDefaults) {

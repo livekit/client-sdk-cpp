@@ -352,10 +352,20 @@ CI step will fail loudly if its symbols escape the public ABI of
 
 Tests are under `src/tests/` using Google Test:
 
-```
+```bash
+source .token_helpers/set_data_track_test_tokens.bash
 ./build.sh debug-tests
 cd build-debug && ctest
 ```
+
+Always source the test tokens before running tests, even for a targeted local
+test run. The integration and stress suites require `LIVEKIT_URL`,
+`LIVEKIT_TOKEN_A`, and `LIVEKIT_TOKEN_B`; use
+`source .token_helpers/set_data_track_test_tokens.bash` from the repository
+root so the current shell inherits them. Do not report an integration test as
+verified just because it was skipped for missing tokens. If tokens cannot be
+sourced or the LiveKit server is not available, say that the integration test
+was not actually exercised.
 
 Integration tests (`src/tests/integration/`) cover: room connections, callbacks, data tracks, RPC, logging, audio processing, and the subscription thread dispatcher. The token source HTTP/JSON wire contract (request serialization, response parsing, header passthrough, GET support, sandbox URL/header resolution) is covered by mocked unit tests in `src/tests/unit/test_token_source.cpp`, which inject a stub HTTP transport so no live server is needed. For a full end-to-end check, `TokenSourceEndpointConnectTest` connects a `Room` with a real JWT minted by the `livekit/token-server-action` token server pointed at the local dev `livekit-server`. The action exposes its `/createToken` endpoint as a `token-url` output; `tests.yml` passes that to the integration test step as `LIVEKIT_CREATE_TOKEN_URL`, which the test reads to locate the endpoint. The server is started in the `e2e-testing` jobs via the token server's reusable GitHub Action, pinned by SHA in `tests.yml`.
 
