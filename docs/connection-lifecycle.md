@@ -150,13 +150,64 @@ API call (delete room / remove participant).
    livekit::shutdown()`); apps that Ctrl-C simply drop the connection and rely on
    server timeout.
 
+## The Rust `SimulateScenario` hook
+
+The Rust core exposes a chaos/E2E testing primitive that is directly relevant to
+the server-initiated gaps above. It exists at the FFI boundary — proto
+`SimulateScenarioRequest { room_handle, scenario }` → async
+`SimulateScenarioCallback` (`livekit-ffi/protocol/room.proto`), handled by
+`on_simulate_scenario` in `livekit-ffi/src/server/requests.rs`. It is the same
+request/async-callback shape the C++ `FfiClient` already uses for connect/disconnect.
+
+`SimulateScenarioKind` (FFI proto enum):
+
+| Value | Kind | Drives | Path exercised |
+|-------|------|--------|----------------|
+| 0 | `SIGNAL_RECONNECT` | Closes the signal channel locally; engine attempts a **resume** | S3 reconnecting→reconnected |
+| 1 | `SPEAKER` | Simulated speaker activity | `onActiveSpeakersChanged` (not lifecycle) |
+| 2 | `NODE_FAILURE` | Simulated media node death → reconnection | S3 |
+| 3 | `SERVER_LEAVE` | Server sends a Leave | S1 `kDisconnected` (+`kEos`) — server-initiated disconnect |
+| 4 | `MIGRATION` | Server migration | S3, `Migration` reason |
+| 5 | `FORCE_TCP` | Force ICE over TCP | transport reconnect |
+| 6 | `FORCE_TLS` | Force ICE over TLS | transport reconnect |
+| 7 | `FULL_RECONNECT` | Server sends `Leave{Reconnect}` → new `RtcSession`, tracks republished | S3, full-reconnect + republish |
+| 8 | `DISCONNECT_SIGNAL_ON_RESUME` | Drops signalling mid-resume → forces resume→full escalation | S3, escalation path |
+
+**Status in this SDK: not wrapped.** There is no reference to `simulate` anywhere
+in `src/`, and `FfiClient` has no `simulateScenarioAsync`. The Rust core supports
+it (and the rust-sdks own `reconnection_test.rs`, `data_channel_test.rs`, etc. use
+it), but the C++ layer has never surfaced it.
+
+**Important:** `SimulateScenario` is an *in-band* hook forwarded over the live
+signalling connection — it still requires a real server. It does **not** replace a
+client-only fake event injector; it replaces the need for out-of-band server-admin
+API calls (DeleteRoom / RemoveParticipant) to drive the *reconnect and leave*
+scenarios.
+
 ## Suggested next steps for coverage
 
-- Add a **fake FFI event injector** (the FakeRoom pattern in
-  `unit/test_ffi_client.cpp` is a starting point) so unit tests can synthesize
-  `kDisconnected`, `kEos`, and reconnect events without a live server, and assert:
-  callback-once semantics per reason, teardown on `kEos`, and the S1×D1 race.
-- Add integration tests that use the server API (room deletion / participant
-  removal) to drive S1/S2 end-to-end and assert the mapped `DisconnectReason`.
-- Add a test for `livekit::shutdown()` with a still-connected room.
-- Document (and add an example for) signal-driven graceful shutdown.
+Two complementary mechanisms, at different layers:
+
+1. **Fake FFI event injector (unit, no server)** — the FakeRoom pattern in
+   `unit/test_ffi_client.cpp` is a starting point. Lets unit tests synthesize
+   `kDisconnected`, `kEos`, and reconnect events and assert callback-once
+   semantics per reason, teardown on `kEos`, and the S1×D1 race. This is the only
+   way to cover S2/S1×D1 deterministically and offline. `SimulateScenario` does
+   *not* help here (it needs a server).
+
+2. **Wrap `SimulateScenario` (integration, live server)** — add a thin
+   `FfiClient::simulateScenarioAsync(room_handle, kind)` plus a `Room` hook (or a
+   test-only accessor), mirroring `disconnectAsync` exactly; the proto is already
+   generated from the submodule. This is the clean way to drive the currently
+   **zero-coverage S3 reconnect paths** (`SIGNAL_RECONNECT`, `NODE_FAILURE`,
+   `FULL_RECONNECT`, `DISCONNECT_SIGNAL_ON_RESUME`) and a server-initiated
+   disconnect (`SERVER_LEAVE` → S1/S2) end-to-end, without server-admin calls.
+   It is the primary unlock for `onReconnecting`/`onReconnected` coverage, which no
+   C++ test currently touches.
+
+Reason-specific disconnects that `SimulateScenario` does **not** cover
+(`ParticipantRemoved`, `RoomDeleted`, `DuplicateIdentity`) still need either the
+server-admin API or the fake event injector.
+
+3. Add a test for `livekit::shutdown()` with a still-connected room (D4).
+4. Document (and add an example for) signal-driven graceful shutdown (D5).
