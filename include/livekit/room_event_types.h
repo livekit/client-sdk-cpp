@@ -339,7 +339,7 @@ struct TrackPublishOptions {
   FrameMetadataFeatures packet_trailer_features{};
 
   /// Controls how the encoder trades off between resolution and framerate
-  /// when bandwidth is constrained. Default is MaintainResolution.
+  /// when bandwidth is constrained. If not set, the server defaults apply.
   std::optional<DegradationPreference> degradation_preference;
 };
 
