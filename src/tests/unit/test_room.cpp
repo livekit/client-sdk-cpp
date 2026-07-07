@@ -46,6 +46,14 @@ TEST_F(RoomTest, ConnectWithoutInitialize) {
   EXPECT_TRUE(room.remoteParticipants().empty()) << "Remote participants should be empty after failed connect";
 }
 
+TEST_F(RoomTest, SimulateScenarioOnDisconnectedRoomThrows) {
+  // simulateScenario is only valid on a connected room; a fresh Room is
+  // Disconnected, so it must throw before touching the FFI (no server needed).
+  Room room;
+  EXPECT_THROW(room.simulateScenario(SimulateScenario::SignalReconnect), std::runtime_error)
+      << "simulateScenario on a disconnected room should throw";
+}
+
 TEST_F(RoomTest, LiteralTokenSourceEmptyCredentialsFails) {
   auto source = LiteralTokenSource::create("wss://localhost:7880", "");
   const auto result = source->fetch().get();

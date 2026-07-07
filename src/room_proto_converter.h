@@ -39,6 +39,7 @@ LIVEKIT_INTERNAL_API ConnectionState toConnectionState(proto::ConnectionState in
 LIVEKIT_INTERNAL_API DataPacketKind toDataPacketKind(proto::DataPacketKind in);
 LIVEKIT_INTERNAL_API DisconnectReason toDisconnectReason(proto::DisconnectReason in);
 LIVEKIT_INTERNAL_API proto::DisconnectReason toProto(DisconnectReason in);
+LIVEKIT_INTERNAL_API proto::SimulateScenarioKind toProto(SimulateScenario in);
 
 LIVEKIT_INTERNAL_API UserPacketData fromProto(const proto::UserPacket& in);
 LIVEKIT_INTERNAL_API SipDtmfData fromProto(const proto::SipDTMF& in);

@@ -71,6 +71,8 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
       return event.connect().async_id();
     case E::kDisconnect:
       return event.disconnect().async_id();
+    case E::kSimulateScenario:
+      return event.simulate_scenario().async_id();
     case E::kDispose:
       return event.dispose().async_id();
     case E::kPublishTrack:
@@ -531,6 +533,42 @@ std::future<void> FfiClient::disconnectAsync(uintptr_t room_handle, DisconnectRe
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_disconnect()) {
       logAndThrow("FfiResponse missing disconnect");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+std::future<void> FfiClient::simulateScenarioAsync(uintptr_t room_handle, SimulateScenario scenario) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<void>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_simulate_scenario() && event.simulate_scenario().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<void>& pr) {
+        const auto& cb = event.simulate_scenario();
+        if (cb.has_error() && !cb.error().empty()) {
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
+          return;
+        }
+        pr.set_value();
+      });
+
+  proto::FfiRequest req;
+  auto* simulate = req.mutable_simulate_scenario();
+  simulate->set_room_handle(room_handle);
+  simulate->set_request_async_id(async_id);
+  simulate->set_scenario(toProto(scenario));
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_simulate_scenario()) {
+      logAndThrow("FfiResponse missing simulate_scenario");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);

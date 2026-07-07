@@ -98,10 +98,12 @@ live server (see `docs/testing.md`).
 | D4 | `livekit::shutdown()` while a Room is still connected | — | ❌ none |
 | D5 | SIGINT/SIGTERM during a session | — | ❌ none (by design: app responsibility, but undocumented) |
 | D6 | Process exit without shutdown (warning path) | — | ❌ none |
-| S1 | Server-initiated `kDisconnected` (kick, room deletion, duplicate identity) | — | ❌ none — no test kicks a participant or deletes a room |
+| S1 | Server-initiated `kDisconnected` via `ServerLeave` | `integration/test_room_reconnect.cpp` `ServerLeaveDisconnects` | ✅ (SimulateScenario) |
+| S1 | Server-initiated `kDisconnected` (kick, room deletion, duplicate identity) | — | ❌ none — needs server-admin API or fake injector |
 | S2 | `kEos` teardown | — | ❌ none |
 | S1×D1 | Race: server disconnect vs. client disconnect | — | ❌ none |
-| S3 | Reconnecting/Reconnected callbacks | — | ❌ none |
+| S3 | Reconnecting/Reconnected callbacks | `integration/test_room_reconnect.cpp` `SignalReconnectResumesSession`, `FullReconnectReestablishesSession` | ✅ (SimulateScenario) |
+| — | `simulateScenario` on a disconnected room throws | `unit/test_room.cpp` `SimulateScenarioOnDisconnectedRoomThrows` | ✅ |
 | S4 | ConnectionStateChanged callback | — | ❌ none |
 | S5 | FFI panic → SIGTERM | `unit/test_ffi_client.cpp` (SIGTERM handler + flag) | ✅ |
 | S6 | Remote participant disconnects | — | ❌ none (only reachable with a second participant) |
@@ -173,10 +175,13 @@ request/async-callback shape the C++ `FfiClient` already uses for connect/discon
 | 7 | `FULL_RECONNECT` | Server sends `Leave{Reconnect}` → new `RtcSession`, tracks republished | S3, full-reconnect + republish |
 | 8 | `DISCONNECT_SIGNAL_ON_RESUME` | Drops signalling mid-resume → forces resume→full escalation | S3, escalation path |
 
-**Status in this SDK: not wrapped.** There is no reference to `simulate` anywhere
-in `src/`, and `FfiClient` has no `simulateScenarioAsync`. The Rust core supports
-it (and the rust-sdks own `reconnection_test.rs`, `data_channel_test.rs`, etc. use
-it), but the C++ layer has never surfaced it.
+**Status in this SDK: wrapped.** Exposed as `Room::simulateScenario(SimulateScenario)`
+(`include/livekit/room.h`, `src/room.cpp`) over `FfiClient::simulateScenarioAsync`
+(`src/ffi_client.cpp`), with the C++ `SimulateScenario` enum in
+`include/livekit/room_event_types.h` and proto mapping in
+`src/room_proto_converter.cpp`. It throws if the room is not connected and blocks
+on the FFI callback (so it must not be called from inside a delegate callback,
+same as `disconnect()`).
 
 **Important:** `SimulateScenario` is an *in-band* hook forwarded over the live
 signalling connection — it still requires a real server. It does **not** replace a
@@ -195,15 +200,12 @@ Two complementary mechanisms, at different layers:
    way to cover S2/S1×D1 deterministically and offline. `SimulateScenario` does
    *not* help here (it needs a server).
 
-2. **Wrap `SimulateScenario` (integration, live server)** — add a thin
-   `FfiClient::simulateScenarioAsync(room_handle, kind)` plus a `Room` hook (or a
-   test-only accessor), mirroring `disconnectAsync` exactly; the proto is already
-   generated from the submodule. This is the clean way to drive the currently
-   **zero-coverage S3 reconnect paths** (`SIGNAL_RECONNECT`, `NODE_FAILURE`,
-   `FULL_RECONNECT`, `DISCONNECT_SIGNAL_ON_RESUME`) and a server-initiated
-   disconnect (`SERVER_LEAVE` → S1/S2) end-to-end, without server-admin calls.
-   It is the primary unlock for `onReconnecting`/`onReconnected` coverage, which no
-   C++ test currently touches.
+2. **`SimulateScenario` (integration, live server) — done.** `Room::simulateScenario`
+   now drives these paths; `integration/test_room_reconnect.cpp` covers
+   `SignalReconnect` and `FullReconnect` (S3 reconnecting→reconnected) and
+   `ServerLeave` (S1 server-initiated disconnect). Remaining scenarios worth adding
+   as they prove useful: `NodeFailure`, `Migration`, and `DisconnectSignalOnResume`
+   (resume→full escalation).
 
 Reason-specific disconnects that `SimulateScenario` does **not** cover
 (`ParticipantRemoved`, `RoomDeleted`, `DuplicateIdentity`) still need either the

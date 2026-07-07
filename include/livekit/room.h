@@ -181,6 +181,27 @@ public:
   ///          room was already disconnected (no-op) or the graceful disconnect fails.
   bool disconnect(DisconnectReason reason = DisconnectReason::ClientInitiated);
 
+  /// Inject a reconnection / chaos scenario for testing.
+  ///
+  /// Drives the Rust core's `SimulateScenario` in-band over the live signalling
+  /// connection. This exists to exercise the server-initiated reconnect and
+  /// leave paths (which no other client API reaches) end-to-end without
+  /// server-admin calls. It is intended for tests and chaos tooling, not
+  /// production traffic.
+  ///
+  /// Depending on the scenario, expect subsequent delegate callbacks such as
+  /// @ref RoomDelegate::onReconnecting / @ref RoomDelegate::onReconnected (the
+  /// reconnect scenarios) or @ref RoomDelegate::onDisconnected (ServerLeave).
+  ///
+  /// @warning Safe to call from any thread, but **must not** be called from
+  /// inside a `RoomDelegate` callback — doing so will deadlock the event
+  /// listener, since this blocks on the FFI callback delivered on that thread.
+  ///
+  /// @param scenario The scenario to inject.
+  /// @returns true if the FFI accepted the request; false if it failed.
+  /// @throws std::runtime_error if the room is not currently connected.
+  bool simulateScenario(SimulateScenario scenario);
+
   // Accessors
 
   /// Retrieve static metadata about the room.

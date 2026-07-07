@@ -191,6 +191,31 @@ proto::DisconnectReason toProto(DisconnectReason in) {
   }
 }
 
+proto::SimulateScenarioKind toProto(SimulateScenario in) {
+  switch (in) {
+    case SimulateScenario::SignalReconnect:
+      return proto::SIMULATE_SIGNAL_RECONNECT;
+    case SimulateScenario::Speaker:
+      return proto::SIMULATE_SPEAKER;
+    case SimulateScenario::NodeFailure:
+      return proto::SIMULATE_NODE_FAILURE;
+    case SimulateScenario::ServerLeave:
+      return proto::SIMULATE_SERVER_LEAVE;
+    case SimulateScenario::Migration:
+      return proto::SIMULATE_MIGRATION;
+    case SimulateScenario::ForceTcp:
+      return proto::SIMULATE_FORCE_TCP;
+    case SimulateScenario::ForceTls:
+      return proto::SIMULATE_FORCE_TLS;
+    case SimulateScenario::FullReconnect:
+      return proto::SIMULATE_FULL_RECONNECT;
+    case SimulateScenario::DisconnectSignalOnResume:
+      return proto::SIMULATE_DISCONNECT_SIGNAL_ON_RESUME;
+    default:
+      return proto::SIMULATE_SIGNAL_RECONNECT;
+  }
+}
+
 // --------- basic helper conversions ---------
 
 UserPacketData fromProto(const proto::UserPacket& in) {

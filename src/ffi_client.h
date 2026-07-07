@@ -99,6 +99,9 @@ public:
 
   std::future<void> disconnectAsync(uintptr_t room_handle, DisconnectReason reason);
 
+  // Inject a reconnection / chaos scenario for testing (SimulateScenario).
+  std::future<void> simulateScenarioAsync(uintptr_t room_handle, SimulateScenario scenario);
+
   // Track APIs
   std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);
 

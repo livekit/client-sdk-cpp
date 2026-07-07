@@ -292,6 +292,30 @@ bool Room::disconnect(DisconnectReason reason) {
   return ffi_ok;
 }
 
+bool Room::simulateScenario(SimulateScenario scenario) {
+  TRACE_EVENT0("livekit", "Room::simulateScenario");
+
+  std::shared_ptr<FfiHandle> handle;
+  {
+    const std::scoped_lock<std::mutex> g(lock_);
+    if (connection_state_ != ConnectionState::Connected) {
+      throw std::runtime_error("Room::simulateScenario called on a room that is not connected");
+    }
+    handle = room_handle_;
+  }
+  if (!handle) {
+    throw std::runtime_error("Room::simulateScenario: missing room handle");
+  }
+
+  try {
+    FfiClient::instance().simulateScenarioAsync(handle->get(), scenario).get();
+    return true;
+  } catch (const std::exception& e) {
+    LK_LOG_ERROR("Room::simulateScenario failed: {}", e.what());
+    return false;
+  }
+}
+
 RoomInfoData Room::roomInfo() const {
   const std::scoped_lock<std::mutex> g(lock_);
   return room_info_;

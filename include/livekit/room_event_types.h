@@ -96,6 +96,36 @@ enum class DisconnectReason {
   MediaFailure
 };
 
+/// Reconnection / chaos scenarios that can be injected at runtime for testing.
+///
+/// These map 1:1 to the Rust core's `SimulateScenario` (proto
+/// `SimulateScenarioKind`) and are driven in-band over the live signalling
+/// connection via @ref Room::simulateScenario. They exist to exercise the
+/// server-initiated reconnect and leave paths (which no client API otherwise
+/// reaches) without needing server-admin calls. Intended for tests and chaos
+/// tooling, not production traffic.
+enum class SimulateScenario {
+  /// Close the signal channel locally; the engine attempts a resume.
+  SignalReconnect = 0,
+  /// Simulate local speaker activity (surfaces via onActiveSpeakersChanged).
+  Speaker,
+  /// Simulate a media node failure, triggering reconnection.
+  NodeFailure,
+  /// Ask the server to send a Leave, producing a server-initiated disconnect.
+  ServerLeave,
+  /// Simulate a server migration.
+  Migration,
+  /// Force ICE to use TCP, triggering a transport reconnect.
+  ForceTcp,
+  /// Force ICE to use TLS, triggering a transport reconnect.
+  ForceTls,
+  /// Ask the server to send Leave{Reconnect}, forcing a full reconnect
+  /// (new session; the SDK republishes existing local tracks).
+  FullReconnect,
+  /// Drop signalling mid-resume, forcing the resume->full-reconnect escalation.
+  DisconnectSignalOnResume
+};
+
 /// Application-level user data carried in a data packet.
 struct UserPacketData {
   /// Raw payload bytes.
