@@ -271,6 +271,10 @@ jobs:
         env:
           RUST_LOG: "metrics=debug"
           LIVEKIT_CREATE_TOKEN_URL: ${{ steps.token_server.outputs.token-url }}
+          # Dev-server credentials so the admin-driven server-disconnect tests
+          # (which shell out to `lk`) run instead of skipping.
+          LIVEKIT_API_KEY: devkey
+          LIVEKIT_API_SECRET: secret
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash

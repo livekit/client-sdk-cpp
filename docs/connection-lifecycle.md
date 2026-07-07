@@ -99,14 +99,16 @@ live server (see `docs/testing.md`).
 | D5 | SIGINT/SIGTERM during a session | — | ❌ none (by design: app responsibility, but undocumented) |
 | D6 | Process exit without shutdown (warning path) | — | ❌ none |
 | S1 | Server-initiated `kDisconnected` via `ServerLeave` | `integration/test_room_reconnect.cpp` `ServerLeaveDisconnects` | ✅ (SimulateScenario) |
-| S1 | Server-initiated `kDisconnected` (kick, room deletion, duplicate identity) | — | ❌ none — needs server-admin API or fake injector |
-| S2 | `kEos` teardown | — | ❌ none |
-| S1×D1 | Race: server disconnect vs. client disconnect | — | ❌ none |
+| S1 | Duplicate identity → `DuplicateIdentity` | `integration/test_room_server_disconnect.cpp` `DuplicateIdentityDisconnectsFirstConnection` | ✅ (second connect, same token) |
+| S1 | Kick → `ParticipantRemoved` | `integration/test_room_server_disconnect.cpp` `RemovedParticipantDisconnectsWithReason` | ✅ (`lk` CLI; needs `LIVEKIT_API_KEY`/`SECRET`) |
+| S1 | Room deletion → `RoomDeleted` | `integration/test_room_server_disconnect.cpp` `DeletedRoomDisconnectsWithReason` | ✅ (`lk` CLI; needs `LIVEKIT_API_KEY`/`SECRET`) |
+| S2 | `kEos` teardown (state released, `onRoomEos`, no double `onDisconnected`) | `integration/test_room_server_disconnect.cpp` `ServerDisconnectTearsDownViaEos` | ✅ |
+| S1×D1 | Race: server disconnect vs. client disconnect fires `onDisconnected` once | `integration/test_room_server_disconnect.cpp` `ClientDisconnectDuringServerLeaveFiresDisconnectedOnce` | ✅ (best-effort timing) |
 | S3 | Reconnecting/Reconnected callbacks | `integration/test_room_reconnect.cpp` `SignalReconnectResumesSession`, `FullReconnectReestablishesSession` | ✅ (SimulateScenario) |
 | — | `simulateScenario` on a disconnected room throws | `unit/test_room.cpp` `SimulateScenarioOnDisconnectedRoomThrows` | ✅ |
 | S4 | ConnectionStateChanged callback | — | ❌ none |
 | S5 | FFI panic → SIGTERM | `unit/test_ffi_client.cpp` (SIGTERM handler + flag) | ✅ |
-| S6 | Remote participant disconnects | — | ❌ none (only reachable with a second participant) |
+| S6 | Remote participant disconnects | `integration/test_room_server_disconnect.cpp` `PeerDisconnectFiresParticipantDisconnected` | ✅ (needs `LIVEKIT_TOKEN_B`) |
 | — | Listener use-after-free during destroy | `unit/test_ffi_client.cpp` FakeRoom race/stress tests | ✅ |
 | — | `connectionState()` thread safety | `unit/test_room_callbacks.cpp` | ✅ |
 
@@ -207,9 +209,13 @@ Two complementary mechanisms, at different layers:
    as they prove useful: `NodeFailure`, `Migration`, and `DisconnectSignalOnResume`
    (resume→full escalation).
 
-Reason-specific disconnects that `SimulateScenario` does **not** cover
-(`ParticipantRemoved`, `RoomDeleted`, `DuplicateIdentity`) still need either the
-server-admin API or the fake event injector.
+Reason-specific disconnects that `SimulateScenario` does **not** cover are now
+handled in `integration/test_room_server_disconnect.cpp`: `DuplicateIdentity` by
+opening a second connection with the same token, and `ParticipantRemoved` /
+`RoomDeleted` by shelling out to the `lk` CLI (skipped unless
+`LIVEKIT_API_KEY`/`LIVEKIT_API_SECRET` are set; CI provides the dev-server
+credentials). The same file covers Eos teardown (S2), peer disconnects (S6),
+and the client-vs-server disconnect race (S1×D1).
 
 3. Add a test for `livekit::shutdown()` with a still-connected room (D4).
 4. Document (and add an example for) signal-driven graceful shutdown (D5).
