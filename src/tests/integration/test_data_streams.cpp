@@ -46,6 +46,7 @@ std::string makeTopic(const std::string& suffix) {
 /// plus fully-read content. Registers itself as the topic's handler.
 class TextStreamCollector {
 public:
+  ~TextStreamCollector() { recv_thread_.join(); }
   void registerOn(Room& room, const std::string& topic) {
     // Handlers run on the Room event thread and must not block (per
     // registerTextStreamHandler's docs), since later chunk/close events for
@@ -53,7 +54,7 @@ public:
     // until close, so it has to happen on a separate thread.
     room.registerTextStreamHandler(
         topic, [this](std::shared_ptr<TextStreamReader> reader, const std::string& participant_identity) {
-          std::thread([this, reader, participant_identity] {
+          recv_thread_ = std::thread([this, reader, participant_identity] {
             auto info = reader->info();
             auto text = reader->readAll();
             std::lock_guard<std::mutex> lock(mutex_);
@@ -62,7 +63,8 @@ public:
             sender_identity_ = participant_identity;
             done_ = true;
             cv_.notify_all();
-          }).detach();
+          });
+          recv_thread_.detach();
         });
   }
 
@@ -76,6 +78,7 @@ public:
   const std::string& senderIdentity() const { return sender_identity_; }
 
 private:
+  std::thread recv_thread_{};
   std::mutex mutex_;
   std::condition_variable cv_;
   bool done_ = false;
@@ -87,12 +90,13 @@ private:
 /// Same idea as TextStreamCollector, for byte streams.
 class ByteStreamCollector {
 public:
+  ~ByteStreamCollector() { recv_thread_.join(); }
   void registerOn(Room& room, const std::string& topic) {
     // See TextStreamCollector::registerOn: the blocking readNext() loop must
     // not run on the Room event thread.
     room.registerByteStreamHandler(
         topic, [this](std::shared_ptr<ByteStreamReader> reader, const std::string& participant_identity) {
-          std::thread([this, reader, participant_identity] {
+          recv_thread_ = std::thread([this, reader, participant_identity] {
             auto info = reader->info();
             std::vector<std::uint8_t> content;
             std::vector<std::uint8_t> chunk;
@@ -105,7 +109,8 @@ public:
             sender_identity_ = participant_identity;
             done_ = true;
             cv_.notify_all();
-          }).detach();
+          });
+          recv_thread_.detach();
         });
   }
 
@@ -119,6 +124,7 @@ public:
   const std::string& senderIdentity() const { return sender_identity_; }
 
 private:
+  std::thread recv_thread_{};
   std::mutex mutex_;
   std::condition_variable cv_;
   bool done_ = false;
