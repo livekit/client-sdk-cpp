@@ -287,7 +287,9 @@ TextStreamWriter::TextStreamWriter(LocalParticipant& local_participant, const st
   reply_to_id_ = reply_to_id;
   // ✅ Canonical user-facing metadata comes from BaseStreamWriter fields.
   fillBaseInfo(info_, stream_id_, mime_type_, topic_, timestamp_ms_, total_size_, attributes_);
-  info_.reply_to_stream_id = reply_to_id;
+  if (!reply_to_id.empty()) {
+    info_.reply_to_stream_id = reply_to_id;
+  }
 }
 
 void TextStreamWriter::write(const std::string& text) {
