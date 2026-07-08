@@ -46,7 +46,11 @@ std::string makeTopic(const std::string& suffix) {
 /// plus fully-read content. Registers itself as the topic's handler.
 class TextStreamCollector {
 public:
-  ~TextStreamCollector() { recv_thread_.join(); }
+  ~TextStreamCollector() {
+    if (recv_thread_.joinable()) {
+      recv_thread_.join();
+    }
+  }
   void registerOn(Room& room, const std::string& topic) {
     // Handlers run on the Room event thread and must not block (per
     // registerTextStreamHandler's docs), since later chunk/close events for
@@ -64,7 +68,6 @@ public:
             done_ = true;
             cv_.notify_all();
           });
-          recv_thread_.detach();
         });
   }
 
@@ -90,7 +93,11 @@ private:
 /// Same idea as TextStreamCollector, for byte streams.
 class ByteStreamCollector {
 public:
-  ~ByteStreamCollector() { recv_thread_.join(); }
+  ~ByteStreamCollector() {
+    if (recv_thread_.joinable()) {
+      recv_thread_.join();
+    }
+  }
   void registerOn(Room& room, const std::string& topic) {
     // See TextStreamCollector::registerOn: the blocking readNext() loop must
     // not run on the Room event thread.
@@ -110,7 +117,6 @@ public:
             done_ = true;
             cv_.notify_all();
           });
-          recv_thread_.detach();
         });
   }
 
