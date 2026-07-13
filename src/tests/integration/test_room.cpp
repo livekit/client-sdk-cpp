@@ -21,6 +21,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -139,12 +140,30 @@ namespace {
 class DisconnectTrackingDelegate : public RoomDelegate {
 public:
   void onDisconnected(Room&, const DisconnectedEvent& ev) override {
-    ++count;
-    last_reason = ev.reason;
+    {
+      const std::scoped_lock<std::mutex> lock(mutex_);
+      last_reason_ = ev.reason;
+    }
+    count.fetch_add(1);
+    cv_.notify_all();
+  }
+
+  bool waitForDisconnect(std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return cv_.wait_for(lock, timeout, [this]() { return count.load() > 0; });
+  }
+
+  DisconnectReason lastReason() const {
+    const std::scoped_lock<std::mutex> lock(mutex_);
+    return last_reason_;
   }
 
   std::atomic<int> count{0};
-  DisconnectReason last_reason = DisconnectReason::Unknown;
+
+private:
+  mutable std::mutex mutex_;
+  std::condition_variable cv_;
+  DisconnectReason last_reason_ = DisconnectReason::Unknown;
 };
 
 class TokenRefreshTrackingDelegate : public RoomDelegate {
@@ -221,7 +240,7 @@ TEST_F(RoomTest, UserDisconnect) {
   EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
   EXPECT_EQ(room.localParticipant().lock(), nullptr) << "local participant should be cleared after disconnect";
   EXPECT_EQ(delegate.count.load(), 1) << "onDisconnected should fire exactly once";
-  EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
+  EXPECT_EQ(delegate.lastReason(), DisconnectReason::ClientInitiated);
 
   // Calling again on an already-disconnected room is a no-op
   EXPECT_NO_THROW(room.disconnect()) << "second disconnect should not throw on an already-disconnected room";
@@ -243,7 +262,39 @@ TEST_F(RoomTest, DestructorDisconnect) {
   room.reset(); // invokes destructor which calls disconnect()
 
   EXPECT_EQ(delegate.count.load(), 1) << "destructor should fire onDisconnected exactly once";
-  EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
+  EXPECT_EQ(delegate.lastReason(), DisconnectReason::ClientInitiated);
+}
+
+// Case: server deletes the room while the client is connected.
+TEST_F(RoomTest, ServerDeletedRoomDisconnectsAndTearsDownLocally) {
+  ASSERT_TRUE(server_available_) << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+  if (server_url_ != kLocalTestLiveKitUrl) {
+    GTEST_SKIP() << "server-delete integration test requires local livekit-server";
+  }
+  const char* room_name = std::getenv("LIVEKIT_ROOM");
+  ASSERT_NE(room_name, nullptr) << "LIVEKIT_ROOM not set";
+  ASSERT_NE(std::string(room_name), "") << "LIVEKIT_ROOM must be non-empty";
+
+  Room room;
+  DisconnectTrackingDelegate delegate;
+  room.setDelegate(&delegate);
+
+  RoomOptions options;
+  ASSERT_TRUE(room.connect(server_url_, token_, options)) << "connect failed";
+  ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
+  ASSERT_NE(room.localParticipant().lock(), nullptr);
+
+  const std::string delete_command = std::string("lk --dev room delete --yes ") + room_name;
+  ASSERT_EQ(std::system(delete_command.c_str()), 0) << "failed to delete local test room";
+
+  ASSERT_TRUE(delegate.waitForDisconnect(10s)) << "server room deletion should disconnect the client";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_EQ(room.localParticipant().lock(), nullptr) << "local participant should be cleared after server disconnect";
+  EXPECT_EQ(delegate.count.load(), 1) << "onDisconnected should fire exactly once";
+  EXPECT_EQ(delegate.lastReason(), DisconnectReason::RoomDeleted);
+
+  EXPECT_FALSE(room.disconnect()) << "disconnect after server teardown should be a no-op";
+  EXPECT_EQ(delegate.count.load(), 1) << "delegate must not double-fire";
 }
 
 // Verifies that participant handles handed out by Room expire once the Room is
