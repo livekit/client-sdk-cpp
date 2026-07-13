@@ -17,12 +17,43 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
+#include <atomic>
 #include <chrono>
 #include <future>
 #include <string>
 
 #include "ffi.pb.h"
+#include "ffi_client.h"
 #include "room_proto_converter.h"
+
+namespace livekit {
+
+struct RoomTestAccess {
+  static void installConnectedListener(Room& room, std::atomic<int>& callback_count) {
+    const auto listener_id = FfiClient::instance().addListener([&room, &callback_count](const proto::FfiEvent& event) {
+      callback_count.fetch_add(1, std::memory_order_relaxed);
+      room.onEvent(event);
+    });
+
+    const std::scoped_lock<std::mutex> guard(room.lock_);
+    room.connection_state_ = ConnectionState::Connected;
+    room.room_handle_ = std::make_shared<FfiHandle>();
+    room.listener_id_ = listener_id;
+    room.teardown_started_ = false;
+  }
+
+  static bool hasRoomHandle(const Room& room) {
+    const std::scoped_lock<std::mutex> guard(room.lock_);
+    return static_cast<bool>(room.room_handle_);
+  }
+
+  static int listenerId(const Room& room) {
+    const std::scoped_lock<std::mutex> guard(room.lock_);
+    return room.listener_id_;
+  }
+};
+
+} // namespace livekit
 
 namespace livekit::test {
 
@@ -32,6 +63,54 @@ protected:
 
   void TearDown() override { livekit::shutdown(); }
 };
+
+namespace {
+
+class UnitDisconnectTrackingDelegate : public RoomDelegate {
+public:
+  void onDisconnected(Room&, const DisconnectedEvent& event) override {
+    ++count;
+    reason = event.reason;
+  }
+
+  int count = 0;
+  DisconnectReason reason = DisconnectReason::Unknown;
+};
+
+void emitFfiEvent(const proto::FfiEvent& event) {
+  std::string bytes;
+  ASSERT_TRUE(event.SerializeToString(&bytes));
+  ffiEventCallback(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+}
+
+} // namespace
+
+TEST_F(RoomTest, ServerDisconnectTearsDownRoomAndRemovesListener) {
+  Room room;
+  UnitDisconnectTrackingDelegate delegate;
+  std::atomic<int> listener_calls{0};
+  room.setDelegate(&delegate);
+  RoomTestAccess::installConnectedListener(room, listener_calls);
+
+  proto::FfiEvent event;
+  auto* room_event = event.mutable_room_event();
+  room_event->set_room_handle(0);
+  room_event->mutable_disconnected()->set_reason(proto::ROOM_DELETED);
+
+  emitFfiEvent(event);
+
+  EXPECT_EQ(listener_calls.load(std::memory_order_relaxed), 1);
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_FALSE(RoomTestAccess::hasRoomHandle(room));
+  EXPECT_EQ(RoomTestAccess::listenerId(room), 0);
+  EXPECT_EQ(delegate.count, 1);
+  EXPECT_EQ(delegate.reason, DisconnectReason::RoomDeleted);
+
+  emitFfiEvent(event);
+  EXPECT_EQ(listener_calls.load(std::memory_order_relaxed), 1) << "server disconnect must unregister the Room listener";
+  EXPECT_EQ(delegate.count, 1) << "server disconnect must notify the delegate exactly once";
+  EXPECT_FALSE(room.disconnect()) << "disconnect after server teardown must be a no-op";
+}
 
 TEST_F(RoomTest, ConnectWithoutInitialize) {
   // Test fixture initializes by default, do this to emulate lack of initialization
