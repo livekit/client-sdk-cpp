@@ -42,6 +42,7 @@ constexpr int kFrameHeight = 360;
 constexpr auto kFrameInterval = 100ms;
 constexpr auto kDataInterval = 1s;
 constexpr auto kPostRoomDestroyProbe = 5s;
+constexpr const char* kRoomName = "cpp-test";
 constexpr const char* kPublisherIdentity = "cpp-server-disconnect-repro";
 constexpr const char* kSubscriberIdentity = "cpp-server-disconnect-repro-subscriber";
 constexpr const char* kVideoTrackName = "synthetic-camera";
@@ -195,6 +196,7 @@ int run() {
 
   auto token_source = livekit::SandboxTokenSource::create(sandbox_id);
   livekit::TokenRequestOptions request_options;
+  request_options.room_name = kRoomName;
   request_options.participant_identity = kPublisherIdentity;
 
   std::cout << "Fetching sandbox credentials...\n";
@@ -226,7 +228,7 @@ int run() {
             << "\n";
 
   livekit::TokenRequestOptions subscriber_request_options;
-  subscriber_request_options.room_name = room->roomInfo().name;
+  subscriber_request_options.room_name = kRoomName;
   subscriber_request_options.participant_identity = kSubscriberIdentity;
 
   std::cout << "Fetching sandbox credentials for subscriber...\n";
