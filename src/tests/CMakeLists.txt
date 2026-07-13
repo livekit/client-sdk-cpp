@@ -328,6 +328,47 @@ if(STRESS_TEST_SOURCES)
 endif()
 
 # ============================================================================
+# Manual Reproduction Binaries
+# ============================================================================
+
+add_executable(server_disconnect_repro
+  "${CMAKE_CURRENT_SOURCE_DIR}/manual/server_disconnect_repro.cpp"
+)
+target_link_libraries(server_disconnect_repro PRIVATE livekit)
+
+if(WIN32)
+  add_custom_command(TARGET server_disconnect_repro POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:server_disconnect_repro>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
+      $<TARGET_FILE_DIR:server_disconnect_repro>
+    COMMENT "Copying DLLs to server disconnect reproducer directory"
+  )
+elseif(APPLE)
+  add_custom_command(TARGET server_disconnect_repro POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:server_disconnect_repro>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+      $<TARGET_FILE_DIR:server_disconnect_repro>
+    COMMENT "Copying dylibs to server disconnect reproducer directory"
+  )
+else()
+  add_custom_command(TARGET server_disconnect_repro POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:server_disconnect_repro>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+      $<TARGET_FILE_DIR:server_disconnect_repro>
+    COMMENT "Copying shared libraries to server disconnect reproducer directory"
+  )
+endif()
+
+# ============================================================================
 # Combined test target
 # ============================================================================
 
