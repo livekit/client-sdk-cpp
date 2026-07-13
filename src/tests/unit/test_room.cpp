@@ -22,6 +22,7 @@
 #include <future>
 #include <string>
 
+#include "../common/ffi_utils.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "room_proto_converter.h"
@@ -76,12 +77,6 @@ public:
   int count = 0;
   DisconnectReason reason = DisconnectReason::Unknown;
 };
-
-void emitFfiEvent(const proto::FfiEvent& event) {
-  std::string bytes;
-  ASSERT_TRUE(event.SerializeToString(&bytes));
-  ffiEventCallback(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
-}
 
 } // namespace
 
