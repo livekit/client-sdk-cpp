@@ -330,7 +330,6 @@ public:
   void removeOnDataFrameCallback(DataFrameCallbackId id);
 
 private:
-  friend class RoomCallbackTest;
   friend struct RoomTestAccess;
 
   mutable std::mutex lock_;
