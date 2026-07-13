@@ -24,13 +24,20 @@ TEST(DataTrackInfoTest, DefaultConstructed) {
   EXPECT_TRUE(info.name.empty());
   EXPECT_TRUE(info.sid.empty());
   EXPECT_FALSE(info.uses_e2ee);
+  EXPECT_FALSE(info.schema.has_value());
+  EXPECT_FALSE(info.frame_encoding.has_value());
 }
 
 TEST(DataTrackInfoTest, AggregateInitialization) {
-  DataTrackInfo info{"name", "sid", true};
+  DataTrackInfo info{"name", "sid", true, DataTrackSchemaId{"schema", DataTrackSchemaEncoding::JsonSchema},
+                     DataTrackFrameEncoding::Json};
   EXPECT_EQ(info.name, "name");
   EXPECT_EQ(info.sid, "sid");
   EXPECT_TRUE(info.uses_e2ee);
+  ASSERT_TRUE(info.schema.has_value());
+  EXPECT_EQ(*info.schema, (DataTrackSchemaId{"schema", DataTrackSchemaEncoding::JsonSchema}));
+  ASSERT_TRUE(info.frame_encoding.has_value());
+  EXPECT_EQ(*info.frame_encoding, DataTrackFrameEncoding::Json);
 }
 
 } // namespace livekit::test

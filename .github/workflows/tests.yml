@@ -222,9 +222,8 @@ jobs:
         uses: livekit/dev-server-action@6562d7d9343e46c26ead1223151f64f00e4fc37f # v1.1.0
         with:
           github-token: ${{ github.token }}
-          version: a47e21b6cb945aabee88c98650366cef8cbf7a99
+          version: v1.13.3
           config: |
-            enable_data_tracks: true
             enable_participant_data_blob: true
 
       # Needed by token helper script

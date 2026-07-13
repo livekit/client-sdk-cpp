@@ -23,22 +23,20 @@
 
 namespace livekit {
 
-/**
- * Options for publishing a data track.
- *
- * The schema and frame encoding are optional metadata advertised to
- * subscribers; they are surfaced on the subscriber side via DataTrackInfo.
- */
+/// @brief Options for publishing a data track.
+///
+/// The schema and frame encoding are optional metadata advertised to
+/// subscribers; they are surfaced on the subscriber side via DataTrackInfo.
 struct DataTrackPublishOptions {
-  /// Track name used to identify the track to other participants.
+  /// @brief Track name used to identify the track to other participants.
   ///
   /// Must not be empty and must be unique per publisher.
   std::string name;
 
-  /// Schema describing frames sent on the track, if any.
+  /// @brief Schema describing frames sent on the track, if any.
   std::optional<DataTrackSchemaId> schema;
 
-  /// Encoding of frames sent on the track, if any.
+  /// @brief Encoding of frames sent on the track, if any.
   std::optional<DataTrackFrameEncoding> frame_encoding;
 };
 

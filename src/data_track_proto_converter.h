@@ -19,19 +19,20 @@
 #include "data_track.pb.h"
 #include "livekit/data_track_info.h"
 #include "livekit/data_track_schema.h"
+#include "livekit/visibility.h"
 
 namespace livekit {
 
-proto::DataTrackSchemaEncoding toProto(const DataTrackSchemaEncoding& in);
-DataTrackSchemaEncoding fromProto(const proto::DataTrackSchemaEncoding& in);
+LIVEKIT_INTERNAL_API proto::DataTrackSchemaEncoding toProto(const DataTrackSchemaEncoding& in);
+LIVEKIT_INTERNAL_API DataTrackSchemaEncoding fromProto(const proto::DataTrackSchemaEncoding& in);
 
-proto::DataTrackFrameEncoding toProto(const DataTrackFrameEncoding& in);
-DataTrackFrameEncoding fromProto(const proto::DataTrackFrameEncoding& in);
+LIVEKIT_INTERNAL_API proto::DataTrackFrameEncoding toProto(const DataTrackFrameEncoding& in);
+LIVEKIT_INTERNAL_API DataTrackFrameEncoding fromProto(const proto::DataTrackFrameEncoding& in);
 
-proto::DataTrackSchemaId toProto(const DataTrackSchemaId& in);
-DataTrackSchemaId fromProto(const proto::DataTrackSchemaId& in);
+LIVEKIT_INTERNAL_API proto::DataTrackSchemaId toProto(const DataTrackSchemaId& in);
+LIVEKIT_INTERNAL_API DataTrackSchemaId fromProto(const proto::DataTrackSchemaId& in);
 
 // Converts an FFI data track info message into the public DataTrackInfo struct.
-DataTrackInfo fromProto(const proto::DataTrackInfo& in);
+LIVEKIT_INTERNAL_API DataTrackInfo fromProto(const proto::DataTrackInfo& in);
 
 } // namespace livekit
