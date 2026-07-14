@@ -297,6 +297,32 @@ TEST_F(RoomTest, ServerDeletedRoomDisconnectsAndTearsDownLocally) {
   EXPECT_EQ(delegate.count.load(), 1) << "delegate must not double-fire";
 }
 
+// Case: same Room instance can connect again after an explicit local disconnect.
+TEST_F(RoomTest, ReconnectAfterDisconnect) {
+  ASSERT_TRUE(server_available_) << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+
+  Room room;
+  DisconnectTrackingDelegate delegate;
+  room.setDelegate(&delegate);
+
+  RoomOptions options;
+  ASSERT_TRUE(room.connect(server_url_, token_, options)) << "initial connect failed";
+  ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
+  ASSERT_NE(room.localParticipant().lock(), nullptr);
+
+  ASSERT_TRUE(room.disconnect()) << "explicit disconnect should succeed";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_EQ(room.localParticipant().lock(), nullptr);
+  EXPECT_EQ(delegate.count.load(), 1);
+
+  ASSERT_TRUE(room.connect(server_url_, token_, options)) << "reconnect after disconnect should succeed";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Connected);
+  EXPECT_NE(room.localParticipant().lock(), nullptr);
+
+  ASSERT_TRUE(room.disconnect());
+  EXPECT_EQ(delegate.count.load(), 2);
+}
+
 // Verifies that participant handles handed out by Room expire once the Room is
 // destroyed. Because the accessors return std::weak_ptr and the Room is the
 // sole owner of the participant shared_ptrs, a consumer that caches the handles

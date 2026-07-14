@@ -102,7 +102,7 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
     if (connection_state_ != ConnectionState::Disconnected) {
       throw std::runtime_error("already connected");
     }
-    teardown_started_ = false;
+    shutdown_started_ = false;
     connection_state_ = ConnectionState::Reconnecting;
   }
 
@@ -213,10 +213,10 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
 
 bool Room::disconnect(DisconnectReason reason) {
   TRACE_EVENT0("livekit", "Room::disconnect");
-  return teardown(true, reason, true);
+  return shutdown(true, reason, true);
 }
 
-bool Room::teardown(bool disconnect_ffi, DisconnectReason reason, bool notify_delegate) {
+bool Room::shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_delegate) {
   std::shared_ptr<FfiHandle> handle;
   RoomDelegate* delegate_snapshot = nullptr;
   std::shared_ptr<LocalParticipant> local_participant_to_cleanup;
@@ -230,10 +230,12 @@ bool Room::teardown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
     const std::scoped_lock<std::mutex> g(lock_);
     const bool has_room_state = connection_state_ != ConnectionState::Disconnected || listener_id_ != 0 ||
                                 room_handle_ || local_participant_ || !remote_participants_.empty();
-    if (teardown_started_ || !has_room_state) {
+    // Return false for no-op / in-progress shutdown so callers can tell whether *this* call
+    // performed cleanup. Matches disconnect()'s documented contract.
+    if (shutdown_started_ || !has_room_state) {
       return false;
     }
-    teardown_started_ = true;
+    shutdown_started_ = true;
     handle = std::move(room_handle_);
     delegate_snapshot = delegate_;
     local_participant_to_cleanup = std::move(local_participant_);
@@ -246,16 +248,16 @@ bool Room::teardown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
     connection_state_ = ConnectionState::Disconnected;
   }
 
-  bool teardown_ok = true;
+  bool shutdown_ok = true;
   if (local_participant_to_cleanup) {
     try {
       local_participant_to_cleanup->shutdown();
     } catch (const std::exception& e) {
-      LK_LOG_ERROR("Room teardown: local participant shutdown failed: {}", e.what());
-      teardown_ok = false;
+      LK_LOG_ERROR("Room shutdown: local participant shutdown failed: {}", e.what());
+      shutdown_ok = false;
     } catch (...) {
-      LK_LOG_ERROR("Room teardown: local participant shutdown failed: unknown exception");
-      teardown_ok = false;
+      LK_LOG_ERROR("Room shutdown: local participant shutdown failed: unknown exception");
+      shutdown_ok = false;
     }
   }
 
@@ -263,11 +265,11 @@ bool Room::teardown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
     try {
       FfiClient::instance().disconnectAsync(handle->get(), reason).get();
     } catch (const std::exception& e) {
-      LK_LOG_ERROR("Room teardown: FFI disconnect failed (continuing local teardown): {}", e.what());
-      teardown_ok = false;
+      LK_LOG_ERROR("Room shutdown: FFI disconnect failed (continuing local shutdown): {}", e.what());
+      shutdown_ok = false;
     } catch (...) {
-      LK_LOG_ERROR("Room teardown: FFI disconnect failed (continuing local teardown): unknown exception");
-      teardown_ok = false;
+      LK_LOG_ERROR("Room shutdown: FFI disconnect failed (continuing local shutdown): unknown exception");
+      shutdown_ok = false;
     }
   }
 
@@ -275,11 +277,11 @@ bool Room::teardown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
     try {
       subscription_thread_dispatcher_->stopAll();
     } catch (const std::exception& e) {
-      LK_LOG_ERROR("Room teardown: subscription shutdown failed: {}", e.what());
-      teardown_ok = false;
+      LK_LOG_ERROR("Room shutdown: subscription shutdown failed: {}", e.what());
+      shutdown_ok = false;
     } catch (...) {
-      LK_LOG_ERROR("Room teardown: subscription shutdown failed: unknown exception");
-      teardown_ok = false;
+      LK_LOG_ERROR("Room shutdown: subscription shutdown failed: unknown exception");
+      shutdown_ok = false;
     }
   }
 
@@ -287,11 +289,11 @@ bool Room::teardown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
     try {
       FfiClient::instance().removeListener(listener_to_remove);
     } catch (const std::exception& e) {
-      LK_LOG_ERROR("Room teardown: listener removal failed: {}", e.what());
-      teardown_ok = false;
+      LK_LOG_ERROR("Room shutdown: listener removal failed: {}", e.what());
+      shutdown_ok = false;
     } catch (...) {
-      LK_LOG_ERROR("Room teardown: listener removal failed: unknown exception");
-      teardown_ok = false;
+      LK_LOG_ERROR("Room shutdown: listener removal failed: unknown exception");
+      shutdown_ok = false;
     }
   }
 
@@ -314,7 +316,7 @@ bool Room::teardown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
     }
   }
 
-  return teardown_ok;
+  return shutdown_ok;
 }
 
 RoomInfoData Room::roomInfo() const {
@@ -1194,7 +1196,7 @@ void Room::onEvent(const FfiEvent& event) {
         }
         case proto::RoomEvent::kDisconnected: {
           const auto reason = toDisconnectReason(re.disconnected().reason());
-          (void)teardown(false, reason, true);
+          (void)shutdown(false, reason, true);
           break;
         }
         case proto::RoomEvent::kReconnecting: {
@@ -1219,7 +1221,7 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kEos: {
-          (void)teardown(false, DisconnectReason::Unknown, false);
+          (void)shutdown(false, DisconnectReason::Unknown, false);
 
           const RoomEosEvent ev;
           if (delegate_snapshot) {

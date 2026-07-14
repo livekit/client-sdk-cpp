@@ -40,7 +40,7 @@ struct RoomTestAccess {
     room.connection_state_ = ConnectionState::Connected;
     room.room_handle_ = std::make_shared<FfiHandle>();
     room.listener_id_ = listener_id;
-    room.teardown_started_ = false;
+    room.shutdown_started_ = false;
   }
 
   static bool hasRoomHandle(const Room& room) {
@@ -51,6 +51,17 @@ struct RoomTestAccess {
   static int listenerId(const Room& room) {
     const std::scoped_lock<std::mutex> guard(room.lock_);
     return room.listener_id_;
+  }
+
+  static bool shutdownStarted(const Room& room) {
+    const std::scoped_lock<std::mutex> guard(room.lock_);
+    return room.shutdown_started_;
+  }
+
+  // Mirrors Room::connect()'s latch clear before FFI work.
+  static void clearShutdownForReconnect(Room& room) {
+    const std::scoped_lock<std::mutex> guard(room.lock_);
+    room.shutdown_started_ = false;
   }
 };
 
@@ -104,7 +115,39 @@ TEST_F(RoomTest, ServerDisconnectTearsDownRoomAndRemovesListener) {
   emitFfiEvent(event);
   EXPECT_EQ(listener_calls.load(std::memory_order_relaxed), 1) << "server disconnect must unregister the Room listener";
   EXPECT_EQ(delegate.count, 1) << "server disconnect must notify the delegate exactly once";
-  EXPECT_FALSE(room.disconnect()) << "disconnect after server teardown must be a no-op";
+  EXPECT_FALSE(room.disconnect()) << "disconnect after server shutdown must be a no-op";
+}
+
+TEST_F(RoomTest, ConnectAllowedAfterServerDisconnectShutdown) {
+  Room room;
+  UnitDisconnectTrackingDelegate delegate;
+  std::atomic<int> listener_calls{0};
+  room.setDelegate(&delegate);
+  RoomTestAccess::installConnectedListener(room, listener_calls);
+
+  proto::FfiEvent event;
+  auto* room_event = event.mutable_room_event();
+  room_event->set_room_handle(0);
+  room_event->mutable_disconnected()->set_reason(proto::ROOM_DELETED);
+  emitFfiEvent(event);
+
+  ASSERT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  ASSERT_TRUE(RoomTestAccess::shutdownStarted(room));
+  ASSERT_EQ(delegate.count, 1);
+
+  // Room::connect() clears shutdown_started_ before FFI work; mirror that reset and run a
+  // second synthetic connection cycle to prove the Room is reusable after server shutdown.
+  RoomTestAccess::clearShutdownForReconnect(room);
+  EXPECT_FALSE(RoomTestAccess::shutdownStarted(room));
+
+  listener_calls.store(0, std::memory_order_relaxed);
+  RoomTestAccess::installConnectedListener(room, listener_calls);
+  emitFfiEvent(event);
+
+  EXPECT_EQ(listener_calls.load(std::memory_order_relaxed), 1);
+  EXPECT_EQ(delegate.count, 2) << "second connection cycle should notify onDisconnected again";
+  EXPECT_EQ(RoomTestAccess::listenerId(room), 0);
+  EXPECT_TRUE(RoomTestAccess::shutdownStarted(room));
 }
 
 TEST_F(RoomTest, ConnectWithoutInitialize) {
