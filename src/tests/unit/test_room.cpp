@@ -40,7 +40,6 @@ struct RoomTestAccess {
     room.connection_state_ = ConnectionState::Connected;
     room.room_handle_ = std::make_shared<FfiHandle>();
     room.listener_id_ = listener_id;
-    room.shutdown_started_ = false;
   }
 
   static bool hasRoomHandle(const Room& room) {
@@ -51,17 +50,6 @@ struct RoomTestAccess {
   static int listenerId(const Room& room) {
     const std::scoped_lock<std::mutex> guard(room.lock_);
     return room.listener_id_;
-  }
-
-  static bool shutdownStarted(const Room& room) {
-    const std::scoped_lock<std::mutex> guard(room.lock_);
-    return room.shutdown_started_;
-  }
-
-  // Mirrors Room::connect()'s latch clear before FFI work.
-  static void clearShutdownForReconnect(Room& room) {
-    const std::scoped_lock<std::mutex> guard(room.lock_);
-    room.shutdown_started_ = false;
   }
 };
 

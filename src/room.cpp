@@ -102,7 +102,6 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
     if (connection_state_ != ConnectionState::Disconnected) {
       throw std::runtime_error("already connected");
     }
-    shutdown_started_ = false;
     connection_state_ = ConnectionState::Reconnecting;
   }
 
@@ -230,12 +229,11 @@ bool Room::shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
     const std::scoped_lock<std::mutex> g(lock_);
     const bool has_room_state = connection_state_ != ConnectionState::Disconnected || listener_id_ != 0 ||
                                 room_handle_ || local_participant_ || !remote_participants_.empty();
-    // Return false for no-op / in-progress shutdown so callers can tell whether *this* call
-    // performed cleanup. Matches disconnect()'s documented contract.
-    if (shutdown_started_ || !has_room_state) {
+    // Return false for a no-op so callers can tell whether this call claimed the
+    // room state and performed cleanup. Matches disconnect()'s documented contract.
+    if (!has_room_state) {
       return false;
     }
-    shutdown_started_ = true;
     handle = std::move(room_handle_);
     delegate_snapshot = delegate_;
     local_participant_to_cleanup = std::move(local_participant_);

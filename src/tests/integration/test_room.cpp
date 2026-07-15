@@ -26,11 +26,23 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "../common/test_common.h"
 
 using namespace std::chrono_literals;
+
+namespace livekit {
+
+struct RoomTestAccess {
+  static int listenerId(const Room& room) {
+    const std::scoped_lock<std::mutex> guard(room.lock_);
+    return room.listener_id_;
+  }
+};
+
+} // namespace livekit
 
 namespace livekit::test {
 
@@ -321,6 +333,39 @@ TEST_F(RoomTest, ReconnectAfterDisconnect) {
 
   ASSERT_TRUE(room.disconnect());
   EXPECT_EQ(delegate.count.load(), 2);
+}
+
+// Case: a late connection remains recoverable after disconnect raced with connect.
+TEST_F(RoomTest, LateConnectionAfterDisconnectRemainsRecoverable) {
+  ASSERT_TRUE(server_available_) << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+
+  Room room;
+  RoomOptions options;
+  auto connect_future =
+      std::async(std::launch::async, [&room, this, &options]() { return room.connect(server_url_, token_, options); });
+
+  // Wait until connect() installs its listener immediately before starting the
+  // blocking FFI connection, then invalidate that in-flight attempt.
+  const auto deadline = std::chrono::steady_clock::now() + 5s;
+  while (RoomTestAccess::listenerId(room) == 0 && connect_future.wait_for(0ms) != std::future_status::ready &&
+         std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+
+  ASSERT_EQ(room.connectionState(), ConnectionState::Reconnecting)
+      << "connect completed before the test could exercise the disconnect race";
+  ASSERT_NE(RoomTestAccess::listenerId(room), 0);
+  ASSERT_TRUE(room.disconnect()) << "disconnect should claim the in-progress connection";
+
+  // This preserves the existing behavior on main: the in-flight connect can
+  // still complete, but the Room must not become permanently unshuttable.
+  ASSERT_TRUE(connect_future.get());
+  ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
+  ASSERT_FALSE(room.localParticipant().expired());
+
+  EXPECT_TRUE(room.disconnect()) << "the late connection must remain recoverable";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_TRUE(room.localParticipant().expired());
 }
 
 // Verifies that participant handles handed out by Room expire once the Room is

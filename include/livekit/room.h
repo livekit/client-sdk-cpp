@@ -356,8 +356,6 @@ private:
 
   void onEvent(const proto::FfiEvent& event);
 
-  // Tracks local shutdown independently from connection_state_ to handle all shutdown cases.
-  bool shutdown_started_{false};
   // Shared shutdown path for explicit disconnect, server disconnect, EOS, and destruction.
   bool shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_delegate);
 };
