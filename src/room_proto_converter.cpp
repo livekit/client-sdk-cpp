@@ -147,6 +147,8 @@ DisconnectReason toDisconnectReason(proto::DisconnectReason in) {
       return DisconnectReason::ConnectionTimeout;
     case proto::MEDIA_FAILURE:
       return DisconnectReason::MediaFailure;
+    case proto::AGENT_ERROR:
+      return DisconnectReason::AgentError;
     case proto::UNKNOWN_REASON:
     default:
       return DisconnectReason::Unknown;
@@ -185,6 +187,8 @@ proto::DisconnectReason toProto(DisconnectReason in) {
       return proto::CONNECTION_TIMEOUT;
     case DisconnectReason::MediaFailure:
       return proto::MEDIA_FAILURE;
+    case DisconnectReason::AgentError:
+      return proto::AGENT_ERROR;
     case DisconnectReason::Unknown:
     default:
       return proto::UNKNOWN_REASON;
