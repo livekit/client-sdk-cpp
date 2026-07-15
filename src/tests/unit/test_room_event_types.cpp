@@ -26,6 +26,7 @@ TEST(RoomEventTypesTest, EnumValuesAreReachable) {
   EXPECT_NE(DataPacketKind::Reliable, DataPacketKind::Lossy);
   EXPECT_NE(EncryptionState::New, EncryptionState::Ok);
   EXPECT_NE(DisconnectReason::Unknown, DisconnectReason::ClientInitiated);
+  EXPECT_NE(DisconnectReason::MediaFailure, DisconnectReason::AgentError);
   EXPECT_NE(ConnectionQuality::Poor, ConnectionQuality::Excellent);
 }
 
