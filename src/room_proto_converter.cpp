@@ -147,6 +147,8 @@ DisconnectReason toDisconnectReason(proto::DisconnectReason in) {
       return DisconnectReason::ConnectionTimeout;
     case proto::MEDIA_FAILURE:
       return DisconnectReason::MediaFailure;
+    case proto::AGENT_ERROR:
+      return DisconnectReason::AgentError;
     case proto::UNKNOWN_REASON:
     default:
       return DisconnectReason::Unknown;
@@ -185,6 +187,8 @@ proto::DisconnectReason toProto(DisconnectReason in) {
       return proto::CONNECTION_TIMEOUT;
     case DisconnectReason::MediaFailure:
       return proto::MEDIA_FAILURE;
+    case DisconnectReason::AgentError:
+      return proto::AGENT_ERROR;
     case DisconnectReason::Unknown:
     default:
       return proto::UNKNOWN_REASON;
@@ -526,6 +530,9 @@ proto::TrackPublishOptions toProto(const TrackPublishOptions& in) {
   for (const proto::FrameMetadataFeature feature : toProto(mergedFrameMetadataFeatures(in))) {
     msg.add_frame_metadata_features(feature);
   }
+  if (in.degradation_preference) {
+    msg.set_degradation_preference(static_cast<proto::DegradationPreference>(*in.degradation_preference));
+  }
   return msg;
 }
 
@@ -563,6 +570,9 @@ TrackPublishOptions fromProto(const proto::TrackPublishOptions& in) {
     out.frame_metadata_features = frame_metadata_features;
   }
   out.packet_trailer_features = frame_metadata_features;
+  if (in.has_degradation_preference()) {
+    out.degradation_preference = static_cast<DegradationPreference>(in.degradation_preference());
+  }
   return out;
 }
 

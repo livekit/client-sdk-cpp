@@ -138,6 +138,20 @@ TEST(TrackPublishOptionsTest, FrameMetadataFeaturesRoundTrip) {
   EXPECT_TRUE(round_trip.frame_metadata_features->user_data);
 }
 
+TEST(TrackPublishOptionsTest, DegradationPreferenceRoundTrip) {
+  TrackPublishOptions options;
+  options.degradation_preference = DegradationPreference::MaintainFramerateAndResolution;
+
+  proto::TrackPublishOptions proto_options = toProto(options);
+  ASSERT_TRUE(proto_options.has_degradation_preference());
+  EXPECT_EQ(proto_options.degradation_preference(),
+            proto::DegradationPreference::DEGRADATION_PREFERENCE_MAINTAIN_FRAMERATE_AND_RESOLUTION);
+
+  TrackPublishOptions round_trip = fromProto(proto_options);
+  ASSERT_TRUE(round_trip.degradation_preference.has_value());
+  EXPECT_EQ(*round_trip.degradation_preference, DegradationPreference::MaintainFramerateAndResolution);
+}
+
 TEST(TrackPublishOptionsTest, DeprecatedPacketTrailerFeaturesAreMerged) {
   TrackPublishOptions options;
 

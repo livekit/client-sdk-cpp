@@ -26,6 +26,7 @@ TEST(RoomEventTypesTest, EnumValuesAreReachable) {
   EXPECT_NE(DataPacketKind::Reliable, DataPacketKind::Lossy);
   EXPECT_NE(EncryptionState::New, EncryptionState::Ok);
   EXPECT_NE(DisconnectReason::Unknown, DisconnectReason::ClientInitiated);
+  EXPECT_NE(DisconnectReason::MediaFailure, DisconnectReason::AgentError);
   EXPECT_NE(ConnectionQuality::Poor, ConnectionQuality::Excellent);
 }
 
@@ -49,6 +50,7 @@ TEST(RoomEventTypesTest, TrackPublishOptionsDefaults) {
   EXPECT_FALSE(options.packet_trailer_features.user_timestamp);
   EXPECT_FALSE(options.packet_trailer_features.frame_id);
   EXPECT_FALSE(options.packet_trailer_features.user_data);
+  EXPECT_FALSE(options.degradation_preference.has_value());
 }
 
 TEST(RoomEventTypesTest, UserPacketDataDefaults) {

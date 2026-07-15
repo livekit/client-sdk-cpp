@@ -86,7 +86,7 @@ jobs:
       - name: Restore vcpkg binary cache
         if: runner.os == 'Windows'
         id: cache-vcpkg-binary
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.VCPKG_BINARY_CACHE_DIR }}
           key: ${{ runner.os }}-${{ matrix.name }}-vcpkg-binary-${{ env.VCPKG_TARGET_TRIPLET }}-${{ env.VCPKG_GIT_COMMIT }}-${{ hashFiles('vcpkg.json') }}
@@ -128,7 +128,7 @@ jobs:
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537
+        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88
         with:
           toolchain: stable
 
@@ -147,7 +147,7 @@ jobs:
         run: echo "sha=$(git -C client-sdk-rust rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Cache cargo registry
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index/
@@ -159,7 +159,7 @@ jobs:
 
       - name: Restore cargo target
         id: cache-cargo-target
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: client-sdk-rust/target/
           key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
@@ -357,7 +357,7 @@ jobs:
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537
+        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88
         with:
           toolchain: stable
 
@@ -366,7 +366,7 @@ jobs:
       # here. The compiled target/ is intentionally not cached for coverage —
       # see the note below the registry cache step.
       - name: Cache cargo registry
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index/

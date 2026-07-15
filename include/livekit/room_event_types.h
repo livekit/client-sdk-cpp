@@ -78,22 +78,40 @@ enum class EncryptionState {
 ///
 /// These values mirror the server-side DisconnectReason enum.
 enum class DisconnectReason {
+  /// Unknown or unspecified disconnect reason.
   Unknown = 0,
+  /// The client initiated the disconnect.
   ClientInitiated,
+  /// Another participant with the same identity has joined the room.
   DuplicateIdentity,
+  /// The server instance is shutting down.
   ServerShutdown,
+  /// The participant was removed from the room by the server.
   ParticipantRemoved,
+  /// The room was deleted by the server.
   RoomDeleted,
+  /// The client is attempting to resume a session, but server is not aware of it.
   StateMismatch,
+  /// Client was unable to connect fully.
   JoinFailure,
+  /// Cloud-only: the server requested the participant to migrate the connection elsewhere.
   Migration,
+  /// The signal websocket was closed unexpectedly.
   SignalClose,
+  /// The room was closed, due to all Standard and Ingress participants having left.
   RoomClosed,
+  /// SIP callee did not respond in time.
   UserUnavailable,
+  /// SIP callee rejected the call (busy).
   UserRejected,
-  SipTrunkFailure, ///< SIP (telephony) trunk connection failed
+  /// SIP protocol failure or unexpected response.
+  SipTrunkFailure,
+  /// Server timed out a participant session.
   ConnectionTimeout,
-  MediaFailure
+  /// Media stream failure or media timeout.
+  MediaFailure,
+  /// Agent encountered an error.
+  AgentError
 };
 
 /// Application-level user data carried in a data packet.
@@ -273,6 +291,19 @@ struct AudioEncodingOptions {
   std::uint64_t max_bitrate = 0;
 };
 
+/// @brief Controls how the encoder degrades quality when bandwidth is constrained.
+enum class DegradationPreference {
+  /// Balance between framerate and resolution degradation.
+  Balanced = 0,
+  /// Degrade resolution to maintain framerate (prioritize smooth motion).
+  MaintainFramerate = 1,
+  /// Degrade framerate to maintain resolution (prioritize image clarity).
+  MaintainResolution = 2,
+  /// Maintain both framerate and resolution. Frames may be dropped before
+  /// encoding if necessary to avoid overusing network and encoder resources.
+  MaintainFramerateAndResolution = 4,
+};
+
 /// Optional frame metadata features for published video tracks.
 struct FrameMetadataFeatures {
   /// Embed a user-supplied wall-clock timestamp.
@@ -324,6 +355,10 @@ struct TrackPublishOptions {
   /// @deprecated Use frame_metadata_features instead.
   [[deprecated("TrackPublishOptions::packet_trailer_features is deprecated; use frame_metadata_features instead")]]
   FrameMetadataFeatures packet_trailer_features{};
+
+  /// Controls how the encoder trades off between resolution and framerate
+  /// when bandwidth is constrained. If not set, the server defaults apply.
+  std::optional<DegradationPreference> degradation_preference;
 };
 
 // ---------------------------------------------------------
