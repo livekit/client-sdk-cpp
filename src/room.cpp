@@ -1193,8 +1193,19 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kDisconnected: {
-          const auto reason = toDisconnectReason(re.disconnected().reason());
-          (void)shutdown(false, reason, true);
+          bool should_notify = false;
+          {
+            const std::scoped_lock<std::mutex> guard(lock_);
+            // Local shutdown marks the state before awaiting the FFI response
+            // and notifies the delegate itself. Suppress that duplicate while
+            // passing server-initiated disconnects through unchanged.
+            should_notify = connection_state_ != ConnectionState::Disconnected;
+          }
+          if (should_notify && delegate_snapshot) {
+            DisconnectedEvent ev;
+            ev.reason = toDisconnectReason(re.disconnected().reason());
+            delegate_snapshot->onDisconnected(*this, ev);
+          }
           break;
         }
         case proto::RoomEvent::kReconnecting: {
@@ -1219,6 +1230,8 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kEos: {
+          (void)shutdown(false, DisconnectReason::Unknown, false);
+
           const RoomEosEvent ev;
           if (delegate_snapshot) {
             delegate_snapshot->onRoomEos(*this, ev);

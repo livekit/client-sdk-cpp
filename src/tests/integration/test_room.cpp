@@ -160,9 +160,19 @@ public:
     cv_.notify_all();
   }
 
+  void onRoomEos(Room&, const RoomEosEvent&) override {
+    eos_count.fetch_add(1);
+    cv_.notify_all();
+  }
+
   bool waitForDisconnect(std::chrono::milliseconds timeout) {
     std::unique_lock<std::mutex> lock(mutex_);
     return cv_.wait_for(lock, timeout, [this]() { return count.load() > 0; });
+  }
+
+  bool waitForEos(std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return cv_.wait_for(lock, timeout, [this]() { return eos_count.load() > 0; });
   }
 
   DisconnectReason lastReason() const {
@@ -171,6 +181,7 @@ public:
   }
 
   std::atomic<int> count{0};
+  std::atomic<int> eos_count{0};
 
 private:
   mutable std::mutex mutex_;
@@ -300,9 +311,11 @@ TEST_F(RoomTest, ServerDeletedRoomDisconnectsAndTearsDownLocally) {
   ASSERT_EQ(std::system(delete_command.c_str()), 0) << "failed to delete local test room";
 
   ASSERT_TRUE(delegate.waitForDisconnect(10s)) << "server room deletion should disconnect the client";
+  ASSERT_TRUE(delegate.waitForEos(10s)) << "server room deletion should end the room event stream";
   EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
   EXPECT_EQ(room.localParticipant().lock(), nullptr) << "local participant should be cleared after server disconnect";
   EXPECT_EQ(delegate.count.load(), 1) << "onDisconnected should fire exactly once";
+  EXPECT_EQ(delegate.eos_count.load(), 1) << "onRoomEos should fire exactly once";
   EXPECT_EQ(delegate.lastReason(), DisconnectReason::RoomDeleted);
 
   EXPECT_FALSE(room.disconnect()) << "disconnect after server teardown should be a no-op";
