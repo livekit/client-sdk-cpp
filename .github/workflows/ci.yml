@@ -40,6 +40,7 @@ jobs:
               - benchmarks/**
               - cpp-example-collection
               - cpp-example-collection/**
+              - client-sdk-rust
               - client-sdk-rust/**
               - cmake/**
               - CMakeLists.txt
@@ -52,6 +53,7 @@ jobs:
             tests:
               - src/**
               - include/**
+              - client-sdk-rust
               - client-sdk-rust/**
               - cmake/**
               - .token_helpers/**
@@ -74,17 +76,13 @@ jobs:
               - src/**
               - include/**
               - benchmarks/**
+              - client-sdk-rust
               - client-sdk-rust/**
               - cmake/**
               - CMakeLists.txt
               - CMakePresets.json
               - cpp-tools
               - cpp-tools/**
-              - scripts/clang-format.sh
-              - scripts/clang-tidy.sh
-              - scripts/install-pre-commit.sh
-              - .clang-format
-              - .clang-tidy
               - .gitmodules
               - .github/workflows/ci.yml
             docker:
@@ -136,11 +134,13 @@ jobs:
     name: C++ Tools
     needs: changes
     if: ${{ needs.changes.outputs.cpp_tools == 'true' || github.event_name == 'workflow_dispatch' }}
-    uses: livekit/cpp-tools/.github/workflows/cpp-tools.yml@alan/bootstrap-cpp-tools
+    # GitHub loads this workflow from the separate cpp-tools repository. Keep
+    # this immutable ref aligned with the cpp-tools submodule gitlink.
+    uses: livekit/cpp-tools/.github/workflows/cpp-tools.yml@f2dbc227187f9434f6bba9e95e0a2da4638b973b
     with:
       clang_format: true
       clang_tidy: true
-      doxygen: true
+      doxygen: false
       checkout_submodules: recursive
       clang_format_paths: src include benchmarks
       clang_tidy_dependencies_command: |

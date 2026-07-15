@@ -76,11 +76,11 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `src/tests/` | Google Test integration and stress tests |
 | `examples/` | In-tree example applications |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
-| `cpp-tools/` | Git submodule holding shared LiveKit C++ clang-format / clang-tidy configs, scripts, and docs |
+| `cpp-tools/` | Git submodule holding shared LiveKit C++ clang-format / clang-tidy configs, scripts, docs, and CI workflow |
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `nlohmann_json.cmake`, `LiveKitConfig.cmake.in`) |
 | `docker/` | Dockerfile for CI and SDK distribution images |
-| `scripts/` | Local helper scripts and transition wrappers that delegate shared clang tooling to `cpp-tools/` |
+| `scripts/` | Local helper scripts for SDK-specific development tasks |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
 | `.github/workflows/` | GitHub Actions CI workflows |
@@ -327,11 +327,11 @@ malformed table, missing `@param` on a documented function, …) fails the build
 
 Code should be easy to read and understand. If a sacrifice is made for performance or readability, it should be documented.
 
-Adhere to clang-format checks configured in `.clang-format`, which is a symlink to `cpp-tools/configs/.clang-format`. Run `./cpp-tools/scripts/clang-format.sh --path src --path include --path benchmarks` if needed to confirm code styling. During the transition, `./scripts/clang-format.sh` and `./scripts/clang-format.sh --fix` remain compatibility wrappers.
+Adhere to clang-format checks configured in `.clang-format`, which is installed as a symlink to `cpp-tools/.clang-format`. Run `./cpp-tools/clang-format.sh --path src --path include --path benchmarks` to confirm code styling, or add `--fix` to rewrite files.
 
 ### Static Analysis
 
-Adhere to clang-tidy checks configured in `.clang-tidy`, which is a symlink to `cpp-tools/configs/.clang-tidy`. Run `./scripts/clang-tidy.sh` if needed to confirm code quality; the wrapper supplies this repo's build directory, file regex, and header filters to the shared `cpp-tools` script.
+Adhere to clang-tidy checks configured in `.clang-tidy`, which is installed as a symlink to `cpp-tools/.clang-tidy`. Run `./cpp-tools/clang-tidy.sh` with the repository-specific build directory and filters documented in `docs/tools.md`.
 
 ## Dependencies
 

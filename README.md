@@ -244,13 +244,12 @@ local `livekit-server --dev`, and run via `ctest` or directly. See
 
 ## Developer tools
 
-`clang-tidy` and `clang-format` are provided by the `cpp-tools` submodule, with
-transition wrappers kept under `scripts/`. `valgrind` and Doxygen remain
-documented with the rest of the local developer tools. Set up the pre-commit
-auto-formatter with:
+`clang-tidy` and `clang-format` are provided by the `cpp-tools` submodule.
+`valgrind` and Doxygen remain documented with the rest of the local developer
+tools. Set up the pre-commit auto-formatter with:
 
 ```bash
-./cpp-tools/scripts/install-pre-commit.sh
+./cpp-tools/install-pre-commit.sh
 ```
 
 See [docs/tools.md](docs/tools.md).
