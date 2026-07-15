@@ -1221,8 +1221,6 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kEos: {
-          (void)shutdown(false, DisconnectReason::Unknown, false);
-
           const RoomEosEvent ev;
           if (delegate_snapshot) {
             delegate_snapshot->onRoomEos(*this, ev);
