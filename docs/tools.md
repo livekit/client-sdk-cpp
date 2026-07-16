@@ -8,8 +8,7 @@ are also enforced in CI on PRs.
 `clang-tidy` and `clang-format` are owned by the
 [`livekit/cpp-tools`](https://github.com/livekit/cpp-tools) submodule. The
 `./cpp-tools/install.sh` script creates root `.clang-tidy` and `.clang-format`
-symlinks so editor integrations can discover them automatically, and installs
-the pre-commit auto-formatter.
+symlinks so editor integrations can discover them automatically.
 The workflow visible at `cpp-tools/.github/workflows/cpp-tools.yml` belongs to
 the submodule, not the SDK. GitHub loads that workflow from the separate
 `livekit/cpp-tools` repository at an immutable commit, then checks out this SDK
@@ -46,8 +45,7 @@ ask you to add `/opt/homebrew/opt/llvm/bin` (Apple Silicon) or
 sudo apt-get install clang-format clang-tidy clang-tools
 ```
 
-Install the shared configuration symlinks and pre-commit hook from the
-repository root:
+Install the shared configuration symlinks from the repository root:
 
 ```bash
 ./cpp-tools/install.sh
@@ -98,8 +96,7 @@ Output is captured to `clang-format.log` at the repo root.
 ## Pre-commit hook
 
 A simple pre-commit hook that auto-formats staged C/C++ files using the
-project's `.clang-format` rules is included by the default installation. To
-install only the hook:
+project's `.clang-format` rules is available as an explicit opt-in:
 
 ```bash
 ./cpp-tools/install.sh precommit-hook
