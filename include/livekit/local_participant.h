@@ -246,6 +246,14 @@ private:
   /// prune expired @c weak_ptr entries.
   mutable TrackMap published_tracks_by_sid_;
 
+  /// Guards @ref published_tracks_by_sid_. The map is written from the
+  /// application thread (@ref publishTrack / @ref unpublishTrack) and both read
+  /// and pruned from the FFI callback thread (@ref trackPublications /
+  /// @ref findTrackPublication, reached via Room::onEvent). Without this lock
+  /// those concurrent accesses race and free map nodes out from under each
+  /// other (heap-use-after-free). Leaf lock: no other lock is taken while held.
+  mutable std::mutex published_tracks_mutex_;
+
   std::unordered_map<std::string, RpcHandler> rpc_handlers_;
 
   // Shared state for RPC invocation tracking. Using shared_ptr so the state
