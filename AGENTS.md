@@ -1,5 +1,17 @@
 # AGENTS.md — LiveKit C++ Client SDK
 
+## Shared C++ Baseline
+
+Follow `cpp-tools/AGENTS.md` for shared C++ rules and this file for SDK-specific
+guidance.
+
+Before C++ work, verify the shared guidance and root `.clang-format` /
+`.clang-tidy` symlinks are present. If not, flag it and recommend
+`git submodule update --init cpp-tools` or `./cpp-tools/install.sh` as
+appropriate. Never use `--force` without approval or claim tooling verification
+while these prerequisites are missing. Project-specific commands are documented
+in `docs/tools.md`.
+
 ## Project Overview
 
 This is **client-sdk-cpp**, the official LiveKit C++ client SDK. It wraps a Rust core (`client-sdk-rust/`) via a protobuf-based FFI bridge. All WebRTC, networking, and media logic lives in Rust; the C++ layer provides an ergonomic API for C++ consumers.
@@ -76,7 +88,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `src/tests/` | Google Test integration and stress tests |
 | `examples/` | In-tree example applications |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
-| `cpp-tools/` | Git submodule holding shared LiveKit C++ clang-format / clang-tidy configs, scripts, docs, and CI workflow |
+| `cpp-tools/` | Git submodule holding shared LiveKit C++ engineering guidance, clang-format / clang-tidy configs, scripts, docs, and CI workflow |
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `nlohmann_json.cmake`, `LiveKitConfig.cmake.in`) |
 | `docker/` | Dockerfile for CI and SDK distribution images |
@@ -306,32 +318,11 @@ internal symbols are too noisy to enforce) and `WARN_AS_ERROR = FAIL_ON_WARNINGS
 so any other warning (broken `@ref`, unknown `@command`, unsupported HTML tag,
 malformed table, missing `@param` on a documented function, …) fails the build.
 
-### Integer Types
-
-- Prefer fixed-width integer types from `<cstdint>` (`std::int32_t`, `std::uint64_t`, etc.) over raw primitive integer types when size or signedness matters.
-- This applies in public APIs, FFI/protobuf-facing code, serialized payloads, handles, timestamps, IDs, and any cross-platform boundary where integer width must be explicit.
-- Use raw primitive integer types only when the value is intentionally platform-sized or when preserving an existing public API is necessary for backwards compatibility.
-- Do not change an existing public API from a raw primitive integer type to a fixed-width type for style consistency alone unless the compatibility impact has been reviewed.
-
-### Git Practices
-
-- Use `git mv` when moving or renaming files.
-
 ### CMake
 
 - spdlog is linked **PRIVATE** to the `livekit` target. It must not appear in exported/installed dependencies.
 - protobuf is vendored via FetchContent on non-Windows platforms; Windows uses vcpkg.
 - The CMake install produces a `find_package(LiveKit CONFIG)`-compatible package with `LiveKitConfig.cmake`, `LiveKitTargets.cmake`, and `LiveKitConfigVersion.cmake`.
-
-### Readability and Performance
-
-Code should be easy to read and understand. If a sacrifice is made for performance or readability, it should be documented.
-
-Adhere to clang-format checks configured in `.clang-format`, which is installed as a symlink to `cpp-tools/.clang-format`. Run `./cpp-tools/clang-format.sh --path src --path include --path benchmarks` to confirm code styling, or add `--fix` to rewrite files.
-
-### Static Analysis
-
-Adhere to clang-tidy checks configured in `.clang-tidy`, which is installed as a symlink to `cpp-tools/.clang-tidy`. Run `./cpp-tools/clang-tidy.sh` with the repository-specific build directory and filters documented in `docs/tools.md`.
 
 ## Dependencies
 
@@ -373,13 +364,6 @@ Integration tests (`src/tests/integration/`) cover: room connections, callbacks,
 
 When adding new client facing functionality, add a new test case to the existing test suite.
 When adding new client facing functionality, add benchmarking to understand the limitations of the new functionality.
-
-## General C++ Development
-
-- Do not use dynamic memory allocation after initialization
-- Keep each function short (roughly ≤ 60 lines)
-- Declare all data objects at the smallest possible level of scope
-- Each calling function must check the return value of nonvoid functions, and each called function must check the validity of all parameters provided by the caller
 
 ## Common Pitfalls
 
