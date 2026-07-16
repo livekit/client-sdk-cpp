@@ -136,7 +136,7 @@ jobs:
     if: ${{ needs.changes.outputs.cpp_tools == 'true' || github.event_name == 'workflow_dispatch' }}
     # GitHub loads this workflow from the separate cpp-tools repository. Keep
     # this immutable ref aligned with the cpp-tools submodule gitlink.
-    uses: livekit/cpp-tools/.github/workflows/cpp-tools.yml@f2dbc227187f9434f6bba9e95e0a2da4638b973b
+    uses: livekit/cpp-tools/.github/workflows/cpp-tools.yml@12c945180b6a2b48149c79be79d9d7d727fc3c12
     with:
       clang_format: true
       clang_tidy: true
