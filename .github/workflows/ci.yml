@@ -140,7 +140,6 @@ jobs:
     with:
       clang_format: true
       clang_tidy: true
-      doxygen: false
       checkout_submodules: recursive
       clang_format_paths: src include benchmarks
       clang_tidy_dependencies_command: |

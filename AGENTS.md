@@ -401,8 +401,8 @@ all filtered stages; normal pull requests and pushes use the path filters.
   matrix.
 - `.github/workflows/tests.yml` — Reusable unit/integration test matrix.
 - `livekit/cpp-tools/.github/workflows/cpp-tools.yml` — Shared reusable
-  workflow called directly by `ci.yml` for C++ tooling checks such as
-  `clang-format`, `clang-tidy`, and Doxygen validation.
+  workflow called directly by `ci.yml` for `clang-format` and `clang-tidy`
+  checks.
 - `.github/workflows/generate-docs.yml` — Reusable Doxygen docs validation.
 - `.github/workflows/rust-release-check.yml` — Reusable check that the pinned
  `client-sdk-rust` submodule commit maps to a published release. Gated by the
