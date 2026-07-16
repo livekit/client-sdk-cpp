@@ -224,6 +224,7 @@ bool Room::shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
   std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> text_stream_readers_to_clear;
   std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> byte_stream_readers_to_clear;
   int listener_to_remove = 0;
+  bool claimed_disconnect = false;
 
   {
     const std::scoped_lock<std::mutex> g(lock_);
@@ -234,6 +235,10 @@ bool Room::shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
     if (!has_room_state) {
       return false;
     }
+    // The state transition determines which racing path owns the FFI request
+    // and delegate notification. Remaining room state is still claimed here so
+    // EOS or destruction can finish local cleanup after a server disconnect.
+    claimed_disconnect = connection_state_ != ConnectionState::Disconnected;
     handle = std::move(room_handle_);
     delegate_snapshot = delegate_;
     local_participant_to_cleanup = std::move(local_participant_);
@@ -259,7 +264,7 @@ bool Room::shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
     }
   }
 
-  if (disconnect_ffi && handle && handle->valid()) {
+  if (disconnect_ffi && claimed_disconnect && handle && handle->valid()) {
     try {
       FfiClient::instance().disconnectAsync(handle->get(), reason).get();
     } catch (const std::exception& e) {
@@ -302,7 +307,7 @@ bool Room::shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
   byte_stream_readers_to_clear.clear();
   handle.reset();
 
-  if (notify_delegate && delegate_snapshot) {
+  if (notify_delegate && claimed_disconnect && delegate_snapshot) {
     DisconnectedEvent ev;
     ev.reason = reason;
     try {
@@ -314,7 +319,7 @@ bool Room::shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
     }
   }
 
-  return shutdown_ok;
+  return claimed_disconnect && shutdown_ok;
 }
 
 RoomInfoData Room::roomInfo() const {
@@ -1200,6 +1205,7 @@ void Room::onEvent(const FfiEvent& event) {
             // and notifies the delegate itself. Suppress that duplicate while
             // passing server-initiated disconnects through unchanged.
             should_notify = connection_state_ != ConnectionState::Disconnected;
+            connection_state_ = ConnectionState::Disconnected;
           }
           if (should_notify && delegate_snapshot) {
             DisconnectedEvent ev;

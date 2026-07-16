@@ -333,7 +333,7 @@ TEST_F(RoomTest, RemoteParticipantLookupBeforeConnect) {
       << "Looking up participant before connect should return an empty handle";
 }
 
-TEST_F(RoomTest, ServerDisconnectNotifiesBeforeEosTearsDownRoom) {
+TEST_F(RoomTest, ServerDisconnectMarksDisconnectedBeforeEosTearsDownRoom) {
   Room room;
   UnitLifecycleTrackingDelegate delegate;
   std::atomic<int> listener_calls{0};
@@ -348,7 +348,7 @@ TEST_F(RoomTest, ServerDisconnectNotifiesBeforeEosTearsDownRoom) {
   emitFfiEvent(disconnected_event);
 
   EXPECT_EQ(listener_calls.load(std::memory_order_relaxed), 1);
-  EXPECT_EQ(room.connectionState(), ConnectionState::Connected);
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
   EXPECT_TRUE(RoomTestAccess::hasRoomHandle(room));
   EXPECT_NE(RoomTestAccess::listenerId(room), 0);
   ASSERT_EQ(delegate.callbacks.size(), 1);
@@ -372,6 +372,33 @@ TEST_F(RoomTest, ServerDisconnectNotifiesBeforeEosTearsDownRoom) {
   EXPECT_EQ(listener_calls.load(std::memory_order_relaxed), 2) << "EOS teardown must unregister the Room listener";
   EXPECT_EQ(delegate.callbacks.size(), 2) << "lifecycle delegates must each fire exactly once";
   EXPECT_FALSE(room.disconnect()) << "disconnect after EOS teardown must be a no-op";
+}
+
+TEST_F(RoomTest, DisconnectAfterServerDisconnectCleansUpWithoutDuplicateNotification) {
+  Room room;
+  UnitLifecycleTrackingDelegate delegate;
+  std::atomic<int> listener_calls{0};
+  room.setDelegate(&delegate);
+  RoomTestAccess::installConnectedListener(room, listener_calls);
+
+  proto::FfiEvent disconnected_event;
+  auto* disconnected_room_event = disconnected_event.mutable_room_event();
+  disconnected_room_event->set_room_handle(0);
+  disconnected_room_event->mutable_disconnected()->set_reason(proto::ROOM_DELETED);
+
+  emitFfiEvent(disconnected_event);
+
+  ASSERT_EQ(delegate.callbacks.size(), 1);
+  EXPECT_EQ(delegate.callbacks[0], LifecycleCallback::Disconnected);
+  EXPECT_EQ(delegate.reason, DisconnectReason::RoomDeleted);
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_TRUE(RoomTestAccess::hasRoomHandle(room));
+
+  EXPECT_FALSE(room.disconnect()) << "disconnect must not reclaim an already-disconnected transition";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_FALSE(RoomTestAccess::hasRoomHandle(room));
+  EXPECT_EQ(RoomTestAccess::listenerId(room), 0);
+  EXPECT_EQ(delegate.callbacks.size(), 1) << "onDisconnected must not fire twice";
 }
 
 } // namespace livekit::test
