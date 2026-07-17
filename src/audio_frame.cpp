@@ -19,6 +19,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 
@@ -35,7 +36,16 @@ AudioFrame::AudioFrame(std::vector<std::int16_t> data, int sample_rate, int num_
       sample_rate_(sample_rate),
       num_channels_(num_channels),
       samples_per_channel_(samples_per_channel) {
-  const std::size_t expected = static_cast<std::size_t>(num_channels_) * static_cast<std::size_t>(samples_per_channel_);
+  if (num_channels_ <= 0 || samples_per_channel_ <= 0) {
+    throw std::invalid_argument("AudioFrame: num_channels and samples_per_channel must be positive");
+  }
+
+  const auto channels = static_cast<std::size_t>(num_channels_);
+  const auto samples = static_cast<std::size_t>(samples_per_channel_);
+  if (channels > std::numeric_limits<std::size_t>::max() / samples) {
+    throw std::invalid_argument("AudioFrame: num_channels * samples_per_channel overflows");
+  }
+  const std::size_t expected = channels * samples;
 
   if (data_.size() < expected) {
     throw std::invalid_argument("AudioFrame: data size must be >= num_channels * samples_per_channel");

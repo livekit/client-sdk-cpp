@@ -43,8 +43,10 @@ public:
   /// @param num_channels        Number of channels.
   /// @param samples_per_channel Number of samples per channel.
   ///
-  /// @throws std::invalid_argument if the data size is inconsistent with
-  ///         num_channels * samples_per_channel.
+  /// @throws std::invalid_argument if @p num_channels or
+  ///         @p samples_per_channel is not positive, or if the data size is
+  ///         inconsistent with num_channels * samples_per_channel, or if that
+  ///         product cannot be represented by std::size_t.
   AudioFrame(std::vector<std::int16_t> data, int sample_rate, int num_channels, int samples_per_channel);
   AudioFrame(); // Default constructor
   virtual ~AudioFrame() = default;
