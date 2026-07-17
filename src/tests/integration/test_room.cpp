@@ -294,9 +294,6 @@ TEST_F(RoomTest, ServerDeletedRoomDisconnectsAndTearsDownLocally) {
   if (server_url_ != kLocalTestLiveKitUrl) {
     GTEST_SKIP() << "server-delete integration test requires local livekit-server";
   }
-  const char* room_name = std::getenv("LIVEKIT_ROOM");
-  ASSERT_NE(room_name, nullptr) << "LIVEKIT_ROOM not set";
-  ASSERT_NE(std::string(room_name), "") << "LIVEKIT_ROOM must be non-empty";
 
   Room room;
   DisconnectTrackingDelegate delegate;
@@ -307,8 +304,9 @@ TEST_F(RoomTest, ServerDeletedRoomDisconnectsAndTearsDownLocally) {
   ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
   ASSERT_NE(room.localParticipant().lock(), nullptr);
 
-  const std::string delete_command = std::string("lk --dev room delete --yes ") + room_name;
-  ASSERT_EQ(std::system(delete_command.c_str()), 0) << "failed to delete local test room";
+  // Hard coding cpp_data_track_test room name to prevent vulnerabilities reading an environment variable
+  // before a system call
+  ASSERT_EQ(std::system("lk --dev room delete --yes cpp_data_track_test"), 0) << "failed to delete local test room";
 
   ASSERT_TRUE(delegate.waitForDisconnect(10s)) << "server room deletion should disconnect the client";
   ASSERT_TRUE(delegate.waitForEos(10s)) << "server room deletion should end the room event stream";

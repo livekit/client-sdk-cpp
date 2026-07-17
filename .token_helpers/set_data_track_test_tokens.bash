@@ -21,7 +21,6 @@
 #   eval "$(bash .token_helpers/set_data_track_test_tokens.bash)"
 #
 # Exports:
-#   LIVEKIT_ROOM
 #   LIVEKIT_TOKEN_A
 #   LIVEKIT_TOKEN_B
 #   LIVEKIT_URL=ws://localhost:7880
@@ -108,14 +107,12 @@ LIVEKIT_TOKEN_A="$(_create_token "$LIVEKIT_IDENTITY_A")"
 LIVEKIT_TOKEN_B="$(_create_token "$LIVEKIT_IDENTITY_B")"
 
 _apply() {
-  export LIVEKIT_ROOM
   export LIVEKIT_TOKEN_A
   export LIVEKIT_TOKEN_B
   export LIVEKIT_URL
 }
 
 _emit_eval() {
-  printf 'export LIVEKIT_ROOM=%q\n' "$LIVEKIT_ROOM"
   printf 'export LIVEKIT_TOKEN_A=%q\n' "$LIVEKIT_TOKEN_A"
   printf 'export LIVEKIT_TOKEN_B=%q\n' "$LIVEKIT_TOKEN_B"
   printf 'export LIVEKIT_URL=%q\n' "$LIVEKIT_URL"
