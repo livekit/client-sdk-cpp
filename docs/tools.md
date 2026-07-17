@@ -5,20 +5,14 @@ are also enforced in CI on PRs.
 
 ## Clang tools
 
-`clang-tidy` and `clang-format` are owned by the
-[`livekit/cpp-tools`](https://github.com/livekit/cpp-tools) submodule. The
-`./cpp-tools/install.sh` script creates root `.clang-tidy` and `.clang-format`
-symlinks so editor integrations can discover them automatically.
-The SDK-owned `.github/workflows/cpp-tools.yml` workflow prepares the
-project-specific CI environment and calls the same `scripts/clang-format.sh`
-and `scripts/clang-tidy.sh` wrappers used locally. The shared scripts detect
-GitHub Actions automatically and produce annotations and step summaries.
-Doxygen remains in the SDK-specific documentation workflow.
+The shared configuration and tooling scripts come from the
+[`livekit/cpp-tools`](https://github.com/livekit/cpp-tools) submodule.
 
-- **`clang-tidy`** — static analysis. See `cpp-tools/.clang-tidy` for the
+- **`clang-tidy`** — static analysis. See
+  [cpp-tools/.clang-tidy](https://github.com/livekit/cpp-tools/blob/main/.clang-tidy) for the
   enabled checks. Enforced in CI on PR.
 - **`clang-format`** — code formatting and style consistency. See
-  `cpp-tools/.clang-format` for the rules. Enforced in CI on PR.
+  [cpp-tools/.clang-format](https://github.com/livekit/cpp-tools/blob/main/.clang-format) for the rules. Enforced in CI on PR.
 
 > **Note (Windows):** `clang-tidy` is not currently driven by our scripts on
 > Windows. The MSBuild CMake generator doesn't emit
@@ -58,19 +52,20 @@ Install the shared configuration symlinks from the repository root:
    ./build.sh release
    ```
 
-2. Run the project wrapper. It supplies the same build directory and filters
-   as CI, then delegates diagnostics and summaries to `cpp-tools`:
+2. Run the wrapper, which uses the same file set, regex filters, and
+   `.clang-tidy` config as CI:
 
    ```bash
    ./scripts/clang-tidy.sh
    ```
 
-Pass source files positionally to limit analysis, `-j N` to override the worker
-count, `--fail-on-warning` for a strict local run, or `--fix` to apply fixes:
+With no arguments, runs against every relevant file in the repository against
+the checks in `.clang-tidy`.
 
 ```bash
-./scripts/clang-tidy.sh src/room.cpp
-./scripts/clang-tidy.sh --fail-on-warning
+./scripts/clang-tidy.sh src/ffi_client.cpp # Check just this file
+./scripts/clang-tidy.sh -j 4               # Override worker count
+./scripts/clang-tidy.sh --fix              # Apply fixes
 ```
 
 Output is captured to `clang-tidy.log` at the repo root, since the terminal
@@ -82,10 +77,13 @@ buffer often can't hold all of it.
 ./scripts/clang-format.sh
 ```
 
+With no arguments, runs against every relevant file in the repository against
+the rules in `.clang-format`.
+
 ```bash
-./scripts/clang-format.sh --fix
-./scripts/clang-format.sh src/room.cpp include/livekit/room.h
-./scripts/clang-format.sh --fix src/room.cpp
+./scripts/clang-format.sh --fix                                # Rewrite files in place
+./scripts/clang-format.sh src/room.cpp include/livekit/room.h  # Check just these files
+./scripts/clang-format.sh --fix src/room.cpp                   # Fix just this file
 ```
 
 Output is captured to `clang-format.log` at the repo root.
@@ -95,7 +93,7 @@ Output is captured to `clang-format.log` at the repo root.
 ## Pre-commit hook
 
 A simple pre-commit hook that auto-formats staged C/C++ files using the
-project's `.clang-format` rules is available as an explicit opt-in:
+project's `.clang-format` rules:
 
 ```bash
 ./cpp-tools/install.sh precommit-hook
