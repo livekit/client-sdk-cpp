@@ -330,7 +330,7 @@ public:
   void removeOnDataFrameCallback(DataFrameCallbackId id);
 
 private:
-  friend class RoomCallbackTest;
+  friend struct RoomTestAccess;
 
   mutable std::mutex lock_;
   ConnectionState connection_state_ = ConnectionState::Disconnected;
@@ -355,5 +355,8 @@ private:
   int listener_id_{0};
 
   void onEvent(const proto::FfiEvent& event);
+
+  // Shared shutdown path for explicit disconnect, server disconnect, EOS, and destruction.
+  bool shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_delegate);
 };
 } // namespace livekit

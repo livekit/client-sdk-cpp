@@ -26,6 +26,7 @@
 #include <thread>
 #include <unordered_set>
 
+#include "../common/ffi_utils.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 
@@ -54,9 +55,7 @@ void emitEvent() {
   record->set_target("test");
   record->set_message("listener event");
 
-  std::string bytes;
-  ASSERT_TRUE(event.SerializeToString(&bytes));
-  ffiEventCallback(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+  emitFfiEvent(event);
 }
 
 // Minimal stand-in for Room that mirrors its relationship to FfiClient:
@@ -408,11 +407,9 @@ TEST_F(FfiClientTest, PanicEvent) {
 
   proto::FfiEvent event;
   event.mutable_panic()->set_message("rust panic");
-  std::string bytes;
-  ASSERT_TRUE(event.SerializeToString(&bytes));
 
   testing::internal::CaptureStderr();
-  ffiEventCallback(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+  emitFfiEvent(event);
   const std::string stderr_output = testing::internal::GetCapturedStderr();
 
   ASSERT_NE(std::signal(SIGTERM, previous_handler), SIG_ERR);

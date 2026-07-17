@@ -21,15 +21,28 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdlib>
 #include <future>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "../common/test_common.h"
 
 using namespace std::chrono_literals;
+
+namespace livekit {
+
+struct RoomTestAccess {
+  static int listenerId(const Room& room) {
+    const std::scoped_lock<std::mutex> guard(room.lock_);
+    return room.listener_id_;
+  }
+};
+
+} // namespace livekit
 
 namespace livekit::test {
 
@@ -139,12 +152,41 @@ namespace {
 class DisconnectTrackingDelegate : public RoomDelegate {
 public:
   void onDisconnected(Room&, const DisconnectedEvent& ev) override {
-    ++count;
-    last_reason = ev.reason;
+    {
+      const std::scoped_lock<std::mutex> lock(mutex_);
+      last_reason_ = ev.reason;
+    }
+    count.fetch_add(1);
+    cv_.notify_all();
+  }
+
+  void onRoomEos(Room&, const RoomEosEvent&) override {
+    eos_count.fetch_add(1);
+    cv_.notify_all();
+  }
+
+  bool waitForDisconnect(std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return cv_.wait_for(lock, timeout, [this]() { return count.load() > 0; });
+  }
+
+  bool waitForEos(std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return cv_.wait_for(lock, timeout, [this]() { return eos_count.load() > 0; });
+  }
+
+  DisconnectReason lastReason() const {
+    const std::scoped_lock<std::mutex> lock(mutex_);
+    return last_reason_;
   }
 
   std::atomic<int> count{0};
-  DisconnectReason last_reason = DisconnectReason::Unknown;
+  std::atomic<int> eos_count{0};
+
+private:
+  mutable std::mutex mutex_;
+  std::condition_variable cv_;
+  DisconnectReason last_reason_ = DisconnectReason::Unknown;
 };
 
 class TokenRefreshTrackingDelegate : public RoomDelegate {
@@ -221,7 +263,7 @@ TEST_F(RoomTest, UserDisconnect) {
   EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
   EXPECT_EQ(room.localParticipant().lock(), nullptr) << "local participant should be cleared after disconnect";
   EXPECT_EQ(delegate.count.load(), 1) << "onDisconnected should fire exactly once";
-  EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
+  EXPECT_EQ(delegate.lastReason(), DisconnectReason::ClientInitiated);
 
   // Calling again on an already-disconnected room is a no-op
   EXPECT_NO_THROW(room.disconnect()) << "second disconnect should not throw on an already-disconnected room";
@@ -243,7 +285,98 @@ TEST_F(RoomTest, DestructorDisconnect) {
   room.reset(); // invokes destructor which calls disconnect()
 
   EXPECT_EQ(delegate.count.load(), 1) << "destructor should fire onDisconnected exactly once";
-  EXPECT_EQ(delegate.last_reason, DisconnectReason::ClientInitiated);
+  EXPECT_EQ(delegate.lastReason(), DisconnectReason::ClientInitiated);
+}
+
+// Case: server deletes the room while the client is connected.
+TEST_F(RoomTest, ServerDeletedRoomDisconnectsAndTearsDownLocally) {
+  ASSERT_TRUE(server_available_) << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+  if (server_url_ != kLocalTestLiveKitUrl) {
+    GTEST_SKIP() << "server-delete integration test requires local livekit-server";
+  }
+
+  Room room;
+  DisconnectTrackingDelegate delegate;
+  room.setDelegate(&delegate);
+
+  RoomOptions options;
+  ASSERT_TRUE(room.connect(server_url_, token_, options)) << "connect failed";
+  ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
+  ASSERT_NE(room.localParticipant().lock(), nullptr);
+
+  // Hard coding cpp_data_track_test room name to prevent vulnerabilities reading an environment variable
+  // before a system call
+  ASSERT_EQ(std::system("lk --dev room delete --yes cpp_data_track_test"), 0) << "failed to delete local test room";
+
+  ASSERT_TRUE(delegate.waitForDisconnect(10s)) << "server room deletion should disconnect the client";
+  ASSERT_TRUE(delegate.waitForEos(10s)) << "server room deletion should end the room event stream";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_EQ(room.localParticipant().lock(), nullptr) << "local participant should be cleared after server disconnect";
+  EXPECT_EQ(delegate.count.load(), 1) << "onDisconnected should fire exactly once";
+  EXPECT_EQ(delegate.eos_count.load(), 1) << "onRoomEos should fire exactly once";
+  EXPECT_EQ(delegate.lastReason(), DisconnectReason::RoomDeleted);
+
+  EXPECT_FALSE(room.disconnect()) << "disconnect after server teardown should be a no-op";
+  EXPECT_EQ(delegate.count.load(), 1) << "delegate must not double-fire";
+}
+
+// Case: same Room instance can connect again after an explicit local disconnect.
+TEST_F(RoomTest, ReconnectAfterDisconnect) {
+  ASSERT_TRUE(server_available_) << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+
+  Room room;
+  DisconnectTrackingDelegate delegate;
+  room.setDelegate(&delegate);
+
+  RoomOptions options;
+  ASSERT_TRUE(room.connect(server_url_, token_, options)) << "initial connect failed";
+  ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
+  ASSERT_NE(room.localParticipant().lock(), nullptr);
+
+  ASSERT_TRUE(room.disconnect()) << "explicit disconnect should succeed";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_EQ(room.localParticipant().lock(), nullptr);
+  EXPECT_EQ(delegate.count.load(), 1);
+
+  ASSERT_TRUE(room.connect(server_url_, token_, options)) << "reconnect after disconnect should succeed";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Connected);
+  EXPECT_NE(room.localParticipant().lock(), nullptr);
+
+  ASSERT_TRUE(room.disconnect());
+  EXPECT_EQ(delegate.count.load(), 2);
+}
+
+// Case: a late connection remains recoverable after disconnect raced with connect.
+TEST_F(RoomTest, LateConnectionAfterDisconnectRemainsRecoverable) {
+  ASSERT_TRUE(server_available_) << "LIVEKIT_URL and LIVEKIT_TOKEN_A not set";
+
+  Room room;
+  RoomOptions options;
+  auto connect_future =
+      std::async(std::launch::async, [&room, this, &options]() { return room.connect(server_url_, token_, options); });
+
+  // Wait until connect() installs its listener immediately before starting the
+  // blocking FFI connection, then invalidate that in-flight attempt.
+  const auto deadline = std::chrono::steady_clock::now() + 5s;
+  while (RoomTestAccess::listenerId(room) == 0 && connect_future.wait_for(0ms) != std::future_status::ready &&
+         std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+
+  ASSERT_EQ(room.connectionState(), ConnectionState::Reconnecting)
+      << "connect completed before the test could exercise the disconnect race";
+  ASSERT_NE(RoomTestAccess::listenerId(room), 0);
+  ASSERT_TRUE(room.disconnect()) << "disconnect should claim the in-progress connection";
+
+  // This preserves the existing behavior on main: the in-flight connect can
+  // still complete, but the Room must not become permanently unshuttable.
+  ASSERT_TRUE(connect_future.get());
+  ASSERT_EQ(room.connectionState(), ConnectionState::Connected);
+  ASSERT_FALSE(room.localParticipant().expired());
+
+  EXPECT_TRUE(room.disconnect()) << "the late connection must remain recoverable";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_TRUE(room.localParticipant().expired());
 }
 
 // Verifies that participant handles handed out by Room expire once the Room is
