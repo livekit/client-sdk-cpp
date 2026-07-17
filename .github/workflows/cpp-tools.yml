@@ -1,6 +1,6 @@
 name: C++ Tools
 
-# Called by top-level ci.yml.
+# Called by top-level ci.yml
 on:
   workflow_call: {}
   workflow_dispatch: {}
@@ -12,25 +12,27 @@ jobs:
   clang-format:
     name: clang-format
     runs-on: ubuntu-latest
+    continue-on-error: false
     timeout-minutes: 15
 
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
+          # Initialize only cpp-tools below; formatting still scans project C++ paths.
           fetch-depth: 1
 
       - name: Initialize cpp-tools
         run: git submodule update --init cpp-tools
 
       - name: Install shared clang-format configuration
-        run: ./cpp-tools/install.sh clang-format --repo-root "$GITHUB_WORKSPACE" --force
+        run: ./cpp-tools/install.sh clang-format --repo-root "$GITHUB_WORKSPACE"
 
       - name: Install clang-format 22
         run: |
           set -eux
-          # Pin clang-format 22 to match the current macOS Homebrew LLVM.
-          # Ubuntu 24.04's default clang-format ships with LLVM 18.
+          # Pin clang-format 22 to match the current macOS Homebrew LLVM
+          # Ubuntu 24.04's default clang-format ships with LLVM 18
           sudo install -m 0755 -d /etc/apt/keyrings
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
             | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
@@ -51,17 +53,18 @@ jobs:
   clang-tidy:
     name: clang-tidy
     runs-on: ubuntu-latest
+    continue-on-error: false
     timeout-minutes: 45
 
     steps:
-      - name: Checkout with submodules
+      - name: Checkout (with submodules)
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: recursive
           fetch-depth: 1
 
       - name: Install shared clang-tidy configuration
-        run: ./cpp-tools/install.sh clang-tidy --repo-root "$GITHUB_WORKSPACE" --force
+        run: ./cpp-tools/install.sh clang-tidy --repo-root "$GITHUB_WORKSPACE"
 
       - name: Install dependencies
         run: |
@@ -72,10 +75,12 @@ jobs:
             llvm-dev libclang-dev clang \
             libssl-dev libcurl4-openssl-dev wget ca-certificates gnupg
 
-      - name: Install clang-tidy 19
+      - name: Install clang-tidy 19 (for ExcludeHeaderFilterRegex support)
         run: |
           set -eux
-          # ExcludeHeaderFilterRegex requires clang-tidy 19 or newer.
+          # Ubuntu 24.04 apt ships clang-tidy 18, which doesn't understand
+          # ExcludeHeaderFilterRegex (added in 19). Pull clang-tidy 19 from
+          # the upstream LLVM apt repository and pin the unversioned names.
           sudo install -m 0755 -d /etc/apt/keyrings
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
             | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
@@ -90,8 +95,8 @@ jobs:
           clang-tidy --version
           run-clang-tidy --help >/dev/null
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88
         with:
           toolchain: stable
 
@@ -111,4 +116,7 @@ jobs:
       - name: Run clang-tidy
         env:
           TIDY_BLOB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        # This script is intended to be run locally and in CI. It will auto-detect
+        # the GHA environment and add PR annotations and a run summary.
+        # As of writing all warnings are treateded as errors to avoid tech debt build up
         run: ./scripts/clang-tidy.sh --fail-on-warning
