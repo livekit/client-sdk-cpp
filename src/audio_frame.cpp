@@ -19,7 +19,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <iomanip>
-#include <limits>
 #include <sstream>
 #include <stdexcept>
 
@@ -42,9 +41,6 @@ AudioFrame::AudioFrame(std::vector<std::int16_t> data, int sample_rate, int num_
 
   const auto channels = static_cast<std::size_t>(num_channels_);
   const auto samples = static_cast<std::size_t>(samples_per_channel_);
-  if (channels > std::numeric_limits<std::size_t>::max() / samples) {
-    throw std::invalid_argument("AudioFrame: num_channels * samples_per_channel overflows");
-  }
   const std::size_t expected = channels * samples;
 
   if (data_.size() < expected) {
