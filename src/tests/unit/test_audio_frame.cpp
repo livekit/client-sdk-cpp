@@ -163,4 +163,13 @@ TEST_F(AudioFrameTest, InvalidDataSizeThrows) {
   EXPECT_THROW(AudioFrame(data, 48000, 2, 960), std::invalid_argument);
 }
 
+TEST_F(AudioFrameTest, NonPositiveDimensionsThrow) {
+  const std::vector<std::int16_t> data;
+
+  EXPECT_THROW(AudioFrame(data, 48000, 0, 960), std::invalid_argument);
+  EXPECT_THROW(AudioFrame(data, 48000, 2, 0), std::invalid_argument);
+  EXPECT_THROW(AudioFrame(data, 48000, -1, 960), std::invalid_argument);
+  EXPECT_THROW(AudioFrame(data, 48000, 2, -1), std::invalid_argument);
+}
+
 } // namespace livekit::test
