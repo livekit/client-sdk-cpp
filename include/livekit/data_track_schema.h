@@ -21,7 +21,7 @@
 
 namespace livekit {
 
-/// @brief Encoding used to interpret a data track schema definition.
+/// Encoding used to interpret a data track schema definition.
 ///
 /// Identifies the interface definition language the schema is written in (for
 /// example, a `.proto` file for @ref DataTrackSchemaEncoding::Protobuf), which
@@ -35,32 +35,32 @@ namespace livekit {
 /// @ref DataTrackSchemaEncoding::custom.
 class DataTrackSchemaEncoding {
 public:
-  /// @brief Well-known schema encodings.
+  /// Well-known schema encodings.
   enum WellKnown {
-    /// @brief Protocol Buffer IDL.
+    /// Protocol Buffer IDL.
     Protobuf,
-    /// @brief FlatBuffer IDL.
+    /// FlatBuffer IDL.
     Flatbuffer,
-    /// @brief ROS 1 Message.
+    /// ROS 1 Message.
     Ros1Msg,
-    /// @brief ROS 2 Message.
+    /// ROS 2 Message.
     Ros2Msg,
-    /// @brief ROS 2 IDL.
+    /// ROS 2 IDL.
     Ros2Idl,
-    /// @brief OMG IDL.
+    /// OMG IDL.
     OmgIdl,
-    /// @brief JSON Schema.
+    /// JSON Schema.
     JsonSchema,
-    /// @brief Another well-known encoding not known to this client version.
+    /// Another well-known encoding not known to this client version.
     Other,
   };
 
-  /// @brief Construct a well-known encoding.
+  /// Construct a well-known encoding.
   ///
   /// The constructor is intentionally implicit for the common well-known case.
   DataTrackSchemaEncoding(WellKnown wellKnown) : well_known_(wellKnown) {}
 
-  /// @brief Construct a custom, application-defined encoding.
+  /// Construct a custom, application-defined encoding.
   ///
   /// Prefer a well-known encoding wherever one applies. The identifier must be
   /// non-empty and no longer than 25 characters.
@@ -73,17 +73,17 @@ public:
     return encoding;
   }
 
-  /// @brief Check whether this is a custom encoding.
+  /// Check whether this is a custom encoding.
   ///
   /// @return true if this is a custom encoding rather than a well-known one.
   bool isCustom() const { return !custom_.empty(); }
 
-  /// @brief Get the well-known encoding.
+  /// Get the well-known encoding.
   ///
   /// @return The well-known encoding. Only meaningful when @ref isCustom is false.
   WellKnown wellKnown() const { return well_known_; }
 
-  /// @brief Get the custom identifier.
+  /// Get the custom identifier.
   ///
   /// @return The custom identifier. Empty when @ref isCustom is false.
   const std::string& customIdentifier() const { return custom_; }
@@ -103,7 +103,7 @@ inline bool operator==(const DataTrackSchemaEncoding& a, const DataTrackSchemaEn
 }
 inline bool operator!=(const DataTrackSchemaEncoding& a, const DataTrackSchemaEncoding& b) { return !(a == b); }
 
-/// @brief Encoding used for frames sent on a data track.
+/// Encoding used for frames sent on a data track.
 ///
 /// The serialization format of the frame bytes (for example,
 /// @ref DataTrackFrameEncoding::Protobuf); the structure of those bytes is
@@ -117,32 +117,32 @@ inline bool operator!=(const DataTrackSchemaEncoding& a, const DataTrackSchemaEn
 /// @ref DataTrackFrameEncoding::custom.
 class DataTrackFrameEncoding {
 public:
-  /// @brief Well-known frame encodings.
+  /// Well-known frame encodings.
   enum WellKnown {
-    /// @brief ROS 1, described by a Ros1Msg schema.
+    /// ROS 1, described by a Ros1Msg schema.
     Ros1,
-    /// @brief CDR, described by a Ros2Msg, Ros2Idl, or OmgIdl schema.
+    /// CDR, described by a Ros2Msg, Ros2Idl, or OmgIdl schema.
     Cdr,
-    /// @brief Protocol Buffer, described by a Protobuf schema.
+    /// Protocol Buffer, described by a Protobuf schema.
     Protobuf,
-    /// @brief FlatBuffer, described by a Flatbuffer schema.
+    /// FlatBuffer, described by a Flatbuffer schema.
     Flatbuffer,
-    /// @brief CBOR, self-describing.
+    /// CBOR, self-describing.
     Cbor,
-    /// @brief MessagePack, self-describing.
+    /// MessagePack, self-describing.
     Msgpack,
-    /// @brief JSON, self-describing or described by a JsonSchema schema.
+    /// JSON, self-describing or described by a JsonSchema schema.
     Json,
-    /// @brief Another well-known encoding not known to this client version.
+    /// Another well-known encoding not known to this client version.
     Other,
   };
 
-  /// @brief Construct a well-known encoding.
+  /// Construct a well-known encoding.
   ///
   /// The constructor is intentionally implicit for the common well-known case.
   DataTrackFrameEncoding(WellKnown wellKnown) : well_known_(wellKnown) {}
 
-  /// @brief Construct a custom, application-defined encoding.
+  /// Construct a custom, application-defined encoding.
   ///
   /// Prefer a well-known encoding wherever one applies. The identifier must be
   /// non-empty and no longer than 25 characters.
@@ -155,17 +155,17 @@ public:
     return encoding;
   }
 
-  /// @brief Check whether this is a custom encoding.
+  /// Check whether this is a custom encoding.
   ///
   /// @return true if this is a custom encoding rather than a well-known one.
   bool isCustom() const { return !custom_.empty(); }
 
-  /// @brief Get the well-known encoding.
+  /// Get the well-known encoding.
   ///
   /// @return The well-known encoding. Only meaningful when @ref isCustom is false.
   WellKnown wellKnown() const { return well_known_; }
 
-  /// @brief Get the custom identifier.
+  /// Get the custom identifier.
   ///
   /// @return The custom identifier. Empty when @ref isCustom is false.
   const std::string& customIdentifier() const { return custom_; }
@@ -185,16 +185,16 @@ inline bool operator==(const DataTrackFrameEncoding& a, const DataTrackFrameEnco
 }
 inline bool operator!=(const DataTrackFrameEncoding& a, const DataTrackFrameEncoding& b) { return !(a == b); }
 
-/// @brief Uniquely identifies a data track schema.
+/// Uniquely identifies a data track schema.
 ///
 /// A compound identifier with two components: a name and an encoding. Two IDs
 /// are equal only if both components match; the same name with a different
 /// encoding refers to a distinct schema.
 struct DataTrackSchemaId {
-  /// @brief Name component of the schema identifier.
+  /// Name component of the schema identifier.
   std::string name;
 
-  /// @brief Encoding of the schema definition.
+  /// Encoding of the schema definition.
   DataTrackSchemaEncoding encoding = DataTrackSchemaEncoding::Other;
 };
 
