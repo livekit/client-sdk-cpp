@@ -17,12 +17,44 @@
 #include <gtest/gtest.h>
 #include <livekit/livekit.h>
 
+#include <atomic>
 #include <chrono>
 #include <future>
 #include <string>
+#include <vector>
 
+#include "../common/ffi_utils.h"
 #include "ffi.pb.h"
+#include "ffi_client.h"
 #include "room_proto_converter.h"
+
+namespace livekit {
+
+struct RoomTestAccess {
+  static void installConnectedListener(Room& room, std::atomic<int>& callback_count) {
+    const auto listener_id = FfiClient::instance().addListener([&room, &callback_count](const proto::FfiEvent& event) {
+      callback_count.fetch_add(1, std::memory_order_relaxed);
+      room.onEvent(event);
+    });
+
+    const std::scoped_lock<std::mutex> guard(room.lock_);
+    room.connection_state_ = ConnectionState::Connected;
+    room.room_handle_ = std::make_shared<FfiHandle>();
+    room.listener_id_ = listener_id;
+  }
+
+  static bool hasRoomHandle(const Room& room) {
+    const std::scoped_lock<std::mutex> guard(room.lock_);
+    return static_cast<bool>(room.room_handle_);
+  }
+
+  static int listenerId(const Room& room) {
+    const std::scoped_lock<std::mutex> guard(room.lock_);
+    return room.listener_id_;
+  }
+};
+
+} // namespace livekit
 
 namespace livekit::test {
 
@@ -32,6 +64,28 @@ protected:
 
   void TearDown() override { livekit::shutdown(); }
 };
+
+namespace {
+
+enum class LifecycleCallback {
+  Disconnected,
+  RoomEos,
+};
+
+class UnitLifecycleTrackingDelegate : public RoomDelegate {
+public:
+  void onDisconnected(Room&, const DisconnectedEvent& event) override {
+    reason = event.reason;
+    callbacks.push_back(LifecycleCallback::Disconnected);
+  }
+
+  void onRoomEos(Room&, const RoomEosEvent&) override { callbacks.push_back(LifecycleCallback::RoomEos); }
+
+  std::vector<LifecycleCallback> callbacks;
+  DisconnectReason reason = DisconnectReason::Unknown;
+};
+
+} // namespace
 
 TEST_F(RoomTest, ConnectWithoutInitialize) {
   // Test fixture initializes by default, do this to emulate lack of initialization
@@ -277,6 +331,74 @@ TEST_F(RoomTest, RemoteParticipantLookupBeforeConnect) {
   Room room;
   EXPECT_TRUE(room.remoteParticipant("nonexistent").expired())
       << "Looking up participant before connect should return an empty handle";
+}
+
+TEST_F(RoomTest, ServerDisconnectMarksDisconnectedBeforeEosTearsDownRoom) {
+  Room room;
+  UnitLifecycleTrackingDelegate delegate;
+  std::atomic<int> listener_calls{0};
+  room.setDelegate(&delegate);
+  RoomTestAccess::installConnectedListener(room, listener_calls);
+
+  proto::FfiEvent disconnected_event;
+  auto* disconnected_room_event = disconnected_event.mutable_room_event();
+  disconnected_room_event->set_room_handle(0);
+  disconnected_room_event->mutable_disconnected()->set_reason(proto::ROOM_DELETED);
+
+  emitFfiEvent(disconnected_event);
+
+  EXPECT_EQ(listener_calls.load(std::memory_order_relaxed), 1);
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_TRUE(RoomTestAccess::hasRoomHandle(room));
+  EXPECT_NE(RoomTestAccess::listenerId(room), 0);
+  ASSERT_EQ(delegate.callbacks.size(), 1);
+  EXPECT_EQ(delegate.callbacks[0], LifecycleCallback::Disconnected);
+  EXPECT_EQ(delegate.reason, DisconnectReason::RoomDeleted);
+
+  proto::FfiEvent eos_event;
+  eos_event.mutable_room_event()->set_room_handle(0);
+  eos_event.mutable_room_event()->mutable_eos();
+  emitFfiEvent(eos_event);
+
+  EXPECT_EQ(listener_calls.load(std::memory_order_relaxed), 2);
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_FALSE(RoomTestAccess::hasRoomHandle(room));
+  EXPECT_EQ(RoomTestAccess::listenerId(room), 0);
+  ASSERT_EQ(delegate.callbacks.size(), 2);
+  EXPECT_EQ(delegate.callbacks[0], LifecycleCallback::Disconnected);
+  EXPECT_EQ(delegate.callbacks[1], LifecycleCallback::RoomEos);
+
+  emitFfiEvent(eos_event);
+  EXPECT_EQ(listener_calls.load(std::memory_order_relaxed), 2) << "EOS teardown must unregister the Room listener";
+  EXPECT_EQ(delegate.callbacks.size(), 2) << "lifecycle delegates must each fire exactly once";
+  EXPECT_FALSE(room.disconnect()) << "disconnect after EOS teardown must be a no-op";
+}
+
+TEST_F(RoomTest, DisconnectAfterServerDisconnectCleansUpWithoutDuplicateNotification) {
+  Room room;
+  UnitLifecycleTrackingDelegate delegate;
+  std::atomic<int> listener_calls{0};
+  room.setDelegate(&delegate);
+  RoomTestAccess::installConnectedListener(room, listener_calls);
+
+  proto::FfiEvent disconnected_event;
+  auto* disconnected_room_event = disconnected_event.mutable_room_event();
+  disconnected_room_event->set_room_handle(0);
+  disconnected_room_event->mutable_disconnected()->set_reason(proto::ROOM_DELETED);
+
+  emitFfiEvent(disconnected_event);
+
+  ASSERT_EQ(delegate.callbacks.size(), 1);
+  EXPECT_EQ(delegate.callbacks[0], LifecycleCallback::Disconnected);
+  EXPECT_EQ(delegate.reason, DisconnectReason::RoomDeleted);
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_TRUE(RoomTestAccess::hasRoomHandle(room));
+
+  EXPECT_FALSE(room.disconnect()) << "disconnect must not reclaim an already-disconnected transition";
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_FALSE(RoomTestAccess::hasRoomHandle(room));
+  EXPECT_EQ(RoomTestAccess::listenerId(room), 0);
+  EXPECT_EQ(delegate.callbacks.size(), 1) << "onDisconnected must not fire twice";
 }
 
 } // namespace livekit::test
