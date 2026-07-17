@@ -59,20 +59,20 @@ Install the shared configuration symlinks from the repository root:
    ./build.sh release
    ```
 
-2. Run the shared script with the same file set, regex filters, and
-   `.clang-tidy` config as CI:
+2. Run the project wrapper. It supplies the same build directory and filters
+   as CI, then delegates diagnostics and summaries to `cpp-tools`:
 
    ```bash
-   ./cpp-tools/clang-tidy.sh \
-     --build-dir build-release \
-     --file-regex '^(?!.*/(_deps|build-[^/]*|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$' \
-     --header-filter '.*/(include/livekit|src)/.*\.(h|hpp)$' \
-     --exclude-header-filter '(.*/src/tests/.*)|(.*/_deps/.*)|(.*/build-[^/]*/.*)' \
-     --require-generated-protobuf build-release/generated
+   ./scripts/clang-tidy.sh
    ```
 
 Pass source files positionally to limit analysis, `-j N` to override the worker
-count, or `--fix` to apply fixes.
+count, `--fail-on-warning` for a strict local run, or `--fix` to apply fixes:
+
+```bash
+./scripts/clang-tidy.sh src/room.cpp
+./scripts/clang-tidy.sh --fail-on-warning
+```
 
 Output is captured to `clang-tidy.log` at the repo root, since the terminal
 buffer often can't hold all of it.
@@ -80,13 +80,13 @@ buffer often can't hold all of it.
 ### Run `clang-format`
 
 ```bash
-./cpp-tools/clang-format.sh --path src --path include --path benchmarks
+./scripts/clang-format.sh
 ```
 
 ```bash
-./cpp-tools/clang-format.sh --path src --path include --path benchmarks --fix
-./cpp-tools/clang-format.sh src/room.cpp include/livekit/room.h
-./cpp-tools/clang-format.sh --fix src/room.cpp
+./scripts/clang-format.sh --fix
+./scripts/clang-format.sh src/room.cpp include/livekit/room.h
+./scripts/clang-format.sh --fix src/room.cpp
 ```
 
 Output is captured to `clang-format.log` at the repo root.

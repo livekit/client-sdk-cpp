@@ -81,6 +81,8 @@ jobs:
               - cmake/**
               - CMakeLists.txt
               - CMakePresets.json
+              - scripts/clang-format.sh
+              - scripts/clang-tidy.sh
               - cpp-tools
               - cpp-tools/**
               - .gitmodules
@@ -136,12 +138,13 @@ jobs:
     if: ${{ needs.changes.outputs.cpp_tools == 'true' || github.event_name == 'workflow_dispatch' }}
     # GitHub loads this workflow from the separate cpp-tools repository. Keep
     # this immutable ref aligned with the cpp-tools submodule gitlink.
-    uses: livekit/cpp-tools/.github/workflows/cpp-tools.yml@12c945180b6a2b48149c79be79d9d7d727fc3c12
+    uses: livekit/cpp-tools/.github/workflows/cpp-tools.yml@707762771f079e0932c8c6a123e943a4b2fefe32
     with:
       clang_format: true
       clang_tidy: true
       checkout_submodules: recursive
-      clang_format_paths: src include benchmarks
+      clang_format_runner: scripts/clang-format.sh
+      clang_tidy_runner: scripts/clang-tidy.sh
       clang_tidy_dependencies_command: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -156,11 +159,6 @@ jobs:
         echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
       clang_tidy_configure_command: cmake --preset linux-release
       clang_tidy_generate_command: cmake --build build-release --target livekit_proto
-      clang_tidy_build_dir: build-release
-      clang_tidy_file_regex: '^(?!.*/(_deps|build-[^/]*|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$'
-      clang_tidy_header_filter: '.*/(include/livekit|src)/.*\.(h|hpp)$'
-      clang_tidy_exclude_header_filter: '(.*/src/tests/.*)|(.*/_deps/.*)|(.*/build-[^/]*/.*)'
-      clang_tidy_require_generated_protobuf: build-release/generated
 
   generate-docs:
     name: Generate Docs
