@@ -1,0 +1,114 @@
+name: C++ Tools
+
+# Called by top-level ci.yml.
+on:
+  workflow_call: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  clang-format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 1
+
+      - name: Initialize cpp-tools
+        run: git submodule update --init cpp-tools
+
+      - name: Install shared clang-format configuration
+        run: ./cpp-tools/install.sh clang-format --repo-root "$GITHUB_WORKSPACE" --force
+
+      - name: Install clang-format 22
+        run: |
+          set -eux
+          # Pin clang-format 22 to match the current macOS Homebrew LLVM.
+          # Ubuntu 24.04's default clang-format ships with LLVM 18.
+          sudo install -m 0755 -d /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
+          sudo chmod a+r /etc/apt/keyrings/llvm.asc
+          codename=$(lsb_release -cs)
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-22 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-22.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y clang-format-22
+          sudo ln -sf /usr/bin/clang-format-22 /usr/local/bin/clang-format
+          clang-format --version
+
+      - name: Run clang-format
+        env:
+          FORMAT_BLOB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/clang-format.sh
+
+  clang-tidy:
+    name: clang-tidy
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout with submodules
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install shared clang-tidy configuration
+        run: ./cpp-tools/install.sh clang-tidy --repo-root "$GITHUB_WORKSPACE" --force
+
+      - name: Install dependencies
+        run: |
+          set -eux
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake ninja-build pkg-config \
+            llvm-dev libclang-dev clang \
+            libssl-dev libcurl4-openssl-dev wget ca-certificates gnupg
+
+      - name: Install clang-tidy 19
+        run: |
+          set -eux
+          # ExcludeHeaderFilterRegex requires clang-tidy 19 or newer.
+          sudo install -m 0755 -d /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
+          sudo chmod a+r /etc/apt/keyrings/llvm.asc
+          codename=$(lsb_release -cs)
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-19 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-19.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y clang-tidy-19 clang-tools-19
+          sudo ln -sf /usr/bin/clang-tidy-19 /usr/local/bin/clang-tidy
+          sudo ln -sf /usr/bin/run-clang-tidy-19 /usr/local/bin/run-clang-tidy
+          clang-tidy --version
+          run-clang-tidy --help >/dev/null
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9
+        with:
+          toolchain: stable
+
+      - name: Set Linux build environment
+        run: |
+          echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
+          echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
+          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
+          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
+
+      - name: Configure compilation database
+        run: cmake --preset linux-release
+
+      - name: Generate protobuf headers
+        run: cmake --build build-release --target livekit_proto
+
+      - name: Run clang-tidy
+        env:
+          TIDY_BLOB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/clang-tidy.sh --fail-on-warning

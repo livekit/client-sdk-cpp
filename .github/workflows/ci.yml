@@ -87,6 +87,7 @@ jobs:
               - cpp-tools/**
               - .gitmodules
               - .github/workflows/ci.yml
+              - .github/workflows/cpp-tools.yml
             docker:
               - docker/**
               - .github/workflows/ci.yml
@@ -136,29 +137,7 @@ jobs:
     name: C++ Tools
     needs: changes
     if: ${{ needs.changes.outputs.cpp_tools == 'true' || github.event_name == 'workflow_dispatch' }}
-    # GitHub loads this workflow from the separate cpp-tools repository. Keep
-    # this immutable ref aligned with the cpp-tools submodule gitlink.
-    uses: livekit/cpp-tools/.github/workflows/cpp-tools.yml@707762771f079e0932c8c6a123e943a4b2fefe32
-    with:
-      clang_format: true
-      clang_tidy: true
-      checkout_submodules: recursive
-      clang_format_runner: scripts/clang-format.sh
-      clang_tidy_runner: scripts/clang-tidy.sh
-      clang_tidy_dependencies_command: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          build-essential cmake ninja-build pkg-config \
-          llvm-dev libclang-dev clang \
-          libssl-dev libcurl4-openssl-dev wget ca-certificates gnupg
-      clang_tidy_install_rust: true
-      clang_tidy_setup_command: |
-        echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
-        echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
-        LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
-        echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
-      clang_tidy_configure_command: cmake --preset linux-release
-      clang_tidy_generate_command: cmake --build build-release --target livekit_proto
+    uses: ./.github/workflows/cpp-tools.yml
 
   generate-docs:
     name: Generate Docs

@@ -9,12 +9,11 @@ are also enforced in CI on PRs.
 [`livekit/cpp-tools`](https://github.com/livekit/cpp-tools) submodule. The
 `./cpp-tools/install.sh` script creates root `.clang-tidy` and `.clang-format`
 symlinks so editor integrations can discover them automatically.
-The workflow visible at `cpp-tools/.github/workflows/cpp-tools.yml` belongs to
-the submodule, not the SDK. GitHub loads that workflow from the separate
-`livekit/cpp-tools` repository at an immutable commit, then checks out this SDK
-and runs the scripts from its submodule. The workflow ref and submodule gitlink
-must point to the same commit. Doxygen remains in the SDK-specific
-documentation workflow.
+The SDK-owned `.github/workflows/cpp-tools.yml` workflow prepares the
+project-specific CI environment and calls the same `scripts/clang-format.sh`
+and `scripts/clang-tidy.sh` wrappers used locally. The shared scripts detect
+GitHub Actions automatically and produce annotations and step summaries.
+Doxygen remains in the SDK-specific documentation workflow.
 
 - **`clang-tidy`** — static analysis. See `cpp-tools/.clang-tidy` for the
   enabled checks. Enforced in CI on PR.
