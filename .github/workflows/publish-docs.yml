@@ -1,18 +1,10 @@
 name: Publish docs
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Documentation version (e.g. v0.1.0)'
-        required: false
-        type: string
-  workflow_call:
-    inputs:
-      version:
-        description: 'Documentation version (e.g. v0.1.0)'
-        required: false
-        type: string
+  release:
+    # "published" covers newly published stable releases and prereleases.
+    # "released" also catches promotion of an existing prerelease to stable.
+    types: [published, released]
 
 permissions:
   contents: read
@@ -23,7 +15,7 @@ jobs:
     name: Validate (build docs)
     uses: ./.github/workflows/generate-docs.yml
     with:
-      version: ${{ inputs.version || github.event.inputs.version || '' }}
+      version: ${{ github.event.release.tag_name }}
       upload_artifact: true
       # Suffix with run_id so concurrent publish runs cannot collide on the
       # artifact namespace within the same repository.
@@ -32,6 +24,9 @@ jobs:
   publish:
     name: Publish (S3 + CloudFront)
     needs: validate
+    # The GitHub release is the source of truth. Drafts do not emit these
+    # events until published; prereleases validate docs but never deploy them.
+    if: github.event.release.draft == false && github.event.release.prerelease == false
     runs-on: ubuntu-latest
     steps:
       - name: Download docs artifact

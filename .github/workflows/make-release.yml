@@ -445,11 +445,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ---------- Publish Docs Job ----------
-  publish-docs:
-    name: Publish Documentation
+  # Build docs for validation and retain them as a workflow artifact. Publishing
+  # is triggered separately by the GitHub release's authoritative state.
+  generate-docs:
+    name: Generate Documentation
     needs: release
-    uses: ./.github/workflows/publish-docs.yml
+    uses: ./.github/workflows/generate-docs.yml
     with:
       version: ${{ needs.release.outputs.version }}
-    secrets: inherit
+      upload_artifact: true
+      artifact_name: livekit-cpp-docs-${{ github.run_id }}
