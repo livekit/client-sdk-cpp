@@ -450,6 +450,9 @@ jobs:
   generate-docs:
     name: Generate Documentation
     needs: release
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/generate-docs.yml
     with:
       version: ${{ needs.release.outputs.version }}
