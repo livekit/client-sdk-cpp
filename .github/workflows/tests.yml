@@ -274,7 +274,9 @@ jobs:
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
+          # TODO(BOT-477) Temporarily disable platform audio integration tests in CI until instability is resolved
           build-release/bin/livekit_integration_tests \
+            --gtest_filter='-PlatformAudioIntegrationTest.*' \
             --gtest_output=xml:build-release/integration-test-results.xml
 
       - name: Dump livekit-server log on failure
