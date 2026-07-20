@@ -244,9 +244,10 @@ local `livekit-server --dev`, and run via `ctest` or directly. See
 
 ## Developer tools
 
-`clang-tidy` and `clang-format` are provided by the `cpp-tools` submodule.
-`valgrind` and Doxygen remain documented with the rest of the local developer
-tools. Install the shared clang configuration with:
+This project uses `clang-tidy` and `clang-format` with shared configuration and
+wrapper scripts from the `cpp-tools` submodule. Install the tool executables
+separately, as described in [docs/tools.md](docs/tools.md), then create the
+root-level configuration symlinks with:
 
 ```bash
 ./cpp-tools/install.sh
@@ -258,7 +259,8 @@ The pre-commit auto-formatter is opt-in:
 ./cpp-tools/install.sh precommit-hook
 ```
 
-See [docs/tools.md](docs/tools.md).
+`valgrind`, Doxygen, and the complete developer-tool setup are also documented
+in [docs/tools.md](docs/tools.md).
 
 ## Deprecation
 
