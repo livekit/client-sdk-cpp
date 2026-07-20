@@ -1,5 +1,17 @@
 # AGENTS.md — LiveKit C++ Client SDK
 
+## Shared C++ Baseline
+
+Follow `cpp-tools/AGENTS.md` for shared C++ rules and this file for SDK-specific
+guidance.
+
+Before C++ work, verify the shared guidance and root `.clang-format` /
+`.clang-tidy` symlinks are present. If not, flag it and recommend
+`git submodule update --init cpp-tools` or `./cpp-tools/install.sh` as
+appropriate. Never use `--force` without approval or claim tooling verification
+while these prerequisites are missing. Project-specific commands are documented
+in `docs/tools.md`.
+
 ## Project Overview
 
 This is **client-sdk-cpp**, the official LiveKit C++ client SDK. It wraps a Rust core (`client-sdk-rust/`) via a protobuf-based FFI bridge. All WebRTC, networking, and media logic lives in Rust; the C++ layer provides an ergonomic API for C++ consumers.
@@ -76,10 +88,11 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `src/tests/` | Google Test integration and stress tests |
 | `examples/` | In-tree example applications |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
+| `cpp-tools/` | Git submodule holding shared LiveKit C++ engineering guidance, clang-format / clang-tidy configs, scripts, docs, and CI workflow |
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `nlohmann_json.cmake`, `LiveKitConfig.cmake.in`) |
 | `docker/` | Dockerfile for CI and SDK distribution images |
-| `scripts/` | Developer / CI helper scripts (e.g. `clang-tidy.sh`) |
+| `scripts/` | Local helper scripts for SDK-specific development tasks |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
 | `.github/workflows/` | GitHub Actions CI workflows |
@@ -305,32 +318,11 @@ internal symbols are too noisy to enforce) and `WARN_AS_ERROR = FAIL_ON_WARNINGS
 so any other warning (broken `@ref`, unknown `@command`, unsupported HTML tag,
 malformed table, missing `@param` on a documented function, …) fails the build.
 
-### Integer Types
-
-- Prefer fixed-width integer types from `<cstdint>` (`std::int32_t`, `std::uint64_t`, etc.) over raw primitive integer types when size or signedness matters.
-- This applies in public APIs, FFI/protobuf-facing code, serialized payloads, handles, timestamps, IDs, and any cross-platform boundary where integer width must be explicit.
-- Use raw primitive integer types only when the value is intentionally platform-sized or when preserving an existing public API is necessary for backwards compatibility.
-- Do not change an existing public API from a raw primitive integer type to a fixed-width type for style consistency alone unless the compatibility impact has been reviewed.
-
-### Git Practices
-
-- Use `git mv` when moving or renaming files.
-
 ### CMake
 
 - spdlog is linked **PRIVATE** to the `livekit` target. It must not appear in exported/installed dependencies.
 - protobuf is vendored via FetchContent on non-Windows platforms; Windows uses vcpkg.
 - The CMake install produces a `find_package(LiveKit CONFIG)`-compatible package with `LiveKitConfig.cmake`, `LiveKitTargets.cmake`, and `LiveKitConfigVersion.cmake`.
-
-### Readability and Performance
-
-Code should be easy to read and understand. If a sacrifice is made for performance or readability, it should be documented.
-
-Adhere to clang-format checks configured in `.clang-format`. After C++ code changes, run `./scripts/clang-format.sh` to confirm styling, or `./scripts/clang-format.sh --fix` to auto-format.
-
-### Static Analysis
-
-Adhere to clang-tidy checks configured in `.clang-tidy`. After C++ code changes, run `./scripts/clang-tidy.sh` to confirm code quality.
 
 ## Dependencies
 
@@ -340,6 +332,7 @@ Adhere to clang-tidy checks configured in `.clang-tidy`. After C++ code changes,
 | spdlog | **Private** | FetchContent or system package; must NOT leak into public API |
 | nlohmann/json | **Private** | Header-only; vendored via FetchContent (Unix) or vcpkg (Windows); must NOT leak into public API |
 | client-sdk-rust | Build-time | Git submodule, built via cargo during CMake build |
+| cpp-tools | Developer / CI | Git submodule containing shared LiveKit C++ formatting and static-analysis tooling |
 | Google Test | Test only | FetchContent in `src/tests/CMakeLists.txt` |
 
 When adding a new private/vendored dependency to this table, also add a
@@ -372,13 +365,6 @@ Integration tests (`src/tests/integration/`) cover: room connections, callbacks,
 When adding new client facing functionality, add a new test case to the existing test suite.
 When adding new client facing functionality, add benchmarking to understand the limitations of the new functionality.
 
-## General C++ Development
-
-- Do not use dynamic memory allocation after initialization
-- Keep each function short (roughly ≤ 60 lines)
-- Declare all data objects at the smallest possible level of scope
-- Each calling function must check the return value of nonvoid functions, and each called function must check the validity of all parameters provided by the caller
-
 ## Common Pitfalls
 
 - A `Room` with `auto_subscribe = false` will never receive remote audio/video frames — this is almost never what you want.
@@ -398,8 +384,9 @@ all filtered stages; normal pull requests and pushes use the path filters.
 - `.github/workflows/builds.yml` — Reusable SDK and example-collection build
   matrix.
 - `.github/workflows/tests.yml` — Reusable unit/integration test matrix.
-- `.github/workflows/cpp-checks.yml` — Reusable `clang-format` and
-  `clang-tidy` checks.
+- `.github/workflows/cpp-tools.yml` — Reusable SDK-specific `clang-format` and
+  `clang-tidy` workflow. It prepares the build environment and invokes the
+  project wrappers backed by the shared `cpp-tools` scripts.
 - `.github/workflows/generate-docs.yml` — Reusable Doxygen docs validation.
 - `.github/workflows/rust-release-check.yml` — Reusable check that the pinned
  `client-sdk-rust` submodule commit maps to a published release. Gated by the
@@ -423,9 +410,10 @@ When adding or renaming files that affect a CI stage, update the matching
 `ci.yml` `changes` filter in the same PR. For example, new build scripts,
 CMake files, package manifests, or reusable build workflows should be added to
 the `builds` filter; test-only helpers to `tests`; formatting/static-analysis
-configuration to `cpp_checks`; and docs generation inputs to `docs`.
+configuration (including `cpp-tools` submodule bumps) to `cpp_tools`; and docs
+generation inputs to `docs`.
 
 Keep broad agent guidance files such as `AGENTS.md` out of the expensive
-`builds`, `tests`, `cpp_checks`, and `docs` filters unless they start affecting
+`builds`, `tests`, `cpp_tools`, and `docs` filters unless they start affecting
 generated docs or build artifacts. An `AGENTS.md`-only change should not trigger
 those stages; only the always-on cheap checks should run.

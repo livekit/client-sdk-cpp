@@ -5,10 +5,14 @@ are also enforced in CI on PRs.
 
 ## Clang tools
 
-- **`clang-tidy`** — static analysis. See [.clang-tidy](https://github.com/livekit/client-sdk-cpp/blob/main/.clang-tidy) for the
+The shared configuration and tooling scripts come from the
+[`livekit/cpp-tools`](https://github.com/livekit/cpp-tools) submodule.
+
+- **`clang-tidy`** — static analysis. See
+  [cpp-tools/.clang-tidy](https://github.com/livekit/cpp-tools/blob/main/.clang-tidy) for the
   enabled checks. Enforced in CI on PR.
 - **`clang-format`** — code formatting and style consistency. See
-  [.clang-format](https://github.com/livekit/client-sdk-cpp/blob/main/.clang-format) for the rules. Enforced in CI on PR.
+  [cpp-tools/.clang-format](https://github.com/livekit/cpp-tools/blob/main/.clang-format) for the rules. Enforced in CI on PR.
 
 > **Note (Windows):** `clang-tidy` is not currently driven by our scripts on
 > Windows. The MSBuild CMake generator doesn't emit
@@ -32,6 +36,12 @@ ask you to add `/opt/homebrew/opt/llvm/bin` (Apple Silicon) or
 
 ```bash
 sudo apt-get install clang-format clang-tidy clang-tools
+```
+
+Install the shared configuration symlinks from the repository root:
+
+```bash
+./cpp-tools/install.sh
 ```
 
 ### Run `clang-tidy`
@@ -86,7 +96,7 @@ A simple pre-commit hook that auto-formats staged C/C++ files using the
 project's `.clang-format` rules:
 
 ```bash
-./scripts/install-pre-commit.sh
+./cpp-tools/install.sh precommit-hook
 ```
 
 This installs `.git/hooks/pre-commit`. Re-run after `git clone` on a fresh
