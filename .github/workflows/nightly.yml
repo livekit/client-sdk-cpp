@@ -1,0 +1,28 @@
+name: Nightly Tests
+
+on:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+jobs:
+  repeated-tests:
+    name: Repeated Tests
+    uses: ./.github/workflows/tests.yml
+    with:
+      build_type: debug
+      unit_repeat: 100
+      integration_repeat: 10
+      run_stress_tests: true
+      stress_repeat: 1
+      unit_timeout_minutes: 60
+      integration_timeout_minutes: 120
+      stress_timeout_minutes: 120
+      artifact_retention_days: 14
+      run_coverage: false
+    secrets: inherit
