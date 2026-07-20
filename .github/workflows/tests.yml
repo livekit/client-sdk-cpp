@@ -2,8 +2,20 @@ name: Tests
 
 # Called by top-level ci.yml
 on:
-  workflow_call: {}
-  workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      platform_audio_stress:
+        description: Repeat the macOS x64 PlatformAudio lifecycle seam
+        required: false
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      platform_audio_stress:
+        description: Repeat the macOS x64 PlatformAudio lifecycle seam
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -277,6 +289,44 @@ jobs:
           build-release/bin/livekit_integration_tests \
             --gtest_output=xml:build-release/integration-test-results.xml
 
+      - name: Stress platform audio lifecycle seam
+        if: matrix.name == 'macos-x64' && inputs.platform_audio_stress
+        timeout-minutes: 10
+        shell: bash
+        env:
+          RUST_BACKTRACE: full
+          RUST_LOG: "livekit::rtc_engine::lk_runtime=debug,livekit::platform_audio=debug,livekit_ffi=info"
+        run: |
+          set -euo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          build-release/bin/livekit_integration_tests \
+            --gtest_filter='PlatformAudioIntegrationTest.ReleaseAndReacquirePreserveFrameFlow' \
+            --gtest_repeat=20 \
+            --gtest_recreate_environments_when_repeating=1 \
+            --gtest_output=xml:build-release/platform-audio-reacquire-results.xml
+          build-release/bin/livekit_integration_tests \
+            --gtest_filter='MediaMultiStreamIntegrationTest.PublishTwoVideoAndTwoAudioTracks_SinglePeerConnection:PlatformAudioIntegrationTest.PublishPlatformAudioTrackEndToEnd' \
+            --gtest_repeat=100 \
+            --gtest_recreate_environments_when_repeating=1 \
+            --gtest_shuffle=false \
+            --gtest_output=xml:build-release/platform-audio-seam-results.xml
+
+      - name: Collect platform audio crash diagnostics
+        if: failure() && matrix.name == 'macos-x64' && inputs.platform_audio_stress
+        shell: bash
+        run: |
+          mkdir -p build-release/platform-audio-diagnostics
+          cp "$HOME"/Library/Logs/DiagnosticReports/livekit_integration_tests*.ips \
+            build-release/platform-audio-diagnostics/ 2>/dev/null || true
+          cp build-release/bin/livekit_integration_tests \
+            build-release/bin/liblivekit.dylib \
+            build-release/bin/liblivekit_ffi.dylib \
+            build-release/platform-audio-diagnostics/ 2>/dev/null || true
+          xcrun dwarfdump --uuid build-release/bin/livekit_integration_tests \
+            build-release/bin/liblivekit.dylib \
+            build-release/bin/liblivekit_ffi.dylib \
+            > build-release/platform-audio-diagnostics/image-uuids.txt 2>&1 || true
+
       - name: Dump livekit-server log on failure
         if: failure() && matrix.e2e-testing
         shell: bash
@@ -296,6 +346,8 @@ jobs:
           path: |
             build-release/unit-test-results.xml
             build-release/integration-test-results.xml
+            build-release/platform-audio-*-results.xml
+            build-release/platform-audio-diagnostics/
             ${{ steps.livekit_server.outputs.log-path }}
           if-no-files-found: ignore
           retention-days: 7

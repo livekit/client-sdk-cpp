@@ -1,173 +1,163 @@
-# macOS PlatformAudio Instability — Investigation & Fix Plan
+# macOS PlatformAudio Instability — Investigation and Remediation
 
-*Author: review pass on 2026-07-01. Supersedes the ad-hoc notes in the prior Cursor sessions.*
+*Updated 2026-07-19 after reproducing the failure matrix on macOS ARM64.*
 
-## 1. Summary
+## 1. Outcome
 
-The macOS `PlatformAudioIntegrationTest` suite has been crashing (SIGSEGV / SIGABRT)
-under repeated run/teardown. Prior investigation (three Cursor sessions on
-`feature/additional_ci_improvements` and `feature/platform-audio-stability`, plus a
-`rust-sdks` branch of the same name) converged on a real root cause and landed a fix
-bundle. This document records an independent review of that work, what I agree and
-disagree with, the CI evidence, and a corrected fix plan.
+Two separate defects had been conflated:
 
-**Bottom line:**
+1. **Confirmed teardown crash.** WebRTC's macOS `CaptureWorkerThread` could
+   deliver recorded audio through a stale `AudioTransportImpl` while peer
+   transports were being destroyed.
+2. **Release/reacquire frame regression.** The first attempted fix stopped the
+   capture worker and detached the transport callback when the final
+   `PlatformAudio` reference was released, but retained the platform ADM. A
+   later acquire reused that ADM without restoring its callback, so publication
+   and subscription succeeded while decoded frames never arrived.
 
-- The final root-cause theory is **correct**: the macOS CoreAudio capture worker
-  (`webrtc::AudioDeviceMac::CaptureWorkerThread`) delivers recorded audio into
-  `webrtc::AudioTransportImpl` while the peer-connection transports / factory that own
-  that transport are being destroyed. The landed `AdmProxy::ShutdownAudioIO` fix is the
-  right shape and empirically removed the segfault.
-- But the investigation stopped short in three ways this review corrects:
-  1. **A 2026-07-01 rebase silently reset the `client-sdk-cpp` submodule pointer to a
-     `rust-sdks` commit that does not contain the fix.**
-  2. **The post-fix nightlies expose a *new, deterministic* failure** in
-     `PlatformAudioFramesReachRemote` that is a signaling/negotiation regression, not an
-     audio-teardown crash.
-  3. **A structural teardown race survives the fix** and is the most likely cause of both
-     the residual "crash at the very first PlatformAudio test" symptom and the
-     `DataTrackE2ETest.PublishManyTracks` teardown hang.
+The corrected lifecycle separates reusable quiescing from terminal shutdown:
 
-## 2. Confirmed root cause (crash)
+- Releasing the final platform-ADM reference stops recording and playout and
+  waits for their worker threads, but retains the transport callback.
+- Acquiring an inactive platform ADM explicitly ensures the current callback is
+  bound before capture can restart.
+- Terminal peer-connection-factory teardown stops all audio I/O first, then
+  detaches platform and synthetic callbacks before destroying the factory.
+- `LkRuntime` generations cannot overlap teardown and construction. Generation
+  logs make creation and completed teardown observable.
 
-Evidence (from CI `.ips` reports, LLDB captures, and the pre-fix Intel triage run):
+## 2. Reproduction matrix
 
-```
-webrtc::AudioDeviceMac::CaptureWorkerThread()            audio_device_mac.cc:2498
-  -> AudioConverterFillComplexBuffer
-     -> CrashIfClientProvidedBogusAudioBufferList         (Apple AudioToolbox)
-```
-concurrent with, on the teardown side:
-```
-webrtc::AudioTransportImpl::SendProcessedData(...)
-  -> ...RecordedDataIsAvailable -> DeliverRecordedData
-  ~JsepTransportController() / ~BundleManager()           (transport teardown)
+The exact seam was run in one process and in declaration order:
+
+```text
+MediaMultiStreamIntegrationTest.PublishTwoVideoAndTwoAudioTracks_SinglePeerConnection
+PlatformAudioIntegrationTest.PublishPlatformAudioTrackEndToEnd
 ```
 
-The capture worker owned by the platform ADM keeps calling into an `AudioTransportImpl`
-that a closing peer connection is tearing down → use-after-free / bogus buffer → SIGSEGV
-or SIGABRT ("pointer being freed was not allocated").
+The decoded-frame canary was also repeated independently.
 
-## 3. The landed fix (rust-sdks `feature/platform-audio-stability`, core commit `01fc4c13`, PR-feedback `d3bb1453`)
+| Rust revision | Seam result on ARM64 | Frame-flow result |
+| --- | --- | --- |
+| `da3ee007` (C++ main pin, no fix) | SIGSEGV on iteration 35 | Repeated frame flow passes |
+| `fd48e5c2` (original fix tip) | 30 iterations pass | First run passes; later runs deterministically receive no frames |
+| Corrected rebased candidate | Pending final stress totals below | Full suite and repeated frame flow pass |
 
-- `webrtc-sys` `AdmProxy`: new `ShutdownAudioIO()` + `StopAudioIO()` / `StopPlatformAudioIO()`
-  helpers that stop recording/playout and detach the `AudioTransport` callback. Called from
-  `~AdmProxy()`, `Terminate()`, and at platform-ADM refcount 0.
-- `PeerConnectionFactory::shutdown_audio_io()` runs `AdmProxy::ShutdownAudioIO()` on the
-  worker thread **before** `peer_factory_` is destroyed (`~PeerConnectionFactory`).
-- `LkRuntime::Drop` calls `shutdown_audio_io()`.
-- `PlatformAdmHandle::Drop` stops recording before releasing the ADM reference.
-- `FfiRoom::close()` now closes the room (unpublishing tracks, stopping capture) **before**
-  dropping FFI track handles.
-- `FfiServer::dispose()` clears `ffi_handles` / `handle_dropped_txs`.
-- (client-sdk-cpp) `PlatformAudioSource` member order swapped so the FFI handle drops before
-  the shared `PlatformAudioState`.
+The `da3ee007` crash report records:
 
-**Verdict: keep all of it.** It is correct and directly targets the confirmed race. Two
-minor corrections (see §6, Step 2).
+- `EXC_BAD_ACCESS` / `SIGSEGV`
+- faulting thread `CaptureWorkerThread`
+- crash while `PublishPlatformAudioTrackEndToEnd` was starting immediately
+  after the MediaMultiStream test
 
-Also landed and **correct** — keep: the `LocalParticipant::published_tracks_by_sid_` mutex
-(`5380e42`), an ASan-proven data race between `publishTrack` (app thread) and
-`trackPublications()`/`findTrackPublication()` (FFI callback thread). It is a genuine
-general-purpose SIGSEGV source, though independent of the ADM crash.
+The original fix's full PlatformAudio suite creates one `LkRuntime` and reuses
+it across all tests. Its first three subscription/lifecycle assertions pass;
+`PlatformAudioFramesReachRemote` then waits 20 seconds and fails. Running that
+test alone repeatedly gives the sharper signature: iteration 1 passes and
+iterations 2 onward receive no frames. This proves the regression is callback
+lifecycle state, not the previously suspected publisher negotiation change.
 
-## 4. Theories that were correctly abandoned
+## 3. Confirmed crash mechanism
 
-- **Dangling FFI handles at dispose** — instrumentation showed 0 leaked handles across
-  738+ dispose samples. The `ffi_handles.clear()` hygiene was kept anyway (harmless).
-- **mach-port / fd / thread leaks** (CoreAudio HAL client leak) — sampler showed all flat.
-- **Progressive memory growth** — real (~1 retained `PeerConnection` per connect cycle;
-  `leaks` clean → reachable retention), but *orthogonal to the crash* (crash hits the first
-  PlatformAudio test, so it is not cumulative). Root cause identified in this review: see §5.
+The pre-fix crash family includes stacks of this shape:
 
-## 5. What the prior work missed
+```text
+webrtc::AudioDeviceMac::CaptureWorkerThread()
+  -> AudioDeviceBuffer::DeliverRecordedData()
+  -> AudioTransportImpl::RecordedDataIsAvailable()
+```
 
-### 5.1 The rebase dropped the fix from the C++ branch
+concurrent with peer transport teardown:
 
-`feature/platform-audio-stability` (client-sdk-cpp) now pins submodule
-`client-sdk-rust` at `dad794d4` — plain `rust-sdks` main, **without** the ADM fix.
-`feature/additional_ci_improvements` still pins `d3bb1453` (has the fix). The stability
-branch as it stands does not build the fix it claims to test.
+```text
+~JsepTransportController()
+  -> ~BundleManager()
+  -> transport / audio state destruction
+```
 
-### 5.2 A new, deterministic `FramesReachRemote` regression (not a crash)
+Stopping capture is the synchronization boundary: WebRTC's
+`StopRecording()`/`StopPlayout()` joins the platform workers. Callback
+detachment must happen only after those calls because `AudioDeviceBuffer`
+refuses callback changes while media is active.
 
-Post-fix nightlies (`additional_ci_improvements`, rust `d3bb1453`), 2026-06-28 and 06-30:
+## 4. Corrected implementation
 
-- **The segfault is gone** — 100+ PlatformAudio iterations, zero SIGSEGV.
-- **`PlatformAudioFramesReachRemote` fails 0/26** (all attempts, including the very first),
-  debug builds only. The log shows, at publish time:
-  ```
-  WARN livekit::rtc_engine::peer_transport] peer connection is closed, cannot create offer
-  ERROR livekit::rtc_engine::rtc_session] failed to negotiate the publisher:
-        Rtc(RtcError { InvalidState, "Failed to set local offer sdp: Called in wrong state" })
-  ```
-  This is a **signaling / negotiation** failure, not audio teardown. It rode in on the
-  upstream `rust-sdks` delta between the old pin (`8e551062`) and the new base
-  (`2e83ff6b`). Prime suspect: **#1148 "harden reconnect behaviour"** (also #996 publisher
-  offer with join, single-PC default). Release PR CI passes; only debug nightly reproduces.
+The Rust SDK stability work is rebased onto Rust main `62359c35`.
 
-### 5.3 A structural teardown race survives the fix
+### Reusable PlatformAudio release
 
-- The FFI tokio runtime is a process-static and is **never shut down**; `dispose()` clears
-  handles but does **not** wait for `LkRuntime` (and thus the `PeerConnectionFactory` + ADM
-  + its capture worker) to finish dropping.
-- `LK_RUNTIME` is a `Mutex<Weak<LkRuntime>>`: the moment the last strong ref hits zero, a new
-  `instance()` call constructs a **new** factory/ADM — potentially **while the old one's
-  `Drop` (including the capture-worker stop) is still running on another thread.**
-- `EngineInner::close` deliberately retains `RtcSession` ("so we can still access stats"),
-  which keeps a whole `PeerConnection` (and its transports) alive per connect cycle — this
-  is the source of the "reachable growth" from §4, and it defers transport destruction to
-  arbitrary threads at arbitrary times.
+`AdmProxy::ReleasePlatformAdm()` calls `StopPlatformAudioIO()` at refcount zero.
+That helper stops and joins platform recording/playout but does **not** detach
+the callback or destroy the ADM. This preserves iOS ADM reuse and allows a
+later acquire on the same runtime.
 
-Together these mean runtime/ADM/transport teardown from test *N* can overlap init from test
-*N+1*. This matches the "crash at the start of the first PlatformAudio test" signature and is
-the most plausible family for the still-open `PublishManyTracks` teardown hang (120-min
-silent timeout on macos-x64; watchdog SIGABRT on linux-x64, where `gdb` is not installed so
-no backtrace is produced).
+`AdmProxy::AcquirePlatformAdm()` binds the saved `audio_transport_` on every
+inactive-to-active transition. Besides making reacquire explicit, this covers
+Android's lazily created platform ADM, which did not exist when the factory
+originally registered its callback.
 
-## 6. Corrected fix plan
+### Terminal factory shutdown
 
-**Step 0 — hygiene (blocking):**
-- Re-point the `client-sdk-cpp` `feature/platform-audio-stability` submodule at the fixed
-  `rust-sdks` tip (currently `d3bb1453`, or the new tip from Step 2/3).
-- Install `gdb` on the Linux CI runner so the stall watchdog's cores produce backtraces.
+`PeerConnectionFactory::~PeerConnectionFactory()` invokes terminal audio
+shutdown on WebRTC's worker thread before releasing `peer_factory_`.
+`AdmProxy::StopAudioIO()` stops both ADMs, detaches both callbacks, and clears
+the stored transport only after workers have stopped.
 
-**Step 1 — attribute the `FramesReachRemote` regression before trusting the fix branch.**
-Run the triage workflow (both arches, isolated-frames arm) across three rust pins:
-`8e551062` (old baseline), `2e83ff6b` (new upstream base, *no* fix commits), `d3bb1453`
-(fix). Signature to look for: `peer connection is closed, cannot create offer` ~6 s into the
-test, **debug builds only**. If `2e83ff6b` alone reproduces it, the ADM fix is exonerated and
-the regression is an upstream bug to bisect (start at #1148).
+### Runtime generation gate
 
-**Step 2 — correct the ADM fix (rust-sdks), low risk:**
-- In `StopAudioIO()` / `StopPlatformAudioIO()`: call `StopRecording()`/`StopPlayout()`
-  **first** (this joins the worker threads), *then* `RegisterAudioCallback(nullptr)`.
-  WebRTC's `AudioDeviceBuffer` refuses a callback change while media is active, so the
-  detach-before-stop ordering is a silent no-op today. Stopping first makes the detach real.
-- (Investigated and **rejected** as changes: `PlatformAdmHandle::Drop` calling a global
-  `stop_recording()` is safe — the handle is shared via a static `Weak`, so `Drop` only runs
-  when the *last* `PlatformAudio` is gone. `AdmProxy::StopRecording()` stopping both ADMs is
-  benign — the synthetic ADM has no microphone.)
+`LkRuntime` has a teardown guard that is declared after the peer connection
+factory. Its static counter reaches zero only after factory and ADM destruction
+complete. `LkRuntime::instance()` waits on that gate before constructing a new
+generation after the prior weak reference stops upgrading.
 
-**Step 3 — close the surviving teardown race (rust-sdks), the genuinely new fix:**
-- Add a runtime teardown-completion signal to `LkRuntime`: a static counter + condvar,
-  incremented when a runtime is created in `instance()` and decremented at the **end** of
-  `Drop`. `instance()` waits (bounded, ~10 s, with a loud log on timeout) for the previous
-  runtime to finish dropping before constructing a new factory/ADM — closing the
-  `Mutex<Weak>` create-during-teardown window. Optionally, `FfiServer::dispose()` waits on
-  the same signal after clearing handles for a clean process-exit ordering.
-- **(Deferred, higher risk — recommend as follow-up, not landed automatically)** Drop the
-  retained `RtcSession` in `EngineInner::close` (or snapshot stats at close instead of
-  retaining the session). This removes the per-cycle `PeerConnection` retention and makes
-  transport destruction deterministic. It touches reconnection/stats semantics that external
-  consumers may depend on, so it should be a separately reviewed change with its own CI.
+The gate closes create-during-drop overlap; it does not force a still-referenced
+runtime to drop. Debug logs identify runtime generation creation and completed
+teardown so these cases can be distinguished without sleeps.
 
-## 7. Open items / risks
+## 5. Regression coverage
 
-- `FramesReachRemote` regression root cause (Step 1) — **must** be settled before the branch
-  can be considered green; it is currently a hard, deterministic failure in debug CI.
-- `PublishManyTracks` teardown hang — persists in both post-fix nightlies; needs a Linux
-  backtrace (blocked on `gdb` install, Step 0).
-- The teardown-completion signal adds a bounded wait in `instance()`/`dispose()`; verified by
-  code inspection to be free of lock-ordering deadlock (the dropping thread never takes the
-  `LK_RUNTIME` lock), but should be exercised under the triage matrix.
+`PlatformAudioIntegrationTest.ReleaseAndReacquirePreserveFrameFlow` performs two
+complete publish/subscribe/decoded-frame cycles separated by destruction of the
+last `PlatformAudio`, source, track, and rooms. It fails deterministically with
+the callback-detaching release implementation and passes with the corrected
+split lifecycle.
+
+The Tests workflow has an opt-in `platform_audio_stress` input. On macOS x64 it
+runs:
+
+- 20 release/reacquire decoded-frame iterations
+- 100 exact MediaMultiStream-to-PlatformAudio seam iterations
+
+On failure it uploads the XML results, macOS `.ips` reports, image UUIDs, and
+the matching test and dylib binaries for symbolication.
+
+## 6. Runtime retention correction
+
+Closed engines could remain alive briefly in detached reconnect or close tasks.
+Keeping a strong `Arc<LkRuntime>` directly in `EngineInner` therefore retained
+the peer connection factory after the active-session guard had stopped audio
+I/O. Forcing the singleton weak reference to reset was rejected: instrumentation
+showed that it created overlapping runtime generations after bounded teardown
+waits expired.
+
+`EngineInner` now stores only a weak runtime reference. The
+`ActiveRtcSessionGuard` remains the authoritative strong owner while an RTC
+session can use the factory, and `AudioCapturePauseGuard` owns a temporary
+strong reference while sender teardown is in progress. Detached engine tasks
+can finish without retaining a closed factory.
+
+In the macOS ARM64 Release stress run, every instrumented runtime generation
+completed teardown before the next generation was created. All 20
+release/reacquire iterations and all 100 exact seam iterations passed without a
+teardown timeout or crash.
+
+## 7. Validation criteria
+
+The remediation is considered ready when all of the following pass:
+
+- Full PlatformAudio integration suite.
+- Repeated release/reacquire decoded-frame test.
+- At least 100 exact seam iterations in Release on macOS ARM64.
+- Opt-in 100-iteration macOS x64 Actions stress run.
+- C++ formatting, Rust formatting, workflow validation, and the normal test
+  build.

@@ -21,6 +21,7 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <utility>
 
 #include "../common/test_common.h"
 
@@ -73,6 +74,73 @@ public:
 private:
   PlatformTrackState& state_;
 };
+
+::testing::AssertionResult verifyPlatformAudioFrameFlow(const TestConfig& config,
+                                                        std::unique_ptr<PlatformAudio> platform_audio,
+                                                        const std::string& track_name) {
+  RoomOptions options;
+  options.auto_subscribe = true;
+
+  PlatformTrackState receiver_state;
+  PlatformTrackCollectorDelegate receiver_delegate(receiver_state);
+  auto receiver_room = std::make_unique<Room>();
+  receiver_room->setDelegate(&receiver_delegate);
+  if (!receiver_room->connect(config.url, config.token_b, options)) {
+    return ::testing::AssertionFailure() << "Receiver failed to connect";
+  }
+
+  auto sender_room = std::make_unique<Room>();
+  if (!sender_room->connect(config.url, config.token_a, options)) {
+    return ::testing::AssertionFailure() << "Sender failed to connect";
+  }
+
+  const std::string sender_identity = lockLocalParticipant(*sender_room)->identity();
+  const auto source = platform_audio->createAudioSource();
+  if (!source) {
+    return ::testing::AssertionFailure() << "PlatformAudio did not create an audio source";
+  }
+  const auto track = LocalAudioTrack::createLocalAudioTrack(track_name, source);
+  if (!track) {
+    return ::testing::AssertionFailure() << "PlatformAudio did not create a local track";
+  }
+
+  constexpr int kRequiredFrames = 10;
+  constexpr auto kFrameTimeout = 20s;
+  std::mutex frame_mutex;
+  std::condition_variable frame_cv;
+  int received_frames = 0;
+  receiver_room->setOnAudioFrameCallback(sender_identity, track_name, [&](const AudioFrame& frame) {
+    if (frame.totalSamples() > 0) {
+      std::lock_guard<std::mutex> lock(frame_mutex);
+      ++received_frames;
+      frame_cv.notify_all();
+    }
+  });
+
+  TrackPublishOptions publish_options;
+  publish_options.source = TrackSource::SOURCE_MICROPHONE;
+  lockLocalParticipant(*sender_room)->publishTrack(track, publish_options);
+
+  std::unique_lock<std::mutex> subscription_lock(receiver_state.mutex);
+  const bool subscribed = receiver_state.cv.wait_for(subscription_lock, kSubscriptionTimeout, [&]() {
+    return receiver_state.subscribed_audio_names.count(track_name) > 0;
+  });
+  subscription_lock.unlock();
+
+  std::unique_lock<std::mutex> frame_lock(frame_mutex);
+  const bool frames_received =
+      subscribed && frame_cv.wait_for(frame_lock, kFrameTimeout, [&]() { return received_frames >= kRequiredFrames; });
+  frame_lock.unlock();
+  receiver_room->clearOnAudioFrameCallback(sender_identity, track_name);
+
+  if (!subscribed) {
+    return ::testing::AssertionFailure() << "Receiver never subscribed to " << track_name;
+  }
+  if (!frames_received) {
+    return ::testing::AssertionFailure() << "Receiver did not get frames from " << track_name;
+  }
+  return ::testing::AssertionSuccess();
+}
 
 } // namespace
 
@@ -317,6 +385,37 @@ TEST_F(PlatformAudioIntegrationTest, PlatformAudioFramesReachRemote) {
   EXPECT_TRUE(frames_received) << "Receiver did not get platform audio frames from the remote";
 
   receiver_room->clearOnAudioFrameCallback(sender_identity, track_name);
+}
+
+// Releasing the final PlatformAudio reference quiesces platform capture, while
+// reacquiring it on the same retained runtime must restore decoded frame flow.
+// This guards the distinction between reusable release and terminal factory
+// shutdown, where the AudioTransport callback is detached permanently.
+TEST_F(PlatformAudioIntegrationTest, ReleaseAndReacquirePreserveFrameFlow) {
+  EXPECT_TRUE(config_.available) << "Missing integration configuration";
+
+  std::unique_ptr<PlatformAudio> first_platform_audio;
+  try {
+    first_platform_audio = std::make_unique<PlatformAudio>();
+  } catch (const PlatformAudioError& error) {
+    GTEST_SKIP() << "PlatformAudio unavailable: " << error.what();
+  }
+
+  if (first_platform_audio->recordingDeviceCount() == 0) {
+    GTEST_SKIP() << "No recording device available; cannot capture platform audio frames";
+  }
+
+  ASSERT_TRUE(verifyPlatformAudioFrameFlow(config_, std::move(first_platform_audio), "platform-mic-before-release"));
+
+  std::unique_ptr<PlatformAudio> reacquired_platform_audio;
+  try {
+    reacquired_platform_audio = std::make_unique<PlatformAudio>();
+  } catch (const PlatformAudioError& error) {
+    FAIL() << "PlatformAudio reacquire failed: " << error.what();
+  }
+
+  ASSERT_TRUE(
+      verifyPlatformAudioFrameFlow(config_, std::move(reacquired_platform_audio), "platform-mic-after-reacquire"));
 }
 
 } // namespace livekit::test
