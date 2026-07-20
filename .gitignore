@@ -23,6 +23,9 @@ docs/doxygen/latex/
 .vs/
 .vscode/
 .cursor/
+# Installed by cpp-tools/install.sh
+.clang-format
+.clang-tidy
 # Compiled output
 bin/
 lib/
