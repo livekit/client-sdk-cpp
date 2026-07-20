@@ -601,11 +601,11 @@ TEST_F(DataTrackE2ETest, DefineAndGetSchema) {
   const DataTrackSchemaId schema_id{"some_schema", DataTrackSchemaEncoding::JsonSchema};
   const std::string definition(kMaxSchemaDefinitionBytes, 'a');
 
-  ASSERT_NO_THROW(lockLocalParticipant(*publisher_room)->defineSchema(schema_id, definition));
+  ASSERT_TRUE(lockLocalParticipant(*publisher_room)->defineSchema(schema_id, definition));
 
-  std::string retrieved;
-  ASSERT_NO_THROW(retrieved = lockLocalParticipant(*subscriber_room)->getSchema(schema_id, publisher_identity));
-  EXPECT_EQ(retrieved, definition);
+  const auto retrieved = lockLocalParticipant(*subscriber_room)->getSchema(schema_id, publisher_identity);
+  ASSERT_TRUE(retrieved);
+  EXPECT_EQ(*retrieved, definition);
 }
 
 TEST_F(DataTrackE2ETest, DefineAndGetCustomSchemaEncoding) {
@@ -617,11 +617,11 @@ TEST_F(DataTrackE2ETest, DefineAndGetCustomSchemaEncoding) {
   const DataTrackSchemaId schema_id{"custom_schema", DataTrackSchemaEncoding::custom("custom-schema")};
   const std::string definition("custom schema definition");
 
-  ASSERT_NO_THROW(lockLocalParticipant(*publisher_room)->defineSchema(schema_id, definition));
+  ASSERT_TRUE(lockLocalParticipant(*publisher_room)->defineSchema(schema_id, definition));
 
-  std::string retrieved;
-  ASSERT_NO_THROW(retrieved = lockLocalParticipant(*subscriber_room)->getSchema(schema_id, publisher_identity));
-  EXPECT_EQ(retrieved, definition);
+  const auto retrieved = lockLocalParticipant(*subscriber_room)->getSchema(schema_id, publisher_identity);
+  ASSERT_TRUE(retrieved);
+  EXPECT_EQ(*retrieved, definition);
 }
 
 TEST_F(DataTrackE2ETest, DefineSchemaOverLimitFails) {
@@ -632,7 +632,8 @@ TEST_F(DataTrackE2ETest, DefineSchemaOverLimitFails) {
   // Deliberately exceed the maximum allowed schema definition size.
   const std::string definition(2 * kMaxSchemaDefinitionBytes, 'a');
 
-  EXPECT_THROW(lockLocalParticipant(*room)->defineSchema(schema_id, definition), std::runtime_error);
+  const auto result = lockLocalParticipant(*room)->defineSchema(schema_id, definition);
+  EXPECT_FALSE(result);
 }
 
 TEST_F(DataTrackE2ETest, DefineDuplicateSchemaFails) {
@@ -642,9 +643,10 @@ TEST_F(DataTrackE2ETest, DefineDuplicateSchemaFails) {
   const DataTrackSchemaId schema_id{"some_schema", DataTrackSchemaEncoding::JsonSchema};
   const std::string definition(kMaxSchemaDefinitionBytes, 'a');
 
-  ASSERT_NO_THROW(lockLocalParticipant(*room)->defineSchema(schema_id, definition));
+  ASSERT_TRUE(lockLocalParticipant(*room)->defineSchema(schema_id, definition));
   // Defining the same schema again must fail.
-  EXPECT_THROW(lockLocalParticipant(*room)->defineSchema(schema_id, definition), std::runtime_error);
+  const auto duplicate_result = lockLocalParticipant(*room)->defineSchema(schema_id, definition);
+  EXPECT_FALSE(duplicate_result);
 }
 
 TEST_F(DataTrackE2ETest, GetUndefinedSchemaFails) {
@@ -654,7 +656,8 @@ TEST_F(DataTrackE2ETest, GetUndefinedSchemaFails) {
   const auto identity = lockLocalParticipant(*room)->identity();
   const DataTrackSchemaId schema_id{"undefined", DataTrackSchemaEncoding::JsonSchema};
 
-  EXPECT_THROW((void)lockLocalParticipant(*room)->getSchema(schema_id, identity), std::runtime_error);
+  const auto result = lockLocalParticipant(*room)->getSchema(schema_id, identity);
+  EXPECT_FALSE(result.has_value());
 }
 
 TEST_F(DataTrackE2ETest, PublishWithSchemaAndFrameEncodingMetadata) {

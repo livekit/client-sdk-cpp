@@ -518,6 +518,24 @@ TEST_F(FfiClientTest, NotInitialized_PublishDataTrackAsyncFails) {
   EXPECT_EQ(result.error().code, PublishDataTrackErrorCode::INTERNAL);
 }
 
+TEST_F(FfiClientTest, NotInitialized_DefineSchemaAsyncFails) {
+  ASSERT_FALSE(FfiClient::instance().isInitialized());
+
+  const DataTrackSchemaId schema_id{"schema", DataTrackSchemaEncoding::JsonSchema};
+  auto result = FfiClient::instance().defineSchemaAsync(1, schema_id, "{}").get();
+  EXPECT_FALSE(result);
+  EXPECT_FALSE(result.error().empty());
+}
+
+TEST_F(FfiClientTest, NotInitialized_GetSchemaAsyncFails) {
+  ASSERT_FALSE(FfiClient::instance().isInitialized());
+
+  const DataTrackSchemaId schema_id{"schema", DataTrackSchemaEncoding::JsonSchema};
+  auto result = FfiClient::instance().getSchemaAsync(1, schema_id, "participant").get();
+  EXPECT_FALSE(result);
+  EXPECT_FALSE(result.error().empty());
+}
+
 TEST_F(FfiClientTest, NotInitialized_SubscribeDataTrackFails) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
 

@@ -22,10 +22,12 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "livekit/data_track_error.h"
 #include "livekit/data_track_options.h"
 #include "livekit/data_track_schema.h"
 #include "livekit/ffi_handle.h"
@@ -33,6 +35,7 @@
 #include "livekit/local_data_track.h"
 #include "livekit/local_video_track.h"
 #include "livekit/participant.h"
+#include "livekit/result.h"
 #include "livekit/room_event_types.h"
 #include "livekit/rpc_error.h"
 #include "livekit/visibility.h"
@@ -209,9 +212,9 @@ public:
   ///                    parsed nor validated against its encoding, so the
   ///                    caller is responsible for ensuring it is well-formed.
   ///
-  /// @throws std::runtime_error If the schema could not be defined or the FFI
-  ///                            call fails.
-  void defineSchema(const DataTrackSchemaId& id, const std::string& definition);
+  /// @return @c true if the schema was defined; otherwise @c false. Failure
+  ///         details are written to the SDK log.
+  [[nodiscard]] bool defineSchema(const DataTrackSchemaId& id, const std::string& definition);
 
   /// Retrieve the definition for a data track schema.
   ///
@@ -221,11 +224,10 @@ public:
   /// @param id                    Identifies the schema to retrieve.
   /// @param participant_identity  Identity of the participant that defined the
   ///                              schema.
-  /// @return The schema definition.
-  ///
-  /// @throws std::runtime_error If the participant has not defined a schema
-  ///                            with this ID or the FFI call fails.
-  std::string getSchema(const DataTrackSchemaId& id, const std::string& participant_identity);
+  /// @return The schema definition on success, or @c std::nullopt on failure.
+  ///         Failure details are written to the SDK log.
+  [[nodiscard]] std::optional<std::string> getSchema(const DataTrackSchemaId& id,
+                                                     const std::string& participant_identity);
 
   /// Initiate an RPC call to a remote participant.
   ///

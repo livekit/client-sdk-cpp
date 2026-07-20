@@ -126,10 +126,12 @@ public:
                                            std::optional<std::uint32_t> response_timeout_ms = std::nullopt);
 
   // Data Track schema APIs
-  std::future<void> defineSchemaAsync(std::uint64_t local_participant_handle, const DataTrackSchemaId& schema_id,
-                                      const std::string& definition);
-  std::future<std::string> getSchemaAsync(std::uint64_t local_participant_handle, const DataTrackSchemaId& schema_id,
-                                          const std::string& participant_identity);
+  std::future<Result<void, std::string>> defineSchemaAsync(std::uint64_t local_participant_handle,
+                                                           const DataTrackSchemaId& schema_id,
+                                                           const std::string& definition);
+  std::future<Result<std::string, std::string>> getSchemaAsync(std::uint64_t local_participant_handle,
+                                                               const DataTrackSchemaId& schema_id,
+                                                               const std::string& participant_identity);
 
   // Data Track APIs
   std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> publishDataTrackAsync(

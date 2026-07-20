@@ -44,6 +44,13 @@ inline void logAndThrow(const std::string& error_msg) {
   throw std::runtime_error(error_msg);
 }
 
+template <typename T>
+std::future<T> makeReadyFuture(T value) {
+  std::promise<T> promise;
+  promise.set_value(std::move(value));
+  return promise.get_future();
+}
+
 // Helper for debug logging of optional values
 const auto optional_to_string = [](const auto& value) -> std::string {
   if (!value) {
@@ -1185,24 +1192,25 @@ std::future<void> FfiClient::sendStreamTrailerAsync(std::uint64_t local_particip
   return fut;
 }
 
-std::future<void> FfiClient::defineSchemaAsync(std::uint64_t local_participant_handle,
-                                               const DataTrackSchemaId& schema_id, const std::string& definition) {
+std::future<Result<void, std::string>> FfiClient::defineSchemaAsync(std::uint64_t local_participant_handle,
+                                                                    const DataTrackSchemaId& schema_id,
+                                                                    const std::string& definition) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
   // Register the async handler BEFORE sending the request
-  auto fut = registerAsync<void>(
+  auto fut = registerAsync<Result<void, std::string>>(
       async_id,
       [async_id](const proto::FfiEvent& event) {
         return event.has_define_schema() && event.define_schema().async_id() == async_id;
       },
-      [](const proto::FfiEvent& event, std::promise<void>& pr) {
+      [](const proto::FfiEvent& event, std::promise<Result<void, std::string>>& pr) {
         const auto& cb = event.define_schema();
         if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
+          pr.set_value(Result<void, std::string>::failure(cb.error()));
           return;
         }
-        pr.set_value();
+        pr.set_value(Result<void, std::string>::success());
       });
 
   // Build and send the request
@@ -1216,35 +1224,36 @@ std::future<void> FfiClient::defineSchemaAsync(std::uint64_t local_participant_h
   try {
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_define_schema()) {
-      logAndThrow("FfiResponse missing define_schema");
+      cancelPendingByAsyncId(async_id);
+      return makeReadyFuture(Result<void, std::string>::failure("FfiResponse missing define_schema"));
     }
-  } catch (...) {
+  } catch (const std::exception& e) {
     cancelPendingByAsyncId(async_id);
-    throw;
+    return makeReadyFuture(Result<void, std::string>::failure(e.what()));
   }
 
   return fut;
 }
 
-std::future<std::string> FfiClient::getSchemaAsync(std::uint64_t local_participant_handle,
-                                                   const DataTrackSchemaId& schema_id,
-                                                   const std::string& participant_identity) {
+std::future<Result<std::string, std::string>> FfiClient::getSchemaAsync(std::uint64_t local_participant_handle,
+                                                                        const DataTrackSchemaId& schema_id,
+                                                                        const std::string& participant_identity) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
   // Register the async handler BEFORE sending the request
-  auto fut = registerAsync<std::string>(
+  auto fut = registerAsync<Result<std::string, std::string>>(
       async_id,
       [async_id](const proto::FfiEvent& event) {
         return event.has_get_schema() && event.get_schema().async_id() == async_id;
       },
-      [](const proto::FfiEvent& event, std::promise<std::string>& pr) {
+      [](const proto::FfiEvent& event, std::promise<Result<std::string, std::string>>& pr) {
         const auto& cb = event.get_schema();
         if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
+          pr.set_value(Result<std::string, std::string>::failure(cb.error()));
           return;
         }
-        pr.set_value(cb.definition());
+        pr.set_value(Result<std::string, std::string>::success(cb.definition()));
       });
 
   // Build and send the request
@@ -1258,11 +1267,12 @@ std::future<std::string> FfiClient::getSchemaAsync(std::uint64_t local_participa
   try {
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_get_schema()) {
-      logAndThrow("FfiResponse missing get_schema");
+      cancelPendingByAsyncId(async_id);
+      return makeReadyFuture(Result<std::string, std::string>::failure("FfiResponse missing get_schema"));
     }
-  } catch (...) {
+  } catch (const std::exception& e) {
     cancelPendingByAsyncId(async_id);
-    throw;
+    return makeReadyFuture(Result<std::string, std::string>::failure(e.what()));
   }
 
   return fut;
