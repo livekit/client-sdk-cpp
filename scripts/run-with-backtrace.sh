@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Runs a command under platform-appropriate crash diagnostics and prints a
-# native backtrace if it crashes. Linux core files are inspected with GDB;
-# macOS commands run under LLDB. The command's original exit code is preserved.
+# Runs a command normally, then prints a native backtrace from any core file it
+# leaves after crashing. Linux cores are inspected with GDB and macOS cores
+# with LLDB, avoiding debugger interference with normal process behavior.
 set -euo pipefail
 
 if (($# == 0)); then
@@ -31,22 +31,8 @@ if [[ "${platform}" != "Linux" && "${platform}" != "Darwin" ]] || [[ "${LIVEKIT_
   exec "$@"
 fi
 
-if [[ "${platform}" == "Darwin" ]]; then
-  set +e
-  lldb --batch \
-    -o run \
-    -o 'script import lldb, os; os._exit(lldb.debugger.GetSelectedTarget().GetProcess().GetExitStatus())' \
-    -k "process status" \
-    -k "thread backtrace all" \
-    -k 'script import lldb, os; t = lldb.debugger.GetSelectedTarget().GetProcess().GetSelectedThread(); os._exit(128 + t.GetStopReasonDataAtIndex(0))' \
-    -- "$@"
-  exit_code=$?
-  set -e
-  exit "${exit_code}"
-fi
-
 if [[ -z "${LIVEKIT_CORE_DIR:-}" ]]; then
-  echo "LIVEKIT_CORE_DIR must be set when Linux crash diagnostics are enabled." >&2
+  echo "LIVEKIT_CORE_DIR must be set when crash diagnostics are enabled." >&2
   exit 2
 fi
 
@@ -68,11 +54,20 @@ if ((${#core_files[@]} > 0)); then
       echo "::group::Native crash backtrace ($(basename "${core_file}"))"
     fi
 
-    timeout 120s gdb --batch --quiet \
-      -ex "set pagination off" \
-      -ex "info threads" \
-      -ex "thread apply all backtrace" \
-      "$1" "${core_file}" || true
+    if [[ "${platform}" == "Linux" ]]; then
+      timeout 120s gdb --batch --quiet \
+        -ex "set pagination off" \
+        -ex "info threads" \
+        -ex "thread apply all backtrace" \
+        "$1" "${core_file}" || true
+    else
+      lldb --batch \
+        --file "$1" \
+        --core "${core_file}" \
+        -o "process status" \
+        -o "thread list" \
+        -o "thread backtrace all" || true
+    fi
 
     if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
       echo "::endgroup::"

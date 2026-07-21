@@ -291,9 +291,12 @@ jobs:
         shell: bash
         run: |
           echo "LIVEKIT_CRASH_DIAGNOSTICS=1" >> "$GITHUB_ENV"
+          echo "LIVEKIT_CORE_DIR=${RUNNER_TEMP}" >> "$GITHUB_ENV"
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            echo "LIVEKIT_CORE_DIR=${RUNNER_TEMP}" >> "$GITHUB_ENV"
             sudo sysctl -w "kernel.core_pattern=${RUNNER_TEMP}/livekit-core.%p"
+          else
+            sudo sysctl -w "kern.coredump=1"
+            sudo sysctl -w "kern.corefile=${RUNNER_TEMP}/livekit-core.%P"
           fi
 
       # ---------- Build (tests on, examples off) ----------
