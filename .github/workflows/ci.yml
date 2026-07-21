@@ -57,6 +57,7 @@ jobs:
               - client-sdk-rust/**
               - cmake/**
               - .token_helpers/**
+              - scripts/run-with-backtrace.sh
               - CMakeLists.txt
               - CMakePresets.json
               - build*

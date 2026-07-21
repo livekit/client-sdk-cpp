@@ -117,6 +117,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
   # Disable Cargo incremental artifacts. The Rust FFI is built once per
   # submodule SHA and cached whole (see the cargo target cache below), so
   # incremental dirs add nothing but bloat the cached target/ directory and
@@ -220,7 +221,7 @@ jobs:
             libabsl-dev \
             libcurl4-openssl-dev \
             libwayland-dev libdecor-0-dev \
-            jq
+            gdb jq
 
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
@@ -285,6 +286,16 @@ jobs:
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
           echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
 
+      - name: Configure Unix crash diagnostics
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          echo "LIVEKIT_CRASH_DIAGNOSTICS=1" >> "$GITHUB_ENV"
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            echo "LIVEKIT_CORE_DIR=${RUNNER_TEMP}" >> "$GITHUB_ENV"
+            sudo sysctl -w "kernel.core_pattern=${RUNNER_TEMP}/livekit-core.%p"
+          fi
+
       # ---------- Build (tests on, examples off) ----------
       - name: Build tests (Unix)
         if: runner.os != 'Windows'
@@ -309,7 +320,8 @@ jobs:
         timeout-minutes: ${{ inputs.unit_timeout_minutes }}
         shell: bash
         run: |
-          ${{ env.BUILD_DIR }}/bin/livekit_unit_tests \
+          bash scripts/run-with-backtrace.sh \
+            ${{ env.BUILD_DIR }}/bin/livekit_unit_tests \
             --gtest_repeat=${{ inputs.unit_repeat }} \
             --gtest_brief=1 \
             --gtest_output=xml:${{ env.BUILD_DIR }}/unit-test-results.xml
@@ -383,7 +395,8 @@ jobs:
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
           # TODO(BOT-477) Temporarily disable platform audio integration tests in CI until instability is resolved
-          ${{ env.BUILD_DIR }}/bin/livekit_integration_tests \
+          bash scripts/run-with-backtrace.sh \
+            ${{ env.BUILD_DIR }}/bin/livekit_integration_tests \
             --gtest_filter='-PlatformAudioIntegrationTest.*' \
             --gtest_repeat=${{ inputs.integration_repeat }} \
             --gtest_recreate_environments_when_repeating=1 \
@@ -398,7 +411,8 @@ jobs:
         run: |
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
-          ${{ env.BUILD_DIR }}/bin/livekit_stress_tests \
+          bash scripts/run-with-backtrace.sh \
+            ${{ env.BUILD_DIR }}/bin/livekit_stress_tests \
             --gtest_repeat=${{ inputs.stress_repeat }} \
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_output=xml:${{ env.BUILD_DIR }}/stress-test-results.xml
