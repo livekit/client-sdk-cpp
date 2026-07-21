@@ -51,18 +51,18 @@ TEST_F(VideoFrameMetadataServerTest, UserTimestampRoundTripsToReceiverEventCallb
   std::optional<std::uint64_t> received_user_timestamp_us;
 
   const std::string track_name = "metadata-track";
-  receiver_room.setOnVideoFrameEventCallback(sender_identity, track_name,
-                                             [&mutex, &cv, &received_user_timestamp_us](const VideoFrameEvent& event) {
-                                               std::lock_guard<std::mutex> lock(mutex);
-                                               if (!event.metadata) {
-                                                 return;
-                                               }
-                                               const auto& user_timestamp_us = event.metadata->user_timestamp_us;
-                                               if (user_timestamp_us.has_value() && *user_timestamp_us != 0) {
-                                                 received_user_timestamp_us = user_timestamp_us;
-                                                 cv.notify_all();
-                                               }
-                                             });
+  ASSERT_TRUE(receiver_room.trySetOnVideoFrameEventCallback(
+      sender_identity, track_name, [&mutex, &cv, &received_user_timestamp_us](const VideoFrameEvent& event) {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (!event.metadata) {
+          return;
+        }
+        const auto& user_timestamp_us = event.metadata->user_timestamp_us;
+        if (user_timestamp_us.has_value() && *user_timestamp_us != 0) {
+          received_user_timestamp_us = user_timestamp_us;
+          cv.notify_all();
+        }
+      }));
 
   auto source = std::make_shared<VideoSource>(16, 16);
   auto track = LocalVideoTrack::createLocalVideoTrack(track_name, source);
@@ -180,17 +180,17 @@ TEST_F(VideoFrameMetadataServerTest, UserDataRoundTripsToReceiverEventCallback) 
   const std::string track_name = "userdata-track";
   const std::vector<std::uint8_t> expected_user_data{0x01, 0x02, 0xab, 0xcd, 0xef};
 
-  receiver_room.setOnVideoFrameEventCallback(sender_identity, track_name,
-                                             [&mutex, &cv, &received_user_data](const VideoFrameEvent& event) {
-                                               std::lock_guard<std::mutex> lock(mutex);
-                                               if (!event.metadata || !event.metadata->user_data.has_value()) {
-                                                 return;
-                                               }
-                                               if (!event.metadata->user_data->empty()) {
-                                                 received_user_data = event.metadata->user_data;
-                                                 cv.notify_all();
-                                               }
-                                             });
+  ASSERT_TRUE(receiver_room.trySetOnVideoFrameEventCallback(
+      sender_identity, track_name, [&mutex, &cv, &received_user_data](const VideoFrameEvent& event) {
+        std::lock_guard<std::mutex> lock(mutex);
+        if (!event.metadata || !event.metadata->user_data.has_value()) {
+          return;
+        }
+        if (!event.metadata->user_data->empty()) {
+          received_user_data = event.metadata->user_data;
+          cv.notify_all();
+        }
+      }));
 
   auto source = std::make_shared<VideoSource>(16, 16);
   auto track = LocalVideoTrack::createLocalVideoTrack(track_name, source);

@@ -92,11 +92,6 @@ public:
   /// @param options Pipeline options to apply to this remote data track.
   LIVEKIT_API void setPipelineOptions(const DataTrackPipelineOptions& options);
 
-#ifdef LIVEKIT_TEST_ACCESS
-  /// Test-only accessor for exercising lower-level FFI subscription paths.
-  uintptr_t testFfiHandleId() const noexcept { return ffiHandleId(); }
-#endif
-
   /// Subscribe to this remote data track.
   ///
   /// Returns a DataTrackStream that delivers frames via blocking
@@ -106,8 +101,9 @@ public:
 
 private:
   friend class Room;
+  friend struct RemoteDataTrackTestAccess;
 
-  explicit RemoteDataTrack(const proto::OwnedRemoteDataTrack& owned);
+  LIVEKIT_INTERNAL_API explicit RemoteDataTrack(const proto::OwnedRemoteDataTrack& owned);
 
   uintptr_t ffiHandleId() const noexcept { return handle_.get(); }
   /// RAII wrapper for the Rust-owned FFI resource.

@@ -268,6 +268,13 @@ The following features are deprecated and will be removed in the next major rele
 
 - `PacketTrailerFeatures` is deprecated. Use `FrameMetadataFeatures` via
   `TrackPublishOptions::frame_metadata_features` instead.
+- `Room::setOnAudioFrameCallback`, `Room::setOnVideoFrameCallback`, and
+  `Room::setOnVideoFrameEventCallback` are deprecated. Use the `[[nodiscard]]`
+  variants `trySetOnAudioFrameCallback`, `trySetOnVideoFrameCallback`, and
+  `trySetOnVideoFrameEventCallback` instead, which return `false` when a reader
+  is already active for the key (instead of silently replacing a running callback).
+  To replace an active callback, call `clearOn*FrameCallback` first. (The same rename
+  applies to the corresponding `SubscriptionThreadDispatcher` methods.)
 
 ### `v1.0.0`
 
