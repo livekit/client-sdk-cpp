@@ -98,6 +98,7 @@ public:
                                                    const RoomOptions& options);
 
   std::future<void> disconnectAsync(uintptr_t room_handle, DisconnectReason reason);
+  std::future<void> simulateScenarioAsync(uintptr_t room_handle, proto::SimulateScenarioKind scenario);
 
   // Track APIs
   std::future<std::vector<RtcStats>> getTrackStatsAsync(uintptr_t track_handle);

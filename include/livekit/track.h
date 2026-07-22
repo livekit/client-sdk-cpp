@@ -31,6 +31,7 @@
 namespace livekit {
 
 class LocalTrackPublication;
+class LocalParticipant;
 
 /// @brief Media kind for an audio or video track.
 enum class TrackKind {
@@ -121,6 +122,10 @@ protected:
                             std::optional<std::string> mime_type);
 
 private:
+  friend class LocalParticipant;
+
+  void setSid(const std::string& sid) { sid_ = sid; }
+
   FfiHandle handle_; // Owned
 
   std::string sid_;

@@ -20,6 +20,7 @@
 #include <atomic>
 #include <chrono>
 #include <future>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -39,6 +40,7 @@ struct RoomTestAccess {
 
     const std::scoped_lock<std::mutex> guard(room.lock_);
     room.connection_state_ = ConnectionState::Connected;
+    room.disconnect_callback_claimed_ = false;
     room.room_handle_ = std::make_shared<FfiHandle>();
     room.listener_id_ = listener_id;
   }
@@ -51,6 +53,18 @@ struct RoomTestAccess {
   static int listenerId(const Room& room) {
     const std::scoped_lock<std::mutex> guard(room.lock_);
     return room.listener_id_;
+  }
+
+  static void simulateScenario(Room& room, proto::SimulateScenarioKind scenario) {
+    std::shared_ptr<FfiHandle> handle;
+    {
+      const std::scoped_lock<std::mutex> guard(room.lock_);
+      handle = room.room_handle_;
+    }
+    if (!handle || !handle->valid()) {
+      throw std::runtime_error("cannot simulate reconnect for a disconnected room");
+    }
+    FfiClient::instance().simulateScenarioAsync(handle->get(), scenario).get();
   }
 };
 
@@ -83,6 +97,39 @@ public:
 
   std::vector<LifecycleCallback> callbacks;
   DisconnectReason reason = DisconnectReason::Unknown;
+};
+
+class ReconnectLifecycleDelegate : public RoomDelegate {
+public:
+  void onConnectionStateChanged(Room& room, const ConnectionStateChangedEvent& event) override {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    callbacks.push_back(event.state == ConnectionState::Reconnecting ? "state:reconnecting"
+                        : event.state == ConnectionState::Connected  ? "state:connected"
+                                                                     : "state:disconnected");
+    observed_states.push_back(room.connectionState());
+  }
+
+  void onReconnecting(Room& room, const ReconnectingEvent&) override {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    callbacks.push_back("reconnecting");
+    observed_states.push_back(room.connectionState());
+  }
+
+  void onReconnected(Room& room, const ReconnectedEvent&) override {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    callbacks.push_back("reconnected");
+    observed_states.push_back(room.connectionState());
+  }
+
+  void onDisconnected(Room& room, const DisconnectedEvent&) override {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    callbacks.push_back("disconnected");
+    observed_states.push_back(room.connectionState());
+  }
+
+  std::mutex mutex_;
+  std::vector<std::string> callbacks;
+  std::vector<ConnectionState> observed_states;
 };
 
 } // namespace
@@ -399,6 +446,76 @@ TEST_F(RoomTest, DisconnectAfterServerDisconnectCleansUpWithoutDuplicateNotifica
   EXPECT_FALSE(RoomTestAccess::hasRoomHandle(room));
   EXPECT_EQ(RoomTestAccess::listenerId(room), 0);
   EXPECT_EQ(delegate.callbacks.size(), 1) << "onDisconnected must not fire twice";
+}
+
+TEST_F(RoomTest, ReconnectEventsUpdateStateBeforeCallbacks) {
+  Room room;
+  ReconnectLifecycleDelegate delegate;
+  std::atomic<int> listener_calls{0};
+  room.setDelegate(&delegate);
+  RoomTestAccess::installConnectedListener(room, listener_calls);
+
+  proto::FfiEvent state_reconnecting;
+  auto* reconnecting_room_event = state_reconnecting.mutable_room_event();
+  reconnecting_room_event->set_room_handle(0);
+  reconnecting_room_event->mutable_connection_state_changed()->set_state(proto::CONN_RECONNECTING);
+  emitFfiEvent(state_reconnecting);
+
+  proto::FfiEvent reconnecting;
+  reconnecting.mutable_room_event()->set_room_handle(0);
+  reconnecting.mutable_room_event()->mutable_reconnecting();
+  emitFfiEvent(reconnecting);
+
+  proto::FfiEvent state_connected;
+  auto* connected_room_event = state_connected.mutable_room_event();
+  connected_room_event->set_room_handle(0);
+  connected_room_event->mutable_connection_state_changed()->set_state(proto::CONN_CONNECTED);
+  emitFfiEvent(state_connected);
+
+  proto::FfiEvent reconnected;
+  reconnected.mutable_room_event()->set_room_handle(0);
+  reconnected.mutable_room_event()->mutable_reconnected();
+  emitFfiEvent(reconnected);
+
+  const std::vector<std::string> expected{"state:reconnecting", "reconnecting", "state:connected", "reconnected"};
+  EXPECT_EQ(delegate.callbacks, expected);
+  ASSERT_EQ(delegate.observed_states.size(), expected.size());
+  EXPECT_EQ(delegate.observed_states[0], ConnectionState::Reconnecting);
+  EXPECT_EQ(delegate.observed_states[1], ConnectionState::Reconnecting);
+  EXPECT_EQ(delegate.observed_states[2], ConnectionState::Connected);
+  EXPECT_EQ(delegate.observed_states[3], ConnectionState::Connected);
+  EXPECT_EQ(room.connectionState(), ConnectionState::Connected);
+}
+
+TEST_F(RoomTest, ConnectionStateDisconnectedDoesNotSuppressDisconnectedCallback) {
+  Room room;
+  ReconnectLifecycleDelegate delegate;
+  std::atomic<int> listener_calls{0};
+  room.setDelegate(&delegate);
+  RoomTestAccess::installConnectedListener(room, listener_calls);
+
+  proto::FfiEvent state_disconnected;
+  auto* state_room_event = state_disconnected.mutable_room_event();
+  state_room_event->set_room_handle(0);
+  state_room_event->mutable_connection_state_changed()->set_state(proto::CONN_DISCONNECTED);
+  emitFfiEvent(state_disconnected);
+
+  proto::FfiEvent disconnected;
+  auto* disconnected_room_event = disconnected.mutable_room_event();
+  disconnected_room_event->set_room_handle(0);
+  disconnected_room_event->mutable_disconnected()->set_reason(proto::SIGNAL_CLOSE);
+  emitFfiEvent(disconnected);
+
+  const std::vector<std::string> expected{"state:disconnected", "disconnected"};
+  EXPECT_EQ(delegate.callbacks, expected);
+  ASSERT_EQ(delegate.observed_states.size(), expected.size());
+  EXPECT_EQ(delegate.observed_states[0], ConnectionState::Disconnected);
+  EXPECT_EQ(delegate.observed_states[1], ConnectionState::Disconnected);
+}
+
+TEST_F(RoomTest, SimulateScenarioOnDisconnectedRoomThrows) {
+  Room room;
+  EXPECT_THROW(RoomTestAccess::simulateScenario(room, proto::SIMULATE_SIGNAL_RECONNECT), std::runtime_error);
 }
 
 } // namespace livekit::test

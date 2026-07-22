@@ -103,6 +103,8 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
       throw std::runtime_error("already connected");
     }
     connection_state_ = ConnectionState::Reconnecting;
+    last_notified_connection_state_.reset();
+    disconnect_callback_claimed_ = false;
   }
 
   FfiClient::ListenerId listenerId = 0;
@@ -178,6 +180,7 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
       remote_participants_ = std::move(new_remote_participants);
       e2ee_manager_ = std::move(new_e2ee_manager);
       connection_state_ = ConnectionState::Connected;
+      disconnect_callback_claimed_ = false;
     }
 
     readyForRoomEvent(room_handle_id);
@@ -188,6 +191,7 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
     {
       const std::scoped_lock<std::mutex> g(lock_);
       connection_state_ = ConnectionState::Disconnected;
+      disconnect_callback_claimed_ = true;
       if (listener_id_ == listenerId) {
         listener_to_remove = listener_id_;
         listener_id_ = 0;
@@ -235,10 +239,13 @@ bool Room::shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
     if (!has_room_state) {
       return false;
     }
-    // The state transition determines which racing path owns the FFI request
-    // and delegate notification. Remaining room state is still claimed here so
-    // EOS or destruction can finish local cleanup after a server disconnect.
-    claimed_disconnect = connection_state_ != ConnectionState::Disconnected;
+    // State-change and Disconnected events are separate FFI events. Track
+    // notification ownership independently from connection_state_ so processing
+    // ConnectionStateChanged(Disconnected) cannot suppress onDisconnected.
+    claimed_disconnect = !disconnect_callback_claimed_;
+    if (claimed_disconnect) {
+      disconnect_callback_claimed_ = true;
+    }
     handle = std::move(room_handle_);
     delegate_snapshot = delegate_;
     local_participant_to_cleanup = std::move(local_participant_);
@@ -308,6 +315,8 @@ bool Room::shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
   handle.reset();
 
   if (notify_delegate && claimed_disconnect && delegate_snapshot) {
+    transitionConnectionState(ConnectionState::Disconnected, true);
+
     DisconnectedEvent ev;
     ev.reason = reason;
     try {
@@ -351,6 +360,26 @@ std::vector<std::weak_ptr<RemoteParticipant>> Room::remoteParticipants() const {
 ConnectionState Room::connectionState() const {
   const std::scoped_lock<std::mutex> g(lock_);
   return connection_state_;
+}
+
+void Room::transitionConnectionState(ConnectionState state, bool notify_delegate) {
+  RoomDelegate* delegate_snapshot = nullptr;
+  bool should_notify = false;
+  {
+    const std::scoped_lock<std::mutex> guard(lock_);
+    connection_state_ = state;
+    if (notify_delegate && (!last_notified_connection_state_ || *last_notified_connection_state_ != state)) {
+      last_notified_connection_state_ = state;
+      delegate_snapshot = delegate_;
+      should_notify = delegate_snapshot != nullptr;
+    }
+  }
+
+  if (should_notify) {
+    ConnectionStateChangedEvent ev;
+    ev.state = state;
+    delegate_snapshot->onConnectionStateChanged(*this, ev);
+  }
 }
 
 std::future<SessionStats> Room::getStats() const {
@@ -589,6 +618,27 @@ void Room::onEvent(const FfiEvent& event) {
           }
           if (delegate_snapshot) {
             delegate_snapshot->onLocalTrackUnpublished(*this, ev);
+          }
+          break;
+        }
+        case proto::RoomEvent::kLocalTrackRepublished: {
+          bool updated = false;
+          std::string previous_sid;
+          std::string new_sid;
+          {
+            const std::scoped_lock<std::mutex> guard(lock_);
+            if (!local_participant_) {
+              LK_LOG_ERROR("kLocalTrackRepublished: local_participant_ is nullptr");
+              break;
+            }
+            const auto& republished = re.local_track_republished();
+            previous_sid = republished.previous_sid();
+            new_sid = republished.info().sid();
+            updated = local_participant_->handleTrackRepublished(
+                previous_sid, static_cast<uintptr_t>(republished.publication_handle()), republished.info());
+          }
+          if (!updated) {
+            LK_LOG_WARN("local_track_republished for unknown publication sid {} (new sid {})", previous_sid, new_sid);
           }
           break;
         }
@@ -1181,32 +1231,19 @@ void Room::onEvent(const FfiEvent& event) {
           // ------------------------------------------------------------------------
 
         case proto::RoomEvent::kConnectionStateChanged: {
-          ConnectionStateChangedEvent ev;
-          {
-            const std::scoped_lock<std::mutex> guard(lock_);
-            const auto& cs = re.connection_state_changed();
-            // TODO, maybe we should update our |connection_state_|
-            // correspoindingly, but the this kConnectionStateChanged event is never
-            // triggered in my local test.
-            LK_LOG_DEBUG("cs.state() is {} connection_state_ is {}", static_cast<int>(cs.state()),
-                         static_cast<int>(connection_state_));
-            ev.state = static_cast<ConnectionState>(cs.state());
-          }
-          if (delegate_snapshot) {
-            delegate_snapshot->onConnectionStateChanged(*this, ev);
-          }
+          transitionConnectionState(toConnectionState(re.connection_state_changed().state()), true);
           break;
         }
         case proto::RoomEvent::kDisconnected: {
           bool should_notify = false;
           {
             const std::scoped_lock<std::mutex> guard(lock_);
-            // Local shutdown marks the state before awaiting the FFI response
-            // and notifies the delegate itself. Suppress that duplicate while
-            // passing server-initiated disconnects through unchanged.
-            should_notify = connection_state_ != ConnectionState::Disconnected;
-            connection_state_ = ConnectionState::Disconnected;
+            should_notify = !disconnect_callback_claimed_;
+            if (should_notify) {
+              disconnect_callback_claimed_ = true;
+            }
           }
+          transitionConnectionState(ConnectionState::Disconnected, true);
           if (should_notify && delegate_snapshot) {
             DisconnectedEvent ev;
             ev.reason = toDisconnectReason(re.disconnected().reason());
@@ -1215,6 +1252,7 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kReconnecting: {
+          transitionConnectionState(ConnectionState::Reconnecting, true);
           const ReconnectingEvent ev;
           if (delegate_snapshot) {
             delegate_snapshot->onReconnecting(*this, ev);
@@ -1222,6 +1260,7 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kReconnected: {
+          transitionConnectionState(ConnectionState::Connected, true);
           const ReconnectedEvent ev;
           if (delegate_snapshot) {
             delegate_snapshot->onReconnected(*this, ev);
