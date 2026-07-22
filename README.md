@@ -15,6 +15,8 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 <!--END_DESCRIPTION-->
 
 [![CI](https://github.com/livekit/client-sdk-cpp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/livekit/client-sdk-cpp/actions/workflows/ci.yml)
+[![Nightly Tests](https://github.com/livekit/client-sdk-cpp/actions/workflows/nightly.yml/badge.svg?branch=main&event=schedule)](https://github.com/livekit/client-sdk-cpp/actions/workflows/nightly.yml)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 ## Docs
 

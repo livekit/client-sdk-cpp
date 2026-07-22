@@ -1,10 +1,9 @@
 name: Nightly Tests
 
 on:
-  # DO NOT MERGE: This temporary branch trigger must be restored to the nightly
-  # schedule before merging.
-  push:
-    branches: ["feature/nightly_ci"]
+  schedule:
+    # Runs daily at 09:00 UTC (01:00/02:00 Pacific, 04:00/05:00 Eastern).
+    - cron: "0 9 * * *"
   workflow_dispatch:
 
 permissions:
