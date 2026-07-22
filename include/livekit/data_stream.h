@@ -64,7 +64,7 @@ struct TextStreamInfo : BaseStreamInfo {
   /// IDs of any attached streams (for attached files).
   std::vector<std::string> attachments;
   /// If this stream is a reply to another stream, this field holds its ID
-  std::optional<std::string> reply_to_stream_id = std::nullopt;
+  std::optional<std::string> reply_to_stream_id;
 };
 
 /// Metadata for a byte stream.

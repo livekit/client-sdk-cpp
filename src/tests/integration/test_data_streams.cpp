@@ -81,7 +81,7 @@ public:
   const std::string& senderIdentity() const { return sender_identity_; }
 
 private:
-  std::thread recv_thread_{};
+  std::thread recv_thread_;
   std::mutex mutex_;
   std::condition_variable cv_;
   bool done_ = false;
@@ -130,7 +130,7 @@ public:
   const std::string& senderIdentity() const { return sender_identity_; }
 
 private:
-  std::thread recv_thread_{};
+  std::thread recv_thread_;
   std::mutex mutex_;
   std::condition_variable cv_;
   bool done_ = false;
@@ -149,17 +149,16 @@ TEST_F(DataStreamE2ETest, TextStreamRoundTripEndToEnd) {
   auto rooms = testRooms(2);
   auto& sender_room = rooms[0];
   auto& receiver_room = rooms[1];
-  const auto sender_identity = lockLocalParticipant(*sender_room)->identity();
+  auto sender = lockLocalParticipant(*sender_room);
+  const auto sender_identity = sender->identity();
 
   TextStreamCollector collector;
   collector.registerOn(*receiver_room, topic);
 
-  {
-    TextStreamWriter writer(*lockLocalParticipant(*sender_room), topic);
-    writer.write("hello, ");
-    writer.write("world!");
-    writer.close();
-  }
+  TextStreamWriter writer(*sender, topic);
+  writer.write("hello, ");
+  writer.write("world!");
+  writer.close();
 
   ASSERT_TRUE(collector.wait(kStreamWaitTimeout)) << "Timed out waiting for text stream";
   EXPECT_EQ(collector.text(), "hello, world!");
@@ -184,12 +183,10 @@ TEST_F(DataStreamE2ETest, TextStreamReplyToStreamIdIsRoutedEndToEnd) {
   TextStreamCollector collector;
   collector.registerOn(*receiver_room, topic);
 
-  {
-    TextStreamWriter writer(*lockLocalParticipant(*sender_room), topic, /*attributes=*/{}, /*stream_id=*/"",
-                            /*total_size=*/std::nullopt, reply_to_id);
-    writer.write("reply payload");
-    writer.close();
-  }
+  TextStreamWriter writer(*lockLocalParticipant(*sender_room), topic, /*attributes=*/{}, /*stream_id=*/"",
+                          /*total_size=*/std::nullopt, reply_to_id);
+  writer.write("reply payload");
+  writer.close();
 
   ASSERT_TRUE(collector.wait(kStreamWaitTimeout)) << "Timed out waiting for text stream";
   EXPECT_EQ(collector.text(), "reply payload");
@@ -210,11 +207,9 @@ TEST_F(DataStreamE2ETest, ByteStreamRoundTripEndToEnd) {
   ByteStreamCollector collector;
   collector.registerOn(*receiver_room, topic);
 
-  {
-    ByteStreamWriter writer(*lockLocalParticipant(*sender_room), /*name=*/"payload.bin", topic);
-    writer.write(payload);
-    writer.close();
-  }
+  ByteStreamWriter writer(*lockLocalParticipant(*sender_room), /*name=*/"payload.bin", topic);
+  writer.write(payload);
+  writer.close();
 
   ASSERT_TRUE(collector.wait(kStreamWaitTimeout)) << "Timed out waiting for byte stream";
   EXPECT_EQ(collector.content(), payload);
