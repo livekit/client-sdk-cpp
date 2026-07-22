@@ -23,6 +23,7 @@
 #include <type_traits>
 
 #include "data_track.pb.h"
+#include "data_track_proto_converter.h"
 #include "ffi.pb.h"
 #include "livekit/build.h"
 #include "livekit/data_track_error.h"
@@ -41,6 +42,13 @@ namespace {
 inline void logAndThrow(const std::string& error_msg) {
   LK_LOG_ERROR("LiveKit SDK Error: {}", error_msg);
   throw std::runtime_error(error_msg);
+}
+
+template <typename T>
+std::future<T> makeReadyFuture(T value) {
+  std::promise<T> promise;
+  promise.set_value(std::move(value));
+  return promise.get_future();
 }
 
 // Helper for debug logging of optional values
@@ -138,6 +146,10 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
     // data track async completions
     case E::kPublishDataTrack:
       return event.publish_data_track().async_id();
+    case E::kDefineSchema:
+      return event.define_schema().async_id();
+    case E::kGetSchema:
+      return event.get_schema().async_id();
 
     // NOT async completion:
     case E::kRoomEvent:
@@ -786,7 +798,7 @@ std::future<void> FfiClient::publishDataAsync(std::uint64_t local_participant_ha
 }
 
 std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> FfiClient::publishDataTrackAsync(
-    std::uint64_t local_participant_handle, const std::string& track_name) {
+    std::uint64_t local_participant_handle, const DataTrackPublishOptions& options) {
   const AsyncId async_id = generateAsyncId();
 
   auto fut = registerAsync<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>>(
@@ -812,7 +824,14 @@ std::future<Result<proto::OwnedLocalDataTrack, PublishDataTrackError>> FfiClient
   proto::FfiRequest req;
   auto* msg = req.mutable_publish_data_track();
   msg->set_local_participant_handle(local_participant_handle);
-  msg->mutable_options()->set_name(track_name);
+  auto* opts = msg->mutable_options();
+  opts->set_name(options.name);
+  if (options.schema.has_value()) {
+    *opts->mutable_schema() = toProto(*options.schema);
+  }
+  if (options.frame_encoding.has_value()) {
+    *opts->mutable_frame_encoding() = toProto(*options.frame_encoding);
+  }
   msg->set_request_async_id(async_id);
 
   try {
@@ -1168,6 +1187,92 @@ std::future<void> FfiClient::sendStreamTrailerAsync(std::uint64_t local_particip
   } catch (...) {
     cancelPendingByAsyncId(async_id);
     throw;
+  }
+
+  return fut;
+}
+
+std::future<Result<void, std::string>> FfiClient::defineSchemaAsync(std::uint64_t local_participant_handle,
+                                                                    const DataTrackSchemaId& schema_id,
+                                                                    const std::string& definition) {
+  // Generate client-side async_id first
+  const AsyncId async_id = generateAsyncId();
+
+  // Register the async handler BEFORE sending the request
+  auto fut = registerAsync<Result<void, std::string>>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_define_schema() && event.define_schema().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<Result<void, std::string>>& pr) {
+        const auto& cb = event.define_schema();
+        if (cb.has_error() && !cb.error().empty()) {
+          pr.set_value(Result<void, std::string>::failure(cb.error()));
+          return;
+        }
+        pr.set_value(Result<void, std::string>::success());
+      });
+
+  // Build and send the request
+  proto::FfiRequest req;
+  auto* msg = req.mutable_define_schema();
+  msg->set_local_participant_handle(local_participant_handle);
+  *msg->mutable_schema_id() = toProto(schema_id);
+  msg->set_definition(definition);
+  msg->set_request_async_id(async_id);
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_define_schema()) {
+      cancelPendingByAsyncId(async_id);
+      return makeReadyFuture(Result<void, std::string>::failure("FfiResponse missing define_schema"));
+    }
+  } catch (const std::exception& e) {
+    cancelPendingByAsyncId(async_id);
+    return makeReadyFuture(Result<void, std::string>::failure(e.what()));
+  }
+
+  return fut;
+}
+
+std::future<Result<std::string, std::string>> FfiClient::getSchemaAsync(std::uint64_t local_participant_handle,
+                                                                        const DataTrackSchemaId& schema_id,
+                                                                        const std::string& participant_identity) {
+  // Generate client-side async_id first
+  const AsyncId async_id = generateAsyncId();
+
+  // Register the async handler BEFORE sending the request
+  auto fut = registerAsync<Result<std::string, std::string>>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_get_schema() && event.get_schema().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<Result<std::string, std::string>>& pr) {
+        const auto& cb = event.get_schema();
+        if (cb.has_error() && !cb.error().empty()) {
+          pr.set_value(Result<std::string, std::string>::failure(cb.error()));
+          return;
+        }
+        pr.set_value(Result<std::string, std::string>::success(cb.definition()));
+      });
+
+  // Build and send the request
+  proto::FfiRequest req;
+  auto* msg = req.mutable_get_schema();
+  msg->set_local_participant_handle(local_participant_handle);
+  *msg->mutable_schema_id() = toProto(schema_id);
+  msg->set_participant_identity(participant_identity);
+  msg->set_request_async_id(async_id);
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_get_schema()) {
+      cancelPendingByAsyncId(async_id);
+      return makeReadyFuture(Result<std::string, std::string>::failure("FfiResponse missing get_schema"));
+    }
+  } catch (const std::exception& e) {
+    cancelPendingByAsyncId(async_id);
+    return makeReadyFuture(Result<std::string, std::string>::failure(e.what()));
   }
 
   return fut;

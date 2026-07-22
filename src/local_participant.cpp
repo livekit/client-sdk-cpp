@@ -29,6 +29,7 @@
 #include "livekit/local_video_track.h"
 #include "livekit/room_delegate.h"
 #include "livekit/track.h"
+#include "lk_log.h"
 #include "participant.pb.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
@@ -263,6 +264,13 @@ LocalParticipant::PublicationMap LocalParticipant::trackPublications() const {
 
 Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> LocalParticipant::publishDataTrack(
     const std::string& name) {
+  DataTrackPublishOptions options;
+  options.name = name;
+  return publishDataTrack(options);
+}
+
+Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> LocalParticipant::publishDataTrack(
+    const DataTrackPublishOptions& options) {
   auto handle_id = ffiHandleId();
   if (handle_id == 0) {
     return Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError>::failure(
@@ -271,7 +279,7 @@ Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> LocalParticipant:
                               "handle"});
   }
 
-  auto fut = FfiClient::instance().publishDataTrackAsync(static_cast<std::uint64_t>(handle_id), name);
+  auto fut = FfiClient::instance().publishDataTrackAsync(static_cast<std::uint64_t>(handle_id), options);
 
   auto result = fut.get();
   if (!result) {
@@ -288,6 +296,39 @@ void LocalParticipant::unpublishDataTrack(const std::shared_ptr<LocalDataTrack>&
   }
 
   track->unpublishDataTrack();
+}
+
+bool LocalParticipant::defineSchema(const DataTrackSchemaId& id, const std::string& definition) {
+  auto handle_id = ffiHandleId();
+  if (handle_id == 0) {
+    LK_LOG_ERROR("LocalParticipant::defineSchema failed: invalid FFI handle");
+    return false;
+  }
+
+  auto fut = FfiClient::instance().defineSchemaAsync(static_cast<std::uint64_t>(handle_id), id, definition);
+  auto result = fut.get();
+  if (!result) {
+    LK_LOG_ERROR("LocalParticipant::defineSchema failed: {}", result.error());
+    return false;
+  }
+  return true;
+}
+
+std::optional<std::string> LocalParticipant::getSchema(const DataTrackSchemaId& id,
+                                                       const std::string& participant_identity) {
+  auto handle_id = ffiHandleId();
+  if (handle_id == 0) {
+    LK_LOG_ERROR("LocalParticipant::getSchema failed: invalid FFI handle");
+    return std::nullopt;
+  }
+
+  auto fut = FfiClient::instance().getSchemaAsync(static_cast<std::uint64_t>(handle_id), id, participant_identity);
+  auto result = fut.get();
+  if (!result) {
+    LK_LOG_ERROR("LocalParticipant::getSchema failed: {}", result.error());
+    return std::nullopt;
+  }
+  return std::move(result).value();
 }
 
 std::string LocalParticipant::performRpc(const std::string& destination_identity, const std::string& method,

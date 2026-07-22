@@ -22,15 +22,20 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "livekit/data_track_error.h"
+#include "livekit/data_track_options.h"
+#include "livekit/data_track_schema.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/local_audio_track.h"
 #include "livekit/local_data_track.h"
 #include "livekit/local_video_track.h"
 #include "livekit/participant.h"
+#include "livekit/result.h"
 #include "livekit/room_event_types.h"
 #include "livekit/rpc_error.h"
 #include "livekit/visibility.h"
@@ -172,6 +177,18 @@ public:
   ///         publication failed.
   Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> publishDataTrack(const std::string& name);
 
+  /// Publish a data track to the room with explicit options.
+  ///
+  /// Like publishDataTrack(const std::string&), but also lets the publisher
+  /// advertise an optional schema and frame encoding as metadata. These are
+  /// surfaced to subscribers via the remote DataTrackInfo.
+  ///
+  /// @param options  Track name plus optional schema / frame encoding.
+  /// @return The published track on success, or a typed error describing why
+  ///         publication failed.
+  Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> publishDataTrack(
+      const DataTrackPublishOptions& options);
+
   /// Unpublish a data track from the room.
   ///
   /// Delegates to LocalDataTrack::unpublishDataTrack(). After this call,
@@ -179,6 +196,38 @@ public:
   ///
   /// @param track  The data track to unpublish. Null is ignored.
   void unpublishDataTrack(const std::shared_ptr<LocalDataTrack>& track);
+
+  /// Store the definition of a data track schema.
+  ///
+  /// Called by a publisher to make a schema available to subscribers, who can
+  /// later look up its definition via getSchema(). Define a schema before
+  /// publishing any data track that references it, so subscribers can resolve
+  /// the schema by its ID.
+  ///
+  /// A schema can only be defined once. Attempting to redefine an existing
+  /// schema fails.
+  ///
+  /// @param id          Identifies the schema (name and encoding).
+  /// @param definition  The schema definition, stored as-is. It is neither
+  ///                    parsed nor validated against its encoding, so the
+  ///                    caller is responsible for ensuring it is well-formed.
+  ///
+  /// @return @c true if the schema was defined; otherwise @c false. Failure
+  ///         details are written to the SDK log.
+  [[nodiscard]] bool defineSchema(const DataTrackSchemaId& id, const std::string& definition);
+
+  /// Retrieve the definition for a data track schema.
+  ///
+  /// Called by a subscriber that wants to inspect the schema a participant
+  /// defined (see defineSchema()) for a data track it is publishing.
+  ///
+  /// @param id                    Identifies the schema to retrieve.
+  /// @param participant_identity  Identity of the participant that defined the
+  ///                              schema.
+  /// @return The schema definition on success, or @c std::nullopt on failure.
+  ///         Failure details are written to the SDK log.
+  [[nodiscard]] std::optional<std::string> getSchema(const DataTrackSchemaId& id,
+                                                     const std::string& participant_identity);
 
   /// Initiate an RPC call to a remote participant.
   ///

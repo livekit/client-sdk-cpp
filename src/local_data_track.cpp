@@ -17,6 +17,7 @@
 #include "livekit/local_data_track.h"
 
 #include "data_track.pb.h"
+#include "data_track_proto_converter.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit/data_track_error.h"
@@ -25,12 +26,7 @@
 namespace livekit {
 
 LocalDataTrack::LocalDataTrack(const proto::OwnedLocalDataTrack& owned)
-    : handle_(static_cast<uintptr_t>(owned.handle().id())) {
-  const auto& pi = owned.info();
-  info_.name = pi.name();
-  info_.sid = pi.sid();
-  info_.uses_e2ee = pi.uses_e2ee();
-}
+    : handle_(static_cast<uintptr_t>(owned.handle().id())), info_(fromProto(owned.info())) {}
 
 Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(const DataTrackFrame& frame) {
   if (!handle_.valid()) {
