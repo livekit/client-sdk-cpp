@@ -248,18 +248,18 @@ public:
   void onConnectionStateChanged(Room& room, const ConnectionStateChangedEvent& event) override {
     const std::scoped_lock<std::mutex> guard(mutex_);
     if (event.state == ConnectionState::Reconnecting) {
-      callbacks_.push_back("state:reconnecting");
+      callbacks_.emplace_back("state:reconnecting");
     } else if (event.state == ConnectionState::Connected) {
-      callbacks_.push_back("state:connected");
+      callbacks_.emplace_back("state:connected");
     } else {
-      callbacks_.push_back("state:disconnected");
+      callbacks_.emplace_back("state:disconnected");
     }
     observed_states_.push_back(room.connectionState());
   }
 
   void onReconnecting(Room& room, const ReconnectingEvent&) override {
     const std::scoped_lock<std::mutex> guard(mutex_);
-    callbacks_.push_back("reconnecting");
+    callbacks_.emplace_back("reconnecting");
     observed_states_.push_back(room.connectionState());
     ++reconnecting_count_;
     cv_.notify_all();
@@ -267,7 +267,7 @@ public:
 
   void onReconnected(Room& room, const ReconnectedEvent&) override {
     const std::scoped_lock<std::mutex> guard(mutex_);
-    callbacks_.push_back("reconnected");
+    callbacks_.emplace_back("reconnected");
     observed_states_.push_back(room.connectionState());
     ++reconnected_count_;
     cv_.notify_all();
@@ -275,7 +275,7 @@ public:
 
   void onDisconnected(Room& room, const DisconnectedEvent&) override {
     const std::scoped_lock<std::mutex> guard(mutex_);
-    callbacks_.push_back("disconnected");
+    callbacks_.emplace_back("disconnected");
     observed_states_.push_back(room.connectionState());
     ++disconnected_count_;
     cv_.notify_all();
@@ -284,6 +284,11 @@ public:
   bool waitForReconnected(std::chrono::seconds timeout) {
     std::unique_lock<std::mutex> lock(mutex_);
     return cv_.wait_for(lock, timeout, [this] { return reconnected_count_ == 1; });
+  }
+
+  bool waitForReconnecting(std::chrono::seconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return cv_.wait_for(lock, timeout, [this] { return reconnecting_count_ >= 1; });
   }
 
   std::vector<std::string> callbacks() const {
@@ -703,6 +708,7 @@ TEST_F(RoomReconnectTest, DisconnectDuringRecoveryNotifiesExactlyOnce) {
 
   delegate.reset();
   RoomTestAccess::simulateScenario(room, proto::SIMULATE_SIGNAL_RECONNECT);
+  ASSERT_TRUE(delegate.waitForReconnecting(10s));
   EXPECT_TRUE(room.disconnect());
   EXPECT_EQ(delegate.disconnectedCount(), 1);
   EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);

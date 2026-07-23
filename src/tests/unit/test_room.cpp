@@ -54,18 +54,6 @@ struct RoomTestAccess {
     const std::scoped_lock<std::mutex> guard(room.lock_);
     return room.listener_id_;
   }
-
-  static void simulateScenario(Room& room, proto::SimulateScenarioKind scenario) {
-    std::shared_ptr<FfiHandle> handle;
-    {
-      const std::scoped_lock<std::mutex> guard(room.lock_);
-      handle = room.room_handle_;
-    }
-    if (!handle || !handle->valid()) {
-      throw std::runtime_error("cannot simulate reconnect for a disconnected room");
-    }
-    FfiClient::instance().simulateScenarioAsync(handle->get(), scenario).get();
-  }
 };
 
 } // namespace livekit
@@ -103,27 +91,27 @@ class ReconnectLifecycleDelegate : public RoomDelegate {
 public:
   void onConnectionStateChanged(Room& room, const ConnectionStateChangedEvent& event) override {
     const std::scoped_lock<std::mutex> guard(mutex_);
-    callbacks.push_back(event.state == ConnectionState::Reconnecting ? "state:reconnecting"
-                        : event.state == ConnectionState::Connected  ? "state:connected"
-                                                                     : "state:disconnected");
+    callbacks.emplace_back(event.state == ConnectionState::Reconnecting ? "state:reconnecting"
+                           : event.state == ConnectionState::Connected  ? "state:connected"
+                                                                        : "state:disconnected");
     observed_states.push_back(room.connectionState());
   }
 
   void onReconnecting(Room& room, const ReconnectingEvent&) override {
     const std::scoped_lock<std::mutex> guard(mutex_);
-    callbacks.push_back("reconnecting");
+    callbacks.emplace_back("reconnecting");
     observed_states.push_back(room.connectionState());
   }
 
   void onReconnected(Room& room, const ReconnectedEvent&) override {
     const std::scoped_lock<std::mutex> guard(mutex_);
-    callbacks.push_back("reconnected");
+    callbacks.emplace_back("reconnected");
     observed_states.push_back(room.connectionState());
   }
 
   void onDisconnected(Room& room, const DisconnectedEvent&) override {
     const std::scoped_lock<std::mutex> guard(mutex_);
-    callbacks.push_back("disconnected");
+    callbacks.emplace_back("disconnected");
     observed_states.push_back(room.connectionState());
   }
 
@@ -449,8 +437,8 @@ TEST_F(RoomTest, DisconnectAfterServerDisconnectCleansUpWithoutDuplicateNotifica
 }
 
 TEST_F(RoomTest, ReconnectEventsUpdateStateBeforeCallbacks) {
-  Room room;
   ReconnectLifecycleDelegate delegate;
+  Room room;
   std::atomic<int> listener_calls{0};
   room.setDelegate(&delegate);
   RoomTestAccess::installConnectedListener(room, listener_calls);
@@ -488,8 +476,8 @@ TEST_F(RoomTest, ReconnectEventsUpdateStateBeforeCallbacks) {
 }
 
 TEST_F(RoomTest, ConnectionStateDisconnectedDoesNotSuppressDisconnectedCallback) {
-  Room room;
   ReconnectLifecycleDelegate delegate;
+  Room room;
   std::atomic<int> listener_calls{0};
   room.setDelegate(&delegate);
   RoomTestAccess::installConnectedListener(room, listener_calls);
@@ -513,9 +501,28 @@ TEST_F(RoomTest, ConnectionStateDisconnectedDoesNotSuppressDisconnectedCallback)
   EXPECT_EQ(delegate.observed_states[1], ConnectionState::Disconnected);
 }
 
-TEST_F(RoomTest, SimulateScenarioOnDisconnectedRoomThrows) {
+TEST_F(RoomTest, ConnectWaitsForRoomEosAfterTerminalDisconnect) {
   Room room;
-  EXPECT_THROW(RoomTestAccess::simulateScenario(room, proto::SIMULATE_SIGNAL_RECONNECT), std::runtime_error);
+  std::atomic<int> listener_calls{0};
+  RoomTestAccess::installConnectedListener(room, listener_calls);
+
+  proto::FfiEvent disconnected;
+  auto* disconnected_room_event = disconnected.mutable_room_event();
+  disconnected_room_event->set_room_handle(0);
+  disconnected_room_event->mutable_disconnected()->set_reason(proto::SIGNAL_CLOSE);
+  emitFfiEvent(disconnected);
+
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_TRUE(RoomTestAccess::hasRoomHandle(room));
+  EXPECT_THROW((void)room.connect("ws://unused", "unused", RoomOptions{}), std::runtime_error);
+
+  proto::FfiEvent eos;
+  eos.mutable_room_event()->set_room_handle(0);
+  eos.mutable_room_event()->mutable_eos();
+  emitFfiEvent(eos);
+
+  EXPECT_FALSE(RoomTestAccess::hasRoomHandle(room));
+  EXPECT_EQ(RoomTestAccess::listenerId(room), 0);
 }
 
 } // namespace livekit::test

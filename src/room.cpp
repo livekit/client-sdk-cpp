@@ -99,8 +99,10 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
 
   {
     const std::scoped_lock<std::mutex> g(lock_);
-    if (connection_state_ != ConnectionState::Disconnected) {
-      throw std::runtime_error("already connected");
+    const bool cleanup_pending =
+        listener_id_ != 0 || room_handle_ || local_participant_ || !remote_participants_.empty();
+    if (connection_state_ != ConnectionState::Disconnected || cleanup_pending) {
+      throw std::runtime_error("room is connected or cleanup is pending");
     }
     connection_state_ = ConnectionState::Reconnecting;
     last_notified_connection_state_.reset();
