@@ -168,7 +168,7 @@ public:
   /// Disconnect from the room.
   ///
   /// This method attempts a best-effort graceful disconnect of the room. If the room was connected prior, after @ref
-  /// disconnect() is called the room object is considered in a terminal state and should no longer be used. If @ref
+  /// disconnect() is called the room object must be connected again to be valid. If @ref
   /// disconnect() was called before @ref connect(), no operations are performed and the room object is still valid.
   ///
   /// @note `~Room()` invokes `disconnect()` automatically if the room is
