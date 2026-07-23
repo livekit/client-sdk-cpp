@@ -27,9 +27,12 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "../common/test_common.h"
+#include "ffi_client.h"
+#include "room.pb.h"
 
 using namespace std::chrono_literals;
 
@@ -39,6 +42,18 @@ struct RoomTestAccess {
   static int listenerId(const Room& room) {
     const std::scoped_lock<std::mutex> guard(room.lock_);
     return room.listener_id_;
+  }
+
+  static void simulateScenario(Room& room, proto::SimulateScenarioKind scenario) {
+    std::shared_ptr<FfiHandle> handle;
+    {
+      const std::scoped_lock<std::mutex> guard(room.lock_);
+      handle = room.room_handle_;
+    }
+    if (!handle || !handle->valid()) {
+      throw std::runtime_error("cannot simulate reconnect for a disconnected room");
+    }
+    FfiClient::instance().simulateScenarioAsync(handle->get(), scenario).get();
   }
 };
 
@@ -217,6 +232,115 @@ private:
   std::condition_variable cv_;
   std::atomic<int> refresh_count_{0};
   std::string refreshed_token_;
+};
+
+class ReconnectTrackingDelegate : public RoomDelegate {
+public:
+  void reset() {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    callbacks_.clear();
+    observed_states_.clear();
+    reconnecting_count_ = 0;
+    reconnected_count_ = 0;
+    disconnected_count_ = 0;
+  }
+
+  void onConnectionStateChanged(Room& room, const ConnectionStateChangedEvent& event) override {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    if (event.state == ConnectionState::Reconnecting) {
+      callbacks_.emplace_back("state:reconnecting");
+    } else if (event.state == ConnectionState::Connected) {
+      callbacks_.emplace_back("state:connected");
+    } else {
+      callbacks_.emplace_back("state:disconnected");
+    }
+    observed_states_.push_back(room.connectionState());
+  }
+
+  void onReconnecting(Room& room, const ReconnectingEvent&) override {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    callbacks_.emplace_back("reconnecting");
+    observed_states_.push_back(room.connectionState());
+    ++reconnecting_count_;
+    cv_.notify_all();
+  }
+
+  void onReconnected(Room& room, const ReconnectedEvent&) override {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    callbacks_.emplace_back("reconnected");
+    observed_states_.push_back(room.connectionState());
+    ++reconnected_count_;
+    cv_.notify_all();
+  }
+
+  void onDisconnected(Room& room, const DisconnectedEvent&) override {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    callbacks_.emplace_back("disconnected");
+    observed_states_.push_back(room.connectionState());
+    ++disconnected_count_;
+    cv_.notify_all();
+  }
+
+  bool waitForReconnected(std::chrono::seconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return cv_.wait_for(lock, timeout, [this] { return reconnected_count_ == 1; });
+  }
+
+  bool waitForReconnecting(std::chrono::seconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return cv_.wait_for(lock, timeout, [this] { return reconnecting_count_ >= 1; });
+  }
+
+  std::vector<std::string> callbacks() const {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    return callbacks_;
+  }
+
+  std::vector<ConnectionState> observedStates() const {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    return observed_states_;
+  }
+
+  int disconnectedCount() const {
+    const std::scoped_lock<std::mutex> guard(mutex_);
+    return disconnected_count_;
+  }
+
+private:
+  mutable std::mutex mutex_;
+  std::condition_variable cv_;
+  std::vector<std::string> callbacks_;
+  std::vector<ConnectionState> observed_states_;
+  int reconnecting_count_ = 0;
+  int reconnected_count_ = 0;
+  int disconnected_count_ = 0;
+};
+
+class TrackSubscriptionWaitDelegate : public RoomDelegate {
+public:
+  explicit TrackSubscriptionWaitDelegate(std::string expected_name) : expected_name_(std::move(expected_name)) {}
+
+  void onTrackSubscribed(Room&, const TrackSubscribedEvent& event) override {
+    if (!event.track || event.track->name() != expected_name_) {
+      return;
+    }
+    {
+      const std::scoped_lock<std::mutex> guard(mutex_);
+      subscribed_ = true;
+    }
+    cv_.notify_all();
+  }
+
+  bool wait(std::chrono::seconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return cv_.wait_for(lock, timeout, [this] { return subscribed_; });
+  }
+
+private:
+  std::string expected_name_;
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  bool subscribed_ = false;
 };
 
 } // namespace
@@ -434,6 +558,163 @@ TEST_F(RoomLifecycleTest, ParticipantHandlesExpireOnRoomDestruction) {
   }
 
   peer.reset();
+}
+
+class RoomReconnectTest : public LiveKitTestBase {};
+
+TEST_F(RoomReconnectTest, SignalResumePreservesPublicationIdentityAndCallbackOrder) {
+  if (!config_.available) {
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+  }
+
+  ReconnectTrackingDelegate delegate;
+  Room room;
+  room.setDelegate(&delegate);
+  ASSERT_TRUE(room.connect(config_.url, config_.token_a, RoomOptions{}));
+
+  constexpr char kTrackName[] = "resume-video";
+  TrackSubscriptionWaitDelegate receiver_delegate(kTrackName);
+  Room receiver;
+  receiver.setDelegate(&receiver_delegate);
+  ASSERT_TRUE(receiver.connect(config_.url, config_.token_b, RoomOptions{}));
+
+  auto participant = lockLocalParticipant(room);
+  auto source = std::make_shared<VideoSource>(16, 16);
+  auto track = LocalVideoTrack::createLocalVideoTrack(kTrackName, source);
+  participant->publishTrack(track, TrackPublishOptions{});
+  const auto publication = track->publication();
+  ASSERT_NE(publication, nullptr);
+  const std::string initial_sid = publication->sid();
+  ASSERT_TRUE(receiver_delegate.wait(15s));
+
+  delegate.reset();
+  RoomTestAccess::simulateScenario(room, proto::SIMULATE_SIGNAL_RECONNECT);
+  ASSERT_TRUE(delegate.waitForReconnected(30s));
+
+  EXPECT_EQ(room.connectionState(), ConnectionState::Connected);
+  EXPECT_EQ(track->publication().get(), publication.get());
+  EXPECT_EQ(publication->sid(), initial_sid);
+  EXPECT_EQ(track->sid(), initial_sid);
+  const std::vector<std::string> expected{"state:reconnecting", "reconnecting", "state:connected", "reconnected"};
+  EXPECT_EQ(delegate.callbacks(), expected);
+
+  const auto observed_states = delegate.observedStates();
+  ASSERT_GE(observed_states.size(), 4u);
+  EXPECT_EQ(observed_states[0], ConnectionState::Reconnecting);
+  EXPECT_EQ(observed_states[1], ConnectionState::Reconnecting);
+  EXPECT_EQ(observed_states[2], ConnectionState::Connected);
+  EXPECT_EQ(observed_states[3], ConnectionState::Connected);
+
+  participant->unpublishTrack(publication->sid());
+}
+
+TEST_F(RoomReconnectTest, FullReconnectRekeysPublicationInPlaceBeforeReconnected) {
+  if (!config_.available) {
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+  }
+
+  ReconnectTrackingDelegate delegate;
+  Room room;
+  room.setDelegate(&delegate);
+  ASSERT_TRUE(room.connect(config_.url, config_.token_a, RoomOptions{}));
+
+  auto participant = lockLocalParticipant(room);
+  auto source = std::make_shared<VideoSource>(16, 16);
+  auto track = LocalVideoTrack::createLocalVideoTrack("full-reconnect-video", source);
+  participant->publishTrack(track, TrackPublishOptions{});
+  const auto publication = track->publication();
+  ASSERT_NE(publication, nullptr);
+  const std::string initial_sid = publication->sid();
+
+  delegate.reset();
+  RoomTestAccess::simulateScenario(room, proto::SIMULATE_FULL_RECONNECT);
+  ASSERT_TRUE(delegate.waitForReconnected(30s));
+
+  const std::string current_sid = publication->sid();
+  EXPECT_NE(current_sid, initial_sid);
+  EXPECT_EQ(track->publication().get(), publication.get());
+  EXPECT_EQ(track->sid(), current_sid);
+
+  const auto publications = participant->trackPublications();
+  EXPECT_EQ(publications.count(initial_sid), 0u);
+  const auto current = publications.find(current_sid);
+  ASSERT_NE(current, publications.end());
+  EXPECT_EQ(current->second.get(), publication.get());
+
+  const auto callbacks = delegate.callbacks();
+  ASSERT_FALSE(callbacks.empty());
+  EXPECT_EQ(callbacks.back(), "reconnected");
+
+  EXPECT_NO_THROW(participant->unpublishTrack(current_sid));
+}
+
+TEST_F(RoomReconnectTest, FailedResumeEscalatesToFullReconnect) {
+  if (!config_.available) {
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+  }
+
+  ReconnectTrackingDelegate delegate;
+  Room room;
+  room.setDelegate(&delegate);
+  ASSERT_TRUE(room.connect(config_.url, config_.token_a, RoomOptions{}));
+
+  auto participant = lockLocalParticipant(room);
+  auto source = std::make_shared<VideoSource>(16, 16);
+  auto track = LocalVideoTrack::createLocalVideoTrack("escalation-video", source);
+  participant->publishTrack(track, TrackPublishOptions{});
+  const auto publication = track->publication();
+  ASSERT_NE(publication, nullptr);
+  const std::string initial_sid = publication->sid();
+
+  delegate.reset();
+  RoomTestAccess::simulateScenario(room, proto::SIMULATE_DISCONNECT_SIGNAL_ON_RESUME);
+  ASSERT_TRUE(delegate.waitForReconnected(45s));
+  EXPECT_NE(publication->sid(), initial_sid);
+  EXPECT_EQ(track->sid(), publication->sid());
+
+  participant->unpublishTrack(publication->sid());
+}
+
+TEST_F(RoomReconnectTest, RepeatedSignalReconnectCyclesRemainBounded) {
+  if (!config_.available) {
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+  }
+
+  ReconnectTrackingDelegate delegate;
+  Room room;
+  room.setDelegate(&delegate);
+  ASSERT_TRUE(room.connect(config_.url, config_.token_a, RoomOptions{}));
+
+  constexpr int kCycles = 3;
+  for (int cycle = 0; cycle < kCycles; ++cycle) {
+    delegate.reset();
+    const auto started = std::chrono::steady_clock::now();
+    RoomTestAccess::simulateScenario(room, proto::SIMULATE_SIGNAL_RECONNECT);
+    ASSERT_TRUE(delegate.waitForReconnected(30s)) << "cycle " << cycle;
+    EXPECT_LT(std::chrono::steady_clock::now() - started, 30s);
+    EXPECT_EQ(room.connectionState(), ConnectionState::Connected);
+  }
+}
+
+TEST_F(RoomReconnectTest, DisconnectDuringRecoveryNotifiesExactlyOnce) {
+  if (!config_.available) {
+    GTEST_SKIP() << "LIVEKIT_URL, LIVEKIT_TOKEN_A, and LIVEKIT_TOKEN_B not set";
+  }
+
+  ReconnectTrackingDelegate delegate;
+  Room room;
+  room.setDelegate(&delegate);
+  ASSERT_TRUE(room.connect(config_.url, config_.token_a, RoomOptions{}));
+
+  delegate.reset();
+  RoomTestAccess::simulateScenario(room, proto::SIMULATE_SIGNAL_RECONNECT);
+  ASSERT_TRUE(delegate.waitForReconnecting(10s));
+  EXPECT_TRUE(room.disconnect());
+  EXPECT_EQ(delegate.disconnectedCount(), 1);
+  EXPECT_EQ(room.connectionState(), ConnectionState::Disconnected);
+
+  EXPECT_FALSE(room.disconnect());
+  EXPECT_EQ(delegate.disconnectedCount(), 1);
 }
 
 } // namespace livekit::test

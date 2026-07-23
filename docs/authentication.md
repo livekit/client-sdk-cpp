@@ -19,6 +19,9 @@ These are separate mechanisms:
 the Rust core owns the session JWT. The SDK applies server-pushed token updates
 internally (for reconnect). Your token endpoint is **not** called again unless
 **you** invoke `Room::connect` again (for example after a full disconnect).
+Automatic resume and full reconnect are both part of the same active room
+session; neither invokes a token source. See [Reconnection](reconnection.md) for
+the complete lifecycle and terminal-recovery guidance.
 
 If you need the latest JWT after a server refresh, implement
 `RoomDelegate::onTokenRefreshed` and store `TokenRefreshedEvent::token` in your

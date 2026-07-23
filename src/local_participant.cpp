@@ -197,9 +197,12 @@ void LocalParticipant::publishTrack(const std::shared_ptr<Track>& track, const T
   auto publication = std::make_shared<LocalTrackPublication>(owned_pub);
 
   const std::string sid = publication->sid();
-  published_tracks_by_sid_[sid] = std::weak_ptr<Track>(track);
-
+  track->setSid(sid);
   track->setPublication(publication);
+  {
+    const std::scoped_lock<std::mutex> guard(publication_mutex_);
+    published_tracks_by_sid_[sid] = std::weak_ptr<Track>(track);
+  }
 }
 
 std::shared_ptr<LocalVideoTrack> LocalParticipant::publishVideoTrack(const std::string& name,
@@ -237,15 +240,21 @@ void LocalParticipant::unpublishTrack(const std::string& track_sid) {
 
   fut.get();
 
-  if (auto it = published_tracks_by_sid_.find(track_sid); it != published_tracks_by_sid_.end()) {
-    if (auto t = it->second.lock()) {
-      t->setPublication(nullptr);
+  std::shared_ptr<Track> unpublished_track;
+  {
+    const std::scoped_lock<std::mutex> guard(publication_mutex_);
+    if (auto it = published_tracks_by_sid_.find(track_sid); it != published_tracks_by_sid_.end()) {
+      unpublished_track = it->second.lock();
+      published_tracks_by_sid_.erase(it);
     }
-    published_tracks_by_sid_.erase(it);
+  }
+  if (unpublished_track) {
+    unpublished_track->setPublication(nullptr);
   }
 }
 
 LocalParticipant::PublicationMap LocalParticipant::trackPublications() const {
+  const std::scoped_lock<std::mutex> guard(publication_mutex_);
   PublicationMap out;
   for (auto it = published_tracks_by_sid_.begin(); it != published_tracks_by_sid_.end();) {
     auto t = it->second.lock();
@@ -259,6 +268,33 @@ LocalParticipant::PublicationMap LocalParticipant::trackPublications() const {
     ++it;
   }
   return out;
+}
+
+bool LocalParticipant::handleTrackRepublished(const std::string& previous_sid, uintptr_t publication_handle,
+                                              const proto::TrackPublicationInfo& info) {
+  const std::scoped_lock<std::mutex> guard(publication_mutex_);
+  const auto it = published_tracks_by_sid_.find(previous_sid);
+  if (it == published_tracks_by_sid_.end()) {
+    return false;
+  }
+
+  const auto track = it->second.lock();
+  if (!track) {
+    published_tracks_by_sid_.erase(it);
+    return false;
+  }
+
+  const auto publication = localTrackPublication(track);
+  if (!publication) {
+    return false;
+  }
+
+  publication->updateFromProto(publication_handle, info);
+  track->setSid(info.sid());
+
+  published_tracks_by_sid_.erase(it);
+  published_tracks_by_sid_[info.sid()] = track;
+  return true;
 }
 
 Result<std::shared_ptr<LocalDataTrack>, PublishDataTrackError> LocalParticipant::publishDataTrack(
@@ -443,6 +479,7 @@ void LocalParticipant::handleRpcMethodInvocation(uint64_t invocation_id, const s
 }
 
 std::shared_ptr<TrackPublication> LocalParticipant::findTrackPublication(const std::string& sid) const {
+  const std::scoped_lock<std::mutex> guard(publication_mutex_);
   auto it = published_tracks_by_sid_.find(sid);
   if (it == published_tracks_by_sid_.end()) {
     return nullptr;

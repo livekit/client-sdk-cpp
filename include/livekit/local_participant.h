@@ -42,6 +42,9 @@ struct ParticipantTrackPermission;
 class FfiClient;
 class Track;
 class LocalTrackPublication;
+namespace proto {
+class TrackPublicationInfo;
+}
 
 /// @brief Data passed to a registered RPC method handler.
 struct RpcInvocationData {
@@ -241,10 +244,14 @@ protected:
   friend class Room;
 
 private:
+  bool handleTrackRepublished(const std::string& previous_sid, uintptr_t publication_handle,
+                              const proto::TrackPublicationInfo& info);
+
   /// Publication SID → local track (@ref unpublishTrack clears the track’s
   /// cached publication). @c mutable so @ref trackPublications() const can
   /// prune expired @c weak_ptr entries.
   mutable TrackMap published_tracks_by_sid_;
+  mutable std::mutex publication_mutex_;
 
   std::unordered_map<std::string, RpcHandler> rpc_handlers_;
 

@@ -21,6 +21,7 @@
 #include <future>
 #include <memory>
 #include <mutex>
+#include <optional>
 
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
@@ -334,6 +335,8 @@ private:
 
   mutable std::mutex lock_;
   ConnectionState connection_state_ = ConnectionState::Disconnected;
+  std::optional<ConnectionState> last_notified_connection_state_;
+  bool disconnect_callback_claimed_ = true;
   RoomDelegate* delegate_ = nullptr; // Not owned
   RoomInfoData room_info_;
   std::shared_ptr<FfiHandle> room_handle_;
@@ -355,6 +358,7 @@ private:
   int listener_id_{0};
 
   void onEvent(const proto::FfiEvent& event);
+  void transitionConnectionState(ConnectionState state, bool notify_delegate);
 
   // Shared shutdown path for explicit disconnect, server disconnect, EOS, and destruction.
   bool shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_delegate);
