@@ -11,7 +11,12 @@
 # C++ client SDK for LiveKit
 
 <!--BEGIN_DESCRIPTION-->
-Use this SDK to add realtime video, audio and data features to your C++ app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications such as multimodal AI, live streaming, or video calls with just a few lines of code.
+Use this SDK to add realtime video, audio and data features to your C++ app. By connecting to <a href="https://livekit.io/">LiveKit</a> Cloud or a self-hosted server, you can quickly build applications with just a few lines of code:
+
+- **Teleoperation and robotics:** stream camera and sensor data from robots, drones, vehicles, or embedded devices while sending operator commands and control signals back in realtime.
+- **Multimodal AI inference:** connect native C++ applications and models to live audio, video, and data with raw frame access.
+- **High-performance media pipelines:** integrate LiveKit with existing C++ video, broadcast, AR/VR, FFmpeg, or GStreamer workflows without another language runtime.
+- **Live streaming and video calls:** add reliable realtime communication to desktop, edge, and embedded applications.
 <!--END_DESCRIPTION-->
 
 [![CI](https://github.com/livekit/client-sdk-cpp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/livekit/client-sdk-cpp/actions/workflows/ci.yml)
@@ -22,7 +27,7 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 
 - [LiveKit docs](https://docs.livekit.io)
 - [SDK reference](https://docs.livekit.io/reference/client-sdk-cpp/)
-- [Repository docs](./docs/README.md) — building, authentication, testing, logging, tracing
+- [Repository docs](./docs/README.md)
 
 ## Using the SDK
 
