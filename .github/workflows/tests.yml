@@ -1,9 +1,114 @@
 name: Tests
 
-# Called by top-level ci.yml
+# Called by the top-level CI and nightly workflows
 on:
-  workflow_call: {}
-  workflow_dispatch: {}
+  workflow_call:
+    inputs:
+      build_type:
+        description: Debug or release test build.
+        required: false
+        type: string
+        default: release
+      unit_repeat:
+        description: Number of times to repeat unit tests.
+        required: false
+        type: number
+        default: 100
+      integration_repeat:
+        description: Number of times to repeat integration tests.
+        required: false
+        type: number
+        default: 1
+      run_stress_tests:
+        description: Run stress tests that require LiveKit server setup.
+        required: false
+        type: boolean
+        default: false
+      stress_repeat:
+        description: Number of times to repeat stress tests.
+        required: false
+        type: number
+        default: 1
+      unit_timeout_minutes:
+        description: Unit test step timeout in minutes.
+        required: false
+        type: number
+        default: 10
+      integration_timeout_minutes:
+        description: Integration test step timeout in minutes.
+        required: false
+        type: number
+        default: 10
+      stress_timeout_minutes:
+        description: Stress test step timeout in minutes.
+        required: false
+        type: number
+        default: 120
+      artifact_retention_days:
+        description: Test artifact retention in days.
+        required: false
+        type: number
+        default: 7
+      run_coverage:
+        description: Run the Linux coverage job.
+        required: false
+        type: boolean
+        default: true
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: Debug or release test build.
+        required: false
+        type: choice
+        options:
+          - release
+          - debug
+        default: release
+      unit_repeat:
+        description: Number of times to repeat unit tests.
+        required: false
+        type: number
+        default: 100
+      integration_repeat:
+        description: Number of times to repeat integration tests.
+        required: false
+        type: number
+        default: 1
+      run_stress_tests:
+        description: Run stress tests that require LiveKit server setup.
+        required: false
+        type: boolean
+        default: false
+      stress_repeat:
+        description: Number of times to repeat stress tests.
+        required: false
+        type: number
+        default: 1
+      unit_timeout_minutes:
+        description: Unit test step timeout in minutes.
+        required: false
+        type: number
+        default: 10
+      integration_timeout_minutes:
+        description: Integration test step timeout in minutes.
+        required: false
+        type: number
+        default: 10
+      stress_timeout_minutes:
+        description: Stress test step timeout in minutes.
+        required: false
+        type: number
+        default: 120
+      artifact_retention_days:
+        description: Test artifact retention in days.
+        required: false
+        type: number
+        default: 7
+      run_coverage:
+        description: Run the Linux coverage job.
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -12,6 +117,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
   # Disable Cargo incremental artifacts. The Rust FFI is built once per
   # submodule SHA and cached whole (see the cargo target cache below), so
   # incremental dirs add nothing but bloat the cached target/ directory and
@@ -35,28 +141,26 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux-x64
-            build_cmd: ./build.sh release-tests
             e2e-testing: true
           - os: ubuntu-24.04-arm
             name: linux-arm64
-            build_cmd: ./build.sh release-tests
             e2e-testing: true
           - os: macos-26-xlarge
             name: macos-arm64
-            build_cmd: ./build.sh release-tests
             e2e-testing: true
           - os: macos-26-large
             name: macos-x64
-            build_cmd: ./build.sh release-tests --macos-arch x86_64
+            macos_arch: x86_64
             e2e-testing: true
           # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
-            build_cmd: .\build.cmd release-tests
             e2e-testing: true
 
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    env:
+      BUILD_DIR: ${{ inputs.build_type == 'debug' && 'build-debug' || 'build-release' }}
 
     steps:
       - name: Checkout (with submodules)
@@ -117,7 +221,7 @@ jobs:
             libabsl-dev \
             libcurl4-openssl-dev \
             libwayland-dev libdecor-0-dev \
-            jq
+            gdb jq
 
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
@@ -182,42 +286,61 @@ jobs:
           LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
           echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
 
-      # ---------- Build (release-tests: tests on, examples off) ----------
+      - name: Configure Unix crash diagnostics
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          echo "LIVEKIT_CRASH_DIAGNOSTICS=1" >> "$GITHUB_ENV"
+          echo "LIVEKIT_CORE_DIR=${RUNNER_TEMP}" >> "$GITHUB_ENV"
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo sysctl -w "kernel.core_pattern=${RUNNER_TEMP}/livekit-core.%p"
+          else
+            sudo sysctl -w "kern.coredump=1"
+            sudo sysctl -w "kern.corefile=${RUNNER_TEMP}/livekit-core.%P"
+          fi
+
+      # ---------- Build (tests on, examples off) ----------
       - name: Build tests (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
+          set -euo pipefail
           chmod +x build.sh
-          ${{ matrix.build_cmd }}
+          build_cmd=(./build.sh "${{ inputs.build_type }}-tests")
+          if [[ -n "${{ matrix.macos_arch || '' }}" ]]; then
+            build_cmd+=(--macos-arch "${{ matrix.macos_arch }}")
+          fi
+          "${build_cmd[@]}"
 
       - name: Build tests (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: ${{ matrix.build_cmd }}
+        run: .\build.cmd ${{ inputs.build_type }}-tests
 
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
         if: runner.os != 'Windows'
-        timeout-minutes: 10
+        timeout-minutes: ${{ inputs.unit_timeout_minutes }}
         shell: bash
         run: |
-          build-release/bin/livekit_unit_tests \
-            --gtest_repeat=100 \
+          bash scripts/run-with-backtrace.sh \
+            ${{ env.BUILD_DIR }}/bin/livekit_unit_tests \
+            --gtest_repeat=${{ inputs.unit_repeat }} \
             --gtest_brief=1 \
-            --gtest_output=xml:build-release/unit-test-results.xml
+            --gtest_output=xml:${{ env.BUILD_DIR }}/unit-test-results.xml
 
       - name: Run unit tests (Windows)
         if: runner.os == 'Windows'
-        timeout-minutes: 10
+        timeout-minutes: ${{ inputs.unit_timeout_minutes }}
         shell: pwsh
         run: |
-          build-release\bin\livekit_unit_tests.exe `
-            --gtest_repeat=100 `
+          ${{ env.BUILD_DIR }}\bin\livekit_unit_tests.exe `
+            --gtest_repeat=${{ inputs.unit_repeat }} `
             --gtest_brief=1 `
-            --gtest_output="xml:build-release\unit-test-results.xml"
+            --gtest_output="xml:${{ env.BUILD_DIR }}\unit-test-results.xml"
 
       - name: Start livekit-server
-        if: matrix.e2e-testing
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         id: livekit_server
         uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
         with:
@@ -225,7 +348,7 @@ jobs:
 
       # Needed by token helper script
       - name: Install livekit-cli
-        if: matrix.e2e-testing
+        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         shell: bash
         env:
           # Windows installs lk via `gh api` / `gh release download`, which need this env var
@@ -256,7 +379,7 @@ jobs:
           lk --version
 
       - name: Start token server
-        if: matrix.e2e-testing
+        if: matrix.e2e-testing && inputs.integration_repeat > 0
         id: token_server
         uses: livekit/token-server-action@a1e42c649a1998d5b224f5102f252c07762024f0 # v0.0.1
         with:
@@ -265,8 +388,8 @@ jobs:
           api-secret: secret
 
       - name: Run integration tests
-        if: matrix.e2e-testing
-        timeout-minutes: 10
+        if: matrix.e2e-testing && inputs.integration_repeat > 0
+        timeout-minutes: ${{ inputs.integration_timeout_minutes }}
         shell: bash
         env:
           RUST_LOG: "metrics=debug"
@@ -275,12 +398,30 @@ jobs:
           set -euo pipefail
           source .token_helpers/set_data_track_test_tokens.bash
           # TODO(BOT-477) Temporarily disable platform audio integration tests in CI until instability is resolved
-          build-release/bin/livekit_integration_tests \
+          bash scripts/run-with-backtrace.sh \
+            ${{ env.BUILD_DIR }}/bin/livekit_integration_tests \
             --gtest_filter='-PlatformAudioIntegrationTest.*' \
-            --gtest_output=xml:build-release/integration-test-results.xml
+            --gtest_repeat=${{ inputs.integration_repeat }} \
+            --gtest_recreate_environments_when_repeating=1 \
+            --gtest_output=xml:${{ env.BUILD_DIR }}/integration-test-results.xml
+
+      - name: Run stress tests
+        if: matrix.e2e-testing && inputs.run_stress_tests
+        timeout-minutes: ${{ inputs.stress_timeout_minutes }}
+        shell: bash
+        env:
+          RUST_LOG: "metrics=debug"
+        run: |
+          set -euo pipefail
+          source .token_helpers/set_data_track_test_tokens.bash
+          bash scripts/run-with-backtrace.sh \
+            ${{ env.BUILD_DIR }}/bin/livekit_stress_tests \
+            --gtest_repeat=${{ inputs.stress_repeat }} \
+            --gtest_recreate_environments_when_repeating=1 \
+            --gtest_output=xml:${{ env.BUILD_DIR }}/stress-test-results.xml
 
       - name: Dump livekit-server log on failure
-        if: failure() && matrix.e2e-testing
+        if: failure() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         shell: bash
         run: tail -n 500 "${{ steps.livekit_server.outputs.log-path }}" || true
 
@@ -296,11 +437,12 @@ jobs:
         with:
           name: test-results-${{ matrix.name }}
           path: |
-            build-release/unit-test-results.xml
-            build-release/integration-test-results.xml
+            ${{ env.BUILD_DIR }}/unit-test-results.xml
+            ${{ env.BUILD_DIR }}/integration-test-results.xml
+            ${{ env.BUILD_DIR }}/stress-test-results.xml
             ${{ steps.livekit_server.outputs.log-path }}
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: ${{ inputs.artifact_retention_days }}
 
   # ============================================================================
   # Code Coverage (Linux only)
@@ -309,6 +451,7 @@ jobs:
   # ============================================================================
   coverage:
     name: Code Coverage
+    if: inputs.run_coverage
     runs-on: ubuntu-latest
     # A debug build instrumented with --coverage is far heavier (RAM + disk)
     # than the release builds. Cap the wall-clock so a stuck/OOM build fails
