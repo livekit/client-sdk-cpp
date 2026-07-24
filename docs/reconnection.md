@@ -78,6 +78,18 @@ the object after reconnect instead of retaining a SID string indefinitely.
 `LocalParticipant::trackPublications()` is rekeyed to the current SID, and the
 current SID can be used with `unpublishTrack`.
 
+`onLocalTrackRepublished` runs once for each successfully republished local
+audio or video track. The event contains the existing publication and track,
+the previous SID, and the local participant. Use it to rekey external state
+before `onReconnected` reports that reconciliation is complete.
+
+Publication and local-track properties are updated on the FFI callback thread
+and must not be read concurrently from another thread during that update.
+Reading them inside `onLocalTrackRepublished` is safe. To consume the refreshed
+values elsewhere, copy the values into an application event and transfer that
+event through a mutex, thread-safe queue, or executor so the receiving thread
+is synchronized with the callback.
+
 Audio, video, and data callback registrations on `Room` remain installed during
 recovery. Reader threads can stop and restart as track events rebuild the
 subscription. Register handlers once for the room lifetime; register them again

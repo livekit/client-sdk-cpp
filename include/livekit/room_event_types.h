@@ -28,6 +28,7 @@ namespace livekit {
 // Forward declarations to avoid pulling in heavy headers.
 class Track;
 class Participant;
+class LocalParticipant;
 class RemoteParticipant;
 class RemoteDataTrack;
 class LocalTrackPublication;
@@ -393,6 +394,25 @@ struct LocalTrackPublishedEvent {
 struct LocalTrackUnpublishedEvent {
   /// Publication that was unpublished.
   std::shared_ptr<LocalTrackPublication> publication;
+};
+
+/// @brief Fired when the SDK republishes a local track during a full reconnect.
+///
+/// The existing publication and track objects are updated in place before this
+/// event is delivered. Use @ref previous_sid to reconcile application state
+/// keyed by the former server-assigned SID.
+struct LocalTrackRepublishedEvent {
+  /// Existing publication updated with its current SID and metadata.
+  std::shared_ptr<LocalTrackPublication> publication;
+
+  /// Existing local track associated with the publication.
+  std::shared_ptr<Track> track;
+
+  /// Local participant that owns the publication (owned by Room).
+  LocalParticipant* participant = nullptr;
+
+  /// Server-assigned publication SID used before the full reconnect.
+  std::string previous_sid;
 };
 
 /// Fired when a local track gets its first subscriber.

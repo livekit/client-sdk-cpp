@@ -245,7 +245,8 @@ protected:
 
 private:
   bool handleTrackRepublished(const std::string& previous_sid, uintptr_t publication_handle,
-                              const proto::TrackPublicationInfo& info);
+                              const proto::TrackPublicationInfo& info,
+                              std::shared_ptr<LocalTrackPublication>& publication, std::shared_ptr<Track>& track);
 
   /// Publication SID → local track (@ref unpublishTrack clears the track’s
   /// cached publication). @c mutable so @ref trackPublications() const can

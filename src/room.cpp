@@ -625,7 +625,7 @@ void Room::onEvent(const FfiEvent& event) {
         }
         case proto::RoomEvent::kLocalTrackRepublished: {
           bool updated = false;
-          std::string previous_sid;
+          LocalTrackRepublishedEvent ev;
           std::string new_sid;
           {
             const std::scoped_lock<std::mutex> guard(lock_);
@@ -634,13 +634,18 @@ void Room::onEvent(const FfiEvent& event) {
               break;
             }
             const auto& republished = re.local_track_republished();
-            previous_sid = republished.previous_sid();
+            ev.previous_sid = republished.previous_sid();
             new_sid = republished.info().sid();
             updated = local_participant_->handleTrackRepublished(
-                previous_sid, static_cast<uintptr_t>(republished.publication_handle()), republished.info());
+                ev.previous_sid, static_cast<uintptr_t>(republished.publication_handle()), republished.info(),
+                ev.publication, ev.track);
+            ev.participant = local_participant_.get();
           }
           if (!updated) {
-            LK_LOG_WARN("local_track_republished for unknown publication sid {} (new sid {})", previous_sid, new_sid);
+            LK_LOG_WARN("local_track_republished for unknown publication sid {} (new sid {})", ev.previous_sid,
+                        new_sid);
+          } else if (delegate_snapshot) {
+            delegate_snapshot->onLocalTrackRepublished(*this, ev);
           }
           break;
         }

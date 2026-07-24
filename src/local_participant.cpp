@@ -271,21 +271,24 @@ LocalParticipant::PublicationMap LocalParticipant::trackPublications() const {
 }
 
 bool LocalParticipant::handleTrackRepublished(const std::string& previous_sid, uintptr_t publication_handle,
-                                              const proto::TrackPublicationInfo& info) {
+                                              const proto::TrackPublicationInfo& info,
+                                              std::shared_ptr<LocalTrackPublication>& publication,
+                                              std::shared_ptr<Track>& track) {
   const std::scoped_lock<std::mutex> guard(publication_mutex_);
   const auto it = published_tracks_by_sid_.find(previous_sid);
   if (it == published_tracks_by_sid_.end()) {
     return false;
   }
 
-  const auto track = it->second.lock();
+  track = it->second.lock();
   if (!track) {
     published_tracks_by_sid_.erase(it);
     return false;
   }
 
-  const auto publication = localTrackPublication(track);
+  publication = localTrackPublication(track);
   if (!publication) {
+    track.reset();
     return false;
   }
 

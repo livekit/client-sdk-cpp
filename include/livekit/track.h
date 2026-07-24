@@ -75,6 +75,11 @@ struct ParticipantTrackPermission {
 };
 
 /// @brief Base class for local and remote media tracks.
+///
+/// @warning Local-track properties are not safe to read concurrently with a
+/// full reconnect update. Read the refreshed SID from
+/// RoomDelegate::onLocalTrackRepublished or after synchronizing application
+/// state from RoomDelegate::onReconnected.
 class LIVEKIT_API Track {
 public:
   virtual ~Track() = default;
