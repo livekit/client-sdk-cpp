@@ -356,10 +356,10 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
 
   const bool remote_track_published_after_read = remote_track->isPublished();
   keep_publishing.store(false);
+  publisher.get();
   subscription->close();
   local_track->unpublishDataTrack();
 
-  publisher.get();
   if (read_error) {
     std::rethrow_exception(read_error);
   }
@@ -428,10 +428,10 @@ TEST_F(DataTrackE2ETest, ReceivesFramesWithCustomPipelineOptionsEndToEnd) {
 
   const bool remote_track_published_after_read = remote_track->isPublished();
   keep_publishing.store(false);
+  publisher.get();
   subscription->close();
   local_track->unpublishDataTrack();
 
-  publisher.get();
   if (read_error) {
     std::rethrow_exception(read_error);
   }

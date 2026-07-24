@@ -1,0 +1,29 @@
+name: Nightly Tests
+
+on:
+  schedule:
+    # Runs daily at 09:00 UTC (01:00/02:00 Pacific, 04:00/05:00 Eastern).
+    - cron: "0 9 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+jobs:
+  repeated-tests:
+    name: Repeated Tests
+    uses: ./.github/workflows/tests.yml
+    with:
+      build_type: debug
+      unit_repeat: 100
+      integration_repeat: 10
+      run_stress_tests: true
+      stress_repeat: 1
+      unit_timeout_minutes: 60
+      integration_timeout_minutes: 120
+      stress_timeout_minutes: 120
+      artifact_retention_days: 14
+      run_coverage: false
+    secrets: inherit
