@@ -703,6 +703,21 @@ TEST_F(DataTrackE2ETest, PublishWithSchemaAndFrameEncodingMetadata) {
   local_track->unpublishDataTrack();
 }
 
+TEST_F(DataTrackE2ETest, PublishWithIncompatibleSchemaMetadataFails) {
+  auto rooms = testRooms(1);
+  auto& room = rooms[0];
+
+  DataTrackPublishOptions options;
+  options.name = makeTrackName("invalid_schema");
+  options.schema = DataTrackSchemaId{"some_schema", DataTrackSchemaEncoding::Protobuf};
+  options.frame_encoding = DataTrackFrameEncoding::Json;
+
+  auto publish_result = lockLocalParticipant(*room)->publishDataTrack(options);
+  ASSERT_FALSE(publish_result) << "Expected incompatible schema metadata to be rejected";
+  EXPECT_EQ(publish_result.error().code, PublishDataTrackErrorCode::INVALID_SCHEMA);
+  EXPECT_FALSE(publish_result.error().message.empty());
+}
+
 TEST_F(DataTrackE2ETest, PublishWithCustomSchemaAndFrameEncodingMetadata) {
   const auto track_name = makeTrackName("custom_schema_meta");
 

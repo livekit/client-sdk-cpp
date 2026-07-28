@@ -43,6 +43,8 @@ PublishDataTrackErrorCode fromProtoCode(proto::PublishDataTrackErrorCode code) {
       return PublishDataTrackErrorCode::PROTOCOL_ERROR;
     case proto::PUBLISH_DATA_TRACK_ERROR_CODE_INTERNAL:
       return PublishDataTrackErrorCode::INTERNAL;
+    case proto::PUBLISH_DATA_TRACK_ERROR_CODE_INVALID_SCHEMA:
+      return PublishDataTrackErrorCode::INVALID_SCHEMA;
     case proto::PUBLISH_DATA_TRACK_ERROR_CODE_UNKNOWN:
     default:
       return PublishDataTrackErrorCode::UNKNOWN;
