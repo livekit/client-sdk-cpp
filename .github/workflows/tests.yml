@@ -342,9 +342,12 @@ jobs:
       - name: Start livekit-server
         if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
         id: livekit_server
-        uses: livekit/dev-server-action@61e2b4dcb170dd3591e0c9b0db3c3fe5db93b500
+        uses: livekit/dev-server-action@6562d7d9343e46c26ead1223151f64f00e4fc37f # v1.1.0
         with:
           github-token: ${{ github.token }}
+          version: v1.13.3
+          config: |
+            enable_participant_data_blob: true
 
       # Needed by token helper script
       - name: Install livekit-cli

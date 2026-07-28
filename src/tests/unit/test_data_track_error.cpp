@@ -27,6 +27,16 @@ TEST(DataTrackErrorTest, PublishErrorFromEmptyProto) {
   EXPECT_EQ(err.code, PublishDataTrackErrorCode::UNKNOWN);
 }
 
+TEST(DataTrackErrorTest, PublishInvalidSchemaErrorFromProto) {
+  proto::PublishDataTrackError proto_err;
+  proto_err.set_code(proto::PUBLISH_DATA_TRACK_ERROR_CODE_INVALID_SCHEMA);
+  proto_err.set_message("Specified schema and frame encodings are incompatible");
+
+  const PublishDataTrackError err = PublishDataTrackError::fromProto(proto_err);
+  EXPECT_EQ(err.code, PublishDataTrackErrorCode::INVALID_SCHEMA);
+  EXPECT_EQ(err.message, "Specified schema and frame encodings are incompatible");
+}
+
 TEST(DataTrackErrorTest, TryPushErrorFromEmptyProto) {
   proto::LocalDataTrackTryPushError proto_err;
   LocalDataTrackTryPushError err = LocalDataTrackTryPushError::fromProto(proto_err);

@@ -41,6 +41,7 @@ enum class PublishDataTrackErrorCode : std::uint32_t {
   LIMIT_REACHED = 7,
   PROTOCOL_ERROR = 8,
   INTERNAL = 9,
+  INVALID_SCHEMA = 10,
 };
 
 /// @brief Error details returned when publishing a local data track fails.
