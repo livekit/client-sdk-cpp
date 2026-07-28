@@ -23,7 +23,7 @@
 
 namespace livekit {
 
-/// Options for publishing a data track.
+/// @brief Options for publishing a data track.
 ///
 /// The schema and frame encoding are optional metadata advertised to
 /// subscribers; they are surfaced on the subscriber side via DataTrackInfo.

@@ -21,7 +21,7 @@
 
 namespace livekit {
 
-/// Encoding used to interpret a data track schema definition.
+/// @brief Encoding used to interpret a data track schema definition.
 ///
 /// Identifies the interface definition language the schema is written in (for
 /// example, a `.proto` file for @ref DataTrackSchemaEncoding::Protobuf), which
@@ -103,7 +103,7 @@ inline bool operator==(const DataTrackSchemaEncoding& a, const DataTrackSchemaEn
 }
 inline bool operator!=(const DataTrackSchemaEncoding& a, const DataTrackSchemaEncoding& b) { return !(a == b); }
 
-/// Encoding used for frames sent on a data track.
+/// @brief Encoding used for frames sent on a data track.
 ///
 /// The serialization format of the frame bytes (for example,
 /// @ref DataTrackFrameEncoding::Protobuf); the structure of those bytes is
@@ -185,7 +185,7 @@ inline bool operator==(const DataTrackFrameEncoding& a, const DataTrackFrameEnco
 }
 inline bool operator!=(const DataTrackFrameEncoding& a, const DataTrackFrameEncoding& b) { return !(a == b); }
 
-/// Uniquely identifies a data track schema.
+/// @brief Uniquely identifies a data track schema.
 ///
 /// A compound identifier with two components: a name and an encoding. Two IDs
 /// are equal only if both components match; the same name with a different
