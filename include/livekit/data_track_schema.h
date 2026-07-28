@@ -58,7 +58,9 @@ public:
   /// Construct a well-known encoding.
   ///
   /// The constructor is intentionally implicit for the common well-known case.
-  DataTrackSchemaEncoding(WellKnown wellKnown) : well_known_(wellKnown) {}
+  ///
+  /// @param well_known Well-known schema encoding.
+  DataTrackSchemaEncoding(WellKnown well_known) : well_known_(well_known) {}
 
   /// Construct a custom, application-defined encoding.
   ///
@@ -140,7 +142,9 @@ public:
   /// Construct a well-known encoding.
   ///
   /// The constructor is intentionally implicit for the common well-known case.
-  DataTrackFrameEncoding(WellKnown wellKnown) : well_known_(wellKnown) {}
+  ///
+  /// @param well_known Well-known frame encoding.
+  DataTrackFrameEncoding(WellKnown well_known) : well_known_(well_known) {}
 
   /// Construct a custom, application-defined encoding.
   ///
