@@ -214,7 +214,7 @@ public:
   ///
   /// @return @c true if the schema was defined; otherwise @c false. Failure
   ///         details are written to the SDK log.
-  [[nodiscard]] bool defineSchema(const DataTrackSchemaId& id, const std::string& definition);
+  bool defineSchema(const DataTrackSchemaId& id, const std::string& definition);
 
   /// Retrieve the definition for a data track schema.
   ///
@@ -226,8 +226,7 @@ public:
   ///                              schema.
   /// @return The schema definition on success, or @c std::nullopt on failure.
   ///         Failure details are written to the SDK log.
-  [[nodiscard]] std::optional<std::string> getSchema(const DataTrackSchemaId& id,
-                                                     const std::string& participant_identity);
+  std::optional<std::string> getSchema(const DataTrackSchemaId& id, const std::string& participant_identity);
 
   /// Initiate an RPC call to a remote participant.
   ///

@@ -28,7 +28,7 @@ namespace livekit {
 /// Unlike audio/video tracks, data tracks are not part of the Track class
 /// hierarchy. They carry their own lightweight info struct.
 struct DataTrackInfo {
-  /// @brief Publisher-assigned track name, unique per publisher.
+  /// Publisher-assigned track name (unique per publisher).
   std::string name;
 
   /// SFU-assigned track identifier.
