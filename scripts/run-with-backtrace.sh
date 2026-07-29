@@ -14,9 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Runs a command normally, then prints a native backtrace from any core file it
-# leaves after crashing. Linux cores are inspected with GDB and macOS cores
-# with LLDB, avoiding debugger interference with normal process behavior.
+# Runs a command normally, prints a live process stack when terminated, then
+# prints a native backtrace from any core file left after crashing. Linux cores
+# are inspected with GDB and macOS cores with LLDB, avoiding debugger
+# interference with normal process behavior.
 set -euo pipefail
 
 if (($# == 0)); then
@@ -40,10 +41,60 @@ mkdir -p "${LIVEKIT_CORE_DIR}"
 rm -f "${LIVEKIT_CORE_DIR}"/livekit-core.*
 ulimit -c unlimited
 
+child_pid=""
+
+# Invoked indirectly by the signal traps below.
+# shellcheck disable=SC2329
+dump_live_process() {
+  if [[ -z "${child_pid}" ]] || ! kill -0 "${child_pid}" 2>/dev/null; then
+    echo "::warning::Test process is no longer running; a live stack could not be captured."
+    return
+  fi
+
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    echo "::group::Live test process stacks before termination"
+  fi
+
+  if [[ "${platform}" == "Linux" ]]; then
+    timeout 30s gdb --batch --quiet \
+      -ex "set pagination off" \
+      -ex "info threads" \
+      -ex "thread apply all backtrace" \
+      -p "${child_pid}" || true
+  else
+    # `sample` is available on GitHub's macOS runners and does not require a
+    # crash/core file. A short sample provides all thread stacks while leaving
+    # enough of the runner's termination grace period to forward the signal.
+    /usr/bin/sample "${child_pid}" 3 10 || true
+  fi
+
+  if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+    echo "::endgroup::"
+  fi
+}
+
+# Invoked indirectly by the signal traps below.
+# shellcheck disable=SC2329
+terminate_child() {
+  local signal_name="$1"
+  local exit_status="$2"
+  trap - TERM INT
+  dump_live_process
+  kill "-${signal_name}" "${child_pid}" 2>/dev/null || true
+  wait "${child_pid}" 2>/dev/null || true
+  exit "${exit_status}"
+}
+
+trap 'terminate_child TERM 143' TERM
+trap 'terminate_child INT 130' INT
+
 set +e
-"$@"
+"$@" &
+child_pid=$!
+wait "${child_pid}"
 exit_code=$?
 set -e
+trap - TERM INT
 
 shopt -s nullglob
 core_files=("${LIVEKIT_CORE_DIR}"/livekit-core.*)

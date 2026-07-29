@@ -54,6 +54,22 @@ on:
         required: false
         type: boolean
         default: true
+      rust_log:
+        description: Optional RUST_LOG value for test jobs (e.g. info).
+        required: false
+        type: string
+        default: ""
+      integration_filter:
+        description: GoogleTest filter for integration tests.
+        required: false
+        type: string
+        default: "-PlatformAudioIntegrationTest.*"
+      test_matrix:
+        description: JSON test matrix; override to target a subset of platforms.
+        required: false
+        type: string
+        default: >-
+          {"include":[{"os":"ubuntu-latest","name":"linux-x64","e2e-testing":true},{"os":"ubuntu-24.04-arm","name":"linux-arm64","e2e-testing":true},{"os":"macos-26-xlarge","name":"macos-arm64","e2e-testing":true},{"os":"macos-26-large","name":"macos-x64","macos_arch":"x86_64","e2e-testing":true},{"os":"windows-2022","name":"windows-x64","e2e-testing":true}]}
   workflow_dispatch:
     inputs:
       build_type:
@@ -109,6 +125,22 @@ on:
         required: false
         type: boolean
         default: true
+      rust_log:
+        description: Optional RUST_LOG value for test jobs (e.g. info).
+        required: false
+        type: string
+        default: ""
+      integration_filter:
+        description: GoogleTest filter for integration tests.
+        required: false
+        type: string
+        default: "-PlatformAudioIntegrationTest.*"
+      test_matrix:
+        description: JSON test matrix; override to target a subset of platforms.
+        required: false
+        type: string
+        default: >-
+          {"include":[{"os":"ubuntu-latest","name":"linux-x64","e2e-testing":true},{"os":"ubuntu-24.04-arm","name":"linux-arm64","e2e-testing":true},{"os":"macos-26-xlarge","name":"macos-arm64","e2e-testing":true},{"os":"macos-26-large","name":"macos-x64","macos_arch":"x86_64","e2e-testing":true},{"os":"windows-2022","name":"windows-x64","e2e-testing":true}]}
 
 permissions:
   contents: read
@@ -118,6 +150,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
+  RUST_LOG: ${{ inputs.rust_log }}
   # Disable Cargo incremental artifacts. The Rust FFI is built once per
   # submodule SHA and cached whole (see the cargo target cache below), so
   # incremental dirs add nothing but bloat the cached target/ directory and
@@ -137,25 +170,7 @@ jobs:
   test:
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-latest
-            name: linux-x64
-            e2e-testing: true
-          - os: ubuntu-24.04-arm
-            name: linux-arm64
-            e2e-testing: true
-          - os: macos-26-xlarge
-            name: macos-arm64
-            e2e-testing: true
-          - os: macos-26-large
-            name: macos-x64
-            macos_arch: x86_64
-            e2e-testing: true
-          # Pinned to Windows 2022 for current VS 17 implementation
-          - os: windows-2022
-            name: windows-x64
-            e2e-testing: true
+      matrix: ${{ fromJSON(inputs.test_matrix) }}
 
     name: Test (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
@@ -319,7 +334,7 @@ jobs:
 
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && inputs.unit_repeat > 0
         timeout-minutes: ${{ inputs.unit_timeout_minutes }}
         shell: bash
         run: |
@@ -330,7 +345,7 @@ jobs:
             --gtest_output=xml:${{ env.BUILD_DIR }}/unit-test-results.xml
 
       - name: Run unit tests (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && inputs.unit_repeat > 0
         timeout-minutes: ${{ inputs.unit_timeout_minutes }}
         shell: pwsh
         run: |
@@ -395,7 +410,8 @@ jobs:
         timeout-minutes: ${{ inputs.integration_timeout_minutes }}
         shell: bash
         env:
-          RUST_LOG: "metrics=debug"
+          GTEST_FILTER: ${{ inputs.integration_filter }}
+          RUST_LOG: ${{ inputs.rust_log != '' && inputs.rust_log || 'metrics=debug' }}
           LIVEKIT_CREATE_TOKEN_URL: ${{ steps.token_server.outputs.token-url }}
         run: |
           set -euo pipefail
@@ -403,7 +419,7 @@ jobs:
           # TODO(BOT-477) Temporarily disable platform audio integration tests in CI until instability is resolved
           bash scripts/run-with-backtrace.sh \
             ${{ env.BUILD_DIR }}/bin/livekit_integration_tests \
-            --gtest_filter='-PlatformAudioIntegrationTest.*' \
+            --gtest_filter="${GTEST_FILTER}" \
             --gtest_repeat=${{ inputs.integration_repeat }} \
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_output=xml:${{ env.BUILD_DIR }}/integration-test-results.xml
@@ -613,4 +629,3 @@ jobs:
           name: coverage-report
           path: coverage-html/
           retention-days: 14
-
