@@ -536,6 +536,9 @@ proto::TrackPublishOptions toProto(const TrackPublishOptions& in) {
   if (in.degradation_preference) {
     msg.set_degradation_preference(static_cast<proto::DegradationPreference>(*in.degradation_preference));
   }
+  if (in.video_encoder) {
+    msg.set_video_encoder(static_cast<proto::VideoEncoderBackend>(*in.video_encoder));
+  }
   return msg;
 }
 
@@ -575,6 +578,9 @@ TrackPublishOptions fromProto(const proto::TrackPublishOptions& in) {
   out.packet_trailer_features = frame_metadata_features;
   if (in.has_degradation_preference()) {
     out.degradation_preference = static_cast<DegradationPreference>(in.degradation_preference());
+  }
+  if (in.has_video_encoder()) {
+    out.video_encoder = static_cast<VideoEncoderBackend>(in.video_encoder());
   }
   return out;
 }
