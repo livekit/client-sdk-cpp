@@ -95,6 +95,12 @@ public:
                     VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0);
 
 private:
+  friend class CaptureSource;
+
+  /// Adopt an existing FFI video source handle (used by CaptureSource).
+  VideoSource(FfiHandle&& handle, int width, int height) noexcept
+      : handle_(std::move(handle)), width_(width), height_(height) {}
+
   FfiHandle handle_; // owned FFI handle
   int width_{0};
   int height_{0};
