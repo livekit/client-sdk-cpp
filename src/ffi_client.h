@@ -29,6 +29,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "capture.pb.h"
 #include "data_track.pb.h"
 #include "livekit/data_track_error.h"
 #include "livekit/data_track_options.h"
@@ -118,6 +119,9 @@ public:
   std::future<void> publishSipDtmfAsync(std::uint64_t local_participant_handle, std::uint32_t code,
                                         const std::string& digit,
                                         const std::vector<std::string>& destination_identities);
+
+  // Capture APIs
+  std::future<proto::OwnedCaptureSource> newCaptureSourceAsync(proto::NewCaptureSourceRequest request);
   std::future<void> setLocalMetadataAsync(std::uint64_t local_participant_handle, const std::string& metadata);
   std::future<void> captureAudioFrameAsync(std::uint64_t source_handle, const proto::AudioFrameBufferInfo& buffer);
   std::future<std::string> performRpcAsync(std::uint64_t local_participant_handle,
