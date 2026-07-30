@@ -256,7 +256,7 @@ if(NOT DEFINED CARGO)
   message(FATAL_ERROR \"CARGO not set\")
 endif()
 
-set(ARGS build)
+set(ARGS build --package livekit-ffi)
 if(NOT CFG STREQUAL \"Debug\")
   list(APPEND ARGS --release)
 endif()
