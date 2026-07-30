@@ -34,7 +34,37 @@ class LocalTrackPublication;
 class RemoteTrackPublication;
 class TrackPublication;
 
-enum class VideoCodec;
+/// Video codec used when publishing a track.
+///
+/// Values mirror proto_room.VideoCodec.
+enum class VideoCodec {
+  VP8 = 0,
+  H264 = 1,
+  AV1 = 2,
+  VP9 = 3,
+  H265 = 4,
+};
+
+/// Preferred encoder backend when publishing a video track.
+///
+/// Values mirror proto_room.VideoEncoderBackend.
+enum class VideoEncoderBackend {
+  /// Pick the best available backend.
+  Auto = 0,
+  /// Software encoder.
+  Software = 1,
+  /// Any hardware encoder.
+  Hardware = 2,
+  /// NVIDIA NVENC hardware encoder.
+  Nvenc = 3,
+  /// VA-API hardware encoder.
+  Vaapi = 4,
+  /// Apple VideoToolbox hardware encoder.
+  VideoToolbox = 5,
+  /// Pre-encoded passthrough: the application supplies encoded frames.
+  PreEncoded = 6,
+};
+
 enum class TrackSource;
 
 /// Overall quality of a participant's connection.
@@ -359,6 +389,9 @@ struct TrackPublishOptions {
   /// Controls how the encoder trades off between resolution and framerate
   /// when bandwidth is constrained. If not set, the server defaults apply.
   std::optional<DegradationPreference> degradation_preference;
+
+  /// Preferred encoder backend for published video.
+  std::optional<VideoEncoderBackend> video_encoder;
 };
 
 // ---------------------------------------------------------
