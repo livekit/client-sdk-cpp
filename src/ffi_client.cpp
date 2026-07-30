@@ -109,6 +109,8 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
       return event.chat_message().async_id();
     case E::kPerformRpc:
       return event.perform_rpc().async_id();
+    case E::kNewCaptureSource:
+      return event.new_capture_source().async_id();
 
     // low-level data stream callbacks
     case E::kSendStreamHeader:
@@ -701,6 +703,49 @@ std::future<proto::OwnedTrackPublication> FfiClient::publishTrackAsync(std::uint
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_publish_track()) {
       logAndThrow("FfiResponse missing publish_track");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+std::future<proto::OwnedCaptureSource> FfiClient::newCaptureSourceAsync(proto::NewCaptureSourceRequest request) {
+  // Generate client-side async_id first
+  const AsyncId async_id = generateAsyncId();
+
+  // Register the async handler BEFORE sending the request
+  auto fut = registerAsync<proto::OwnedCaptureSource>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_new_capture_source() && event.new_capture_source().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<proto::OwnedCaptureSource>& pr) {
+        const auto& cb = event.new_capture_source();
+
+        // Oneof message { string error = 2; OwnedCaptureSource source = 3; }
+        if (cb.has_error() && !cb.error().empty()) {
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
+          return;
+        }
+        if (!cb.has_source()) {
+          pr.set_exception(std::make_exception_ptr(std::runtime_error("NewCaptureSourceCallback missing source")));
+          return;
+        }
+
+        pr.set_value(cb.source());
+      });
+
+  request.set_request_async_id(async_id);
+  proto::FfiRequest req;
+  req.mutable_new_capture_source()->CopyFrom(request);
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_new_capture_source()) {
+      logAndThrow("FfiResponse missing new_capture_source");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
