@@ -97,9 +97,14 @@ public:
 
 private:
   friend class EncodedVideoSource;
+  friend class CaptureSource;
 
   enum class SourceType { Native, Encoded };
   VideoSource(int width, int height, SourceType source_type);
+
+  /// Adopt an existing FFI video source handle (used by CaptureSource).
+  VideoSource(FfiHandle&& handle, int width, int height) noexcept
+      : handle_(std::move(handle)), width_(width), height_(height) {}
 
   FfiHandle handle_; // owned FFI handle
   int width_{0};
