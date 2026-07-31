@@ -143,7 +143,7 @@ class LIVEKIT_API CaptureSource {
 public:
   /// Terminal notification for a started capture, invoked exactly once on
   /// the FFI event thread (like room delegate callbacks).
-  using FinishedCallback = std::function<void(const CaptureResult &)>;
+  using FinishedCallback = std::function<void(const CaptureResult&)>;
 
   /// Create a capture source from a GStreamer pipeline configuration.
   ///
@@ -151,19 +151,17 @@ public:
   /// for its first output to discover stream settings. Errors (invalid
   /// pipeline, missing capture feature, discovery timeout) are thrown from
   /// the future as @ref CaptureSourceError.
-  static std::future<std::shared_ptr<CaptureSource>>
-  create(GstreamerVideoSourceConfig config);
+  static std::future<std::shared_ptr<CaptureSource>> create(GstreamerVideoSourceConfig config);
 
   /// Create the built-in demo capture source (solid cycling colors).
-  static std::future<std::shared_ptr<CaptureSource>>
-  create(DemoVideoSourceConfig config);
+  static std::future<std::shared_ptr<CaptureSource>> create(DemoVideoSourceConfig config);
 
   ~CaptureSource();
 
-  CaptureSource(const CaptureSource &) = delete;
-  CaptureSource &operator=(const CaptureSource &) = delete;
-  CaptureSource(CaptureSource &&) = delete;
-  CaptureSource &operator=(CaptureSource &&) = delete;
+  CaptureSource(const CaptureSource&) = delete;
+  CaptureSource& operator=(const CaptureSource&) = delete;
+  CaptureSource(CaptureSource&&) = delete;
+  CaptureSource& operator=(CaptureSource&&) = delete;
 
   /// Kind of media this source produces.
   CaptureSourceKind kind() const noexcept { return kind_; }
@@ -177,9 +175,7 @@ public:
 
   /// RTC video source fed by this capture source; use it with
   /// LocalVideoTrack::createLocalVideoTrack().
-  std::shared_ptr<VideoSource> videoSource() const noexcept {
-    return video_source_;
-  }
+  std::shared_ptr<VideoSource> videoSource() const noexcept { return video_source_; }
 
   /// Returns publish options for this track, applying application options.
   ///
@@ -210,12 +206,10 @@ private:
 
   /// Shared creation path: sends the request and maps the callback payload
   /// onto a wrapper instance.
-  static std::future<std::shared_ptr<CaptureSource>>
-  createFromRequest(proto::NewCaptureSourceRequest request);
+  static std::future<std::shared_ptr<CaptureSource>> createFromRequest(proto::NewCaptureSourceRequest request);
 
   /// Builds the wrapper from the callback payload, adopting its handles.
-  static std::shared_ptr<CaptureSource>
-  fromOwned(const proto::OwnedCaptureSource &owned);
+  static std::shared_ptr<CaptureSource> fromOwned(const proto::OwnedCaptureSource& owned);
 
   FfiHandle handle_;
   CaptureSourceKind kind_ = CaptureSourceKind::Pixel;

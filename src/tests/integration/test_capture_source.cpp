@@ -45,9 +45,8 @@ constexpr int kMinFramesReceived = 5;
 std::shared_ptr<CaptureSource> createDemoCaptureOrSkip() {
   try {
     return CaptureSource::create(DemoVideoSourceConfig{}).get();
-  } catch (const std::exception &e) {
-    if (std::string(e.what()).find("without the 'capture' feature") !=
-        std::string::npos) {
+  } catch (const std::exception& e) {
+    if (std::string(e.what()).find("without the 'capture' feature") != std::string::npos) {
       return nullptr;
     }
     throw;
@@ -83,8 +82,7 @@ TEST_F(CaptureSourceServerTest, DemoCaptureSourcePublishesFramesEndToEnd) {
   ASSERT_FALSE(sender_room.localParticipant().expired());
   ASSERT_FALSE(receiver_room.localParticipant().expired());
 
-  const std::string sender_identity =
-      lockLocalParticipant(sender_room)->identity();
+  const std::string sender_identity = lockLocalParticipant(sender_room)->identity();
   ASSERT_FALSE(sender_identity.empty());
   ASSERT_TRUE(waitForParticipant(&receiver_room, sender_identity, 10s));
 
@@ -95,56 +93,47 @@ TEST_F(CaptureSourceServerTest, DemoCaptureSourcePublishesFramesEndToEnd) {
   int frames_received = 0;
 
   const std::string track_name = "demo-capture-track";
-  receiver_room.setOnVideoFrameEventCallback(
-      sender_identity, track_name,
-      [&mutex, &cv, &frames_received](const VideoFrameEvent & /*event*/) {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (++frames_received >= kMinFramesReceived) {
-          cv.notify_all();
-        }
-      });
+  receiver_room.setOnVideoFrameEventCallback(sender_identity, track_name,
+                                             [&mutex, &cv, &frames_received](const VideoFrameEvent& /*event*/) {
+                                               std::lock_guard<std::mutex> lock(mutex);
+                                               if (++frames_received >= kMinFramesReceived) {
+                                                 cv.notify_all();
+                                               }
+                                             });
 
   // Publish a track backed by the capture source's RTC video source,
   // merging application options over the source-derived ones.
-  auto track = LocalVideoTrack::createLocalVideoTrack(track_name,
-                                                      capture->videoSource());
+  auto track = LocalVideoTrack::createLocalVideoTrack(track_name, capture->videoSource());
 
   // Application options are merged in; source-dictated fields win.
   TrackPublishOptions app_options;
   app_options.source = TrackSource::SOURCE_CAMERA;
-  ASSERT_NO_THROW(lockLocalParticipant(sender_room)
-                      ->publishTrack(track, capture->publishOptions(app_options)));
+  ASSERT_NO_THROW(lockLocalParticipant(sender_room)->publishTrack(track, capture->publishOptions(app_options)));
 
   // Observe the capture's terminal event.
   std::optional<CaptureResult> finished;
-  capture->setOnFinishedCallback([&mutex, &cv, &finished](const CaptureResult &result) {
+  capture->setOnFinishedCallback([&mutex, &cv, &finished](const CaptureResult& result) {
     std::lock_guard<std::mutex> lock(mutex);
     finished = result;
     cv.notify_all();
   });
 
   ASSERT_NO_THROW(capture->start());
-  EXPECT_THROW(capture->start(), CaptureSourceError)
-      << "double start must be rejected";
+  EXPECT_THROW(capture->start(), CaptureSourceError) << "double start must be rejected";
 
   {
     std::unique_lock<std::mutex> lock(mutex);
-    const bool got_frames = cv.wait_for(lock, 30s, [&frames_received] {
-      return frames_received >= kMinFramesReceived;
-    });
-    ASSERT_TRUE(got_frames)
-        << "Timed out waiting for demo capture frames; received "
-        << frames_received;
+    const bool got_frames =
+        cv.wait_for(lock, 30s, [&frames_received] { return frames_received >= kMinFramesReceived; });
+    ASSERT_TRUE(got_frames) << "Timed out waiting for demo capture frames; received " << frames_received;
   }
 
   // Stop is a signal; the terminal callback delivers the stats.
   ASSERT_NO_THROW(capture->stop());
   {
     std::unique_lock<std::mutex> lock(mutex);
-    const bool got_finished =
-        cv.wait_for(lock, 10s, [&finished] { return finished.has_value(); });
-    ASSERT_TRUE(got_finished)
-        << "Timed out waiting for the capture finished callback";
+    const bool got_finished = cv.wait_for(lock, 10s, [&finished] { return finished.has_value(); });
+    ASSERT_TRUE(got_finished) << "Timed out waiting for the capture finished callback";
   }
 
   ASSERT_FALSE(finished->error.has_value()) << *finished->error;
@@ -153,8 +142,7 @@ TEST_F(CaptureSourceServerTest, DemoCaptureSourcePublishesFramesEndToEnd) {
 
   receiver_room.clearOnVideoFrameCallback(sender_identity, track_name);
   if (track->publication()) {
-    lockLocalParticipant(sender_room)
-        ->unpublishTrack(track->publication()->sid());
+    lockLocalParticipant(sender_room)->unpublishTrack(track->publication()->sid());
   }
 }
 
