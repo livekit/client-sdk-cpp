@@ -114,7 +114,7 @@ CaptureSource::fromOwned(const proto::OwnedCaptureSource &owned) {
   if (info.has_codec()) {
     source->codec_ = static_cast<VideoCodec>(info.codec());
   }
-  source->source_publish_options_ = fromProto(info.publish_options());
+  source->source_publish_options_ = fromProto(info.recommended_publish_options());
   source->video_source_ = std::shared_ptr<VideoSource>(new VideoSource(
       FfiHandle(static_cast<uintptr_t>(info.video_source().handle().id())),
       source->width_, source->height_));
@@ -135,7 +135,7 @@ CaptureSource::fromOwned(const proto::OwnedCaptureSource &owned) {
             resultFromEvent(event.capture_source_event());
         FinishedCallback callback;
         {
-          std::lock_guard<std::mutex> lock(raw->callback_mutex_);
+          const std::scoped_lock lock(raw->callback_mutex_);
           callback = raw->on_finished_;
         }
         if (callback) {
@@ -177,7 +177,7 @@ CaptureSource::~CaptureSource() {
 }
 
 void CaptureSource::setOnFinishedCallback(FinishedCallback callback) {
-  std::lock_guard<std::mutex> lock(callback_mutex_);
+  const std::scoped_lock lock(callback_mutex_);
   on_finished_ = std::move(callback);
 }
 
