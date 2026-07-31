@@ -32,11 +32,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             name: linux-x64
             build_cmd: ./build.sh release-examples
             build_dir: build-release
-          - os: ubuntu-24.04-arm
+          - os: ubuntu-22.04-arm
             name: linux-arm64
             build_cmd: ./build.sh release-examples
             build_dir: build-release

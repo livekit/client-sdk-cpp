@@ -24,10 +24,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             name: linux-x64
             generator: Ninja
-          - os: ubuntu-24.04-arm
+          - os: ubuntu-22.04-arm
             name: linux-arm64
             generator: Ninja
           - os: macos-26-xlarge
