@@ -73,9 +73,12 @@ std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(GstreamerVideo
   return createFromRequest(std::move(request));
 }
 
-std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(DemoVideoSourceConfig /*config*/) {
+std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(DemoVideoSourceConfig config) {
   proto::NewCaptureSourceRequest request;
-  request.mutable_demo();
+  auto* demo = request.mutable_demo();
+  demo->mutable_resolution()->set_width(config.resolution.width);
+  demo->mutable_resolution()->set_height(config.resolution.height);
+  demo->set_framerate_fps(config.framerate_fps);
   return createFromRequest(std::move(request));
 }
 

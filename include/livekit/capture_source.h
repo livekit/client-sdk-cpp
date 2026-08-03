@@ -104,7 +104,13 @@ struct GstreamerVideoSourceConfig {
 };
 
 /// Configuration for the built-in test source producing solid-color frames.
-struct DemoVideoSourceConfig {};
+struct DemoVideoSourceConfig {
+  /// Output resolution; both components must be non-zero.
+  CaptureResolution resolution;
+
+  /// Output frame rate in frames per second; must be non-zero.
+  std::uint32_t framerate_fps = 0;
+};
 
 /// Why a capture ended without error.
 enum class CaptureExit {
