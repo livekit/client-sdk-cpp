@@ -54,7 +54,7 @@ struct TokenSourceResponse {
   std::optional<std::string> room_name;
 };
 
-/// @brief Per-call options sent to configurable token sources (endpoint, sandbox, custom).
+/// @brief Per-call options sent to configurable token sources (endpoint, development, custom).
 ///
 /// All fields are optional. Unset or empty values are omitted from the token-server
 /// request body. The token server embeds the provided values into the returned JWT;
@@ -62,7 +62,7 @@ struct TokenSourceResponse {
 /// identity, and grants come from the token.
 ///
 /// @note Which fields are honored depends on the token server. The LiveKit Cloud
-/// sandbox token server auto-generates @c room_name, @c participant_identity, and
+/// development token server auto-generates @c room_name, @c participant_identity, and
 /// related fields when they are omitted. A project token endpoint typically accepts
 /// the full set below, including agent dispatch via @c room_config.
 struct TokenRequestOptions {
@@ -70,7 +70,7 @@ struct TokenRequestOptions {
   ///
   /// Set this when you need a stable room across reconnects or when coordinating
   /// multiple clients in the same session. If omitted, many token servers (including
-  /// the sandbox) assign a new room name on each fetch, so repeat connections may
+  /// the development token server) assign a new room name on each fetch, so repeat connections may
   /// land in different rooms.
   std::optional<std::string> room_name;
 
@@ -139,8 +139,8 @@ struct TokenEndpointOptions {
   std::chrono::milliseconds timeout = std::chrono::seconds(30);
 };
 
-/// @brief Options for @ref SandboxTokenSource.
-struct SandboxTokenServerOptions {
+/// @brief Options for @ref DevelopmentTokenSource.
+struct DevelopmentTokenServerOptions {
   /// LiveKit Cloud API base URL (default @c https://cloud-api.livekit.io).
   std::string base_url = "https://cloud-api.livekit.io";
 };
@@ -283,36 +283,45 @@ private:
   friend struct EndpointTokenSourceTestAccess;
 };
 
-/// @brief Token source that uses LiveKit Cloud's sandbox token server (development only).
+/// @brief Token source that uses LiveKit Cloud's development token server (development only).
 ///
 /// Use this for local development and quick testing when you do not yet have your
 /// own backend token endpoint. Do not use in production.
 ///
 /// @see https://docs.livekit.io/frontends/build/authentication/sandbox-token-server/
-class LIVEKIT_API SandboxTokenSource final : public TokenSourceConfigurable {
+class LIVEKIT_API DevelopmentTokenSource final : public TokenSourceConfigurable {
 public:
-  /// @brief Create a token source backed by the LiveKit Cloud sandbox token server.
+  /// @brief Create a token source backed by the LiveKit Cloud development token server.
   ///
-  /// @param sandbox_id Sandbox identifier from LiveKit Cloud (surrounding whitespace is trimmed).
-  /// @param options Sandbox token server options.
-  /// @return A configurable token source backed by the sandbox token server.
-  static std::unique_ptr<SandboxTokenSource> create(const std::string& sandbox_id,
-                                                    const SandboxTokenServerOptions& options = {});
+  /// @param sandbox_id Development token server identifier from LiveKit Cloud (surrounding whitespace is trimmed).
+  /// @param options Development token server options.
+  /// @return A configurable token source backed by the development token server.
+  static std::unique_ptr<DevelopmentTokenSource> create(const std::string& sandbox_id,
+                                                        const DevelopmentTokenServerOptions& options = {});
 
   std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options = {}) override;
 
 private:
-  explicit SandboxTokenSource(std::unique_ptr<TokenSourceConfigurable> endpoint);
+  explicit DevelopmentTokenSource(std::unique_ptr<TokenSourceConfigurable> endpoint);
 
   std::unique_ptr<TokenSourceConfigurable> endpoint_;
 
-  friend struct SandboxTokenSourceTestAccess;
+  friend struct DevelopmentTokenSourceTestAccess;
 };
+
+/// @deprecated Renamed to @ref DevelopmentTokenSource.
+using SandboxTokenSource [[deprecated("SandboxTokenSource is deprecated; use DevelopmentTokenSource instead")]] =
+    DevelopmentTokenSource;
+
+/// @deprecated Renamed to @ref DevelopmentTokenServerOptions.
+using SandboxTokenServerOptions
+    [[deprecated("SandboxTokenServerOptions is deprecated; use DevelopmentTokenServerOptions instead")]] =
+        DevelopmentTokenServerOptions;
 
 /// @brief Decorator that adds JWT-aware caching to another configurable token source.
 ///
 /// Wrap @ref CustomTokenSource, @ref EndpointTokenSource, or
-/// @ref SandboxTokenSource to reduce token fetch calls. A cached response is
+/// @ref DevelopmentTokenSource to reduce token fetch calls. A cached response is
 /// reused until the request options change or the JWT expires. Call
 /// @ref invalidate to force the next @ref fetch to bypass the cache.
 class LIVEKIT_API CachingTokenSource final : public TokenSourceConfigurable {

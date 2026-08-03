@@ -201,26 +201,25 @@ Result<TokenSourceResponse, TokenSourceError> EndpointTokenSource::fetchSync(con
   return parseTokenSourceResponseJson(http_result.value());
 }
 
-std::unique_ptr<SandboxTokenSource> SandboxTokenSource::create(const std::string& sandbox_id,
-                                                               const SandboxTokenServerOptions& options) {
+std::unique_ptr<DevelopmentTokenSource> DevelopmentTokenSource::create(const std::string& sandbox_id,
+                                                                       const DevelopmentTokenServerOptions& options) {
   auto resolved = resolveSandboxEndpoint(sandbox_id, {}, options.base_url);
   auto endpoint = EndpointTokenSource::create(std::move(resolved.url), std::move(resolved.options));
-  return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(std::move(endpoint)));
+  return std::unique_ptr<DevelopmentTokenSource>(new DevelopmentTokenSource(std::move(endpoint)));
 }
 
-SandboxTokenSource::SandboxTokenSource(std::unique_ptr<TokenSourceConfigurable> endpoint)
+DevelopmentTokenSource::DevelopmentTokenSource(std::unique_ptr<TokenSourceConfigurable> endpoint)
     : endpoint_(std::move(endpoint)) {}
 
-std::unique_ptr<SandboxTokenSource> SandboxTokenSourceTestAccess::create(const std::string& sandbox_id,
-                                                                         const SandboxTokenServerOptions& options,
-                                                                         TokenSourceHttpTransport transport) {
+std::unique_ptr<DevelopmentTokenSource> DevelopmentTokenSourceTestAccess::create(
+    const std::string& sandbox_id, const DevelopmentTokenServerOptions& options, TokenSourceHttpTransport transport) {
   auto resolved = resolveSandboxEndpoint(sandbox_id, {}, options.base_url);
   auto endpoint =
       EndpointTokenSourceTestAccess::create(std::move(resolved.url), std::move(resolved.options), std::move(transport));
-  return std::unique_ptr<SandboxTokenSource>(new SandboxTokenSource(std::move(endpoint)));
+  return std::unique_ptr<DevelopmentTokenSource>(new DevelopmentTokenSource(std::move(endpoint)));
 }
 
-std::future<Result<TokenSourceResponse, TokenSourceError>> SandboxTokenSource::fetch(
+std::future<Result<TokenSourceResponse, TokenSourceError>> DevelopmentTokenSource::fetch(
     const TokenRequestOptions& options) {
   return endpoint_->fetch(options);
 }

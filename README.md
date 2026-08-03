@@ -213,13 +213,13 @@ export LIVEKIT_TOKEN=$(lk token create \
 ```
 
 Pass `LIVEKIT_URL` and `LIVEKIT_TOKEN` into `Room::connect`, or use the SDK's
-token source helpers for endpoint, sandbox, and custom backends. See
+token source helpers for endpoint, development token server, and custom backends. See
 [docs/authentication.md](docs/authentication.md).
 
 ## Features
 
 - Connect to LiveKit rooms (Cloud or self-hosted)
-- Dynamic token sourcing (literal, custom, endpoint, sandbox, caching)
+- Dynamic token sourcing (literal, custom, endpoint, development token server, caching)
 - Receive remote audio/video tracks
 - Publish local audio/video tracks
 - Data tracks (low-level) and data streams (high-level)
