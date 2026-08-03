@@ -438,10 +438,10 @@ jobs:
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: v${{ steps.version.outputs.version }}
-          name: LiveKit C++ SDK v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
           draft: true
           files: ${{ github.workspace }}/release-assets/*
-          generate_release_notes: true
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
