@@ -25,6 +25,7 @@
 
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -39,12 +40,18 @@ using namespace std::chrono_literals;
 namespace {
 
 constexpr int kMinFramesReceived = 5;
+constexpr int kCaptureWidth = 1280;
+constexpr int kCaptureHeight = 720;
+constexpr std::uint32_t kCaptureFramerateFps = 30;
 
 /// Creates the capture source, or skips the test when the FFI library was
 /// built without the capture feature.
 std::shared_ptr<CaptureSource> createDemoCaptureOrSkip() {
+  DemoVideoSourceConfig config;
+  config.resolution = {kCaptureWidth, kCaptureHeight};
+  config.framerate_fps = kCaptureFramerateFps;
   try {
-    return CaptureSource::create(DemoVideoSourceConfig{}).get();
+    return CaptureSource::create(config).get();
   } catch (const std::exception& e) {
     if (std::string(e.what()).find("without the 'capture' feature") != std::string::npos) {
       return nullptr;
@@ -66,10 +73,10 @@ TEST_F(CaptureSourceServerTest, DemoCaptureSourcePublishesFramesEndToEnd) {
                     "configure with -DLIVEKIT_ENABLE_CAPTURE=ON";
   }
 
-  // The demo source produces 1280x720 pixel frames.
+  // The demo source reports back the resolution it was configured with.
   ASSERT_EQ(capture->kind(), CaptureSourceKind::Pixel);
-  ASSERT_EQ(capture->width(), 1280);
-  ASSERT_EQ(capture->height(), 720);
+  ASSERT_EQ(capture->width(), kCaptureWidth);
+  ASSERT_EQ(capture->height(), kCaptureHeight);
   ASSERT_FALSE(capture->codec().has_value());
   ASSERT_NE(capture->videoSource(), nullptr);
 
