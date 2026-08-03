@@ -173,7 +173,7 @@ if (!credentials ||
 Uses the LiveKit Cloud development token server. Do not use in production.
 
 ```cpp
-auto source = livekit::DevelopmentTokenSource::create("your-sandbox-id");
+auto source = livekit::DevelopmentTokenSource::create("your-token-server-id");
 
 livekit::TokenRequestOptions request;
 request.agent_name = "my-agent";  // optional agent dispatch
@@ -185,7 +185,7 @@ if (!credentials ||
 }
 ```
 
-See [sandbox token server docs](https://docs.livekit.io/frontends/build/authentication/sandbox-token-server/).
+See [development token server docs](https://docs.livekit.io/frontends/build/authentication/sandbox-token-server/).
 
 > `SandboxTokenSource` / `SandboxTokenServerOptions` remain as deprecated aliases for
 > `DevelopmentTokenSource` / `DevelopmentTokenServerOptions`; prefer the new names.
