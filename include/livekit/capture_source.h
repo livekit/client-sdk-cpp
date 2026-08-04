@@ -24,6 +24,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
@@ -35,6 +36,7 @@ namespace livekit {
 namespace proto {
 class NewCaptureSourceRequest;
 class OwnedCaptureSource;
+class CaptureDeviceList;
 } // namespace proto
 
 /// Error raised when capture source creation or control fails.
@@ -112,6 +114,195 @@ struct DemoVideoSourceConfig {
   std::uint32_t framerate_fps = 0;
 };
 
+/// Frame format delivered by a capture device.
+enum class DeviceFrameFormat {
+  /// Planar I420/YUV420P.
+  I420 = 0,
+  /// Biplanar NV12.
+  Nv12 = 1,
+  /// Packed BGRA.
+  Bgra = 2,
+  /// Packed RGB24.
+  Rgb24 = 3,
+  /// Packed BGR24.
+  Bgr24 = 4,
+  /// Packed YUYV/YUY2.
+  Yuyv = 5,
+  /// Packed UYVY.
+  Uyvy = 6,
+  /// Single-plane 8-bit luma.
+  Grey = 7,
+  /// Encoded MJPEG frames.
+  Mjpeg = 8,
+};
+
+/// Capture format offered by or requested from a device.
+///
+/// All three components are required. When building a request, name the frame
+/// format explicitly: which formats a device can be asked for is
+/// platform-specific, so there is no portable default.
+struct DeviceFormat {
+  /// Frame dimensions.
+  CaptureResolution resolution;
+
+  /// Frame rate in frames per second.
+  std::uint32_t framerate_fps = 0;
+
+  /// Frame format.
+  DeviceFrameFormat frame_format = DeviceFrameFormat::Nv12;
+
+  DeviceFormat() = default;
+
+  DeviceFormat(CaptureResolution resolution, std::uint32_t framerate_fps, DeviceFrameFormat frame_format)
+      : resolution(resolution), framerate_fps(framerate_fps), frame_format(frame_format) {}
+};
+
+/// How a capture device should pick the format it delivers.
+///
+/// The device negotiates the delivered format; the created source reports the
+/// negotiated resolution through @ref CaptureSource::width and
+/// @ref CaptureSource::height. The negotiated frame rate and frame format are
+/// not reported back.
+///
+/// @note Only resolution and frame rate participate in format selection.
+/// A @c frame_format is validated and then treated as a preference the backend
+/// may substitute, so the delivered format can differ from the one requested:
+///
+/// - macOS accepts only @ref DeviceFrameFormat::I420,
+///   @ref DeviceFrameFormat::Nv12, and @ref DeviceFrameFormat::Bgra --
+///   requesting any other value fails creation -- and then delivers NV12
+///   regardless of which of the three was asked for.
+/// - V4L2 rejects @ref DeviceFrameFormat::I420 and @ref DeviceFrameFormat::Bgra.
+///   For @ref exact and @ref closest it tries the requested format first and
+///   then falls back through the formats it supports; for @ref highestFramerate
+///   and @ref highestResolution the constraint selects the format outright, with
+///   no fallback.
+///
+/// @ref DeviceFrameFormat::Nv12 is the only value both backends accept, which
+/// is why it is @ref DeviceFormat's default.
+class LIVEKIT_API DeviceFormatRequest {
+public:
+  /// Optional constraints for @ref highestFramerate.
+  struct HighestFramerateConstraint {
+    /// Only consider formats with this resolution.
+    std::optional<CaptureResolution> resolution;
+    /// Only consider formats with this frame format.
+    std::optional<DeviceFrameFormat> frame_format;
+  };
+
+  /// Optional constraints for @ref highestResolution.
+  struct HighestResolutionConstraint {
+    /// Only consider formats with this frame rate.
+    std::optional<std::uint32_t> framerate_fps;
+    /// Only consider formats with this frame format.
+    std::optional<DeviceFrameFormat> frame_format;
+  };
+
+  /// Let the device choose its default format.
+  DeviceFormatRequest() = default;
+
+  /// Require the resolution to match exactly; creation fails if the device
+  /// offers no such format.
+  ///
+  /// Frame-rate matching is rounding-tolerant, because devices commonly
+  /// advertise near-integral rates: a request for 30 fps is satisfied by a
+  /// device advertising 30.00003 fps, and the device is then driven at its
+  /// advertised rate.
+  static DeviceFormatRequest exact(DeviceFormat format);
+
+  /// Use the device's closest supported resolution and frame rate.
+  static DeviceFormatRequest closest(DeviceFormat format);
+
+  /// Prefer the highest frame rate, optionally constrained.
+  static DeviceFormatRequest highestFramerate(HighestFramerateConstraint constraint = {});
+
+  /// Prefer the highest resolution, optionally constrained.
+  static DeviceFormatRequest highestResolution(HighestResolutionConstraint constraint = {});
+
+private:
+  friend class CaptureSource;
+
+  /// Which selection strategy this request carries.
+  enum class Kind { Default, Exact, Closest, HighestFramerate, HighestResolution };
+
+  Kind kind_ = Kind::Default;
+  DeviceFormat format_;
+  HighestFramerateConstraint highest_framerate_;
+  HighestResolutionConstraint highest_resolution_;
+};
+
+/// Selects which video device a capture source opens.
+class LIVEKIT_API DeviceSelector {
+public:
+  /// The platform default video device.
+  DeviceSelector() = default;
+
+  /// The device at this position in the platform's own enumeration order.
+  ///
+  /// The meaning is platform-defined and is not necessarily the position of
+  /// the device in @ref CaptureSource::listDevices: on macOS it indexes the
+  /// AVFoundation video-device list, on Linux it is the V4L2 node number
+  /// (@c /dev/videoN). Either way the value can shift as devices are attached
+  /// and removed. Prefer @ref id, which is stable on macOS.
+  static DeviceSelector index(std::uint32_t device_index);
+
+  /// A platform-stable identifier, as reported by @ref CaptureDeviceInfo::id.
+  static DeviceSelector id(std::string device_id);
+
+private:
+  friend class CaptureSource;
+
+  /// Which form of device selection this carries.
+  enum class Kind { Default, Index, Id };
+
+  Kind kind_ = Kind::Default;
+  std::uint32_t index_ = 0;
+  std::string id_;
+};
+
+/// Configuration for camera device capture using the platform's native
+/// capture stack.
+struct DeviceVideoSourceConfig {
+  /// Device to capture from; the platform default device when unset.
+  DeviceSelector device;
+
+  /// Format requested from the device; the device default when unset.
+  DeviceFormatRequest format;
+};
+
+/// A video capture device discovered by @ref CaptureSource::listDevices.
+struct CaptureDeviceInfo {
+  /// Device identifier; pass to @ref DeviceSelector::id.
+  ///
+  /// Stable across reboots and re-plugging on macOS, where it is the
+  /// AVFoundation unique id. On V4L2 it is the node number, so it can change
+  /// as devices are attached and removed; re-enumerate rather than persisting
+  /// it there.
+  std::string id;
+
+  /// Human-readable device name.
+  std::string name;
+
+  /// Device model identifier, when available.
+  std::optional<std::string> model_id;
+
+  /// Device manufacturer, when available.
+  std::optional<std::string> manufacturer;
+
+  /// Capture formats reported by the device.
+  ///
+  /// Empty unless @ref formats_complete is true. Do not use this to decide
+  /// what to request: ask for a format and let the device negotiate.
+  std::vector<DeviceFormat> formats;
+
+  /// Whether @ref formats is a complete list; some platforms do not
+  /// enumerate formats up front.
+  ///
+  /// False on macOS, where AVFoundation formats are not enumerated; true on
+  /// V4L2.
+  bool formats_complete = false;
+};
+
 /// Why a capture ended without error.
 enum class CaptureExit {
   /// Stopped via @ref CaptureSource::stop (or source destruction).
@@ -161,6 +352,23 @@ public:
 
   /// Create the built-in demo capture source (solid cycling colors).
   static std::future<std::shared_ptr<CaptureSource>> create(DemoVideoSourceConfig config);
+
+  /// Create a capture source from a camera device.
+  ///
+  /// Completes asynchronously: construction opens the device and negotiates
+  /// the capture format, so @ref width and @ref height report the negotiated
+  /// resolution before the first frame is pumped. Errors (missing device,
+  /// unsatisfiable
+  /// format request, unsupported platform, missing capture feature) are
+  /// thrown from the future as @ref CaptureSourceError.
+  static std::future<std::shared_ptr<CaptureSource>> create(DeviceVideoSourceConfig config);
+
+  /// List the video capture devices available on this machine.
+  ///
+  /// Completes asynchronously: enumeration queries the platform capture stack
+  /// and may block briefly. Throws @ref CaptureSourceError from the future on
+  /// failure, including on platforms without a capture backend.
+  static std::future<std::vector<CaptureDeviceInfo>> listDevices();
 
   ~CaptureSource();
 
