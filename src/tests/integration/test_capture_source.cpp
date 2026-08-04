@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-/// End-to-end test for capture sources (livekit-capture over FFI).
+/// Tests for capture sources (livekit-capture over FFI).
 ///
-/// Publishes the built-in demo source — the capture pump pushes frames
-/// server-side, so the test drives no frames itself — and verifies that a
-/// second participant receives real video through the SFU.
+/// Two groups. `CaptureSourceServerTest` publishes the built-in demo source —
+/// the capture pump pushes frames server-side, so the test drives no frames
+/// itself — and verifies that a second participant receives real video through
+/// the SFU. `CaptureDeviceTest` covers camera device enumeration and format
+/// negotiation, which need no room; those tests skip when the machine has no
+/// camera.
 ///
-/// Requires the Rust FFI built with the `capture` feature
-/// (-DLIVEKIT_ENABLE_CAPTURE=ON); otherwise the test skips.
+/// All of them require the Rust FFI built with the `capture` feature
+/// (-DLIVEKIT_ENABLE_CAPTURE=ON); otherwise they skip.
 
 #include <chrono>
 #include <condition_variable>
@@ -29,6 +32,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "../common/test_common.h"
 #include "livekit/capture_source.h"
@@ -44,34 +48,130 @@ constexpr int kCaptureWidth = 1280;
 constexpr int kCaptureHeight = 720;
 constexpr std::uint32_t kCaptureFramerateFps = 30;
 
-/// Creates the capture source, or skips the test when the FFI library was
-/// built without the capture feature.
-std::shared_ptr<CaptureSource> createDemoCaptureOrSkip() {
+/// Skips the calling test when the FFI library was built without the capture
+/// feature. A feature-less FFI reports only a generic invalid handle, so this
+/// has to be decided at compile time rather than sniffed from an error string.
+#ifdef LIVEKIT_TEST_CAPTURE_ENABLED
+#define SKIP_WITHOUT_CAPTURE_FEATURE() ((void)0)
+#else
+#define SKIP_WITHOUT_CAPTURE_FEATURE() \
+  GTEST_SKIP() << "livekit-ffi built without the 'capture' feature; configure with -DLIVEKIT_ENABLE_CAPTURE=ON"
+#endif
+
+std::shared_ptr<CaptureSource> createDemoCapture() {
   DemoVideoSourceConfig config;
   config.resolution = {kCaptureWidth, kCaptureHeight};
   config.framerate_fps = kCaptureFramerateFps;
-  try {
-    return CaptureSource::create(config).get();
-  } catch (const std::exception& e) {
-    if (std::string(e.what()).find("without the 'capture' feature") != std::string::npos) {
-      return nullptr;
-    }
-    throw;
-  }
+  return CaptureSource::create(config).get();
 }
 
 } // namespace
 
 class CaptureSourceServerTest : public LiveKitTestBase {};
 
+/// Device tests need an initialized SDK but no room, so they share the base
+/// fixture without requiring the server environment variables.
+class CaptureDeviceTest : public LiveKitTestBase {};
+
+/// Device enumeration is a pure local query: it needs no server, and a
+/// machine with no camera is a valid (empty) result.
+TEST_F(CaptureDeviceTest, ListDevicesReportsWellFormedDevices) {
+  SKIP_WITHOUT_CAPTURE_FEATURE();
+
+  std::vector<CaptureDeviceInfo> devices;
+  try {
+    devices = CaptureSource::listDevices().get();
+  } catch (const CaptureSourceError& e) {
+    // A platform with no capture backend reports UnsupportedPlatform.
+    GTEST_SKIP() << "capture device enumeration unavailable: " << e.what();
+  }
+
+  for (const CaptureDeviceInfo& device : devices) {
+    EXPECT_FALSE(device.id.empty()) << "device id must be a stable identifier";
+    EXPECT_FALSE(device.name.empty()) << "device name must be human-readable";
+    for (const DeviceFormat& format : device.formats) {
+      EXPECT_GT(format.resolution.width, 0);
+      EXPECT_GT(format.resolution.height, 0);
+      EXPECT_GT(format.framerate_fps, 0u);
+    }
+    // A device reporting a complete format list must report at least one.
+    if (device.formats_complete) {
+      EXPECT_FALSE(device.formats.empty()) << "device " << device.id << " claims a complete but empty format list";
+    }
+  }
+}
+
+/// An unsatisfiable exact format request must fail loudly at construction
+/// rather than silently falling back to another format.
+///
+/// The resolution is deliberately odd-sized rather than merely large: no
+/// camera offers 7x3, and its odd dimensions survive any driver rounding to a
+/// macroblock or 2-pixel boundary.
+///
+/// CaptureSourceError carries only a message, so this cannot assert on a
+/// specific cause. The preceding skips narrow it: the capture feature is
+/// present and at least one device enumerated, so the throw is attributable to
+/// the format request.
+TEST_F(CaptureDeviceTest, ExactFormatRequestRejectsUnsupportedFormat) {
+  SKIP_WITHOUT_CAPTURE_FEATURE();
+
+  std::vector<CaptureDeviceInfo> devices;
+  try {
+    devices = CaptureSource::listDevices().get();
+  } catch (const CaptureSourceError& e) {
+    GTEST_SKIP() << "capture device enumeration unavailable: " << e.what();
+  }
+  if (devices.empty()) {
+    GTEST_SKIP() << "no capture devices attached to this machine";
+  }
+
+  DeviceVideoSourceConfig config;
+  config.device = DeviceSelector::id(devices.front().id);
+  // Nv12 is requestable on every backend, so the rejection is attributable to
+  // the resolution rather than to frame-format validation.
+  config.format = DeviceFormatRequest::exact(DeviceFormat{{7, 3}, 1, DeviceFrameFormat::Nv12});
+
+  EXPECT_THROW(CaptureSource::create(config).get(), CaptureSourceError);
+}
+
+/// Opening the platform default device with the default format request must
+/// negotiate a usable format and report the negotiated resolution.
+TEST_F(CaptureDeviceTest, DefaultDeviceNegotiatesAFormat) {
+  SKIP_WITHOUT_CAPTURE_FEATURE();
+
+  std::vector<CaptureDeviceInfo> devices;
+  try {
+    devices = CaptureSource::listDevices().get();
+  } catch (const CaptureSourceError& e) {
+    GTEST_SKIP() << "capture device enumeration unavailable: " << e.what();
+  }
+  if (devices.empty()) {
+    GTEST_SKIP() << "no capture devices attached to this machine";
+  }
+
+  std::shared_ptr<CaptureSource> capture;
+  try {
+    capture = CaptureSource::create(DeviceVideoSourceConfig{}).get();
+  } catch (const CaptureSourceError& e) {
+    // A camera present but claimed by another process, or denied by the
+    // platform's privacy controls, is not a binding failure.
+    GTEST_SKIP() << "default capture device unavailable: " << e.what();
+  }
+
+  ASSERT_NE(capture, nullptr);
+  EXPECT_EQ(capture->kind(), CaptureSourceKind::Pixel);
+  EXPECT_GT(capture->width(), 0);
+  EXPECT_GT(capture->height(), 0);
+  EXPECT_FALSE(capture->codec().has_value()) << "device capture is a pixel source";
+  EXPECT_NE(capture->videoSource(), nullptr);
+}
+
 TEST_F(CaptureSourceServerTest, DemoCaptureSourcePublishesFramesEndToEnd) {
+  SKIP_WITHOUT_CAPTURE_FEATURE();
   failIfNotConfigured();
 
-  auto capture = createDemoCaptureOrSkip();
-  if (capture == nullptr) {
-    GTEST_SKIP() << "livekit-ffi built without the 'capture' feature; "
-                    "configure with -DLIVEKIT_ENABLE_CAPTURE=ON";
-  }
+  auto capture = createDemoCapture();
+  ASSERT_NE(capture, nullptr);
 
   // The demo source reports back the resolution it was configured with.
   ASSERT_EQ(capture->kind(), CaptureSourceKind::Pixel);
