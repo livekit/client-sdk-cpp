@@ -122,6 +122,7 @@ public:
 
   // Capture APIs
   std::future<proto::OwnedCaptureSource> newCaptureSourceAsync(proto::NewCaptureSourceRequest request);
+  std::future<proto::CaptureDeviceList> listCaptureDevicesAsync();
   std::future<void> setLocalMetadataAsync(std::uint64_t local_participant_handle, const std::string& metadata);
   std::future<void> captureAudioFrameAsync(std::uint64_t source_handle, const proto::AudioFrameBufferInfo& buffer);
   std::future<std::string> performRpcAsync(std::uint64_t local_participant_handle,
