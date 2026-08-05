@@ -90,7 +90,7 @@ jobs:
               fi
 
               case "${path}" in
-                docker/Dockerfile.sdk|src/*|include/*|client-sdk-rust/*|cmake/*|data/*|cpp-example-collection|CMakeLists.txt|build.sh|build.cmd|build.h.in|.build-info.json.in|CMakePresets.json|.github/workflows/docker-images.yml)
+                docker/Dockerfile.sdk|src/*|include/*|client-sdk-rust/*|cmake/*|data/*|cpp-example-collection|CMakeLists.txt|build.sh|build.cmd|build.h.in|version.h.in|.build-info.json.in|CMakePresets.json|.github/workflows/docker-images.yml)
                   sdk_changed=true
                   ;;
               esac

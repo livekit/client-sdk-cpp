@@ -1,13 +1,38 @@
 cmake_minimum_required(VERSION 3.20)
 
+# Resolve LIVEKIT_VERSION: explicit -D / --version wins; otherwise derive from
+# the nearest annotated/lightweight v* tag via `git describe` (repo-derived).
+# Falls back to 0.0.0 when git is unavailable or the tree has no matching tags.
 if(NOT DEFINED LIVEKIT_VERSION OR LIVEKIT_VERSION STREQUAL "")
-  set(LIVEKIT_VERSION "0.0.0")
+  set(LIVEKIT_VERSION "")
+  find_package(Git QUIET)
+  if(GIT_FOUND)
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" describe --tags --match "v[0-9]*" --abbrev=0
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      OUTPUT_VARIABLE _LIVEKIT_GIT_TAG
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET
+      RESULT_VARIABLE _LIVEKIT_GIT_TAG_RESULT
+    )
+    if(_LIVEKIT_GIT_TAG_RESULT EQUAL 0 AND NOT _LIVEKIT_GIT_TAG STREQUAL "")
+      string(REGEX REPLACE "^v" "" LIVEKIT_VERSION "${_LIVEKIT_GIT_TAG}")
+    endif()
+  endif()
+  if(LIVEKIT_VERSION STREQUAL "")
+    set(LIVEKIT_VERSION "0.0.0")
+  endif()
 endif()
 
-string(REGEX MATCH "^[0-9][0-9]*\\.[0-9][0-9]*\\.[0-9][0-9]*" LIVEKIT_PROJECT_VERSION "${LIVEKIT_VERSION}")
+string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)" LIVEKIT_PROJECT_VERSION "${LIVEKIT_VERSION}")
 if(LIVEKIT_PROJECT_VERSION STREQUAL "")
   message(FATAL_ERROR "LIVEKIT_VERSION must start with a numeric version, got '${LIVEKIT_VERSION}'")
 endif()
+
+set(LIVEKIT_CLIENT_SDK_VERSION_MAJOR "${CMAKE_MATCH_1}")
+set(LIVEKIT_CLIENT_SDK_VERSION_MINOR "${CMAKE_MATCH_2}")
+set(LIVEKIT_CLIENT_SDK_VERSION_PATCH "${CMAKE_MATCH_3}")
+set(LIVEKIT_CLIENT_SDK_VERSION "${LIVEKIT_VERSION}")
 
 project(livekit VERSION ${LIVEKIT_PROJECT_VERSION} LANGUAGES C CXX)
 
@@ -161,8 +186,9 @@ add_custom_command(
 
 target_sources(livekit_proto PRIVATE ${PROTO_SRCS} ${PROTO_HDRS})
 
-# Generate build.h directly into include/livekit/ for simpler include paths
+# Generate build.h / version.h directly into include/livekit/ for simpler include paths
 set(GENERATED_BUILD_H "${LIVEKIT_ROOT_DIR}/include/livekit/build.h")
+set(GENERATED_VERSION_H "${LIVEKIT_ROOT_DIR}/include/livekit/version.h")
 set(GENERATED_BUILD_INFO_JSON "${LIVEKIT_BINARY_DIR}/build-info.json")
 set(RUST_ROOT ${LIVEKIT_ROOT_DIR}/client-sdk-rust)
 
@@ -207,9 +233,21 @@ configure_file(
   @ONLY
 )
 configure_file(
+  "${LIVEKIT_ROOT_DIR}/version.h.in"
+  "${GENERATED_VERSION_H}"
+  @ONLY
+)
+configure_file(
   "${LIVEKIT_ROOT_DIR}/.build-info.json.in"
   "${GENERATED_BUILD_INFO_JSON}"
   @ONLY
+)
+
+message(STATUS
+  "LiveKit SDK version: ${LIVEKIT_CLIENT_SDK_VERSION} "
+  "(${LIVEKIT_CLIENT_SDK_VERSION_MAJOR}."
+  "${LIVEKIT_CLIENT_SDK_VERSION_MINOR}."
+  "${LIVEKIT_CLIENT_SDK_VERSION_PATCH})"
 )
 
 find_program(CARGO_EXECUTABLE NAMES cargo REQUIRED)
@@ -744,7 +782,7 @@ if(APPLE)
 endif()
 
 
-# Install public headers (includes generated build.h which is now in include/livekit/)
+# Install public headers (includes generated build.h / version.h in include/livekit/)
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
   FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"

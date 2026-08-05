@@ -13,8 +13,9 @@ build-release/
 local-install/
 release/
 vcpkg_installed/
-# Generated header
+# Generated headers
 include/livekit/build.h
+include/livekit/version.h
 received_green.avif
 docs/*.bak
 # Doxygen

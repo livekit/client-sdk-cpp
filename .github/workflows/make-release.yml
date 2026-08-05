@@ -218,15 +218,24 @@ jobs:
           version="${{ steps.version.outputs.version }}"
           bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}-${version}"
           header="${bundleDir}/include/livekit/build.h"
+          versionHeader="${bundleDir}/include/livekit/version.h"
           buildInfo="${bundleDir}/share/livekit/build-info.json"
 
           test -f "$header"
+          test -f "$versionHeader"
           test -f "$buildInfo"
           grep -F "#define LIVEKIT_BUILD_VERSION \"${version}\"" "$header"
           if grep -F '#define LIVEKIT_BUILD_VERSION "0.0.0"' "$header"; then
             echo "ERROR: bundle reports fallback SDK version"
             exit 1
           fi
+          grep -F "#define LIVEKIT_CLIENT_SDK_VERSION \"${version}\"" "$versionHeader"
+          major="$(echo "$version" | sed -E 's/^([0-9]+)\..*/\1/')"
+          minor="$(echo "$version" | sed -E 's/^[0-9]+\.([0-9]+)\..*/\1/')"
+          patch="$(echo "$version" | sed -E 's/^[0-9]+\.[0-9]+\.([0-9]+).*/\1/')"
+          grep -F "#define LIVEKIT_CLIENT_SDK_VERSION_MAJOR (${major})" "$versionHeader"
+          grep -F "#define LIVEKIT_CLIENT_SDK_VERSION_MINOR (${minor})" "$versionHeader"
+          grep -F "#define LIVEKIT_CLIENT_SDK_VERSION_PATCH (${patch})" "$versionHeader"
           grep -F "\"sdk_version\": \"${version}\"" "$buildInfo"
           grep -Eq '"rust_submodule_commit": "[0-9a-f]{7,}"' "$buildInfo"
           grep -Eq '"livekit_ffi_version": "[0-9]+\.[0-9]+\.[0-9]+' "$buildInfo"
@@ -299,9 +308,11 @@ jobs:
           $version = "${{ steps.version.outputs.version }}"
           $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-$version"
           $header = Join-Path $bundleDir "include/livekit/build.h"
+          $versionHeader = Join-Path $bundleDir "include/livekit/version.h"
           $buildInfo = Join-Path $bundleDir "share/livekit/build-info.json"
 
           if (!(Test-Path $header)) { throw "Missing $header" }
+          if (!(Test-Path $versionHeader)) { throw "Missing $versionHeader" }
           if (!(Test-Path $buildInfo)) { throw "Missing $buildInfo" }
 
           $headerText = Get-Content -Raw $header
@@ -311,6 +322,26 @@ jobs:
           }
           if ($headerText.Contains('#define LIVEKIT_BUILD_VERSION "0.0.0"')) {
             throw "Bundle reports fallback SDK version"
+          }
+
+          $versionHeaderText = Get-Content -Raw $versionHeader
+          $expectedClientVersion = "#define LIVEKIT_CLIENT_SDK_VERSION `"$version`""
+          if (!$versionHeaderText.Contains($expectedClientVersion)) {
+            throw "version.h does not report expected SDK version $version"
+          }
+          if ($version -notmatch '^([0-9]+)\.([0-9]+)\.([0-9]+)') {
+            throw "Unable to parse MAJOR.MINOR.PATCH from version '$version'"
+          }
+          $major = $Matches[1]; $minor = $Matches[2]; $patch = $Matches[3]
+          foreach ($pair in @(
+            @("LIVEKIT_CLIENT_SDK_VERSION_MAJOR", $major),
+            @("LIVEKIT_CLIENT_SDK_VERSION_MINOR", $minor),
+            @("LIVEKIT_CLIENT_SDK_VERSION_PATCH", $patch)
+          )) {
+            $expected = "#define $($pair[0]) ($($pair[1]))"
+            if (!$versionHeaderText.Contains($expected)) {
+              throw "version.h missing expected define: $expected"
+            }
           }
 
           $buildInfoText = Get-Content -Raw $buildInfo
