@@ -1,0 +1,30 @@
+name: Data Track Publish-Many Reproduction
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
+jobs:
+  macos-x64:
+    name: macOS x64 Reproduction
+    uses: ./.github/workflows/tests.yml
+    with:
+      build_type: debug
+      unit_repeat: 0
+      integration_repeat: 20
+      integration_filter: "DataTrackE2ETest.PublishManyTracks"
+      integration_timeout_minutes: 15
+      run_stress_tests: false
+      artifact_retention_days: 14
+      run_coverage: false
+      rust_log: "livekit_datatrack=debug,livekit=debug,livekit_ffi=debug,metrics=debug"
+      test_matrix: >-
+        {"include":[{"os":"macos-26-large","name":"macos-x64","macos_arch":"x86_64","e2e-testing":true}]}
+    secrets: inherit

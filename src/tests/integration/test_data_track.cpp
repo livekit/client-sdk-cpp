@@ -529,6 +529,7 @@ TEST_F(DataTrackE2ETest, SubscribeAfterUnpublishReportsTerminalError) {
 TEST_F(DataTrackE2ETest, PublishManyTracks) {
   auto rooms = testRooms(1);
   auto& room = rooms[0];
+  std::cout << "[PublishManyTracks] room connected" << std::endl;
 
   std::vector<std::shared_ptr<LocalDataTrack>> tracks;
   tracks.reserve(kPublishManyTrackCount);
@@ -548,7 +549,7 @@ TEST_F(DataTrackE2ETest, PublishManyTracks) {
   }
   const auto elapsed = std::chrono::steady_clock::now() - start;
 
-  std::cout << "Publishing " << kPublishManyTrackCount << " tracks took "
+  std::cout << "[PublishManyTracks] publishing " << kPublishManyTrackCount << " tracks took "
             << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms" << std::endl;
   EXPECT_LT(elapsed, kPublishManyTimeout);
 
@@ -558,6 +559,7 @@ TEST_F(DataTrackE2ETest, PublishManyTracks) {
   // to make it onto the transport and "Failed to enqueue data track packet"
   // logs are expected. The purpose of this test is to verify publish/push
   // behavior and local track state, not end-to-end delivery of every packet.
+  std::cout << "[PublishManyTracks] pushing large frames" << std::endl;
   for (const auto& track : tracks) {
     auto push_result = track->tryPush(std::vector<std::uint8_t>(kLargeFramePayloadBytes, 0xFA));
     if (!push_result) {
@@ -566,11 +568,23 @@ TEST_F(DataTrackE2ETest, PublishManyTracks) {
     }
     std::this_thread::sleep_for(50ms);
   }
+  std::cout << "[PublishManyTracks] large-frame pushes complete" << std::endl;
 
+  std::cout << "[PublishManyTracks] unpublishing tracks" << std::endl;
   for (const auto& track : tracks) {
     track->unpublishDataTrack();
     EXPECT_FALSE(track->isPublished());
   }
+  std::cout << "[PublishManyTracks] unpublish requests complete" << std::endl;
+
+  // Preserve the natural destruction order (tracks before rooms), but make the
+  // teardown boundary visible so a timeout identifies the blocking phase.
+  tracks.clear();
+  std::cout << "[PublishManyTracks] local track handles released" << std::endl;
+
+  std::cout << "[PublishManyTracks] disconnecting room" << std::endl;
+  ASSERT_TRUE(room->disconnect());
+  std::cout << "[PublishManyTracks] room disconnected" << std::endl;
 }
 
 TEST_F(DataTrackE2ETest, PublishDuplicateName) {
