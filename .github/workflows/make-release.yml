@@ -25,10 +25,16 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
-            name: linux-x64
+            name: ubuntu-22.04-x64
             generator: Ninja
           - os: ubuntu-22.04-arm
-            name: linux-arm64
+            name: ubuntu-22.04-arm64
+            generator: Ninja
+          - os: ubuntu-24.04
+            name: ubuntu-24.04-x64
+            generator: Ninja
+          - os: ubuntu-24.04-arm
+            name: ubuntu-24.04-arm64
             generator: Ninja
           - os: macos-26-xlarge
             name: macos-arm64
@@ -416,8 +422,8 @@ jobs:
           echo "Artifacts downloaded:"
           ls -la
           
-          # Create tar.gz for Linux and macOS
-          for platform in linux-x64 linux-arm64 macos-arm64 macos-x64; do
+          # Create tar.gz for Ubuntu and macOS
+          for platform in ubuntu-22.04-x64 ubuntu-22.04-arm64 ubuntu-24.04-x64 ubuntu-24.04-arm64 macos-arm64 macos-x64; do
             dirName="livekit-sdk-${platform}-${VERSION}"
             if [[ -d "${dirName}" ]]; then
               echo "Creating archive for ${platform}..."
@@ -425,6 +431,12 @@ jobs:
               echo "Created: ${dirName}.tar.gz"
             fi
           done
+
+          # Deprecated compatibility aliases for existing Linux release consumers.
+          cp "${{ github.workspace }}/release-assets/livekit-sdk-ubuntu-24.04-x64-${VERSION}.tar.gz" \
+             "${{ github.workspace }}/release-assets/livekit-sdk-linux-x64-${VERSION}.tar.gz"
+          cp "${{ github.workspace }}/release-assets/livekit-sdk-ubuntu-24.04-arm64-${VERSION}.tar.gz" \
+             "${{ github.workspace }}/release-assets/livekit-sdk-linux-arm64-${VERSION}.tar.gz"
           
           # Create zip for Windows
           dirName="livekit-sdk-windows-x64-${VERSION}"
@@ -444,6 +456,17 @@ jobs:
           name: v${{ steps.version.outputs.version }}
           draft: true
           files: ${{ github.workspace }}/release-assets/*
+          body: |
+            ## Linux assets
+
+            Prefer the explicit Ubuntu assets:
+
+            - `livekit-sdk-ubuntu-22.04-x64`
+            - `livekit-sdk-ubuntu-22.04-arm64`
+            - `livekit-sdk-ubuntu-24.04-x64`
+            - `livekit-sdk-ubuntu-24.04-arm64`
+
+            `livekit-sdk-linux-x64` and `livekit-sdk-linux-arm64` are deprecated aliases of the Ubuntu 24.04 builds and will be removed in a future release.
           generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

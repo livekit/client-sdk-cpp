@@ -33,11 +33,19 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04
-            name: linux-x64
+            name: ubuntu-22.04-x64
             build_cmd: ./build.sh release-examples
             build_dir: build-release
           - os: ubuntu-22.04-arm
-            name: linux-arm64
+            name: ubuntu-22.04-arm64
+            build_cmd: ./build.sh release-examples
+            build_dir: build-release
+          - os: ubuntu-24.04
+            name: ubuntu-24.04-x64
+            build_cmd: ./build.sh release-examples
+            build_dir: build-release
+          - os: ubuntu-24.04-arm
+            name: ubuntu-24.04-arm64
             build_cmd: ./build.sh release-examples
             build_dir: build-release
           - os: macos-26-xlarge
@@ -327,6 +335,28 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: livekit-sdk-${{ matrix.name }}
+          path: |
+            ${{ matrix.build_dir }}/lib/
+            ${{ matrix.build_dir }}/include/
+            ${{ matrix.build_dir }}/bin/
+          retention-days: 7
+
+      - name: Upload deprecated linux-x64 alias artifact
+        if: matrix.name == 'ubuntu-24.04-x64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: livekit-sdk-linux-x64
+          path: |
+            ${{ matrix.build_dir }}/lib/
+            ${{ matrix.build_dir }}/include/
+            ${{ matrix.build_dir }}/bin/
+          retention-days: 7
+
+      - name: Upload deprecated linux-arm64 alias artifact
+        if: matrix.name == 'ubuntu-24.04-arm64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: livekit-sdk-linux-arm64
           path: |
             ${{ matrix.build_dir }}/lib/
             ${{ matrix.build_dir }}/include/
