@@ -261,14 +261,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-registry-
 
+      # Key on matrix.os (runner image), not runner.os — see builds.yml.
+      # Compiled target/ artifacts are glibc-bound and must not restore across
+      # Ubuntu major versions (e.g. 24.04 → 22.04 → GLIBC_2.39 not found).
       - name: Restore cargo target
         id: cache-cargo-target
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: client-sdk-rust/target/
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.name }}-cargo-target-
+            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-
 
       # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
       # artifacts in webrtc-sys are not compatible across those bumps.
