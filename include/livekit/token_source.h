@@ -293,10 +293,10 @@ class LIVEKIT_API DevelopmentTokenSource final : public TokenSourceConfigurable 
 public:
   /// @brief Create a token source backed by the LiveKit Cloud development token server.
   ///
-  /// @param sandbox_id Development token server identifier from LiveKit Cloud (surrounding whitespace is trimmed).
+  /// @param token_server_id Development token server identifier from LiveKit Cloud (surrounding whitespace is trimmed).
   /// @param options Development token server options.
   /// @return A configurable token source backed by the development token server.
-  static std::unique_ptr<DevelopmentTokenSource> create(const std::string& sandbox_id,
+  static std::unique_ptr<DevelopmentTokenSource> create(const std::string& token_server_id,
                                                         const DevelopmentTokenServerOptions& options = {});
 
   std::future<Result<TokenSourceResponse, TokenSourceError>> fetch(const TokenRequestOptions& options = {}) override;

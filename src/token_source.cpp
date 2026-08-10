@@ -28,7 +28,7 @@ namespace {
 
 using TokenSourceResult = Result<TokenSourceResponse, TokenSourceError>;
 using TokenSourceFuture = std::future<TokenSourceResult>;
-constexpr const char* kDefaultSandboxBaseUrl = "https://cloud-api.livekit.io";
+constexpr const char* kDefaultDevelopmentServerBaseUrl = "https://cloud-api.livekit.io";
 
 bool tokenRequestOptionsEqual(const TokenRequestOptions& a, const TokenRequestOptions& b) {
   return a.room_name == b.room_name && a.participant_name == b.participant_name &&
@@ -63,10 +63,10 @@ TokenSourceFuture runAsyncTokenSource(std::string context, WorkFn&& work_fn) {
   }
 }
 
-std::string trimSandboxId(const std::string& sandbox_id) {
+std::string trimTokenServerId(const std::string& token_server_id) {
   const auto is_space = [](unsigned char ch) { return std::isspace(ch) != 0; };
-  const auto begin = std::find_if_not(sandbox_id.begin(), sandbox_id.end(), is_space);
-  const auto end = std::find_if_not(sandbox_id.rbegin(), sandbox_id.rend(), is_space).base();
+  const auto begin = std::find_if_not(token_server_id.begin(), token_server_id.end(), is_space);
+  const auto end = std::find_if_not(token_server_id.rbegin(), token_server_id.rend(), is_space).base();
   if (begin >= end) {
     return {};
   }
@@ -95,17 +95,17 @@ std::string joinUrlPath(const std::string& base_url, const std::string& path) {
   return base_url + "/" + path;
 }
 
-struct ResolvedSandboxEndpoint {
+struct ResolvedDevelopmentServerEndpoint {
   std::string url;
   TokenEndpointOptions options;
 };
 
 // Apply the sandbox header and resolve the connection-details URL shared by the
-// production and test-only sandbox factories.
-ResolvedSandboxEndpoint resolveSandboxEndpoint(const std::string& sandbox_id, TokenEndpointOptions options,
+// production and test-only development server factories.
+ResolvedDevelopmentServerEndpoint resolveDevelopmentServerEndpoint(const std::string& token_server_id, TokenEndpointOptions options,
                                                const std::string& base_url) {
-  options.headers["X-Sandbox-ID"] = trimSandboxId(sandbox_id);
-  const std::string resolved_base_url = base_url.empty() ? kDefaultSandboxBaseUrl : base_url;
+  options.headers["X-Sandbox-ID"] = trimTokenServerId(token_server_id);
+  const std::string resolved_base_url = base_url.empty() ? kDefaultDevelopmentServerBaseUrl : base_url;
   return {joinUrlPath(resolved_base_url, "/api/v2/sandbox/connection-details"), std::move(options)};
 }
 
@@ -201,9 +201,9 @@ Result<TokenSourceResponse, TokenSourceError> EndpointTokenSource::fetchSync(con
   return parseTokenSourceResponseJson(http_result.value());
 }
 
-std::unique_ptr<DevelopmentTokenSource> DevelopmentTokenSource::create(const std::string& sandbox_id,
+std::unique_ptr<DevelopmentTokenSource> DevelopmentTokenSource::create(const std::string& token_server_id,
                                                                        const DevelopmentTokenServerOptions& options) {
-  auto resolved = resolveSandboxEndpoint(sandbox_id, {}, options.base_url);
+  auto resolved = resolveDevelopmentServerEndpoint(token_server_id, {}, options.base_url);
   auto endpoint = EndpointTokenSource::create(std::move(resolved.url), std::move(resolved.options));
   return std::unique_ptr<DevelopmentTokenSource>(new DevelopmentTokenSource(std::move(endpoint)));
 }
@@ -212,8 +212,8 @@ DevelopmentTokenSource::DevelopmentTokenSource(std::unique_ptr<TokenSourceConfig
     : endpoint_(std::move(endpoint)) {}
 
 std::unique_ptr<DevelopmentTokenSource> DevelopmentTokenSourceTestAccess::create(
-    const std::string& sandbox_id, const DevelopmentTokenServerOptions& options, TokenSourceHttpTransport transport) {
-  auto resolved = resolveSandboxEndpoint(sandbox_id, {}, options.base_url);
+    const std::string& token_server_id, const DevelopmentTokenServerOptions& options, TokenSourceHttpTransport transport) {
+  auto resolved = resolveDevelopmentServerEndpoint(token_server_id, {}, options.base_url);
   auto endpoint =
       EndpointTokenSourceTestAccess::create(std::move(resolved.url), std::move(resolved.options), std::move(transport));
   return std::unique_ptr<DevelopmentTokenSource>(new DevelopmentTokenSource(std::move(endpoint)));
