@@ -121,6 +121,13 @@ struct RoomOptions {
   ///
   /// If unset, the Rust SDK default is used.
   std::optional<std::chrono::milliseconds> connect_timeout;
+
+  /// Additional LiveKit SDKs layered on top of this one, reported to the server
+  /// as part of the client info.
+  ///
+  /// Comma separated list of `name:version` pairs, e.g.
+  /// "ros_portal:1.2.3,components-cpp:2.0.0". If unset, no additional SDKs are reported.
+  std::optional<std::string> other_sdks;
 };
 
 /// Represents a LiveKit room session.

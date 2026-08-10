@@ -469,6 +469,9 @@ proto::RoomOptions toProto(const RoomOptions& in) {
   if (in.connect_timeout) {
     out.set_connect_timeout_ms(static_cast<std::uint64_t>(in.connect_timeout->count()));
   }
+  if (in.other_sdks) {
+    out.set_other_sdks(*in.other_sdks);
+  }
   return out;
 }
 
