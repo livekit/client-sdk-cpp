@@ -309,11 +309,11 @@ private:
   friend struct DevelopmentTokenSourceTestAccess;
 };
 
-/// @deprecated Renamed to @ref DevelopmentTokenSource.
+/// @deprecated Use DevelopmentTokenSource instead.
 using SandboxTokenSource [[deprecated("SandboxTokenSource is deprecated; use DevelopmentTokenSource instead")]] =
     DevelopmentTokenSource;
 
-/// @deprecated Renamed to @ref DevelopmentTokenServerOptions.
+/// @deprecated Use DevelopmentTokenServerOptions instead.
 using SandboxTokenServerOptions
     [[deprecated("SandboxTokenServerOptions is deprecated; use DevelopmentTokenServerOptions instead")]] =
         DevelopmentTokenServerOptions;
