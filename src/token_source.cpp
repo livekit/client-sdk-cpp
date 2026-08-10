@@ -102,8 +102,9 @@ struct ResolvedDevelopmentServerEndpoint {
 
 // Apply the sandbox header and resolve the connection-details URL shared by the
 // production and test-only development server factories.
-ResolvedDevelopmentServerEndpoint resolveDevelopmentServerEndpoint(const std::string& token_server_id, TokenEndpointOptions options,
-                                               const std::string& base_url) {
+ResolvedDevelopmentServerEndpoint resolveDevelopmentServerEndpoint(const std::string& token_server_id,
+                                                                   TokenEndpointOptions options,
+                                                                   const std::string& base_url) {
   options.headers["X-Sandbox-ID"] = trimTokenServerId(token_server_id);
   const std::string resolved_base_url = base_url.empty() ? kDefaultDevelopmentServerBaseUrl : base_url;
   return {joinUrlPath(resolved_base_url, "/api/v2/sandbox/connection-details"), std::move(options)};
@@ -212,7 +213,8 @@ DevelopmentTokenSource::DevelopmentTokenSource(std::unique_ptr<TokenSourceConfig
     : endpoint_(std::move(endpoint)) {}
 
 std::unique_ptr<DevelopmentTokenSource> DevelopmentTokenSourceTestAccess::create(
-    const std::string& token_server_id, const DevelopmentTokenServerOptions& options, TokenSourceHttpTransport transport) {
+    const std::string& token_server_id, const DevelopmentTokenServerOptions& options,
+    TokenSourceHttpTransport transport) {
   auto resolved = resolveDevelopmentServerEndpoint(token_server_id, {}, options.base_url);
   auto endpoint =
       EndpointTokenSourceTestAccess::create(std::move(resolved.url), std::move(resolved.options), std::move(transport));
