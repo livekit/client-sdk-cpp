@@ -105,13 +105,24 @@ struct GstreamerVideoSourceConfig {
   std::optional<GstreamerRateControl> rate_control;
 };
 
-/// Configuration for the built-in test source producing solid-color frames.
-struct DemoVideoSourceConfig {
+/// Test pattern rendered by the built-in pattern source.
+enum class Pattern {
+  /// Animated color gradient.
+  Gradient = 0,
+  /// Bouncing LiveKit logo.
+  Logo = 1,
+};
+
+/// Configuration for the built-in test source rendering a @ref Pattern.
+struct PatternVideoSourceConfig {
   /// Output resolution; both components must be non-zero.
   CaptureResolution resolution;
 
   /// Output frame rate in frames per second; must be non-zero.
   std::uint32_t framerate_fps = 0;
+
+  /// Pattern to render.
+  Pattern pattern = Pattern::Gradient;
 };
 
 /// Frame format delivered by a capture device.
@@ -350,8 +361,8 @@ public:
   /// the future as @ref CaptureSourceError.
   static std::future<std::shared_ptr<CaptureSource>> create(GstreamerVideoSourceConfig config);
 
-  /// Create the built-in demo capture source (solid cycling colors).
-  static std::future<std::shared_ptr<CaptureSource>> create(DemoVideoSourceConfig config);
+  /// Create the built-in test pattern capture source.
+  static std::future<std::shared_ptr<CaptureSource>> create(PatternVideoSourceConfig config);
 
   /// Create a capture source from a camera device.
   ///
