@@ -80,7 +80,7 @@ them:
 ```cpp
 #include <livekit/token_source.h>
 
-auto source = /* EndpointTokenSource, SandboxTokenSource, CustomTokenSource, etc. */;
+auto source = /* EndpointTokenSource, DevelopmentTokenSource, CustomTokenSource, etc. */;
 auto credentials = source->fetch(request_options).get();
 if (!credentials ||
     !room.connect(credentials.value().server_url, credentials.value().participant_token, options)) {
@@ -107,7 +107,7 @@ again only happens when your application invokes it again.
 |---|---|---|
 | **Literal** | `LiteralTokenSource` | Static URL + JWT, or lazy async provider |
 | **Endpoint** | `EndpointTokenSource` | Production: HTTP token server on your backend |
-| **Sandbox** | `SandboxTokenSource` | Development: LiveKit Cloud sandbox token server |
+| **Development Token Server** | `DevelopmentTokenSource` | Development: LiveKit Cloud development token server (previously: sandbox) |
 | **Custom** | `CustomTokenSource` | Your own async credential logic |
 | **Caching** | `CachingTokenSource` | Decorator: JWT-aware cache around a configurable source |
 
@@ -168,12 +168,12 @@ if (!credentials ||
 }
 ```
 
-### Sandbox (development only)
+### Development Token Server (development only)
 
-Uses the LiveKit Cloud sandbox token server. Do not use in production.
+Uses the LiveKit Cloud development token server. Do not use in production.
 
 ```cpp
-auto source = livekit::SandboxTokenSource::create("your-sandbox-id");
+auto source = livekit::DevelopmentTokenSource::create("your-token-server-id");
 
 livekit::TokenRequestOptions request;
 request.agent_name = "my-agent";  // optional agent dispatch
@@ -185,7 +185,10 @@ if (!credentials ||
 }
 ```
 
-See [sandbox token server docs](https://docs.livekit.io/frontends/build/authentication/sandbox-token-server/).
+See [development token server docs](https://docs.livekit.io/frontends/build/authentication/sandbox-token-server/).
+
+> `SandboxTokenSource` / `SandboxTokenServerOptions` remain as deprecated aliases for
+> `DevelopmentTokenSource` / `DevelopmentTokenServerOptions`; prefer the new names.
 
 ### Custom
 
