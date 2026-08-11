@@ -16,7 +16,7 @@
 
 /// Tests for capture sources (livekit-capture over FFI).
 ///
-/// Two groups. `CaptureSourceServerTest` publishes the built-in demo source —
+/// Two groups. `CaptureSourceServerTest` publishes the built-in pattern source —
 /// the capture pump pushes frames server-side, so the test drives no frames
 /// itself — and verifies that a second participant receives real video through
 /// the SFU. `CaptureDeviceTest` covers camera device enumeration and format
@@ -58,8 +58,8 @@ constexpr std::uint32_t kCaptureFramerateFps = 30;
   GTEST_SKIP() << "livekit-ffi built without the 'capture' feature; configure with -DLIVEKIT_ENABLE_CAPTURE=ON"
 #endif
 
-std::shared_ptr<CaptureSource> createDemoCapture() {
-  DemoVideoSourceConfig config;
+std::shared_ptr<CaptureSource> createPatternCapture() {
+  PatternVideoSourceConfig config;
   config.resolution = {kCaptureWidth, kCaptureHeight};
   config.framerate_fps = kCaptureFramerateFps;
   return CaptureSource::create(config).get();
@@ -166,14 +166,14 @@ TEST_F(CaptureDeviceTest, DefaultDeviceNegotiatesAFormat) {
   EXPECT_NE(capture->videoSource(), nullptr);
 }
 
-TEST_F(CaptureSourceServerTest, DemoCaptureSourcePublishesFramesEndToEnd) {
+TEST_F(CaptureSourceServerTest, PatternCaptureSourcePublishesFramesEndToEnd) {
   SKIP_WITHOUT_CAPTURE_FEATURE();
   failIfNotConfigured();
 
-  auto capture = createDemoCapture();
+  auto capture = createPatternCapture();
   ASSERT_NE(capture, nullptr);
 
-  // The demo source reports back the resolution it was configured with.
+  // The pattern source reports back the resolution it was configured with.
   ASSERT_EQ(capture->kind(), CaptureSourceKind::Pixel);
   ASSERT_EQ(capture->width(), kCaptureWidth);
   ASSERT_EQ(capture->height(), kCaptureHeight);
@@ -199,7 +199,7 @@ TEST_F(CaptureSourceServerTest, DemoCaptureSourcePublishesFramesEndToEnd) {
   std::condition_variable cv;
   int frames_received = 0;
 
-  const std::string track_name = "demo-capture-track";
+  const std::string track_name = "pattern-capture-track";
   receiver_room.setOnVideoFrameEventCallback(sender_identity, track_name,
                                              [&mutex, &cv, &frames_received](const VideoFrameEvent& /*event*/) {
                                                std::lock_guard<std::mutex> lock(mutex);
@@ -232,7 +232,7 @@ TEST_F(CaptureSourceServerTest, DemoCaptureSourcePublishesFramesEndToEnd) {
     std::unique_lock<std::mutex> lock(mutex);
     const bool got_frames =
         cv.wait_for(lock, 30s, [&frames_received] { return frames_received >= kMinFramesReceived; });
-    ASSERT_TRUE(got_frames) << "Timed out waiting for demo capture frames; received " << frames_received;
+    ASSERT_TRUE(got_frames) << "Timed out waiting for pattern capture frames; received " << frames_received;
   }
 
   // Stop is a signal; the terminal callback delivers the stats.

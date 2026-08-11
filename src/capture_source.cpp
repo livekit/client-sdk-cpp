@@ -144,6 +144,16 @@ proto::GstreamerBitrateUnit toProto(GstreamerBitrateUnit unit) {
   return proto::GstreamerBitrateUnit::GSTREAMER_BITRATE_UNIT_BPS;
 }
 
+proto::Pattern toProto(Pattern pattern) {
+  switch (pattern) {
+    case Pattern::Gradient:
+      return proto::Pattern::PATTERN_GRADIENT;
+    case Pattern::Logo:
+      return proto::Pattern::PATTERN_LOGO;
+  }
+  return proto::Pattern::PATTERN_GRADIENT;
+}
+
 CaptureResult resultFromEvent(const proto::CaptureSourceEvent& event) {
   CaptureResult result;
   if (event.has_error()) {
@@ -180,12 +190,13 @@ std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(GstreamerVideo
   return createFromRequest(std::move(request));
 }
 
-std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(DemoVideoSourceConfig config) {
+std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(PatternVideoSourceConfig config) {
   proto::NewCaptureSourceRequest request;
-  auto* demo = request.mutable_demo();
-  demo->mutable_resolution()->set_width(config.resolution.width);
-  demo->mutable_resolution()->set_height(config.resolution.height);
-  demo->set_framerate_fps(config.framerate_fps);
+  auto* pattern = request.mutable_pattern();
+  pattern->mutable_resolution()->set_width(config.resolution.width);
+  pattern->mutable_resolution()->set_height(config.resolution.height);
+  pattern->set_framerate_fps(config.framerate_fps);
+  pattern->set_pattern(toProto(config.pattern));
   return createFromRequest(std::move(request));
 }
 
