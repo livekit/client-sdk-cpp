@@ -61,6 +61,8 @@ const auto optional_to_string = [](const auto& value) -> std::string {
     return *value ? "true" : "false";
   } else if constexpr (std::is_same_v<Value, std::chrono::milliseconds>) {
     return std::to_string(value->count());
+  } else if constexpr (std::is_same_v<Value, std::string>) {
+    return *value;
   } else {
     return std::to_string(*value);
   }
@@ -503,10 +505,10 @@ std::future<proto::ConnectCallback> FfiClient::connectAsync(const std::string& u
 
   LK_LOG_DEBUG(
       "[FfiClient] connectAsync: auto_subscribe={}, adaptive_stream={}, dynacast={}, "
-      "single_peer_connection={}, join_retries={}, connect_timeout_ms={}",
+      "single_peer_connection={}, join_retries={}, connect_timeout_ms={}, other_sdks={}",
       options.auto_subscribe, optional_to_string(options.adaptive_stream), options.dynacast,
       options.single_peer_connection, optional_to_string(options.join_retries),
-      optional_to_string(options.connect_timeout));
+      optional_to_string(options.connect_timeout), optional_to_string(options.other_sdks));
 
   try {
     const proto::FfiResponse resp = sendRequest(req);
