@@ -433,10 +433,19 @@ jobs:
           done
 
           # Deprecated compatibility aliases for existing Linux release consumers.
-          cp "${{ github.workspace }}/release-assets/livekit-sdk-ubuntu-24.04-x64-${VERSION}.tar.gz" \
-             "${{ github.workspace }}/release-assets/livekit-sdk-linux-x64-${VERSION}.tar.gz"
-          cp "${{ github.workspace }}/release-assets/livekit-sdk-ubuntu-24.04-arm64-${VERSION}.tar.gz" \
-             "${{ github.workspace }}/release-assets/livekit-sdk-linux-arm64-${VERSION}.tar.gz"
+          # Repack the Ubuntu 24.04 artifacts so their extracted directory
+          # retains the legacy Linux name.
+          for pair in "ubuntu-24.04-x64:linux-x64" "ubuntu-24.04-arm64:linux-arm64"; do
+            src="livekit-sdk-${pair%%:*}-${VERSION}"
+            dst="livekit-sdk-${pair#*:}-${VERSION}"
+            if [[ -d "${src}" ]]; then
+              cp -R "${src}" "${dst}"
+              tar -czf "${{ github.workspace }}/release-assets/${dst}.tar.gz" "${dst}"
+              echo "Created compatibility archive: ${dst}.tar.gz"
+            else
+              echo "WARNING: Skipping compatibility archive; ${src} was not downloaded."
+            fi
+          done
           
           # Create zip for Windows
           dirName="livekit-sdk-windows-x64-${VERSION}"
