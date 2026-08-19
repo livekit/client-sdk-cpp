@@ -256,7 +256,7 @@ if(NOT DEFINED CARGO)
   message(FATAL_ERROR \"CARGO not set\")
 endif()
 
-set(ARGS build)
+set(ARGS build --package livekit-ffi)
 if(NOT CFG STREQUAL \"Debug\")
   list(APPEND ARGS --release)
 endif()
@@ -378,6 +378,7 @@ add_library(livekit SHARED
   src/data_track_frame.cpp
   src/data_stream.cpp
   src/data_track_error.cpp
+  src/data_track_schema.cpp
   src/data_track_stream.cpp
   src/e2ee.cpp
   src/ffi_handle.cpp

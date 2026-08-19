@@ -121,6 +121,16 @@ struct RoomOptions {
   ///
   /// If unset, the Rust SDK default is used.
   std::optional<std::chrono::milliseconds> connect_timeout;
+
+  /// @cond
+  /// Additional LiveKit SDKs layered on top of this one, reported to the server
+  /// as part of the client info.
+  ///
+  /// Comma separated list of `name:version` pairs, e.g.
+  /// "ros_portal:1.2.3,components-cpp:2.0.0". If unset, no additional SDKs are reported.
+  /// this is for internal use only.
+  std::optional<std::string> other_sdks;
+  /// @endcond
 };
 
 /// Represents a LiveKit room session.
@@ -168,7 +178,7 @@ public:
   /// Disconnect from the room.
   ///
   /// This method attempts a best-effort graceful disconnect of the room. If the room was connected prior, after @ref
-  /// disconnect() is called the room object is considered in a terminal state and should no longer be used. If @ref
+  /// disconnect() is called the room object must be connected again to be valid. If @ref
   /// disconnect() was called before @ref connect(), no operations are performed and the room object is still valid.
   ///
   /// @note `~Room()` invokes `disconnect()` automatically if the room is

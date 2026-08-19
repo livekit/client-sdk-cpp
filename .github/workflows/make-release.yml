@@ -46,7 +46,7 @@ jobs:
 
     steps:
       - name: Checkout (with submodules)
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           fetch-depth: 0
@@ -128,7 +128,7 @@ jobs:
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@fa04a1451ff1842e2626ccb99004d0195b455a88
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
         with:
           toolchain: stable
 
@@ -251,7 +251,7 @@ jobs:
 
       # ---------- Verify exported ABI: no third-party symbol leaks ----------
       - name: Setup Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.x'
 
@@ -360,7 +360,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Extract version
         id: version
@@ -435,21 +435,26 @@ jobs:
         run: ls -la ${{ github.workspace }}/release-assets/
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           tag_name: v${{ steps.version.outputs.version }}
-          name: LiveKit C++ SDK v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
           draft: true
           files: ${{ github.workspace }}/release-assets/*
-          generate_release_notes: true
+          generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ---------- Publish Docs Job ----------
-  publish-docs:
-    name: Publish Documentation
+  # Build docs for validation and retain them as a workflow artifact. Publishing
+  # is triggered separately by the GitHub release's authoritative state.
+  generate-docs:
+    name: Generate Documentation
     needs: release
-    uses: ./.github/workflows/publish-docs.yml
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/generate-docs.yml
     with:
       version: ${{ needs.release.outputs.version }}
-    secrets: inherit
+      upload_artifact: true
+      artifact_name: livekit-cpp-docs-${{ github.run_id }}

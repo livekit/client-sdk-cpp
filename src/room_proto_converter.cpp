@@ -469,6 +469,9 @@ proto::RoomOptions toProto(const RoomOptions& in) {
   if (in.connect_timeout) {
     out.set_connect_timeout_ms(static_cast<std::uint64_t>(in.connect_timeout->count()));
   }
+  if (in.other_sdks) {
+    out.set_other_sdks(*in.other_sdks);
+  }
   return out;
 }
 
@@ -619,6 +622,9 @@ TextStreamInfo makeTextInfo(const proto::DataStream::Header& header) {
   info.mime_type = header.mime_type();
   info.topic = header.topic();
   info.timestamp = header.timestamp();
+  if (header.text_header().has_reply_to_stream_id()) {
+    info.reply_to_stream_id = header.text_header().reply_to_stream_id();
+  }
 
   if (header.has_total_length()) {
     info.size = static_cast<std::size_t>(header.total_length());

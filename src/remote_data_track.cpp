@@ -19,6 +19,7 @@
 #include <stdexcept>
 
 #include "data_track.pb.h"
+#include "data_track_proto_converter.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "lk_log.h"
@@ -27,10 +28,7 @@ namespace livekit {
 
 RemoteDataTrack::RemoteDataTrack(const proto::OwnedRemoteDataTrack& owned)
     : handle_(static_cast<uintptr_t>(owned.handle().id())), publisher_identity_(owned.publisher_identity()) {
-  const auto& pi = owned.info();
-  info_.name = pi.name();
-  info_.sid = pi.sid();
-  info_.uses_e2ee = pi.uses_e2ee();
+  info_ = fromProto(owned.info());
 }
 
 bool RemoteDataTrack::isPublished() const {
