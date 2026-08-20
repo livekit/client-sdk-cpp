@@ -17,8 +17,8 @@
 # required by the C++ SDK's integration and stress tests (data tracks, RPC,
 # media multistream, etc.).
 #
-#   source .token_helpers/set_data_track_test_tokens.bash
-#   eval "$(bash .token_helpers/set_data_track_test_tokens.bash)"
+#   source scripts/set_test_tokens.sh
+#   eval "$(bash scripts/set_test_tokens.sh)"
 #
 # Exports:
 #   LIVEKIT_TOKEN_A
@@ -34,7 +34,7 @@ elif [[ -n "${ZSH_VERSION:-}" ]] && [[ "${ZSH_EVAL_CONTEXT:-}" == *:file* ]]; th
 fi
 
 _fail() {
-  echo "set_data_track_test_tokens.bash: $1" >&2
+  echo "set_test_tokens: $1" >&2
   if [[ "$_sourced" -eq 1 ]]; then
     return "${2:-1}"
   fi
@@ -123,5 +123,5 @@ if [[ "$_sourced" -eq 1 ]]; then
   echo "LIVEKIT_TOKEN_A, LIVEKIT_TOKEN_B, and LIVEKIT_URL set for this shell." >&2
 else
   _emit_eval
-  echo "set_data_track_test_tokens.bash: for this shell run: source $0   or: eval \"\$(bash $0 ...)\"" >&2
+  echo "set_test_tokens: for this shell run: source $0   or: eval \"\$(bash $0)\"" >&2
 fi
