@@ -214,7 +214,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     },
     {
@@ -226,7 +227,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     },
     {
@@ -238,7 +240,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     },
     {
@@ -250,7 +253,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     },
     {
@@ -262,7 +266,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     },
     {
@@ -274,7 +279,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     },
     {
@@ -286,7 +292,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     },
     {
@@ -298,7 +305,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     },
     {
@@ -310,7 +318,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     },
     {
@@ -322,7 +331,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     },
     {
@@ -334,7 +344,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     },
     {
@@ -346,7 +357,8 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON"
+        "LIVEKIT_BUILD_TESTS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "ON"
       }
     }
   ],
