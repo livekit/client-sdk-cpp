@@ -122,6 +122,11 @@ Updates to ./build.sh and ./build.cmd should be accompanied by updates to this f
 ./build.sh clean-all          # Full clean (C++ + local-install + Rust targets)
 ```
 
+To create an installable SDK bundle, use the same build command with
+`--bundle --prefix <install-dir>` (for example,
+`./build.sh release --bundle --prefix sdk-out/livekit-sdk`). On Windows, use
+`build.cmd release --bundle --prefix C:\path\to\livekit-sdk`.
+
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
 

@@ -9,6 +9,8 @@ set "PRESET=windows-release"
 set "LIVEKIT_VERSION="
 set "CMAKE_EXTRA_ARGS="
 set "BUILD_PARALLEL_JOBS="
+set "DO_BUNDLE="
+set "PREFIX="
 
 REM ============================================================
 REM Auto-detect LIBCLANG_PATH if not already set
@@ -87,7 +89,26 @@ if /I "%~1"=="--version" (
     goto :get_version_value
 )
 
-:: 3. Handle unknown arguments
+:: 3. Install the SDK bundle after a successful build.
+if /I "%~1"=="--bundle" (
+    set "DO_BUNDLE=1"
+    shift
+    goto parse_all
+)
+
+:: 4. Set the install prefix for --bundle.
+if /I "%~1"=="--prefix" (
+    shift
+    if "%~1"=="" (
+        echo ERROR: --prefix requires a value
+        exit /b 1
+    )
+    set "PREFIX=%~1"
+    shift
+    goto parse_all
+)
+
+:: 5. Handle unknown arguments
 echo ERROR: Unknown option: %~1
 exit /b 1
 
@@ -190,10 +211,15 @@ echo   clean             Clean both Debug and Release build directories + local-
 echo   clean-all         Full clean (build dirs + local-install + Rust targets)
 echo   help              Show this help
 echo.
+echo Options (for debug / release):
+echo   --bundle          Install the SDK bundle using cmake --install
+echo   --prefix ^<dir^>    Install prefix for --bundle ^(default: .\sdk-out\livekit-sdk^)
+echo.
 echo Examples:
 echo   build.cmd debug
 echo   build.cmd release
 echo   build.cmd release-examples
+echo   build.cmd release --bundle --prefix C:\path\to\livekit-sdk
 echo   build.cmd debug-tests
 echo   build.cmd release-tests
 echo   build.cmd release-all
@@ -232,7 +258,33 @@ if errorlevel 1 (
     exit /b 1
 )
 echo ==^> Build complete!
+if defined DO_BUNDLE (
+    call :install_bundle
+    if errorlevel 1 exit /b 1
+)
 goto :eof
+
+:install_bundle
+if not defined PREFIX set "PREFIX=%PROJECT_ROOT%\sdk-out\livekit-sdk"
+
+if not "%PREFIX:~1,1%"==":" set "PREFIX=%PROJECT_ROOT%\%PREFIX%"
+
+echo ==^> Installing SDK bundle to: %PREFIX%
+if exist "%PREFIX%" rmdir /s /q "%PREFIX%"
+if exist "%PREFIX%" (
+    echo Failed to remove existing bundle directory: %PREFIX%
+    exit /b 1
+)
+mkdir "%PREFIX%"
+if errorlevel 1 exit /b 1
+
+cmake --install "%BUILD_DIR%" --config %BUILD_TYPE% --prefix "%PREFIX%"
+if errorlevel 1 (
+    echo SDK bundle install failed!
+    exit /b 1
+)
+echo ==^> SDK bundle installed.
+exit /b 0
 
 :clean
 echo ==^> Cleaning build directories...
