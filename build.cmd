@@ -99,13 +99,7 @@ if /I "%~1"=="--bundle" (
 :: 4. Set the install prefix for --bundle.
 if /I "%~1"=="--prefix" (
     shift
-    if "%~1"=="" (
-        echo ERROR: --prefix requires a value
-        exit /b 1
-    )
-    set "PREFIX=%~1"
-    shift
-    goto parse_all
+    goto :get_prefix_value
 )
 
 :: 5. Handle unknown arguments
@@ -115,6 +109,15 @@ exit /b 1
 :get_version_value
 echo 1 after shift is : %~1
 set "LIVEKIT_VERSION=%~1"
+shift
+goto parse_all
+
+:get_prefix_value
+if "%~1"=="" (
+    echo ERROR: --prefix requires a value
+    exit /b 1
+)
+set "PREFIX=%~1"
 shift
 goto parse_all
 
