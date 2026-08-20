@@ -17,8 +17,8 @@
 # required by the C++ SDK's integration and stress tests (data tracks, RPC,
 # media multistream, etc.).
 #
-#   source scripts/set_test_tokens.sh
-#   eval "$(bash scripts/set_test_tokens.sh)"
+#   source scripts/set-test-tokens.sh
+#   eval "$(bash scripts/set-test-tokens.sh)"
 #
 # Exports:
 #   LIVEKIT_TOKEN_A

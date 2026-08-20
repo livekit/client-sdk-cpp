@@ -46,7 +46,7 @@ export LIVEKIT_TOKEN=$(lk token create \
 
 For integration tests that need two participants, see
 [testing.md](testing.md#generating-tokens-for-the-test-suites) and
-[`scripts/set_test_tokens.sh`](../scripts/set_test_tokens.sh).
+[`scripts/set-test-tokens.sh`](../scripts/set-test-tokens.sh).
 
 ## Direct connect (URL + token)
 
