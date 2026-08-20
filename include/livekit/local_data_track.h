@@ -91,8 +91,7 @@ public:
   /// @param user_timestamp Optional application-defined timestamp. The unit is
   ///        caller-defined; SDK examples use microseconds since the Unix epoch.
   /// @return success on delivery acceptance, or a typed error describing why
-  ///         the frame could not be queued. A null @p data or zero @p size
-  ///         returns @ref LocalDataTrackTryPushErrorCode::INTERNAL.
+  ///         the frame could not be queued.
   Result<void, LocalDataTrackTryPushError> tryPush(const std::uint8_t* data, std::size_t size,
                                                    std::optional<std::uint64_t> user_timestamp = std::nullopt);
 
