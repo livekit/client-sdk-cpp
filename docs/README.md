@@ -6,6 +6,8 @@ Additional documentation for the SDK.
   vcpkg, Docker, integration into your CMake project, troubleshooting.
 - [Authentication](authentication.md) — generating tokens, token source types
   (initial connect only), and in-session token refresh.
+- [Reconnection](reconnection.md) — automatic resume/full reconnect behavior,
+  callback ordering and threading, object continuity, and application patterns.
 - [Logging](logging.md) — compile-time vs runtime filtering, log levels,
   custom sinks (file, JSON, ROS2 `RCLCPP_*` macros).
 - [Tracing](tracing.md) — Chromium-format performance traces, viewing in
