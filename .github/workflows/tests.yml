@@ -399,7 +399,7 @@ jobs:
           LIVEKIT_CREATE_TOKEN_URL: ${{ steps.token_server.outputs.token-url }}
         run: |
           set -euo pipefail
-          source .token_helpers/set_data_track_test_tokens.bash
+          source scripts/set-test-tokens.sh
           # TODO(BOT-477) Temporarily disable platform audio integration tests in CI until instability is resolved
           bash scripts/run-with-backtrace.sh \
             ${{ env.BUILD_DIR }}/bin/livekit_integration_tests \
@@ -416,7 +416,7 @@ jobs:
           RUST_LOG: "metrics=debug"
         run: |
           set -euo pipefail
-          source .token_helpers/set_data_track_test_tokens.bash
+          source scripts/set-test-tokens.sh
           bash scripts/run-with-backtrace.sh \
             ${{ env.BUILD_DIR }}/bin/livekit_stress_tests \
             --gtest_repeat=${{ inputs.stress_repeat }} \
@@ -613,4 +613,3 @@ jobs:
           name: coverage-report
           path: coverage-html/
           retention-days: 14
-

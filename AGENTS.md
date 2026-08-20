@@ -346,7 +346,7 @@ CI step will fail loudly if its symbols escape the public ABI of
 Tests are under `src/tests/` using Google Test:
 
 ```bash
-source .token_helpers/set_data_track_test_tokens.bash
+source scripts/set-test-tokens.sh
 ./build.sh debug-tests
 cd build-debug && ctest
 ```
@@ -354,7 +354,7 @@ cd build-debug && ctest
 Always source the test tokens before running tests, even for a targeted local
 test run. The integration and stress suites require `LIVEKIT_URL`,
 `LIVEKIT_TOKEN_A`, and `LIVEKIT_TOKEN_B`; use
-`source .token_helpers/set_data_track_test_tokens.bash` from the repository
+`source scripts/set-test-tokens.sh` from the repository
 root so the current shell inherits them. Do not report an integration test as
 verified just because it was skipped for missing tokens. If tokens cannot be
 sourced or the LiveKit server is not available, say that the integration test
