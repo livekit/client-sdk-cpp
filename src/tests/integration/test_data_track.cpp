@@ -1065,8 +1065,8 @@ TEST_F(DataTrackE2ETest, CopiesBorrowedPayloadBeforeTryPushReturns) {
   }
 
   ASSERT_EQ(frame.payload.size(), kPayloadSize);
-  EXPECT_TRUE(std::all_of(frame.payload.begin(), frame.payload.end(), [](std::uint8_t byte) {
-    return byte == kOriginal;
+  EXPECT_TRUE(std::all_of(frame.payload.begin(), frame.payload.end(), [expected = kOriginal](std::uint8_t byte) {
+    return byte == expected;
   })) << "Received payload reflects caller mutation after tryPush returned";
   ASSERT_TRUE(frame.user_timestamp.has_value());
   EXPECT_EQ(frame.user_timestamp.value(), sent_timestamp);
