@@ -115,6 +115,19 @@ wrap the right CMake preset for your platform and pick sensible defaults.
 # ... same suffixes as build.sh
 ```
 
+### Create an SDK bundle
+
+To create an installable SDK bundle with public headers, runtime libraries, and
+CMake package files, add `--bundle --prefix <install-dir>` to a build command:
+
+```bash
+./build.sh release --bundle --prefix sdk-out/livekit-sdk
+```
+
+```powershell
+.\build.cmd release --bundle --prefix C:\path\to\livekit-sdk
+```
+
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the auto-detected logical CPU count.
 

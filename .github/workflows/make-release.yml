@@ -240,11 +240,7 @@ jobs:
           $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-$version"
 
           if ([string]::IsNullOrWhiteSpace($version)) { throw "version is empty" }
-          .\build.cmd release-examples --version "$version"
-
-          # There is the missing step that generates LiveKitTargets.cmake in the install tree
-          # TODO(sxian): fix it after getting access to a windows machine
-          cmake --install "build-release" --config Release --prefix "$bundleDir"
+          .\build.cmd release-examples --version "$version" --bundle --prefix "$bundleDir"
 
           Write-Host "Bundle contents:"
           Get-ChildItem -Recurse -File $bundleDir | Select-Object -First 200 | ForEach-Object { $_.FullName }
