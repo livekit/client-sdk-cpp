@@ -108,7 +108,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 
 ## Build
 for building, use the build.sh script for Linux and macOS, and the build.cmd script for Windows. Do not invoke CMake directly to build the SDK.
-Updates to ./build.sh and ./build.cmd should be accompanied by updates to this file and the README.md file.
+Updates to ./build.sh and ./build.cmd should be accompanied by updates to this file and docs/building.md.
 
 ```
 ./build.sh debug              # Debug build
