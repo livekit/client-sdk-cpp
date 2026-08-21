@@ -962,6 +962,116 @@ TEST_F(DataTrackE2ETest, PreservesUserTimestampEndToEnd) {
   EXPECT_EQ(frame.user_timestamp.value(), sent_timestamp);
 }
 
+TEST_F(DataTrackE2ETest, RejectsNullBorrowedPayloadWithNonZeroSize) {
+  const auto track_name = makeTrackName("null_borrowed_payload");
+  auto rooms = testRooms(1);
+  auto local_track = requirePublishedTrack(rooms[0]->localParticipant(), track_name);
+
+  const auto push_result = local_track->tryPush(static_cast<const std::uint8_t*>(nullptr), 4);
+  ASSERT_FALSE(push_result);
+  EXPECT_EQ(push_result.error().code, LocalDataTrackTryPushErrorCode::INTERNAL);
+  EXPECT_FALSE(push_result.error().message.empty());
+
+  local_track->unpublishDataTrack();
+}
+
+TEST_F(DataTrackE2ETest, RejectsEmptyBorrowedPayload) {
+  const auto track_name = makeTrackName("empty_borrowed_payload");
+  auto rooms = testRooms(1);
+  auto local_track = requirePublishedTrack(rooms[0]->localParticipant(), track_name);
+
+  const std::uint8_t payload = 0;
+  const auto push_result = local_track->tryPush(&payload, 0);
+  ASSERT_FALSE(push_result);
+  EXPECT_EQ(push_result.error().code, LocalDataTrackTryPushErrorCode::INTERNAL);
+  EXPECT_FALSE(push_result.error().message.empty());
+
+  local_track->unpublishDataTrack();
+}
+
+TEST_F(DataTrackE2ETest, CopiesBorrowedPayloadBeforeTryPushReturns) {
+  const auto track_name = makeTrackName("borrowed_payload");
+  const auto sent_timestamp = getTimestampUs();
+  constexpr std::uint8_t kOriginal = 0xA5;
+  constexpr std::uint8_t kMutated = 0x5A;
+  constexpr std::size_t kPayloadSize = 64;
+
+  DataTrackPublishedDelegate subscriber_delegate;
+  std::vector<TestRoomConnectionOptions> room_configs(2);
+  room_configs[1].delegate = &subscriber_delegate;
+
+  auto rooms = testRooms(room_configs);
+  auto& publisher_room = rooms[0];
+
+  auto publish_result = lockLocalParticipant(*publisher_room)->publishDataTrack(track_name);
+  if (!publish_result) {
+    FAIL() << describeDataTrackError(publish_result.error());
+  }
+  auto local_track = publish_result.value();
+  ASSERT_TRUE(local_track->isPublished());
+
+  auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
+  ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
+
+  auto subscribe_result = remote_track->subscribe();
+  if (!subscribe_result) {
+    FAIL() << describeDataTrackError(subscribe_result.error());
+  }
+  auto subscription = subscribe_result.value();
+
+  std::promise<DataTrackFrame> frame_promise;
+  auto frame_future = frame_promise.get_future();
+  std::thread reader([&]() {
+    try {
+      DataTrackFrame frame;
+      if (!subscription->read(frame)) {
+        throw std::runtime_error("Subscription ended before borrowed-payload frame arrived");
+      }
+      frame_promise.set_value(std::move(frame));
+    } catch (...) {
+      frame_promise.set_exception(std::current_exception());
+    }
+  });
+
+  bool pushed = false;
+  for (int attempt = 0; attempt < kTimestampFrameAttempts; ++attempt) {
+    std::array<std::uint8_t, kPayloadSize> payload{};
+    payload.fill(kOriginal);
+    auto push_result = local_track->tryPush(payload.data(), payload.size(), sent_timestamp);
+    payload.fill(kMutated);
+    pushed = static_cast<bool>(push_result) || pushed;
+    if (frame_future.wait_for(25ms) == std::future_status::ready) {
+      break;
+    }
+  }
+  const auto frame_status = frame_future.wait_for(5s);
+
+  if (frame_status != std::future_status::ready) {
+    subscription->close();
+  }
+
+  subscription->close();
+  reader.join();
+  local_track->unpublishDataTrack();
+
+  ASSERT_TRUE(pushed) << "Failed to push borrowed data frame";
+  ASSERT_EQ(frame_status, std::future_status::ready) << "Timed out waiting for borrowed-payload frame";
+
+  DataTrackFrame frame;
+  try {
+    frame = frame_future.get();
+  } catch (const std::exception& e) {
+    FAIL() << e.what();
+  }
+
+  ASSERT_EQ(frame.payload.size(), kPayloadSize);
+  EXPECT_TRUE(std::all_of(frame.payload.begin(), frame.payload.end(), [expected = kOriginal](std::uint8_t byte) {
+    return byte == expected;
+  })) << "Received payload reflects caller mutation after tryPush returned";
+  ASSERT_TRUE(frame.user_timestamp.has_value());
+  EXPECT_EQ(frame.user_timestamp.value(), sent_timestamp);
+}
+
 TEST_F(DataTrackE2ETest, PublishesAndReceivesEncryptedFramesEndToEnd) {
   runEncryptedDataTrackRoundTrip(kDefaultKeyDerivationFunction, "e2ee_transport");
 }

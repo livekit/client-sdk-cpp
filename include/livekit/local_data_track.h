@@ -67,15 +67,36 @@ public:
 
   /// Try to push a frame to all subscribers of this track.
   ///
-  /// @return success on delivery acceptance, or a typed error describing why
+  /// @param frame The frame to push.
+  /// @return Success on delivery acceptance, or a typed error describing why
   ///         the frame could not be queued.
   Result<void, LocalDataTrackTryPushError> tryPush(const DataTrackFrame& frame);
 
   /// Try to push a frame to all subscribers of this track.
   ///
-  /// @return success on delivery acceptance, or a typed error describing why
+  /// @param payload The payload to push.
+  /// @param user_timestamp Optional application-defined timestamp. The unit is
+  ///        caller-defined.
+  /// @return Success on delivery acceptance, or a typed error describing why
   ///         the frame could not be queued.
   Result<void, LocalDataTrackTryPushError> tryPush(std::vector<std::uint8_t>&& payload,
+                                                   std::optional<std::uint64_t> user_timestamp = std::nullopt);
+
+  /// Try to push a frame from a borrowed byte buffer.
+  ///
+  /// Copies @p size bytes from @p data into an FFI request before returning;
+  /// the SDK does not retain the buffer.
+  ///
+  /// @note This avoids an intermediate copy when the caller already owns a byte
+  /// buffer, but it is not a zero-copy send.
+  ///
+  /// @param data Pointer to @p size payload bytes. Must be non-null.
+  /// @param size Number of bytes at @p data. Must be non-zero.
+  /// @param user_timestamp Optional application-defined timestamp. The unit is
+  ///        caller-defined.
+  /// @return Success on delivery acceptance, or a typed error describing why
+  ///         the frame could not be queued.
+  Result<void, LocalDataTrackTryPushError> tryPush(const std::uint8_t* data, std::size_t size,
                                                    std::optional<std::uint64_t> user_timestamp = std::nullopt);
 
   /// Whether the track is still published in the room.

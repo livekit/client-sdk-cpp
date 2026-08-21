@@ -29,9 +29,28 @@ LocalDataTrack::LocalDataTrack(const proto::OwnedLocalDataTrack& owned)
     : handle_(static_cast<uintptr_t>(owned.handle().id())), info_(fromProto(owned.info())) {}
 
 Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(const DataTrackFrame& frame) {
+  return tryPush(frame.payload.data(), frame.payload.size(), frame.user_timestamp);
+}
+
+Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(std::vector<std::uint8_t>&& payload,
+                                                                 std::optional<std::uint64_t> user_timestamp) {
+  const DataTrackFrame frame(std::move(payload), user_timestamp);
+  return tryPush(frame);
+}
+
+Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(const std::uint8_t* data, std::size_t size,
+                                                                 std::optional<std::uint64_t> user_timestamp) {
   if (!handle_.valid()) {
     return Result<void, LocalDataTrackTryPushError>::failure(LocalDataTrackTryPushError{
         LocalDataTrackTryPushErrorCode::INVALID_HANDLE, "LocalDataTrack::tryPush: invalid FFI handle"});
+  }
+  if (size == 0) {
+    return Result<void, LocalDataTrackTryPushError>::failure(
+        LocalDataTrackTryPushError{LocalDataTrackTryPushErrorCode::INTERNAL, "LocalDataTrack::tryPush: empty size"});
+
+  } else if (data == nullptr) {
+    return Result<void, LocalDataTrackTryPushError>::failure(LocalDataTrackTryPushError{
+        LocalDataTrackTryPushErrorCode::INTERNAL, "LocalDataTrack::tryPush: payload pointer is null"});
   }
 
   try {
@@ -39,9 +58,10 @@ Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(const DataTrack
     auto* msg = req.mutable_local_data_track_try_push();
     msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
     auto* pf = msg->mutable_frame();
-    pf->set_payload(frame.payload.data(), frame.payload.size());
-    if (frame.user_timestamp.has_value()) {
-      pf->set_user_timestamp(frame.user_timestamp.value());
+    // Size and data are checked above
+    pf->set_payload(data, size);
+    if (user_timestamp.has_value()) {
+      pf->set_user_timestamp(user_timestamp.value());
     }
 
     const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
@@ -54,14 +74,6 @@ Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(const DataTrack
     return Result<void, LocalDataTrackTryPushError>::failure(
         LocalDataTrackTryPushError{LocalDataTrackTryPushErrorCode::INTERNAL, e.what()});
   }
-}
-
-Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(std::vector<std::uint8_t>&& payload,
-                                                                 std::optional<std::uint64_t> user_timestamp) {
-  DataTrackFrame frame;
-  frame.payload = std::move(payload);
-  frame.user_timestamp = user_timestamp;
-  return tryPush(frame);
 }
 
 bool LocalDataTrack::isPublished() const {
