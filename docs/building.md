@@ -120,9 +120,13 @@ wrap the right CMake preset for your platform and pick sensible defaults.
 To create an installable SDK bundle with public headers, runtime libraries, and
 CMake package files, add `--bundle --prefix <install-dir>` to a build command:
 
+**Linux/Mac:**
+
 ```bash
 ./build.sh release --bundle --prefix sdk-out/livekit-sdk
 ```
+
+**Windows:**
 
 ```powershell
 .\build.cmd release --bundle --prefix C:\path\to\livekit-sdk
