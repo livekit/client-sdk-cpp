@@ -24,11 +24,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            name: linux-x64
+          - os: ubuntu-22.04
+            name: ubuntu-22.04-x64
+            generator: Ninja
+          - os: ubuntu-22.04-arm
+            name: ubuntu-22.04-arm64
+            generator: Ninja
+          - os: ubuntu-24.04
+            name: ubuntu-24.04-x64
             generator: Ninja
           - os: ubuntu-24.04-arm
-            name: linux-arm64
+            name: ubuntu-24.04-arm64
             generator: Ninja
           - os: macos-26-xlarge
             name: macos-arm64
@@ -157,14 +163,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-registry-
 
+      # Compiled target/ artifacts are glibc-bound and must not restore across
+      # Ubuntu major versions (e.g. 24.04 → 22.04 → GLIBC_2.39 not found).
       - name: Cache cargo target
         id: cache-cargo-target
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: client-sdk-rust/target/
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.name }}-cargo-target-
+            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-
 
       # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
       # artifacts in webrtc-sys are not compatible across those bumps.
@@ -409,13 +417,28 @@ jobs:
           echo "Artifacts downloaded:"
           ls -la
           
-          # Create tar.gz for Linux and macOS
-          for platform in linux-x64 linux-arm64 macos-arm64 macos-x64; do
+          # Create tar.gz for Ubuntu and macOS
+          for platform in ubuntu-22.04-x64 ubuntu-22.04-arm64 ubuntu-24.04-x64 ubuntu-24.04-arm64 macos-arm64 macos-x64; do
             dirName="livekit-sdk-${platform}-${VERSION}"
             if [[ -d "${dirName}" ]]; then
               echo "Creating archive for ${platform}..."
               tar -czf "${{ github.workspace }}/release-assets/${dirName}.tar.gz" "${dirName}"
               echo "Created: ${dirName}.tar.gz"
+            fi
+          done
+
+          # Deprecated compatibility aliases for existing Linux release consumers.
+          # Repack the Ubuntu 24.04 artifacts so their extracted directory
+          # retains the legacy Linux name.
+          for pair in "ubuntu-24.04-x64:linux-x64" "ubuntu-24.04-arm64:linux-arm64"; do
+            src="livekit-sdk-${pair%%:*}-${VERSION}"
+            dst="livekit-sdk-${pair#*:}-${VERSION}"
+            if [[ -d "${src}" ]]; then
+              cp -R "${src}" "${dst}"
+              tar -czf "${{ github.workspace }}/release-assets/${dst}.tar.gz" "${dst}"
+              echo "Created compatibility archive: ${dst}.tar.gz"
+            else
+              echo "WARNING: Skipping compatibility archive; ${src} was not downloaded."
             fi
           done
           
