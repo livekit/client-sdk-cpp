@@ -464,17 +464,6 @@ jobs:
           name: v${{ steps.version.outputs.version }}
           draft: true
           files: ${{ github.workspace }}/release-assets/*
-          body: |
-            ## Linux assets
-
-            Prefer the explicit Ubuntu assets:
-
-            - `livekit-sdk-ubuntu-22.04-x64`
-            - `livekit-sdk-ubuntu-22.04-arm64`
-            - `livekit-sdk-ubuntu-24.04-x64`
-            - `livekit-sdk-ubuntu-24.04-arm64`
-
-            `livekit-sdk-linux-x64` and `livekit-sdk-linux-arm64` are deprecated aliases of the Ubuntu 24.04 builds and will be removed in a future release.
           generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
