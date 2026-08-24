@@ -169,11 +169,6 @@ jobs:
       # step that runs AFTER the "Clean after build" cleanup wipes target/debug
       # and target/release, which is why the old cache was always ~empty. The
       # restore/save split lets us snapshot the populated target/ before cleanup.
-      #
-      # Key on matrix.os (runner image), not runner.os. runner.os is just
-      # "Linux" for both ubuntu-22.04 and ubuntu-24.04, and restored
-      # build-scripts / .so files from a newer glibc host fail with
-      # GLIBC_2.39 not found on the older image.
       - name: Restore cargo target
         id: cache-cargo-target
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
