@@ -388,6 +388,7 @@ add_library(livekit SHARED
   src/audio_frame.cpp
   src/audio_processing_module.cpp
   src/capture_source.cpp
+  src/capture_source_internal.h
   src/audio_source.cpp
   src/audio_stream.cpp
   src/data_track_frame.cpp

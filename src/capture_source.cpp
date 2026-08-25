@@ -19,6 +19,7 @@
 #include <stdexcept>
 
 #include "capture.pb.h"
+#include "capture_source_internal.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "room_proto_converter.h"
@@ -169,6 +170,15 @@ CaptureResult resultFromEvent(const proto::CaptureSourceEvent& event) {
 
 } // namespace
 
+std::vector<CaptureDeviceInfo> fromProto(const proto::CaptureDeviceList& list) {
+  std::vector<CaptureDeviceInfo> devices;
+  devices.reserve(static_cast<std::size_t>(list.devices_size()));
+  for (const proto::CaptureDeviceInfo& device : list.devices()) {
+    devices.push_back(fromProto(device));
+  }
+  return devices;
+}
+
 std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(GstreamerVideoSourceConfig config) {
   proto::NewCaptureSourceRequest request;
   auto* gstreamer = request.mutable_gstreamer();
@@ -317,12 +327,7 @@ std::future<std::vector<CaptureDeviceInfo>> CaptureSource::listDevices() {
   return std::async(std::launch::async, [devices = std::move(devices)]() mutable {
     try {
       const proto::CaptureDeviceList list = devices.get();
-      std::vector<CaptureDeviceInfo> out;
-      out.reserve(static_cast<std::size_t>(list.devices_size()));
-      for (const proto::CaptureDeviceInfo& info : list.devices()) {
-        out.push_back(fromProto(info));
-      }
-      return out;
+      return fromProto(list);
     } catch (const CaptureSourceError&) {
       throw;
     } catch (const std::exception& e) {
