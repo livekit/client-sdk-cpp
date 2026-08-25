@@ -272,6 +272,9 @@ if not defined PREFIX set "PREFIX=%PROJECT_ROOT%\sdk-out\livekit-sdk"
 
 if not "%PREFIX:~1,1%"==":" set "PREFIX=%PROJECT_ROOT%\%PREFIX%"
 
+REM cmd's mkdir/rmdir reject forward slashes; normalize to backslashes.
+set "PREFIX=%PREFIX:/=\%"
+
 echo ==^> Installing SDK bundle to: %PREFIX%
 if exist "%PREFIX%" rmdir /s /q "%PREFIX%"
 if exist "%PREFIX%" (
