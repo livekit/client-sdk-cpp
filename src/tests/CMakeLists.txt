@@ -204,9 +204,6 @@ if(INTEGRATION_TEST_SOURCES)
       LIVEKIT_ROOT_DIR="${LIVEKIT_ROOT_DIR}"
       SPDLOG_ACTIVE_LEVEL=${_SPDLOG_ACTIVE_LEVEL}
       $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
-      # The FFI reports a missing capture feature only as a generic invalid
-      # handle, so the capture tests cannot detect it at runtime.
-      $<$<BOOL:${LIVEKIT_ENABLE_CAPTURE}>:LIVEKIT_TEST_CAPTURE_ENABLED>
   )
 
   # Copy shared libraries to test executable directory
