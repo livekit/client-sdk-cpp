@@ -170,8 +170,10 @@ set(RUST_ROOT ${LIVEKIT_ROOT_DIR}/client-sdk-rust)
 
 # Cargo features for the Rust FFI build.
 set(LIVEKIT_CARGO_FEATURES "")
+set(LIVEKIT_CAPTURE_ENABLED 0)
 if(LIVEKIT_ENABLE_CAPTURE)
   set(LIVEKIT_CARGO_FEATURES "capture")
+  set(LIVEKIT_CAPTURE_ENABLED 1)
 endif()
 
 set(GIT_COMMIT "unknown")

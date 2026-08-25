@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 
+#include "livekit/build.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
 #include "livekit/video_source.h"

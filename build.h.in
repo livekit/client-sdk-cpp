@@ -7,6 +7,7 @@
 // Version injected by CMake (CI should set it). Defaults to 0.0.0 for dev builds.
 #define LIVEKIT_BUILD_VERSION "@LIVEKIT_VERSION@"
 #define LIVEKIT_BUILD_FLAVOR "cpp"   
+#define LIVEKIT_CAPTURE_ENABLED @LIVEKIT_CAPTURE_ENABLED@
 
 #ifdef DEBUG
 #define LIVEKIT_BUILD_SUFFIX  "-debug"
