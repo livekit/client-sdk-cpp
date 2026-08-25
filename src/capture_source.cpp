@@ -16,7 +16,6 @@
 
 #include "livekit/capture_source.h"
 
-#include <optional>
 #include <stdexcept>
 
 #include "capture.pb.h"
@@ -217,14 +216,14 @@ DeviceFormatRequest DeviceFormatRequest::closest(DeviceFormat format) {
 DeviceFormatRequest DeviceFormatRequest::highestFramerate(HighestFramerateConstraint constraint) {
   DeviceFormatRequest request;
   request.kind_ = Kind::HighestFramerate;
-  request.highest_framerate_ = std::move(constraint);
+  request.highest_framerate_ = constraint;
   return request;
 }
 
 DeviceFormatRequest DeviceFormatRequest::highestResolution(HighestResolutionConstraint constraint) {
   DeviceFormatRequest request;
   request.kind_ = Kind::HighestResolution;
-  request.highest_resolution_ = std::move(constraint);
+  request.highest_resolution_ = constraint;
   return request;
 }
 
@@ -306,16 +305,16 @@ std::future<std::vector<CaptureDeviceInfo>> CaptureSource::listDevices() {
   // the capture feature rejects it outright). Report that through the returned
   // future so every failure reaches the caller as a CaptureSourceError from
   // exactly one place, as documented.
-  std::optional<std::future<proto::CaptureDeviceList>> devices;
+  std::future<proto::CaptureDeviceList> devices;
   try {
-    devices.emplace(FfiClient::instance().listCaptureDevicesAsync());
+    devices = FfiClient::instance().listCaptureDevicesAsync();
   } catch (const std::exception& e) {
     return readyCaptureError<std::vector<CaptureDeviceInfo>>(e);
   }
 
   // Map the FFI payload onto the public type once the callback resolves. A
   // helper thread keeps the returned future's wait semantics standard.
-  return std::async(std::launch::async, [devices = std::move(*devices)]() mutable {
+  return std::async(std::launch::async, [devices = std::move(devices)]() mutable {
     try {
       const proto::CaptureDeviceList list = devices.get();
       std::vector<CaptureDeviceInfo> out;
@@ -335,16 +334,16 @@ std::future<std::vector<CaptureDeviceInfo>> CaptureSource::listDevices() {
 std::future<std::shared_ptr<CaptureSource>> CaptureSource::createFromRequest(proto::NewCaptureSourceRequest request) {
   // See listDevices(): a synchronous send failure is delivered through the
   // future rather than thrown from the factory.
-  std::optional<std::future<proto::OwnedCaptureSource>> owned;
+  std::future<proto::OwnedCaptureSource> owned;
   try {
-    owned.emplace(FfiClient::instance().newCaptureSourceAsync(std::move(request)));
+    owned = FfiClient::instance().newCaptureSourceAsync(std::move(request));
   } catch (const std::exception& e) {
     return readyCaptureError<std::shared_ptr<CaptureSource>>(e);
   }
 
   // Map the FFI payload onto a wrapper once the callback resolves. A helper
   // thread keeps the returned future's wait semantics standard.
-  return std::async(std::launch::async, [owned = std::move(*owned)]() mutable {
+  return std::async(std::launch::async, [owned = std::move(owned)]() mutable {
     try {
       return fromOwned(owned.get());
     } catch (const CaptureSourceError&) {
