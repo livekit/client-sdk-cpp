@@ -266,9 +266,15 @@ public:
   /// AVFoundation video-device list; on Linux, it is the V4L2 node number
   /// (@c /dev/videoN). Either way the value can shift as devices are attached
   /// and removed. Prefer @ref id, which is stable on macOS.
+  ///
+  /// @param device_index Platform-defined device index.
+  /// @return A selector that targets the device at @p device_index.
   static DeviceSelector index(std::uint32_t device_index);
 
   /// A platform-stable identifier, as reported by @ref CaptureDeviceInfo::id.
+  ///
+  /// @param device_id Platform device identifier.
+  /// @return A selector that targets the device with @p device_id.
   static DeviceSelector id(std::string device_id);
 
 private:
@@ -370,9 +376,17 @@ public:
   /// for its first output to discover stream settings. Errors (invalid
   /// pipeline, missing capture feature, discovery timeout) are thrown from
   /// the future as @ref CaptureSourceError.
+  ///
+  /// @param config GStreamer pipeline configuration.
+  /// @return A future that resolves to the created capture source.
+  /// @throws CaptureSourceError When awaiting the future if creation fails.
   static std::future<std::shared_ptr<CaptureSource>> create(GstreamerVideoSourceConfig config);
 
   /// Create the built-in test pattern capture source.
+  ///
+  /// @param config Pattern source configuration.
+  /// @return A future that resolves to the created capture source.
+  /// @throws CaptureSourceError When awaiting the future if creation fails.
   static std::future<std::shared_ptr<CaptureSource>> create(PatternVideoSourceConfig config);
 
   /// Create a capture source from a camera device.
@@ -383,6 +397,10 @@ public:
   /// unsatisfiable
   /// format request, unsupported platform, missing capture feature) are
   /// thrown from the future as @ref CaptureSourceError.
+  ///
+  /// @param config Device capture configuration.
+  /// @return A future that resolves to the created capture source.
+  /// @throws CaptureSourceError When awaiting the future if creation fails.
   static std::future<std::shared_ptr<CaptureSource>> create(DeviceVideoSourceConfig config);
 
   /// List the video capture devices available on this machine.
@@ -390,6 +408,9 @@ public:
   /// Completes asynchronously: enumeration queries the platform capture stack
   /// and may block briefly. Throws @ref CaptureSourceError from the future on
   /// failure, including on platforms without a capture backend.
+  ///
+  /// @return A future that resolves to the discovered devices.
+  /// @throws CaptureSourceError When awaiting the future if enumeration fails.
   static std::future<std::vector<CaptureDeviceInfo>> listDevices();
 
   ~CaptureSource();
