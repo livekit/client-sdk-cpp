@@ -130,21 +130,21 @@ enum class DeviceFrameFormat {
   /// Planar I420/YUV420P.
   I420 = 0,
   /// Biplanar NV12.
-  Nv12 = 1,
+  NV12 = 1,
   /// Packed BGRA.
-  Bgra = 2,
+  BGRA = 2,
   /// Packed RGB24.
-  Rgb24 = 3,
+  RGB24 = 3,
   /// Packed BGR24.
-  Bgr24 = 4,
+  BGR24 = 4,
   /// Packed YUYV/YUY2.
-  Yuyv = 5,
+  YUYV = 5,
   /// Packed UYVY.
-  Uyvy = 6,
+  UYVY = 6,
   /// Single-plane 8-bit luma.
-  Grey = 7,
+  GREY = 7,
   /// Encoded MJPEG frames.
-  Mjpeg = 8,
+  MJPEG = 8,
 };
 
 /// Capture format offered by or requested from a device.
@@ -160,7 +160,7 @@ struct DeviceFormat {
   std::uint32_t framerate_fps = 0;
 
   /// Frame format.
-  DeviceFrameFormat frame_format = DeviceFrameFormat::Nv12;
+  DeviceFrameFormat frame_format = DeviceFrameFormat::NV12;
 
   DeviceFormat() = default;
 
@@ -180,16 +180,16 @@ struct DeviceFormat {
 /// may substitute, so the delivered format can differ from the one requested:
 ///
 /// - macOS accepts only @ref DeviceFrameFormat::I420,
-///   @ref DeviceFrameFormat::Nv12, and @ref DeviceFrameFormat::Bgra --
+///   @ref DeviceFrameFormat::NV12, and @ref DeviceFrameFormat::BGRA --
 ///   requesting any other value fails creation -- and then delivers NV12
 ///   regardless of which of the three was asked for.
-/// - V4L2 rejects @ref DeviceFrameFormat::I420 and @ref DeviceFrameFormat::Bgra.
+/// - V4L2 rejects @ref DeviceFrameFormat::I420 and @ref DeviceFrameFormat::BGRA.
 ///   For @ref exact and @ref closest it tries the requested format first and
 ///   then falls back through the formats it supports; for @ref highestFramerate
 ///   and @ref highestResolution the constraint selects the format outright, with
 ///   no fallback.
 ///
-/// @ref DeviceFrameFormat::Nv12 is the only value both backends accept, which
+/// @ref DeviceFrameFormat::NV12 is the only value both backends accept, which
 /// is why it is @ref DeviceFormat's default.
 class LIVEKIT_API DeviceFormatRequest {
 public:
