@@ -51,7 +51,7 @@ constexpr std::uint32_t kCaptureFramerateFps = 30;
 /// Skips the calling test when the FFI library was built without the capture
 /// feature. A feature-less FFI reports only a generic invalid handle, so this
 /// has to be decided at compile time rather than sniffed from an error string.
-#ifdef LIVEKIT_TEST_CAPTURE_ENABLED
+#if LIVEKIT_CAPTURE_ENABLED
 #define SKIP_WITHOUT_CAPTURE_FEATURE() ((void)0)
 #else
 #define SKIP_WITHOUT_CAPTURE_FEATURE() \
