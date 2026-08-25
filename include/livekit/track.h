@@ -21,7 +21,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "livekit/ffi_handle.h"
@@ -53,6 +52,13 @@ enum class StreamState {
   STATE_UNKNOWN = 0,
   STATE_ACTIVE = 1,
   STATE_PAUSED = 2,
+};
+
+/// @brief Maximum receive quality requested for a remote video track.
+enum class VideoQuality {
+  LOW,
+  MEDIUM,
+  HIGH,
 };
 
 /// @brief Optional audio processing or encoding feature advertised for a track.
