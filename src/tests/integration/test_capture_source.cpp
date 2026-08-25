@@ -51,12 +51,12 @@ constexpr std::uint32_t kCaptureFramerateFps = 30;
 /// Skips the calling test when the FFI library was built without the capture
 /// feature. A feature-less FFI reports only a generic invalid handle, so this
 /// has to be decided at compile time rather than sniffed from an error string.
-#if LIVEKIT_CAPTURE_ENABLED
-#define SKIP_WITHOUT_CAPTURE_FEATURE() ((void)0)
-#else
-#define SKIP_WITHOUT_CAPTURE_FEATURE() \
-  GTEST_SKIP() << "livekit-ffi built without the 'capture' feature; configure with -DLIVEKIT_ENABLE_CAPTURE=ON"
-#endif
+#define SKIP_WITHOUT_CAPTURE_FEATURE()                                                                               \
+  do {                                                                                                               \
+    if constexpr (!kCaptureEnabled) {                                                                                \
+      GTEST_SKIP() << "livekit-ffi built without the 'capture' feature; configure with -DLIVEKIT_ENABLE_CAPTURE=ON"; \
+    }                                                                                                                \
+  } while (false)
 
 std::shared_ptr<CaptureSource> createPatternCapture() {
   PatternVideoSourceConfig config;
