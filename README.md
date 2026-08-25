@@ -45,7 +45,7 @@ cd client-sdk-cpp
 
 Building requires a stable Rust toolchain and platform-specific build
 deps (`protobuf`, `abseil`, `openssl` on Linux). See [docs/building.md](docs/building.md)
-for full prerequisites table, Docker recipe, CMake presets, and troubleshooting.
+for the full prerequisites table, CMake presets, and troubleshooting.
 
 ### Hello, LiveKit
 
