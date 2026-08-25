@@ -22,6 +22,7 @@
 #include "capture_source_internal.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
+#include "lk_log.h"
 #include "room_proto_converter.h"
 
 namespace livekit {
@@ -433,29 +434,45 @@ void CaptureSource::setOnFinishedCallback(FinishedCallback callback) {
   on_finished_ = std::move(callback);
 }
 
-void CaptureSource::start() {
-  proto::FfiRequest req;
-  req.mutable_start_capture()->set_capture_handle(handle_.get());
+bool CaptureSource::start() {
+  try {
+    proto::FfiRequest req;
+    req.mutable_start_capture()->set_capture_handle(handle_.get());
 
-  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-  if (!resp.has_start_capture()) {
-    throw CaptureSourceError("FfiResponse missing start_capture");
-  }
-  if (resp.start_capture().has_error()) {
-    throw CaptureSourceError(resp.start_capture().error());
+    const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+    if (!resp.has_start_capture()) {
+      LK_LOG_WARN("Capture start request returned no start_capture response");
+      return false;
+    }
+    if (resp.start_capture().has_error()) {
+      LK_LOG_WARN("Capture start request failed: {}", resp.start_capture().error());
+      return false;
+    }
+    return true;
+  } catch (const std::exception& e) {
+    LK_LOG_WARN("Capture start request failed: {}", e.what());
+    return false;
   }
 }
 
-void CaptureSource::stop() {
-  proto::FfiRequest req;
-  req.mutable_stop_capture()->set_capture_handle(handle_.get());
+bool CaptureSource::stop() {
+  try {
+    proto::FfiRequest req;
+    req.mutable_stop_capture()->set_capture_handle(handle_.get());
 
-  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-  if (!resp.has_stop_capture()) {
-    throw CaptureSourceError("FfiResponse missing stop_capture");
-  }
-  if (resp.stop_capture().has_error()) {
-    throw CaptureSourceError(resp.stop_capture().error());
+    const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
+    if (!resp.has_stop_capture()) {
+      LK_LOG_WARN("Capture stop request returned no stop_capture response");
+      return false;
+    }
+    if (resp.stop_capture().has_error()) {
+      LK_LOG_WARN("Capture stop request failed: {}", resp.stop_capture().error());
+      return false;
+    }
+    return true;
+  } catch (const std::exception& e) {
+    LK_LOG_WARN("Capture stop request failed: {}", e.what());
+    return false;
   }
 }
 

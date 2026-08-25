@@ -447,16 +447,15 @@ public:
 
   /// Start pumping frames into the RTC video source.
   ///
-  /// @throws CaptureSourceError if the capture was already started or the
-  ///         FFI call fails.
-  void start();
+  /// @return @c true if the start request succeeds; otherwise @c false.
+  bool start();
 
   /// Signal a running capture to stop after the frame in flight. The
   /// finished callback fires shortly after. Stopping an already-finished
   /// capture is a no-op.
   ///
-  /// @throws CaptureSourceError if the FFI call fails.
-  void stop();
+  /// @return @c true if the stop request succeeds; otherwise @c false.
+  bool stop();
 
 private:
   CaptureSource() = default;

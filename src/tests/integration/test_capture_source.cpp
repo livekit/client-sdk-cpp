@@ -225,8 +225,8 @@ TEST_F(CaptureSourceServerTest, PatternCaptureSourcePublishesFramesEndToEnd) {
     cv.notify_all();
   });
 
-  ASSERT_NO_THROW(capture->start());
-  EXPECT_THROW(capture->start(), CaptureSourceError) << "double start must be rejected";
+  ASSERT_TRUE(capture->start());
+  EXPECT_FALSE(capture->start()) << "double start must be rejected";
 
   {
     std::unique_lock<std::mutex> lock(mutex);
@@ -236,7 +236,7 @@ TEST_F(CaptureSourceServerTest, PatternCaptureSourcePublishesFramesEndToEnd) {
   }
 
   // Stop is a signal; the terminal callback delivers the stats.
-  ASSERT_NO_THROW(capture->stop());
+  ASSERT_TRUE(capture->stop());
   {
     std::unique_lock<std::mutex> lock(mutex);
     const bool got_finished = cv.wait_for(lock, 10s, [&finished] { return finished.has_value(); });
