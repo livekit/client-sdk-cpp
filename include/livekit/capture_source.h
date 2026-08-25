@@ -171,9 +171,8 @@ struct DeviceFormat {
 /// How a capture device should pick the format it delivers.
 ///
 /// The device negotiates the delivered format; the created source reports the
-/// negotiated resolution through @ref CaptureSource::width and
-/// @ref CaptureSource::height. The negotiated frame rate and frame format are
-/// not reported back.
+/// negotiated resolution through @c width() and @c height(). The negotiated
+/// frame rate and frame format are not reported back.
 ///
 /// @note Only resolution and frame rate participate in format selection.
 /// A @c frame_format is validated and then treated as a preference the backend
@@ -219,15 +218,27 @@ public:
   /// advertise near-integral rates: a request for 30 fps is satisfied by a
   /// device advertising 30.00003 fps, and the device is then driven at its
   /// advertised rate.
+  ///
+  /// @param format Required resolution, frame rate, and preferred frame format.
+  /// @return A request that requires the device to satisfy @p format.
   static DeviceFormatRequest exact(DeviceFormat format);
 
   /// Use the device's closest supported resolution and frame rate.
+  ///
+  /// @param format Preferred resolution, frame rate, and frame format.
+  /// @return A request that selects the closest supported format to @p format.
   static DeviceFormatRequest closest(DeviceFormat format);
 
   /// Prefer the highest frame rate, optionally constrained.
+  ///
+  /// @param constraint Optional resolution and frame-format constraints.
+  /// @return A request that selects the highest frame rate satisfying @p constraint.
   static DeviceFormatRequest highestFramerate(HighestFramerateConstraint constraint = {});
 
   /// Prefer the highest resolution, optionally constrained.
+  ///
+  /// @param constraint Optional frame-rate and frame-format constraints.
+  /// @return A request that selects the highest resolution satisfying @p constraint.
   static DeviceFormatRequest highestResolution(HighestResolutionConstraint constraint = {});
 
 private:
@@ -251,8 +262,8 @@ public:
   /// The device at this position in the platform's own enumeration order.
   ///
   /// The meaning is platform-defined and is not necessarily the position of
-  /// the device in @ref CaptureSource::listDevices: on macOS it indexes the
-  /// AVFoundation video-device list, on Linux it is the V4L2 node number
+  /// the device in @ref CaptureSource::listDevices(). On macOS, it indexes the
+  /// AVFoundation video-device list; on Linux, it is the V4L2 node number
   /// (@c /dev/videoN). Either way the value can shift as devices are attached
   /// and removed. Prefer @ref id, which is stable on macOS.
   static DeviceSelector index(std::uint32_t device_index);
@@ -339,8 +350,8 @@ struct CaptureResult {
 ///
 /// The source owns its producer (e.g. a GStreamer pipeline) and the pump
 /// that feeds an RTC video source. Publish it like any other source: create
-/// a track from @ref videoSource(), publish with application options merged
-/// over @ref recommendedPublishOptions(), then call @ref start().
+/// a track from @ref CaptureSource::videoSource(), merge application options
+/// through @ref CaptureSource::publishOptions(), then call @ref CaptureSource::start().
 ///
 /// Requires the FFI library to be built with the `capture` feature
 /// (`LIVEKIT_ENABLE_CAPTURE`); otherwise creation fails.
@@ -367,7 +378,7 @@ public:
   /// Create a capture source from a camera device.
   ///
   /// Completes asynchronously: construction opens the device and negotiates
-  /// the capture format, so @ref width and @ref height report the negotiated
+  /// the capture format, so @c width() and @c height() report the negotiated
   /// resolution before the first frame is pumped. Errors (missing device,
   /// unsatisfiable
   /// format request, unsupported platform, missing capture feature) are
