@@ -11,6 +11,7 @@ on:
 permissions:
   contents: read
   actions: read
+  packages: read
 
 jobs:
   # Compute once which path groups changed; every other job references these
