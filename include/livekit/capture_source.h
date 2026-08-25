@@ -149,9 +149,9 @@ enum class DeviceFrameFormat {
 
 /// Capture format offered by or requested from a device.
 ///
-/// All three components are required. When building a request, name the frame
-/// format explicitly: which formats a device can be asked for is
-/// platform-specific, so there is no portable default.
+/// Width, height, and frame rate must be non-zero. The frame format defaults
+/// to @ref DeviceFrameFormat::NV12, the only value accepted by both device
+/// backends.
 struct DeviceFormat {
   /// Frame dimensions.
   CaptureResolution resolution;
