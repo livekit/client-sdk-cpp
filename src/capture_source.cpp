@@ -400,24 +400,23 @@ std::shared_ptr<CaptureSource> CaptureSource::fromOwned(const proto::OwnedCaptur
 }
 
 TrackPublishOptions CaptureSource::publishOptions(TrackPublishOptions options) const {
-  const TrackPublishOptions& dictated = source_publish_options_;
   const auto overlay = [](auto& target, const auto& source) {
     if (source.has_value()) {
       target = source;
     }
   };
-  overlay(options.video_encoding, dictated.video_encoding);
-  overlay(options.audio_encoding, dictated.audio_encoding);
-  overlay(options.video_codec, dictated.video_codec);
-  overlay(options.dtx, dictated.dtx);
-  overlay(options.red, dictated.red);
-  overlay(options.simulcast, dictated.simulcast);
-  overlay(options.source, dictated.source);
-  overlay(options.stream, dictated.stream);
-  overlay(options.preconnect_buffer, dictated.preconnect_buffer);
-  overlay(options.frame_metadata_features, dictated.frame_metadata_features);
-  overlay(options.degradation_preference, dictated.degradation_preference);
-  overlay(options.video_encoder, dictated.video_encoder);
+  overlay(options.video_encoding, source_publish_options_.video_encoding);
+  overlay(options.audio_encoding, source_publish_options_.audio_encoding);
+  overlay(options.video_codec, source_publish_options_.video_codec);
+  overlay(options.dtx, source_publish_options_.dtx);
+  overlay(options.red, source_publish_options_.red);
+  overlay(options.simulcast, source_publish_options_.simulcast);
+  overlay(options.source, source_publish_options_.source);
+  overlay(options.stream, source_publish_options_.stream);
+  overlay(options.preconnect_buffer, source_publish_options_.preconnect_buffer);
+  overlay(options.frame_metadata_features, source_publish_options_.frame_metadata_features);
+  overlay(options.degradation_preference, source_publish_options_.degradation_preference);
+  overlay(options.video_encoder, source_publish_options_.video_encoder);
   return options;
 }
 
