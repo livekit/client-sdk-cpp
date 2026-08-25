@@ -132,8 +132,9 @@ env:
   VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
   VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static-md
   VCPKG_TARGET_TRIPLET: x64-windows-static-md
-  # The Windows GStreamer bundle is pinned and checksum-verified below. Linux
-  # and macOS use their platform package managers.
+  # Windows uses an explicit, checksum-pinned GStreamer SDK. Linux and macOS
+  # intentionally use their supported platform-package versions; `1.0` in
+  # Ubuntu package names denotes the GStreamer ABI, not the installed release.
   GSTREAMER_WINDOWS_VERSION: "1.28.5"
   GSTREAMER_WINDOWS_SHA256: "51ee5eaec33008e8409d8cf6f6884457f22aa3bd515f8856f993a3eaab903530"
 
