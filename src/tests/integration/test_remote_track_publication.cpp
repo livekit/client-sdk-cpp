@@ -75,10 +75,12 @@ TEST_F(RemoteTrackPublicationServerTest, PublicationControlsRoundTripAndDeduplic
   ASSERT_NE(publication, nullptr) << "Timed out waiting for remote video subscription";
   ASSERT_EQ(publication->kind(), TrackKind::KIND_VIDEO);
   ASSERT_TRUE(publication->simulcasted());
+  EXPECT_EQ(publication->width(), kSourceWidth);
+  EXPECT_EQ(publication->height(), kSourceHeight);
 
   EXPECT_TRUE(publication->setVideoDimensions(kRequestedWidth, kRequestedHeight));
-  EXPECT_EQ(publication->width(), kRequestedWidth);
-  EXPECT_EQ(publication->height(), kRequestedHeight);
+  EXPECT_EQ(publication->width(), kSourceWidth);
+  EXPECT_EQ(publication->height(), kSourceHeight);
   EXPECT_FALSE(publication->setVideoDimensions(kRequestedWidth, kRequestedHeight));
 
   EXPECT_FALSE(publication->setVideoQuality(static_cast<VideoQuality>(-1)));

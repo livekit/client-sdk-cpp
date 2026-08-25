@@ -45,7 +45,7 @@ public:
   /// @param subscribed True to subscribe; false to unsubscribe.
   /// @throws std::runtime_error if the publication has an invalid FFI handle or
   /// the FFI request fails.
-  void setSubscribed(bool subscribed);
+  void setSubscribed(const bool subscribed);
 
   /// @brief Returns whether media delivery is enabled for this publication.
   ///
@@ -62,7 +62,7 @@ public:
   /// the publication is not subscribed.
   /// @throws std::runtime_error if the publication has an invalid FFI handle or
   /// the FFI request fails.
-  bool setEnabled(bool enabled);
+  bool setEnabled(const bool enabled);
 
   /// @brief Returns the requested maximum simulcast quality.
   ///
@@ -79,7 +79,7 @@ public:
   /// the publication is not a subscribed, simulcasted video track.
   /// @throws std::runtime_error if the publication has an invalid FFI handle or
   /// the FFI request fails.
-  bool setVideoQuality(VideoQuality quality);
+  bool setVideoQuality(const VideoQuality quality);
 
   /// @brief Requests the maximum video dimensions to receive for this publication.
   ///
@@ -93,7 +93,7 @@ public:
   /// or the publication is not a subscribed video track.
   /// @throws std::runtime_error if the publication has an invalid FFI handle or
   /// the FFI request fails.
-  bool setVideoDimensions(std::uint32_t width, std::uint32_t height);
+  bool setVideoDimensions(const std::uint32_t width, const std::uint32_t height);
 
 private:
   enum class VideoPreference {
@@ -106,6 +106,8 @@ private:
   bool enabled_{true};
   VideoPreference video_preference_{VideoPreference::DEFAULT};
   VideoQuality video_quality_{VideoQuality::HIGH};
+  std::uint32_t requested_width_{0};
+  std::uint32_t requested_height_{0};
 };
 
 } // namespace livekit

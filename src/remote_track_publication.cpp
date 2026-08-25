@@ -30,7 +30,7 @@ RemoteTrackPublication::RemoteTrackPublication(const proto::OwnedTrackPublicatio
                        static_cast<EncryptionType>(owned.info().encryption_type()),
                        convertAudioFeatures(owned.info().audio_features())) {}
 
-void RemoteTrackPublication::setSubscribed(bool subscribed) {
+void RemoteTrackPublication::setSubscribed(const bool subscribed) {
   if (ffiHandleId() == 0) {
     throw std::runtime_error("RemoteTrackPublication::setSubscribed: invalid FFI handle");
   }
@@ -48,7 +48,7 @@ void RemoteTrackPublication::setSubscribed(bool subscribed) {
   subscribed_ = subscribed;
 }
 
-bool RemoteTrackPublication::setEnabled(bool enabled) {
+bool RemoteTrackPublication::setEnabled(const bool enabled) {
   if (!subscribed_ || track() == nullptr) {
     LK_LOG_WARN("RemoteTrackPublication::setEnabled ignored for unsubscribed publication {}", sid());
     return false;
@@ -74,7 +74,7 @@ bool RemoteTrackPublication::setEnabled(bool enabled) {
   return true;
 }
 
-bool RemoteTrackPublication::setVideoQuality(VideoQuality quality) {
+bool RemoteTrackPublication::setVideoQuality(const VideoQuality quality) {
   if (kind() != TrackKind::KIND_VIDEO) {
     LK_LOG_WARN("RemoteTrackPublication::setVideoQuality ignored for non-video publication {}", sid());
     return false;
@@ -125,7 +125,7 @@ bool RemoteTrackPublication::setVideoQuality(VideoQuality quality) {
   return true;
 }
 
-bool RemoteTrackPublication::setVideoDimensions(std::uint32_t width, std::uint32_t height) {
+bool RemoteTrackPublication::setVideoDimensions(const std::uint32_t width, const std::uint32_t height) {
   if (kind() != TrackKind::KIND_VIDEO) {
     LK_LOG_WARN("RemoteTrackPublication::setVideoDimensions ignored for non-video publication {}", sid());
     return false;
@@ -138,7 +138,7 @@ bool RemoteTrackPublication::setVideoDimensions(std::uint32_t width, std::uint32
     LK_LOG_WARN("RemoteTrackPublication::setVideoDimensions ignored for unsubscribed publication {}", sid());
     return false;
   }
-  if (video_preference_ == VideoPreference::DIMENSIONS && width_ == width && height_ == height) {
+  if (video_preference_ == VideoPreference::DIMENSIONS && requested_width_ == width && requested_height_ == height) {
     return false;
   }
   if (ffiHandleId() == 0) {
@@ -157,8 +157,8 @@ bool RemoteTrackPublication::setVideoDimensions(std::uint32_t width, std::uint32
         "RemoteTrackPublication::setVideoDimensions: FFI response missing dimension update result");
   }
 
-  width_ = width;
-  height_ = height;
+  requested_width_ = width;
+  requested_height_ = height;
   video_preference_ = VideoPreference::DIMENSIONS;
   video_quality_ = VideoQuality::HIGH;
   return true;
