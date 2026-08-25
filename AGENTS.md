@@ -108,7 +108,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 
 ## Build
 for building, use the build.sh script for Linux and macOS, and the build.cmd script for Windows. Do not invoke CMake directly to build the SDK.
-Updates to ./build.sh and ./build.cmd should be accompanied by updates to this file and the README.md file.
+Updates to ./build.sh and ./build.cmd should be accompanied by updates to this file and docs/building.md.
 
 ```
 ./build.sh debug              # Debug build
@@ -121,6 +121,11 @@ Updates to ./build.sh and ./build.cmd should be accompanied by updates to this f
 ./build.sh clean              # Clean build artifacts + local-install
 ./build.sh clean-all          # Full clean (C++ + local-install + Rust targets)
 ```
+
+To create an installable SDK bundle, use the same build command with
+`--bundle --prefix <install-dir>` (for example,
+`./build.sh release --bundle --prefix sdk-out/livekit-sdk`). On Windows, use
+`build.cmd release --bundle --prefix C:\path\to\livekit-sdk`.
 
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
