@@ -87,7 +87,7 @@ struct GstreamerRateControl {
 struct GstreamerVideoSourceConfig {
   /// GStreamer launch description for the encoded producer pipeline.
   ///
-  /// Must contain `appsink name=lk_appsink`, or leave exactly one encoded
+  /// @note Must contain `appsink name=lk_appsink`, or leave exactly one encoded
   /// video source pad unlinked for the source to attach one to.
   std::string pipeline;
 
