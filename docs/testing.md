@@ -81,7 +81,7 @@ participant tokens against a local `livekit-server --dev` and exports
 `LIVEKIT_TOKEN_A`, `LIVEKIT_TOKEN_B`, and `LIVEKIT_URL` for the current shell:
 
 ```bash
-source .token_helpers/set_data_track_test_tokens.bash
+source scripts/set-test-tokens.sh
 ```
 
 To generate tokens manually (e.g. against a non-default server), install

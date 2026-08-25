@@ -32,12 +32,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            name: linux-x64
+          - os: ubuntu-22.04
+            name: ubuntu-22.04-x64
+            build_cmd: ./build.sh release-examples
+            build_dir: build-release
+          - os: ubuntu-22.04-arm
+            name: ubuntu-22.04-arm64
+            build_cmd: ./build.sh release-examples
+            build_dir: build-release
+          - os: ubuntu-24.04
+            name: ubuntu-24.04-x64
             build_cmd: ./build.sh release-examples
             build_dir: build-release
           - os: ubuntu-24.04-arm
-            name: linux-arm64
+            name: ubuntu-24.04-arm64
             build_cmd: ./build.sh release-examples
             build_dir: build-release
           - os: macos-26-xlarge
@@ -166,9 +174,9 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: client-sdk-rust/target/
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.name }}-cargo-target-
+            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-
 
       # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
       # artifacts in webrtc-sys are not compatible across those bumps.
@@ -208,7 +216,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: client-sdk-rust/target/
-          key: ${{ runner.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
 
       - name: Save vcpkg binary cache
         if: runner.os == 'Windows' && steps.cache-vcpkg-binary.outputs.cache-hit != 'true'
@@ -322,6 +330,28 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: livekit-sdk-${{ matrix.name }}
+          path: |
+            ${{ matrix.build_dir }}/lib/
+            ${{ matrix.build_dir }}/include/
+            ${{ matrix.build_dir }}/bin/
+          retention-days: 7
+
+      - name: Upload deprecated linux-x64 alias artifact
+        if: matrix.name == 'ubuntu-24.04-x64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: livekit-sdk-linux-x64
+          path: |
+            ${{ matrix.build_dir }}/lib/
+            ${{ matrix.build_dir }}/include/
+            ${{ matrix.build_dir }}/bin/
+          retention-days: 7
+
+      - name: Upload deprecated linux-arm64 alias artifact
+        if: matrix.name == 'ubuntu-24.04-arm64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: livekit-sdk-linux-arm64
           path: |
             ${{ matrix.build_dir }}/lib/
             ${{ matrix.build_dir }}/include/
