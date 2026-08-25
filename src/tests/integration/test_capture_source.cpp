@@ -127,9 +127,9 @@ TEST_F(CaptureDeviceTest, ExactFormatRequestRejectsUnsupportedFormat) {
 
   DeviceVideoSourceConfig config;
   config.device = DeviceSelector::id(devices.front().id);
-  // Nv12 is requestable on every backend, so the rejection is attributable to
+  // NV12 is requestable on every backend, so the rejection is attributable to
   // the resolution rather than to frame-format validation.
-  config.format = DeviceFormatRequest::exact(DeviceFormat{{7, 3}, 1, DeviceFrameFormat::Nv12});
+  config.format = DeviceFormatRequest::exact(DeviceFormat{{7, 3}, 1, DeviceFrameFormat::NV12});
 
   EXPECT_THROW(CaptureSource::create(config).get(), CaptureSourceError);
 }

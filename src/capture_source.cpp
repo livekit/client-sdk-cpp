@@ -55,21 +55,21 @@ proto::DeviceFrameFormat toProto(DeviceFrameFormat format) {
   switch (format) {
     case DeviceFrameFormat::I420:
       return proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_I420;
-    case DeviceFrameFormat::Nv12:
+    case DeviceFrameFormat::NV12:
       return proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_NV12;
-    case DeviceFrameFormat::Bgra:
+    case DeviceFrameFormat::BGRA:
       return proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_BGRA;
-    case DeviceFrameFormat::Rgb24:
+    case DeviceFrameFormat::RGB24:
       return proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_RGB24;
-    case DeviceFrameFormat::Bgr24:
+    case DeviceFrameFormat::BGR24:
       return proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_BGR24;
-    case DeviceFrameFormat::Yuyv:
+    case DeviceFrameFormat::YUYV:
       return proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_YUYV;
-    case DeviceFrameFormat::Uyvy:
+    case DeviceFrameFormat::UYVY:
       return proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_UYVY;
-    case DeviceFrameFormat::Grey:
+    case DeviceFrameFormat::GREY:
       return proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_GREY;
-    case DeviceFrameFormat::Mjpeg:
+    case DeviceFrameFormat::MJPEG:
       return proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_MJPEG;
   }
   return proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_I420;
@@ -80,21 +80,21 @@ DeviceFrameFormat fromProto(proto::DeviceFrameFormat format) {
     case proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_I420:
       return DeviceFrameFormat::I420;
     case proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_NV12:
-      return DeviceFrameFormat::Nv12;
+      return DeviceFrameFormat::NV12;
     case proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_BGRA:
-      return DeviceFrameFormat::Bgra;
+      return DeviceFrameFormat::BGRA;
     case proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_RGB24:
-      return DeviceFrameFormat::Rgb24;
+      return DeviceFrameFormat::RGB24;
     case proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_BGR24:
-      return DeviceFrameFormat::Bgr24;
+      return DeviceFrameFormat::BGR24;
     case proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_YUYV:
-      return DeviceFrameFormat::Yuyv;
+      return DeviceFrameFormat::YUYV;
     case proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_UYVY:
-      return DeviceFrameFormat::Uyvy;
+      return DeviceFrameFormat::UYVY;
     case proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_GREY:
-      return DeviceFrameFormat::Grey;
+      return DeviceFrameFormat::GREY;
     case proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_MJPEG:
-      return DeviceFrameFormat::Mjpeg;
+      return DeviceFrameFormat::MJPEG;
   }
   return DeviceFrameFormat::I420;
 }
