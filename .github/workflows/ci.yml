@@ -27,7 +27,6 @@ jobs:
       docs:   ${{ steps.filter.outputs.docs }}
       cpp_tools: ${{ steps.filter.outputs.cpp_tools }}
       rust_release_check: ${{ steps.filter.outputs.rust_release_check }}
-      docker: ${{ steps.filter.outputs.docker }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706  # v4.0.2
@@ -90,10 +89,6 @@ jobs:
               - .gitmodules
               - .github/workflows/ci.yml
               - .github/workflows/cpp-tools.yml
-            docker:
-              - docker/**
-              - .github/workflows/ci.yml
-              - .github/workflows/docker-images.yml
             rust_release_check:
               - client-sdk-rust
 
@@ -102,19 +97,6 @@ jobs:
     needs: changes
     if: ${{ needs.changes.outputs.builds == 'true' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/builds.yml
-    secrets: inherit
-
-  docker-images:
-    name: Docker Images
-    needs: changes
-    if: ${{ (github.event_name == 'pull_request' && needs.changes.outputs.docker == 'true') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.changes.outputs.docker == 'true') || github.event_name == 'workflow_dispatch' }}
-    permissions:
-      contents: read
-      actions: read
-      packages: write
-    uses: ./.github/workflows/docker-images.yml
-    with:
-      push_images: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     secrets: inherit
 
   tests:
@@ -165,7 +147,6 @@ jobs:
     needs:
       - changes
       - builds
-      - docker-images
       - tests
       - license-check
       - cpp-tools

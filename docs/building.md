@@ -1,8 +1,8 @@
 # Building
 
 This document covers everything you need to build the LiveKit C++ SDK from
-source: prerequisites, cloning the repository, the build scripts, advanced
-CMake/vcpkg flows, and Docker.
+source: prerequisites, cloning the repository, the build scripts, and advanced
+CMake/vcpkg flows.
 
 ## Prerequisites
 
@@ -191,29 +191,6 @@ cmake -B build -S . \
   -DCMAKE_BUILD_TYPE=Release \
   -DLIVEKIT_BUILD_EXAMPLES=ON
 cmake --build build
-```
-
-## Building with Docker
-
-The Docker setup is split into a reusable base image (toolchain + system
-deps) and an SDK image layered on top. **Tested on Linux only.**
-
-```bash
-docker build -t livekit-cpp-sdk-base . -f docker/Dockerfile.base
-docker build --build-arg BASE_IMAGE=livekit-cpp-sdk-base \
-  -t livekit-cpp-sdk . -f docker/Dockerfile.sdk
-docker run -it --network host livekit-cpp-sdk:latest bash
-```
-
-If you're authoring your own Dockerfile, mirror the `ENV` block in
-[docker/Dockerfile.base](https://github.com/livekit/client-sdk-cpp/blob/main/docker/Dockerfile.base):
-
-```bash
-export CC=$HOME/gcc-14/bin/gcc
-export CXX=$HOME/gcc-14/bin/g++
-export LD_LIBRARY_PATH=$HOME/gcc-14/lib64:$LD_LIBRARY_PATH
-export PATH=$HOME/.cargo/bin:$PATH
-export PATH=$HOME/cmake-3.31/bin:$PATH
 ```
 
 ## CMake options

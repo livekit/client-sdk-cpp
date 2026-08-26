@@ -91,7 +91,6 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `cpp-tools/` | Git submodule holding shared LiveKit C++ engineering guidance, clang-format / clang-tidy configs, scripts, docs, and CI workflow |
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `nlohmann_json.cmake`, `LiveKitConfig.cmake.in`) |
-| `docker/` | Dockerfile for CI and SDK distribution images |
 | `scripts/` | Local helper scripts for SDK-specific development tasks |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
@@ -401,8 +400,6 @@ all filtered stages; normal pull requests and pushes use the path filters.
  feedback.
 - `.github/workflows/license_check.yml` — Cheap license check, run on every CI
   invocation.
-- `.github/workflows/docker-images.yml` — Reusable Docker image smoke-test and
-  publish workflow (optional push via input), called by CI and release workflows.
 
 The `tests.yml` e2e jobs consume two external, pinned composite actions:
 `livekit/dev-server-action` (local `livekit-server`) and
