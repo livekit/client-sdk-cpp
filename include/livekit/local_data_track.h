@@ -90,8 +90,9 @@ public:
   /// @note This avoids an intermediate copy when the caller already owns a byte
   /// buffer, but it is not a zero-copy send.
   ///
-  /// @param data Pointer to @p size payload bytes. Must be non-null.
-  /// @param size Number of bytes at @p data. Must be non-zero.
+  /// @param data Pointer to @p size payload bytes. May be null when @p size is
+  ///        zero.
+  /// @param size Number of bytes at @p data. May be zero.
   /// @param user_timestamp Optional application-defined timestamp. The unit is
   ///        caller-defined.
   /// @return Success on delivery acceptance, or a typed error describing why

@@ -44,11 +44,7 @@ Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(const std::uint
     return Result<void, LocalDataTrackTryPushError>::failure(LocalDataTrackTryPushError{
         LocalDataTrackTryPushErrorCode::INVALID_HANDLE, "LocalDataTrack::tryPush: invalid FFI handle"});
   }
-  if (size == 0) {
-    return Result<void, LocalDataTrackTryPushError>::failure(
-        LocalDataTrackTryPushError{LocalDataTrackTryPushErrorCode::INTERNAL, "LocalDataTrack::tryPush: empty size"});
-
-  } else if (data == nullptr) {
+  if (size != 0 && data == nullptr) {
     return Result<void, LocalDataTrackTryPushError>::failure(LocalDataTrackTryPushError{
         LocalDataTrackTryPushErrorCode::INTERNAL, "LocalDataTrack::tryPush: payload pointer is null"});
   }
@@ -58,7 +54,6 @@ Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(const std::uint
     auto* msg = req.mutable_local_data_track_try_push();
     msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
     auto* pf = msg->mutable_frame();
-    // Size and data are checked above
     pf->set_payload(data, size);
     if (user_timestamp.has_value()) {
       pf->set_user_timestamp(user_timestamp.value());

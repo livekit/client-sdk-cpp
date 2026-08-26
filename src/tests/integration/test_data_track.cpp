@@ -975,16 +975,13 @@ TEST_F(DataTrackE2ETest, RejectsNullBorrowedPayloadWithNonZeroSize) {
   local_track->unpublishDataTrack();
 }
 
-TEST_F(DataTrackE2ETest, RejectsEmptyBorrowedPayload) {
+TEST_F(DataTrackE2ETest, AcceptsEmptyPayload) {
   const auto track_name = makeTrackName("empty_borrowed_payload");
   auto rooms = testRooms(1);
   auto local_track = requirePublishedTrack(rooms[0]->localParticipant(), track_name);
 
-  const std::uint8_t payload = 0;
-  const auto push_result = local_track->tryPush(&payload, 0);
-  ASSERT_FALSE(push_result);
-  EXPECT_EQ(push_result.error().code, LocalDataTrackTryPushErrorCode::INTERNAL);
-  EXPECT_FALSE(push_result.error().message.empty());
+  EXPECT_TRUE(local_track->tryPush(nullptr, 0));
+  EXPECT_TRUE(local_track->tryPush(std::vector<std::uint8_t>{}));
 
   local_track->unpublishDataTrack();
 }
