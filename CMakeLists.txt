@@ -18,6 +18,7 @@ include(warnings)
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 option(LIVEKIT_BUILD_TESTS "Build LiveKit tests" OFF)
+option(LIVEKIT_ENABLE_CAPTURE "Build the Rust FFI with the capture feature (livekit-capture sources; links system GStreamer)" OFF)
 
 # vcpkg is only used on Windows; Linux/macOS use system package managers
 if(WIN32)
@@ -85,6 +86,7 @@ set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/data_track.proto
     ${FFI_PROTO_DIR}/rpc.proto
     ${FFI_PROTO_DIR}/track_publication.proto
+    ${FFI_PROTO_DIR}/capture.proto
 )
 set(PROTO_BINARY_DIR ${LIVEKIT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
@@ -165,6 +167,14 @@ target_sources(livekit_proto PRIVATE ${PROTO_SRCS} ${PROTO_HDRS})
 set(GENERATED_BUILD_H "${LIVEKIT_ROOT_DIR}/include/livekit/build.h")
 set(GENERATED_BUILD_INFO_JSON "${LIVEKIT_BINARY_DIR}/build-info.json")
 set(RUST_ROOT ${LIVEKIT_ROOT_DIR}/client-sdk-rust)
+
+# Cargo features for the Rust FFI build.
+set(LIVEKIT_CARGO_FEATURES "")
+set(LIVEKIT_CAPTURE_ENABLED 0)
+if(LIVEKIT_ENABLE_CAPTURE)
+  set(LIVEKIT_CARGO_FEATURES "capture")
+  set(LIVEKIT_CAPTURE_ENABLED 1)
+endif()
 
 set(GIT_COMMIT "unknown")
 set(RUST_GIT_COMMIT "unknown")
@@ -259,6 +269,11 @@ endif()
 set(ARGS build --package livekit-ffi)
 if(NOT CFG STREQUAL \"Debug\")
   list(APPEND ARGS --release)
+endif()
+
+if(DEFINED CARGO_FEATURES AND NOT CARGO_FEATURES STREQUAL \"\")
+  list(APPEND ARGS --features \"\${CARGO_FEATURES}\")
+  message(STATUS \"[run_cargo.cmake] Cargo features: \${CARGO_FEATURES}\")
 endif()
 
 if(DEFINED RUST_TARGET AND NOT RUST_TARGET STREQUAL \"\")
@@ -357,6 +372,7 @@ add_custom_command(
           -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
           -DRUST_TARGET=${RUST_TARGET_TRIPLE}
           -DGCC_LIB_DIR=${GCC_LIB_DIR}
+          -DCARGO_FEATURES=${LIVEKIT_CARGO_FEATURES}
           -P "${RUN_CARGO_SCRIPT}"
   WORKING_DIRECTORY "${RUST_ROOT}"
   DEPENDS ${RUST_SOURCES}
@@ -373,6 +389,8 @@ add_custom_target(build_rust_ffi
 add_library(livekit SHARED
   src/audio_frame.cpp
   src/audio_processing_module.cpp
+  src/capture_source.cpp
+  src/capture_source_internal.h
   src/audio_source.cpp
   src/audio_stream.cpp
   src/data_track_frame.cpp
