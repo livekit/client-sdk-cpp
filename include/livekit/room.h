@@ -313,76 +313,15 @@ public:
   // Frame callbacks
   // ---------------------------------------------------------------
 
-  /// Register or replace an audio frame callback for a remote subscription.
-  ///
-  /// The callback is keyed by @p participant_identity and @p track_name. If the
-  /// matching remote audio track is already subscribed, a reader is started
-  /// immediately; otherwise the reader starts when the track is subscribed.
-  ///
-  /// Registering again for the same key replaces the callback in place. The
-  /// previous reader is stopped and joined, then a fresh reader is started bound
-  /// to the new callback -- no need to clear first:
-  /// @code
-  /// room.setOnAudioFrameCallback(identity, track_name, new_handler);
-  /// @endcode
-  /// When this call returns, the previous callback has finished executing and
-  /// its copy has been destroyed.
-  ///
-  /// @warning This call blocks until any in-flight invocation of the previous
-  ///          callback returns. A slow callback makes registration slow; a
-  ///          callback that never returns blocks this call indefinitely.
-  ///
-  /// @warning Calling this from inside a frame callback for the same key is not
-  ///          supported. The re-entrant call is detected and logged, and the
-  ///          reader is detached rather than self-joined.
-  ///
-  /// @param participant_identity Identity of the remote participant.
-  /// @param track_name           Track name to match.
-  /// @param callback             Function invoked for each decoded audio frame.
-  /// @param opts                 Options used when creating the backing
-  ///                             @ref AudioStream.
+  /// Register or replace an audio frame callback for a remote subscription via SubscriptionThreadDispatcher.
   void setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                AudioFrameCallback callback, const AudioStream::Options& opts = {});
 
-  /// Register or replace a video frame callback for a remote subscription.
-  ///
-  /// The callback is keyed by @p participant_identity and @p track_name. If the
-  /// matching remote video track is already subscribed, a reader is started
-  /// immediately; otherwise the reader starts when the track is subscribed.
-  ///
-  /// Registering again for the same key replaces the callback in place; see
-  /// @ref setOnAudioFrameCallback for the full replacement semantics, blocking
-  /// behavior, and re-entrancy caveat. This shares its registration slot with
-  /// @ref setOnVideoFrameEventCallback -- registering either one replaces the
-  /// other for the same key.
-  ///
-  /// @param participant_identity Identity of the remote participant.
-  /// @param track_name           Track name to match.
-  /// @param callback             Function invoked for each decoded video frame.
-  /// @param opts                 Options used when creating the backing
-  ///                             @ref VideoStream.
+  /// Register or replace a video frame callback for a remote subscription via SubscriptionThreadDispatcher.
   void setOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                VideoFrameCallback callback, const VideoStream::Options& opts = {});
 
-  /// Register or replace a rich video frame event callback for a remote
-  /// subscription.
-  ///
-  /// The callback is keyed by @p participant_identity and @p track_name. If the
-  /// matching remote video track is already subscribed, a reader is started
-  /// immediately; otherwise the reader starts when the track is subscribed.
-  ///
-  /// Registering again for the same key replaces the callback in place; see
-  /// @ref setOnAudioFrameCallback for the full replacement semantics, blocking
-  /// behavior, and re-entrancy caveat. This shares its registration slot with
-  /// @ref setOnVideoFrameCallback -- registering either one replaces the other
-  /// for the same key.
-  ///
-  /// @param participant_identity Identity of the remote participant.
-  /// @param track_name           Track name to match.
-  /// @param callback             Function invoked for each decoded video frame
-  ///                             event, including optional metadata.
-  /// @param opts                 Options used when creating the backing
-  ///                             @ref VideoStream.
+  /// Register or replace a video frame event callback for a remote subscription via SubscriptionThreadDispatcher.
   void setOnVideoFrameEventCallback(const std::string& participant_identity, const std::string& track_name,
                                     VideoFrameEventCallback callback, const VideoStream::Options& opts = {});
 

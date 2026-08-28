@@ -85,7 +85,7 @@ using DataFrameCallbackId = std::uint64_t;
 /// The design keeps track-type-specific startup isolated so additional track
 /// kinds can be added later without pushing more thread state back into
 /// @ref Room.
-class LIVEKIT_API SubscriptionThreadDispatcher {
+class LIVEKIT_INTERNAL_API SubscriptionThreadDispatcher {
 public:
   /// Constructs an empty dispatcher with no registered callbacks or readers.
   SubscriptionThreadDispatcher();
@@ -100,10 +100,10 @@ public:
   /// immediately call @ref handleTrackSubscribed to start a reader.
   ///
   /// Registering again for a key that already has an active reader replaces the
-  /// callback in place: the previous reader's stream is closed and its thread is
-  /// joined before this call returns, and @ref Room then starts a fresh reader
-  /// bound to the new callback. When this call returns, the previous callback
-  /// has finished executing and its copy has been destroyed.
+  /// callback in place: the previous reader's stream is closed and its thread
+  /// is joined before this call returns, and @ref Room then starts a fresh
+  /// reader bound to the new callback. When this call returns, the previous
+  /// callback has finished executing and its copy has been destroyed.
   ///
   /// @warning This call blocks until any in-flight invocation of the previous
   ///          callback returns. A slow callback makes registration slow; a
@@ -129,8 +129,8 @@ public:
   ///
   /// Registering again for a key that already has an active reader replaces the
   /// callback in place; see @ref setOnAudioFrameCallback for the full
-  /// replacement semantics, blocking behavior, and re-entrancy caveat. Note that
-  /// this shares its registration slot with
+  /// replacement semantics, blocking behavior, and re-entrancy caveat. Note
+  /// that this shares its registration slot with
   /// @ref setOnVideoFrameEventCallback -- registering either one replaces the
   /// other for the same key.
   ///
@@ -151,9 +151,9 @@ public:
   ///
   /// Registering again for a key that already has an active reader replaces the
   /// callback in place; see @ref setOnAudioFrameCallback for the full
-  /// replacement semantics, blocking behavior, and re-entrancy caveat. Note that
-  /// this shares its registration slot with @ref setOnVideoFrameCallback --
-  /// registering either one replaces the other for the same key.
+  /// replacement semantics, blocking behavior, and re-entrancy caveat. Note
+  /// that this shares its registration slot with @ref setOnVideoFrameCallback
+  /// -- registering either one replaces the other for the same key.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to match.
@@ -203,13 +203,14 @@ public:
   /// AudioStream or @ref VideoStream and launches a reader thread for the
   /// `(participant, track_name)` key.
   ///
-  /// Remote data tracks are handled separately via @ref handleDataTrackPublished.
-  /// If @p track is not audio or video, or no matching callback is registered,
-  /// this is a no-op.
+  /// Remote data tracks are handled separately via @ref
+  /// handleDataTrackPublished. If @p track is not audio or video, or no
+  /// matching callback is registered, this is a no-op.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name associated with the subscription.
-  /// @param track                Subscribed remote audio or video track to read from.
+  /// @param track                Subscribed remote audio or video track to read
+  /// from.
   void handleTrackSubscribed(const std::string& participant_identity, const std::string& track_name,
                              const std::shared_ptr<Track>& track);
 
@@ -220,7 +221,8 @@ public:
   /// closed and its thread is joined. Callback registration is preserved so
   /// future re-subscription can start dispatch again automatically.
   ///
-  /// Remote data tracks are handled separately via @ref handleDataTrackUnpublished.
+  /// Remote data tracks are handled separately via @ref
+  /// handleDataTrackUnpublished.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param source               Track source associated with the subscription.
@@ -258,10 +260,11 @@ public:
   /// @warning Blocks until any in-flight invocation of the callback returns.
   ///
   /// @warning Calling this from inside the data frame callback it would remove
-  ///          is not supported. The dispatcher detects the re-entrant call, logs
-  ///          an error, and leaves the reader in place; the reader is reaped on
-  ///          teardown instead. Data readers cannot be safely detached because
-  ///          they re-enter the dispatcher after the callback returns.
+  ///          is not supported. The dispatcher detects the re-entrant call,
+  ///          logs an error, and leaves the reader in place; the reader is
+  ///          reaped on teardown instead. Data readers cannot be safely
+  ///          detached because they re-enter the dispatcher after the callback
+  ///          returns.
   ///
   /// @param id  The identifier returned by addOnDataFrameCallback().
   void removeOnDataFrameCallback(DataFrameCallbackId id);
@@ -406,8 +409,9 @@ private:
 
   /// Select the appropriate reader startup path for @p media track.
   ///
-  /// This is called by @ref Room when a remote track is subscribed. If a reader for the same track SID is already
-  /// active, startup is skipped and a default-constructed thread is returned; otherwise any previous reader is
+  /// This is called by @ref Room when a remote track is subscribed. If a reader
+  /// for the same track SID is already active, startup is skipped and a
+  /// default-constructed thread is returned; otherwise any previous reader is
   /// extracted and returned to the caller for joining outside the lock.
   ///
   /// Must be called with @ref lock_ held.
