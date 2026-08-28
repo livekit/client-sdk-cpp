@@ -287,18 +287,16 @@ TEST_F(PlatformAudioIntegrationTest, PlatformAudioFramesReachRemote) {
 
   // The reader thread is only started when the subscription event fires and a
   // matching callback is already registered, so register before publishing.
-  const bool audio_callback_registered =
-      receiver_room->trySetOnAudioFrameCallback(sender_identity, track_name, [&](const AudioFrame& frame) {
-        if (frame.totalSamples() == 0) {
-          return;
-        }
-        {
-          std::lock_guard<std::mutex> lock(frame_mutex);
-          ++received_frames;
-        }
-        frame_cv.notify_all();
-      });
-  ASSERT_TRUE(audio_callback_registered);
+  receiver_room->setOnAudioFrameCallback(sender_identity, track_name, [&](const AudioFrame& frame) {
+    if (frame.totalSamples() == 0) {
+      return;
+    }
+    {
+      std::lock_guard<std::mutex> lock(frame_mutex);
+      ++received_frames;
+    }
+    frame_cv.notify_all();
+  });
 
   TrackPublishOptions publish_options;
   publish_options.source = TrackSource::SOURCE_MICROPHONE;
