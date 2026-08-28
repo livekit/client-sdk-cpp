@@ -57,97 +57,91 @@ SubscriptionThreadDispatcher::~SubscriptionThreadDispatcher() {
 }
 // NOLINTEND(bugprone-exception-escape)
 
-bool SubscriptionThreadDispatcher::trySetOnAudioFrameCallback(const std::string& participant_identity,
-                                                              const std::string& track_name,
-                                                              AudioFrameCallback callback,
-                                                              const AudioStream::Options& opts) {
-  const CallbackKey key{participant_identity, track_name};
-  const std::scoped_lock<std::mutex> lock(lock_);
-  if (active_readers_.find(key) != active_readers_.end()) {
-    LK_LOG_WARN(
-        "Cannot register audio frame callback for participant={} track_name={} "
-        "because a reader is already active; call clearOnAudioFrameCallback() first",
-        participant_identity, track_name);
-    return false;
+void SubscriptionThreadDispatcher::disposeMediaReaderThread(std::thread&& thread, const char* operation) {
+  if (!thread.joinable()) {
+    return;
   }
-  const bool replacing = audio_callbacks_.find(key) != audio_callbacks_.end();
-  audio_callbacks_[key] = RegisteredAudioCallback{std::move(callback), opts};
-  LK_LOG_DEBUG(
-      "Registered audio frame callback for participant={} track_name={} "
-      "replacing_existing={} total_audio_callbacks={}",
-      participant_identity, track_name, replacing, audio_callbacks_.size());
-  return true;
-}
-
-bool SubscriptionThreadDispatcher::trySetOnVideoFrameEventCallback(const std::string& participant_identity,
-                                                                   const std::string& track_name,
-                                                                   VideoFrameEventCallback callback,
-                                                                   const VideoStream::Options& opts) {
-  const CallbackKey key{participant_identity, track_name};
-  const std::scoped_lock<std::mutex> lock(lock_);
-  if (active_readers_.find(key) != active_readers_.end()) {
-    LK_LOG_WARN(
-        "Cannot register video frame event callback for participant={} track_name={} "
-        "because a reader is already active; call clearOnVideoFrameCallback() first",
-        participant_identity, track_name);
-    return false;
+  if (isSelfThread(thread.get_id())) {
+    // The caller IS this reader, so it called us from inside its own frame
+    // callback. Joining here would be a self-join. Detaching is safe: audio and
+    // video reader lambdas capture no `this` and own their stream and callback
+    // by value, so the thread touches nothing owned by the dispatcher once it
+    // has been extracted.
+    LK_LOG_ERROR(
+        "{} was called from inside its own frame callback; detaching the reader "
+        "instead of self-joining. Registering or clearing a callback from within "
+        "that callback is not supported",
+        operation);
+    thread.detach();
+    return;
   }
-  const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
-  video_callbacks_[key] = RegisteredVideoCallback{
-      VideoFrameCallback{},
-      std::move(callback),
-      opts,
-  };
-  LK_LOG_DEBUG(
-      "Registered video frame event callback for participant={} track_name={} "
-      "replacing_existing={} total_video_callbacks={}",
-      participant_identity, track_name, replacing, video_callbacks_.size());
-  return true;
-}
-
-bool SubscriptionThreadDispatcher::trySetOnVideoFrameCallback(const std::string& participant_identity,
-                                                              const std::string& track_name,
-                                                              VideoFrameCallback callback,
-                                                              const VideoStream::Options& opts) {
-  const CallbackKey key{participant_identity, track_name};
-  const std::scoped_lock<std::mutex> lock(lock_);
-  if (active_readers_.find(key) != active_readers_.end()) {
-    LK_LOG_WARN(
-        "Cannot register video frame callback for participant={} track_name={} "
-        "because a reader is already active; call clearOnVideoFrameCallback() first",
-        participant_identity, track_name);
-    return false;
-  }
-  const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
-  video_callbacks_[key] = RegisteredVideoCallback{
-      std::move(callback),
-      VideoFrameEventCallback{},
-      opts,
-  };
-  LK_LOG_DEBUG(
-      "Registered video frame callback for participant={} track_name={} "
-      "replacing_existing={} total_video_callbacks={}",
-      participant_identity, track_name, replacing, video_callbacks_.size());
-  return true;
+  thread.join();
 }
 
 void SubscriptionThreadDispatcher::setOnAudioFrameCallback(const std::string& participant_identity,
                                                            const std::string& track_name, AudioFrameCallback callback,
                                                            const AudioStream::Options& opts) {
-  (void)trySetOnAudioFrameCallback(participant_identity, track_name, std::move(callback), opts);
+  const CallbackKey key{participant_identity, track_name};
+  std::thread old_thread;
+  {
+    const std::scoped_lock<std::mutex> lock(lock_);
+    // Stop any reader still dispatching to the previous callback. Reader threads
+    // hold their own copy of the callback, so overwriting the registration alone
+    // would leave the old callback receiving frames.
+    old_thread = extractReaderThreadLocked(key);
+    const bool replacing = audio_callbacks_.find(key) != audio_callbacks_.end();
+    audio_callbacks_[key] = RegisteredAudioCallback{std::move(callback), opts};
+    LK_LOG_DEBUG(
+        "Registered audio frame callback for participant={} track_name={} "
+        "replacing_existing={} stopped_reader={} total_audio_callbacks={}",
+        participant_identity, track_name, replacing, old_thread.joinable(), audio_callbacks_.size());
+  }
+  disposeMediaReaderThread(std::move(old_thread), "setOnAudioFrameCallback");
 }
 
 void SubscriptionThreadDispatcher::setOnVideoFrameEventCallback(const std::string& participant_identity,
                                                                 const std::string& track_name,
                                                                 VideoFrameEventCallback callback,
                                                                 const VideoStream::Options& opts) {
-  (void)trySetOnVideoFrameEventCallback(participant_identity, track_name, std::move(callback), opts);
+  const CallbackKey key{participant_identity, track_name};
+  std::thread old_thread;
+  {
+    const std::scoped_lock<std::mutex> lock(lock_);
+    old_thread = extractReaderThreadLocked(key);
+    const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
+    video_callbacks_[key] = RegisteredVideoCallback{
+        VideoFrameCallback{},
+        std::move(callback),
+        opts,
+    };
+    LK_LOG_DEBUG(
+        "Registered video frame event callback for participant={} track_name={} "
+        "replacing_existing={} stopped_reader={} total_video_callbacks={}",
+        participant_identity, track_name, replacing, old_thread.joinable(), video_callbacks_.size());
+  }
+  disposeMediaReaderThread(std::move(old_thread), "setOnVideoFrameEventCallback");
 }
 
 void SubscriptionThreadDispatcher::setOnVideoFrameCallback(const std::string& participant_identity,
                                                            const std::string& track_name, VideoFrameCallback callback,
                                                            const VideoStream::Options& opts) {
-  (void)trySetOnVideoFrameCallback(participant_identity, track_name, std::move(callback), opts);
+  const CallbackKey key{participant_identity, track_name};
+  std::thread old_thread;
+  {
+    const std::scoped_lock<std::mutex> lock(lock_);
+    old_thread = extractReaderThreadLocked(key);
+    const bool replacing = video_callbacks_.find(key) != video_callbacks_.end();
+    video_callbacks_[key] = RegisteredVideoCallback{
+        std::move(callback),
+        VideoFrameEventCallback{},
+        opts,
+    };
+    LK_LOG_DEBUG(
+        "Registered video frame callback for participant={} track_name={} "
+        "replacing_existing={} stopped_reader={} total_video_callbacks={}",
+        participant_identity, track_name, replacing, old_thread.joinable(), video_callbacks_.size());
+  }
+  disposeMediaReaderThread(std::move(old_thread), "setOnVideoFrameCallback");
 }
 
 void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(const std::string& participant_identity,
@@ -164,9 +158,7 @@ void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(const std::string& 
         "removed_callback={} stopped_reader={} remaining_audio_callbacks={}",
         participant_identity, track_name, removed_callback, old_thread.joinable(), audio_callbacks_.size());
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  disposeMediaReaderThread(std::move(old_thread), "clearOnAudioFrameCallback");
 }
 
 void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(const std::string& participant_identity,
@@ -183,9 +175,7 @@ void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(const std::string& 
         "removed_callback={} stopped_reader={} remaining_video_callbacks={}",
         participant_identity, track_name, removed_callback, old_thread.joinable(), video_callbacks_.size());
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  disposeMediaReaderThread(std::move(old_thread), "clearOnVideoFrameCallback");
 }
 
 void SubscriptionThreadDispatcher::handleTrackSubscribed(const std::string& participant_identity,
@@ -206,9 +196,7 @@ void SubscriptionThreadDispatcher::handleTrackSubscribed(const std::string& part
     const std::scoped_lock<std::mutex> lock(lock_);
     old_thread = startReaderLocked(key, track);
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  disposeMediaReaderThread(std::move(old_thread), "handleTrackSubscribed");
 }
 
 void SubscriptionThreadDispatcher::handleTrackUnsubscribed(const std::string& participant_identity, TrackSource source,
@@ -223,9 +211,7 @@ void SubscriptionThreadDispatcher::handleTrackUnsubscribed(const std::string& pa
         "track_name={} stopped_reader={}",
         participant_identity, static_cast<int>(source), track_name, old_thread.joinable());
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  disposeMediaReaderThread(std::move(old_thread), "handleTrackUnsubscribed");
 }
 
 // -------------------------------------------------------------------
@@ -312,6 +298,19 @@ void SubscriptionThreadDispatcher::handleDataTrackUnpublished(const std::string&
             reader->stream->close();
           }
         }
+        if (isSelfThread(reader->thread_id)) {
+          // Reached from inside this reader's own data frame callback. It is now
+          // cancelled and its stream is closed, so it will exit on its own; leave
+          // the slot for stopAll() to reap rather than self-joining. Data readers
+          // cannot be detached -- they re-enter the dispatcher on the way out.
+          LK_LOG_ERROR(
+              "Data reader for callback id={} reached handleDataTrackUnpublished "
+              "from inside its own data frame callback; leaving the reader in "
+              "place to exit on its own",
+              it->first);
+          ++it;
+          continue;
+        }
         if (reader->thread.joinable()) {
           old_threads.push_back(std::move(reader->thread));
         }
@@ -333,7 +332,10 @@ void SubscriptionThreadDispatcher::handleDataTrackUnpublished(const std::string&
 }
 
 void SubscriptionThreadDispatcher::stopAll() {
-  std::vector<std::thread> threads;
+  // Media and data reader threads are disposed of differently: media threads may
+  // be safely detached on a self-join, data threads may not.
+  std::vector<std::thread> media_threads;
+  std::vector<std::thread> data_threads;
   {
     const std::scoped_lock<std::mutex> lock(lock_);
     LK_LOG_DEBUG(
@@ -351,7 +353,7 @@ void SubscriptionThreadDispatcher::stopAll() {
         reader.video_stream->close();
       }
       if (reader.thread.joinable()) {
-        threads.push_back(std::move(reader.thread));
+        media_threads.push_back(std::move(reader.thread));
       }
     }
     active_readers_.clear();
@@ -368,17 +370,23 @@ void SubscriptionThreadDispatcher::stopAll() {
         }
       }
       if (reader->thread.joinable()) {
-        threads.push_back(std::move(reader->thread));
+        data_threads.push_back(std::move(reader->thread));
       }
     }
     active_data_readers_.clear();
     data_callbacks_.clear();
     remote_data_tracks_.clear();
   }
-  for (auto& thread : threads) {
+  for (auto& thread : media_threads) {
+    disposeMediaReaderThread(std::move(thread), "stopAll");
+  }
+  // Data reader threads re-enter the dispatcher after their callback returns, so
+  // they must be joined even here. Tearing the room down from inside a data
+  // frame callback is unsupported and will self-join.
+  for (auto& thread : data_threads) {
     thread.join();
   }
-  LK_LOG_DEBUG("Stopped {} subscription reader threads", threads.size());
+  LK_LOG_DEBUG("Stopped {} subscription reader threads", media_threads.size() + data_threads.size());
 }
 
 std::thread SubscriptionThreadDispatcher::extractReaderThreadLocked(const CallbackKey& key) {
@@ -502,6 +510,7 @@ std::thread SubscriptionThreadDispatcher::startAudioReaderLocked(const CallbackK
     }
   });
   // NOLINTEND(bugprone-lambda-function-name,bugprone-exception-escape)
+  reader.thread_id = reader.thread.get_id();
   active_readers_[key] = std::move(reader);
   LK_LOG_DEBUG(
       "Started audio reader for participant={} track_name={} "
@@ -574,6 +583,7 @@ std::thread SubscriptionThreadDispatcher::startVideoReaderLocked(const CallbackK
     }
   });
   // NOLINTEND(bugprone-lambda-function-name,bugprone-exception-escape)
+  reader.thread_id = reader.thread.get_id();
   active_readers_[key] = std::move(reader);
   LK_LOG_DEBUG(
       "Started video reader for participant={} track_name={} "
@@ -589,6 +599,19 @@ std::thread SubscriptionThreadDispatcher::startVideoReaderLocked(const CallbackK
 std::thread SubscriptionThreadDispatcher::extractDataReaderThreadLocked(DataFrameCallbackId id) {
   auto it = active_data_readers_.find(id);
   if (it == active_data_readers_.end()) {
+    return {};
+  }
+  if (it->second && isSelfThread(it->second->thread_id)) {
+    // The caller IS this reader, so it reached us from inside its own data frame
+    // callback. Joining would be a self-join, and unlike media readers a data
+    // reader cannot be detached: it re-enters the dispatcher after the callback
+    // returns. Leave the slot in place -- the reader exits on its own once its
+    // stream closes, and stopAll() reaps it.
+    LK_LOG_ERROR(
+        "Data reader for callback id={} tried to tear itself down from inside its "
+        "own data frame callback; leaving the reader in place. Removing a data "
+        "callback from within that callback is not supported",
+        id);
     return {};
   }
   auto reader = std::move(it->second);
@@ -708,6 +731,7 @@ std::thread SubscriptionThreadDispatcher::startDataReaderLocked(DataFrameCallbac
     LK_LOG_INFO("Data reader thread exiting for \"{}\" track=\"{}\"", identity, track_name);
   });
   // NOLINTEND(bugprone-lambda-function-name)
+  reader->thread_id = reader->thread.get_id();
   active_data_readers_[id] = reader;
   return old_thread;
 }

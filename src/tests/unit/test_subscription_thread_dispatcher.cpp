@@ -81,6 +81,7 @@ protected:
   static auto& activeDataReaders(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.active_data_readers_; }
   static auto& remoteDataTracks(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.remote_data_tracks_; }
   static int maxActiveReaders() { return SubscriptionThreadDispatcher::kMaxActiveReaders; }
+  static bool isSelfThread(std::thread::id id) { return SubscriptionThreadDispatcher::isSelfThread(id); }
   static std::size_t activeReaderCount(SubscriptionThreadDispatcher& dispatcher) {
     const std::scoped_lock<std::mutex> lock(dispatcher.lock_);
     return dispatcher.active_readers_.size();
@@ -196,21 +197,21 @@ TEST_F(SubscriptionThreadDispatcherTest, MaxActiveReadersIs20) { EXPECT_EQ(maxAc
 
 TEST_F(SubscriptionThreadDispatcherTest, SetAudioCallbackStoresRegistration) {
   SubscriptionThreadDispatcher dispatcher;
-  EXPECT_TRUE(dispatcher.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {}));
+  dispatcher.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
 
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u);
 }
 
 TEST_F(SubscriptionThreadDispatcherTest, SetVideoCallbackStoresRegistration) {
   SubscriptionThreadDispatcher dispatcher;
-  EXPECT_TRUE(dispatcher.trySetOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {}));
+  dispatcher.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
 
   EXPECT_EQ(videoCallbacks(dispatcher).size(), 1u);
 }
 
 TEST_F(SubscriptionThreadDispatcherTest, ClearAudioCallbackRemovesRegistration) {
   SubscriptionThreadDispatcher dispatcher;
-  (void)dispatcher.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+  dispatcher.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
   ASSERT_EQ(audioCallbacks(dispatcher).size(), 1u);
 
   dispatcher.clearOnAudioFrameCallback("alice", "mic-main");
@@ -219,7 +220,7 @@ TEST_F(SubscriptionThreadDispatcherTest, ClearAudioCallbackRemovesRegistration) 
 
 TEST_F(SubscriptionThreadDispatcherTest, ClearVideoCallbackRemovesRegistration) {
   SubscriptionThreadDispatcher dispatcher;
-  (void)dispatcher.trySetOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
+  dispatcher.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
   ASSERT_EQ(videoCallbacks(dispatcher).size(), 1u);
 
   dispatcher.clearOnVideoFrameCallback("alice", "cam-main");
@@ -237,26 +238,26 @@ TEST_F(SubscriptionThreadDispatcherTest, OverwriteAudioCallbackKeepsSingleEntry)
   std::atomic<int> counter1{0};
   std::atomic<int> counter2{0};
 
-  (void)dispatcher.trySetOnAudioFrameCallback("alice", "mic-main", [&counter1](const AudioFrame&) { counter1++; });
-  (void)dispatcher.trySetOnAudioFrameCallback("alice", "mic-main", [&counter2](const AudioFrame&) { counter2++; });
+  dispatcher.setOnAudioFrameCallback("alice", "mic-main", [&counter1](const AudioFrame&) { counter1++; });
+  dispatcher.setOnAudioFrameCallback("alice", "mic-main", [&counter2](const AudioFrame&) { counter2++; });
 
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u) << "Re-registering with the same key should overwrite, not add";
 }
 
 TEST_F(SubscriptionThreadDispatcherTest, OverwriteVideoCallbackKeepsSingleEntry) {
   SubscriptionThreadDispatcher dispatcher;
-  (void)dispatcher.trySetOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
-  (void)dispatcher.trySetOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
+  dispatcher.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
+  dispatcher.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
 
   EXPECT_EQ(videoCallbacks(dispatcher).size(), 1u);
 }
 
 TEST_F(SubscriptionThreadDispatcherTest, MultipleDistinctCallbacksAreIndependent) {
   SubscriptionThreadDispatcher dispatcher;
-  (void)dispatcher.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
-  (void)dispatcher.trySetOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
-  (void)dispatcher.trySetOnAudioFrameCallback("bob", "mic-main", [](const AudioFrame&) {});
-  (void)dispatcher.trySetOnVideoFrameCallback("bob", "cam-main", [](const VideoFrame&, std::int64_t) {});
+  dispatcher.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+  dispatcher.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
+  dispatcher.setOnAudioFrameCallback("bob", "mic-main", [](const AudioFrame&) {});
+  dispatcher.setOnVideoFrameCallback("bob", "cam-main", [](const VideoFrame&, std::int64_t) {});
 
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 2u);
   EXPECT_EQ(videoCallbacks(dispatcher).size(), 2u);
@@ -268,8 +269,8 @@ TEST_F(SubscriptionThreadDispatcherTest, MultipleDistinctCallbacksAreIndependent
 
 TEST_F(SubscriptionThreadDispatcherTest, ClearingOneTrackNameDoesNotAffectOther) {
   SubscriptionThreadDispatcher dispatcher;
-  (void)dispatcher.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
-  (void)dispatcher.trySetOnAudioFrameCallback("alice", "screenshare-main", [](const AudioFrame&) {});
+  dispatcher.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+  dispatcher.setOnAudioFrameCallback("alice", "screenshare-main", [](const AudioFrame&) {});
   ASSERT_EQ(audioCallbacks(dispatcher).size(), 2u);
 
   dispatcher.clearOnAudioFrameCallback("alice", "mic-main");
@@ -290,7 +291,7 @@ TEST_F(SubscriptionThreadDispatcherTest, NoActiveReadersInitially) {
 
 TEST_F(SubscriptionThreadDispatcherTest, ActiveReadersEmptyAfterCallbackRegistration) {
   SubscriptionThreadDispatcher dispatcher;
-  (void)dispatcher.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+  dispatcher.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
   EXPECT_TRUE(activeReaders(dispatcher).empty())
       << "Registering a callback without a subscribed track should not spawn "
          "readers";
@@ -303,15 +304,15 @@ TEST_F(SubscriptionThreadDispatcherTest, ActiveReadersEmptyAfterCallbackRegistra
 TEST_F(SubscriptionThreadDispatcherTest, DestroyDispatcherWithRegisteredCallbacksIsSafe) {
   EXPECT_NO_THROW({
     SubscriptionThreadDispatcher dispatcher;
-    (void)dispatcher.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
-    (void)dispatcher.trySetOnVideoFrameCallback("bob", "cam-main", [](const VideoFrame&, std::int64_t) {});
+    dispatcher.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+    dispatcher.setOnVideoFrameCallback("bob", "cam-main", [](const VideoFrame&, std::int64_t) {});
   });
 }
 
 TEST_F(SubscriptionThreadDispatcherTest, DestroyDispatcherAfterClearingCallbacksIsSafe) {
   EXPECT_NO_THROW({
     SubscriptionThreadDispatcher dispatcher;
-    (void)dispatcher.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+    dispatcher.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
     dispatcher.clearOnAudioFrameCallback("alice", "mic-main");
   });
 }
@@ -332,7 +333,7 @@ TEST_F(SubscriptionThreadDispatcherTest, ConcurrentRegistrationDoesNotCrash) {
     threads.emplace_back([&dispatcher, t, kIterations]() {
       for (int i = 0; i < kIterations; ++i) {
         const std::string id = "participant-" + std::to_string(t);
-        (void)dispatcher.trySetOnAudioFrameCallback(id, "mic-main", [](const AudioFrame&) {});
+        dispatcher.setOnAudioFrameCallback(id, "mic-main", [](const AudioFrame&) {});
         dispatcher.clearOnAudioFrameCallback(id, "mic-main");
       }
     });
@@ -357,8 +358,8 @@ TEST_F(SubscriptionThreadDispatcherTest, ConcurrentMixedAudioVideoRegistration) 
     threads.emplace_back([&dispatcher, t, kIterations]() {
       const std::string id = "p-" + std::to_string(t);
       for (int i = 0; i < kIterations; ++i) {
-        (void)dispatcher.trySetOnAudioFrameCallback(id, "mic-main", [](const AudioFrame&) {});
-        (void)dispatcher.trySetOnVideoFrameCallback(id, "cam-main", [](const VideoFrame&, std::int64_t) {});
+        dispatcher.setOnAudioFrameCallback(id, "mic-main", [](const AudioFrame&) {});
+        dispatcher.setOnVideoFrameCallback(id, "cam-main", [](const VideoFrame&, std::int64_t) {});
       }
     });
   }
@@ -380,8 +381,7 @@ TEST_F(SubscriptionThreadDispatcherTest, ManyDistinctCallbacksCanBeRegistered) {
   constexpr int kCount = 50;
 
   for (int i = 0; i < kCount; ++i) {
-    (void)dispatcher.trySetOnAudioFrameCallback("participant-" + std::to_string(i), "mic-main",
-                                                [](const AudioFrame&) {});
+    dispatcher.setOnAudioFrameCallback("participant-" + std::to_string(i), "mic-main", [](const AudioFrame&) {});
   }
 
   EXPECT_EQ(audioCallbacks(dispatcher).size(), static_cast<size_t>(kCount));
@@ -617,7 +617,7 @@ TEST_F(SubscriptionThreadDispatcherTest, ExtractFinishedDataReaderRemovesEntryAn
 
 TEST_F(SubscriptionThreadDispatcherTest, DuplicateSubscribeWithSameAudioSidDoesNotRestartReader) {
   SubscriptionThreadDispatcher dispatcher;
-  (void)dispatcher.trySetOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
+  dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
 
   // Simulate an already-running reader for this subscription.
   const CallbackKey key{"alice", "mic"};
@@ -636,7 +636,7 @@ TEST_F(SubscriptionThreadDispatcherTest, DuplicateSubscribeWithSameAudioSidDoesN
 
 TEST_F(SubscriptionThreadDispatcherTest, DuplicateSubscribeWithSameVideoSidDoesNotRestartReader) {
   SubscriptionThreadDispatcher dispatcher;
-  (void)dispatcher.trySetOnVideoFrameCallback("alice", "cam", [](const VideoFrame&, std::int64_t) {});
+  dispatcher.setOnVideoFrameCallback("alice", "cam", [](const VideoFrame&, std::int64_t) {});
 
   const CallbackKey key{"alice", "cam"};
   activeReaders(dispatcher)[key].track_sid = "TR_video_1";
@@ -651,96 +651,151 @@ TEST_F(SubscriptionThreadDispatcherTest, DuplicateSubscribeWithSameVideoSidDoesN
 }
 
 // ============================================================================
-// trySetOn* replacement semantics: registration is rejected while a reader is
-// active; clearing first allows re-registration.
+// setOn* replacement semantics: re-registering for a key with an active reader
+// stops that reader in place so the next start binds the new callback.
 // ============================================================================
 
-TEST_F(SubscriptionThreadDispatcherTest, TrySetOnAudioWhileReaderActiveIsRejected) {
+TEST_F(SubscriptionThreadDispatcherTest, SetOnAudioWhileReaderActiveReplacesRegistrationAndStopsReader) {
   SubscriptionThreadDispatcher dispatcher;
-  ASSERT_TRUE(dispatcher.trySetOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {}));
+  dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
 
   // Simulate an already-running reader for this subscription.
   const CallbackKey key{"alice", "mic"};
   activeReaders(dispatcher)[key].track_sid = "TR_audio_1";
   ASSERT_EQ(activeReaderCount(dispatcher), 1u);
 
-  EXPECT_FALSE(dispatcher.trySetOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {}))
-      << "Replacing a callback while its reader is active must be rejected";
+  dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
+
+  EXPECT_EQ(activeReaderCount(dispatcher), 0u) << "The stale reader must be extracted so it stops dispatching to the "
+                                                  "callback it captured by value";
+  EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u);
 }
 
-TEST_F(SubscriptionThreadDispatcherTest, TrySetOnVideoWhileReaderActiveIsRejected) {
+TEST_F(SubscriptionThreadDispatcherTest, SetOnVideoWhileReaderActiveReplacesRegistrationAndStopsReader) {
   SubscriptionThreadDispatcher dispatcher;
-  ASSERT_TRUE(dispatcher.trySetOnVideoFrameCallback("alice", "cam", [](const VideoFrame&, std::int64_t) {}));
+  dispatcher.setOnVideoFrameCallback("alice", "cam", [](const VideoFrame&, std::int64_t) {});
 
   const CallbackKey key{"alice", "cam"};
   activeReaders(dispatcher)[key].track_sid = "TR_video_1";
   ASSERT_EQ(activeReaderCount(dispatcher), 1u);
 
-  EXPECT_FALSE(dispatcher.trySetOnVideoFrameCallback("alice", "cam", [](const VideoFrame&, std::int64_t) {}));
-  EXPECT_FALSE(dispatcher.trySetOnVideoFrameEventCallback("alice", "cam", [](const VideoFrameEvent&) {}));
+  dispatcher.setOnVideoFrameCallback("alice", "cam", [](const VideoFrame&, std::int64_t) {});
+
+  EXPECT_EQ(activeReaderCount(dispatcher), 0u);
+  EXPECT_EQ(videoCallbacks(dispatcher).size(), 1u);
 }
 
-TEST_F(SubscriptionThreadDispatcherTest, ClearThenTrySetOnAudioRegistersNewCallback) {
+TEST_F(SubscriptionThreadDispatcherTest, SetOnVideoEventWhileReaderActiveReplacesRegistrationAndStopsReader) {
   SubscriptionThreadDispatcher dispatcher;
-  ASSERT_TRUE(dispatcher.trySetOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {}));
+  dispatcher.setOnVideoFrameCallback("alice", "cam", [](const VideoFrame&, std::int64_t) {});
+
+  const CallbackKey key{"alice", "cam"};
+  activeReaders(dispatcher)[key].track_sid = "TR_video_1";
+  ASSERT_EQ(activeReaderCount(dispatcher), 1u);
+
+  // The legacy and event callbacks share one registration slot, so registering
+  // the event variant must displace the legacy one and stop its reader.
+  dispatcher.setOnVideoFrameEventCallback("alice", "cam", [](const VideoFrameEvent&) {});
+
+  EXPECT_EQ(activeReaderCount(dispatcher), 0u);
+  ASSERT_EQ(videoCallbacks(dispatcher).size(), 1u);
+  EXPECT_FALSE(static_cast<bool>(videoCallbacks(dispatcher)[key].legacy_callback));
+  EXPECT_TRUE(static_cast<bool>(videoCallbacks(dispatcher)[key].event_callback));
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, SetOnAudioAfterReplacementRestartsOnNextSubscribe) {
+  SubscriptionThreadDispatcher dispatcher;
+  dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
 
   const CallbackKey key{"alice", "mic"};
   activeReaders(dispatcher)[key].track_sid = "TR_audio_1";
   ASSERT_EQ(activeReaderCount(dispatcher), 1u);
 
-  // Rejected while active, accepted once the reader is cleared.
-  ASSERT_FALSE(dispatcher.trySetOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {}));
-  dispatcher.clearOnAudioFrameCallback("alice", "mic");
-  EXPECT_EQ(activeReaderCount(dispatcher), 0u);
-  EXPECT_TRUE(dispatcher.trySetOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {}));
+  // Replacing extracts the reader, so the SID dedup guard no longer suppresses a
+  // restart for the same publication -- this is what lets Room rebuild the reader
+  // against the new callback.
+  dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
+  ASSERT_EQ(activeReaderCount(dispatcher), 0u);
+
+  // Re-subscribing the same SID now reaches stream construction instead of being
+  // short-circuited by the guard. The fake track carries an invalid FFI handle,
+  // so AudioStream::fromTrack throws -- that throw is precisely the evidence
+  // that startup was attempted rather than skipped.
+  auto track = std::make_shared<FakeMediaTrack>("TR_audio_1", TrackKind::KIND_AUDIO);
+  EXPECT_ANY_THROW(dispatcher.handleTrackSubscribed("alice", "mic", track));
+
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u);
 }
 
-TEST_F(SubscriptionThreadDispatcherTest, ClearThenDeprecatedSetOnAudioRegistersNewCallback) {
+TEST_F(SubscriptionThreadDispatcherTest, SetOnAudioWithoutReplacementLeavesSidGuardIntact) {
   SubscriptionThreadDispatcher dispatcher;
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
   dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#elif defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
 
   const CallbackKey key{"alice", "mic"};
   activeReaders(dispatcher)[key].track_sid = "TR_audio_1";
   ASSERT_EQ(activeReaderCount(dispatcher), 1u);
 
+  // Counterpart to the test above: with the reader still in place, a duplicate
+  // subscribe for the same SID is skipped and never reaches stream construction.
+  auto track = std::make_shared<FakeMediaTrack>("TR_audio_1", TrackKind::KIND_AUDIO);
+  EXPECT_NO_THROW(dispatcher.handleTrackSubscribed("alice", "mic", track));
+  EXPECT_EQ(activeReaderCount(dispatcher), 1u);
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, SetOnAudioWithoutActiveReaderOverwritesRegistration) {
+  SubscriptionThreadDispatcher dispatcher;
+  dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
+  // No reader is active, so re-registering the same key simply overwrites the
+  // stored callback.
+  dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
+  EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u);
+  EXPECT_EQ(activeReaderCount(dispatcher), 0u);
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, ClearThenSetOnAudioRegistersNewCallback) {
+  SubscriptionThreadDispatcher dispatcher;
+  dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
+
+  const CallbackKey key{"alice", "mic"};
+  activeReaders(dispatcher)[key].track_sid = "TR_audio_1";
+  ASSERT_EQ(activeReaderCount(dispatcher), 1u);
+
+  // Clearing first is no longer required, but must still work.
   dispatcher.clearOnAudioFrameCallback("alice", "mic");
   EXPECT_EQ(activeReaderCount(dispatcher), 0u);
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#elif defined(__GNUC__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
+  EXPECT_TRUE(audioCallbacks(dispatcher).empty());
+
   dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#elif defined(__GNUC__)
-#pragma GCC diagnostic pop
-#endif
   EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u);
 }
 
-TEST_F(SubscriptionThreadDispatcherTest, TrySetOnAudioWithoutActiveReaderOverwritesRegistration) {
+// ============================================================================
+// Self-join detection
+// ============================================================================
+
+TEST_F(SubscriptionThreadDispatcherTest, IsSelfThreadIdentifiesTheCallingThread) {
+  EXPECT_TRUE(isSelfThread(std::this_thread::get_id()));
+  EXPECT_FALSE(isSelfThread(std::thread::id{})) << "A default-constructed id must never match a running thread";
+
+  std::thread other([]() {});
+  const auto other_id = other.get_id();
+  other.join();
+  EXPECT_FALSE(isSelfThread(other_id));
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, ReplacingReaderWithDefaultThreadIdDisposesCleanly) {
   SubscriptionThreadDispatcher dispatcher;
-  EXPECT_TRUE(dispatcher.trySetOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {}));
-  // No reader is active, so re-registering the same key is allowed and simply
-  // overwrites the stored callback.
-  EXPECT_TRUE(dispatcher.trySetOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {}));
-  EXPECT_EQ(audioCallbacks(dispatcher).size(), 1u);
+  dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
+
+  // A fabricated reader carries a default-constructed thread_id and a
+  // non-joinable thread; disposal must treat it as someone else's thread and
+  // simply drop it rather than taking the self-join path.
+  const CallbackKey key{"alice", "mic"};
+  activeReaders(dispatcher)[key].track_sid = "TR_audio_1";
+  ASSERT_EQ(activeReaders(dispatcher)[key].thread_id, std::thread::id{});
+
+  dispatcher.setOnAudioFrameCallback("alice", "mic", [](const AudioFrame&) {});
+  EXPECT_EQ(activeReaderCount(dispatcher), 0u);
 }
 
 // ============================================================================
@@ -842,8 +897,8 @@ TEST_F(SubscriptionThreadDispatcherTest, DestroyDispatcherAfterRemovingDataCallb
 
 TEST_F(SubscriptionThreadDispatcherTest, MixedAudioVideoDataCallbacksAreIndependent) {
   SubscriptionThreadDispatcher dispatcher;
-  (void)dispatcher.trySetOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
-  (void)dispatcher.trySetOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
+  dispatcher.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+  dispatcher.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {});
   dispatcher.addOnDataFrameCallback("alice", "data-track",
                                     [](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {});
 
