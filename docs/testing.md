@@ -45,6 +45,50 @@ __Note:__ The tests require tokens and a running LiveKit server. See the section
 | `livekit_integration_tests` | Quick tests (~1-2 minutes) for SDK functionality |
 | `livekit_stress_tests` | Long-running tests (configurable, default 1 hour) |
 
+## Offline room-operation reproducer
+
+`livekit_disconnect_offline_tester` is a standalone POSIX-only tester for an
+offline `Room::disconnect()` or `LocalParticipant::unpublishTrack()` call. It
+publishes a local video track, places a loopback TCP fault proxy in front of a
+`ws://` LiveKit server, resets the active signal connection, waits for the room
+to enter `Reconnecting`, and invokes the selected operation while reconnect
+traffic remains frozen. Forwarding resumes after the chosen observation
+period.
+
+The tester keeps its `RoomDelegate` alive throughout disconnect. This follows
+the corrected shutdown ordering from issue #222 and isolates the blocking
+behavior from the original report's separate dangling-delegate risk.
+
+Build it with the normal test build:
+
+```bash
+./build.sh debug-tests
+```
+
+Supply a non-TLS (`ws://`) server URL and token, either directly or through the
+normal test environment:
+
+```bash
+export LIVEKIT_URL=ws://localhost:7880
+export LIVEKIT_TOKEN_A='<token with room-join permission>'
+./build-debug/bin/livekit_disconnect_offline_tester \
+  --operation disconnect --offline-duration-ms 10000
+
+# Exercise the related unpublishTrack wait reported in the follow-up.
+./build-debug/bin/livekit_disconnect_offline_tester \
+  --operation unpublish-track --offline-duration-ms 10000
+```
+
+The proxy cannot be used with `wss://`: it tunnels raw TCP through
+`127.0.0.1`, which does not preserve the server hostname required for TLS
+certificate validation. The program prints the elapsed time spent inside
+the selected operation; an elapsed time near or above the offline duration
+reproduces the reported blocking behavior. A healthy implementation should
+return promptly without waiting for proxy forwarding to resume. With the
+current Rust FFI, the unpublish variant can remain blocked even after forwarding
+resumes and must be terminated manually; this reproduces the missing
+`UnpublishTrackCallback`, not a fault in the tester.
+
 ## Running a local LiveKit server for tests
 
 The integration and stress suites need a running LiveKit server. The easiest
