@@ -14,13 +14,6 @@
  * limitations under the License.
  */
 
-// This test is used to verify that data tracks are published and received
-// correctly. It is the same implementation as the rust
-// client-sdk-rust/livekit/tests/data_track_test.rs test. To run this test, run
-// a local SFU, set credentials examples/tokens/set_data_track_test_tokens.bash,
-// and run:
-//   ./build-debug/bin/livekit_integration_tests
-
 #include <livekit/data_track_options.h>
 #include <livekit/data_track_schema.h>
 #include <livekit/data_track_stream.h>
