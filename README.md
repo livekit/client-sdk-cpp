@@ -191,6 +191,23 @@ room->addOnDataFrameCallback(sender_identity, "app-data",
                              });
 ```
 
+Calling `setOnAudioFrameCallback` / `setOnVideoFrameCallback` /
+`setOnVideoFrameEventCallback` again for the same
+`(participant_identity, track_name)` **replaces** the callback in place. The
+previous reader is stopped and its thread joined before the call returns, then a
+fresh reader is started bound to the new callback — there is no need to call
+`clearOn*FrameCallback` first. Two consequences worth knowing:
+
+- **These calls block** until any in-flight invocation of the previous callback
+  returns. When the call returns, the old callback is guaranteed to have
+  finished and been destroyed. A callback that blocks forever blocks
+  registration forever.
+- **Do not register or clear from inside a frame callback.** Doing so would make
+  the join a self-join. The SDK detects this, logs an error, and detaches the
+  reader (media) or leaves it in place to be reaped at teardown (data), but the
+  registration does not behave as intended. Drive callback changes from another
+  thread.
+
 For end-to-end samples and a fuller set of demos, see the [cpp-example-collection repo](https://github.com/livekit-examples/cpp-example-collection).
 
 ### Generating tokens
@@ -275,13 +292,6 @@ The following features are deprecated and will be removed in the next major rele
 
 - `PacketTrailerFeatures` is deprecated. Use `FrameMetadataFeatures` via
   `TrackPublishOptions::frame_metadata_features` instead.
-- `Room::setOnAudioFrameCallback`, `Room::setOnVideoFrameCallback`, and
-  `Room::setOnVideoFrameEventCallback` are deprecated. Use the `[[nodiscard]]`
-  variants `trySetOnAudioFrameCallback`, `trySetOnVideoFrameCallback`, and
-  `trySetOnVideoFrameEventCallback` instead, which return `false` when a reader
-  is already active for the key (instead of silently replacing a running callback).
-  To replace an active callback, call `clearOn*FrameCallback` first. (The same rename
-  applies to the corresponding `SubscriptionThreadDispatcher` methods.)
 
 ### `v1.0.0`
 

@@ -313,92 +313,15 @@ public:
   // Frame callbacks
   // ---------------------------------------------------------------
 
-  /// Register an audio frame callback for a remote subscription.
-  ///
-  /// The callback is keyed by @p participant_identity and @p track_name. If the
-  /// matching remote audio track is already subscribed, a reader is started
-  /// immediately; otherwise the reader starts when the track is subscribed.
-  ///
-  /// To replace a callback whose reader is already running, call
-  /// @ref clearOnAudioFrameCallback first, then register again:
-  /// @code
-  /// room.clearOnAudioFrameCallback(identity, track_name);
-  /// if (!room.trySetOnAudioFrameCallback(identity, track_name, new_handler)) {
-  ///   // registration was rejected (a reader is still active)
-  /// }
-  /// @endcode
-  ///
-  /// @param participant_identity Identity of the remote participant.
-  /// @param track_name           Track name to match.
-  /// @param callback             Function invoked for each decoded audio frame.
-  /// @param opts                 Options used when creating the backing
-  ///                             @ref AudioStream.
-  /// @return @c true if the callback was registered; @c false if a reader is
-  ///         already active for the key (call @ref clearOnAudioFrameCallback
-  ///         first) or the room has no dispatcher.
-  [[nodiscard]] bool trySetOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
-                                                AudioFrameCallback callback, const AudioStream::Options& opts = {});
-
-  /// Register a video frame callback for a remote subscription.
-  ///
-  /// The callback is keyed by @p participant_identity and @p track_name. If the
-  /// matching remote video track is already subscribed, a reader is started
-  /// immediately; otherwise the reader starts when the track is subscribed.
-  ///
-  /// To replace a callback whose reader is already running, call
-  /// @ref clearOnVideoFrameCallback first, then register again.
-  ///
-  /// @param participant_identity Identity of the remote participant.
-  /// @param track_name           Track name to match.
-  /// @param callback             Function invoked for each decoded video frame.
-  /// @param opts                 Options used when creating the backing
-  ///                             @ref VideoStream.
-  /// @return @c true if the callback was registered; @c false if a reader is
-  ///         already active for the key (call @ref clearOnVideoFrameCallback
-  ///         first) or the room has no dispatcher.
-  [[nodiscard]] bool trySetOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
-                                                VideoFrameCallback callback, const VideoStream::Options& opts = {});
-
-  /// Register a rich video frame event callback for a remote subscription.
-  ///
-  /// The callback is keyed by @p participant_identity and @p track_name. If the
-  /// matching remote video track is already subscribed, a reader is started
-  /// immediately; otherwise the reader starts when the track is subscribed.
-  ///
-  /// To replace a callback whose reader is already running, call
-  /// @ref clearOnVideoFrameCallback first, then register again.
-  ///
-  /// @param participant_identity Identity of the remote participant.
-  /// @param track_name           Track name to match.
-  /// @param callback             Function invoked for each decoded video frame
-  ///                             event, including optional metadata.
-  /// @param opts                 Options used when creating the backing
-  ///                             @ref VideoStream.
-  /// @return @c true if the callback was registered; @c false if a reader is
-  ///         already active for the key (call @ref clearOnVideoFrameCallback
-  ///         first) or the room has no dispatcher.
-  [[nodiscard]] bool trySetOnVideoFrameEventCallback(const std::string& participant_identity,
-                                                     const std::string& track_name, VideoFrameEventCallback callback,
-                                                     const VideoStream::Options& opts = {});
-
-  /// @deprecated Use trySetOnAudioFrameCallback() instead.
-  ///
-  /// Forwards to @ref trySetOnAudioFrameCallback and discards the result.
-  [[deprecated("Room::setOnAudioFrameCallback is deprecated; use trySetOnAudioFrameCallback instead")]]
+  /// Register or replace an audio frame callback for a remote subscription via SubscriptionThreadDispatcher.
   void setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                AudioFrameCallback callback, const AudioStream::Options& opts = {});
 
-  /// @deprecated Use trySetOnVideoFrameCallback() instead.
-  ///
-  /// Forwards to @ref trySetOnVideoFrameCallback and discards the result.
-  [[deprecated("Room::setOnVideoFrameCallback is deprecated; use trySetOnVideoFrameCallback instead")]]
+  /// Register or replace a video frame callback for a remote subscription via SubscriptionThreadDispatcher.
   void setOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                VideoFrameCallback callback, const VideoStream::Options& opts = {});
 
-  /// @deprecated Use trySetOnVideoFrameEventCallback() instead.
-  ///
-  /// Forwards to @ref trySetOnVideoFrameEventCallback and discards the result.
-  [[deprecated("Room::setOnVideoFrameEventCallback is deprecated; use trySetOnVideoFrameEventCallback instead")]]
+  /// Register or replace a video frame event callback for a remote subscription via SubscriptionThreadDispatcher.
   void setOnVideoFrameEventCallback(const std::string& participant_identity, const std::string& track_name,
                                     VideoFrameEventCallback callback, const VideoStream::Options& opts = {});
 
