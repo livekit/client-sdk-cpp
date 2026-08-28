@@ -44,7 +44,10 @@ Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(const std::uint
     return Result<void, LocalDataTrackTryPushError>::failure(LocalDataTrackTryPushError{
         LocalDataTrackTryPushErrorCode::INVALID_HANDLE, "LocalDataTrack::tryPush: invalid FFI handle"});
   }
-  if (size != 0 && data == nullptr) {
+  if (size == 0) {
+    return Result<void, LocalDataTrackTryPushError>::success();
+  }
+  if (data == nullptr) {
     return Result<void, LocalDataTrackTryPushError>::failure(LocalDataTrackTryPushError{
         LocalDataTrackTryPushErrorCode::INTERNAL, "LocalDataTrack::tryPush: payload pointer is null"});
   }

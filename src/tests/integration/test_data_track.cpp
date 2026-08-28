@@ -973,6 +973,8 @@ TEST_F(DataTrackE2ETest, AcceptsEmptyPayload) {
   auto rooms = testRooms(1);
   auto local_track = requirePublishedTrack(rooms[0]->localParticipant(), track_name);
 
+  const std::uint8_t payload = 0;
+  EXPECT_TRUE(local_track->tryPush(&payload, 0));
   EXPECT_TRUE(local_track->tryPush(nullptr, 0));
   EXPECT_TRUE(local_track->tryPush(std::vector<std::uint8_t>{}));
 

@@ -67,12 +67,16 @@ public:
 
   /// Try to push a frame to all subscribers of this track.
   ///
+  /// An empty payload succeeds without sending a frame to subscribers.
+  ///
   /// @param frame The frame to push.
   /// @return Success on delivery acceptance, or a typed error describing why
   ///         the frame could not be queued.
   Result<void, LocalDataTrackTryPushError> tryPush(const DataTrackFrame& frame);
 
   /// Try to push a frame to all subscribers of this track.
+  ///
+  /// An empty payload succeeds without sending a frame to subscribers.
   ///
   /// @param payload The payload to push.
   /// @param user_timestamp Optional application-defined timestamp. The unit is
@@ -86,13 +90,15 @@ public:
   ///
   /// Copies @p size bytes from @p data into an FFI request before returning;
   /// the SDK does not retain the buffer.
+  /// An empty payload succeeds without sending a frame to subscribers.
   ///
   /// @note This avoids an intermediate copy when the caller already owns a byte
   /// buffer, but it is not a zero-copy send.
   ///
-  /// @param data Pointer to @p size payload bytes. May be null when @p size is
-  ///        zero.
-  /// @param size Number of bytes at @p data. May be zero.
+  /// @param data Pointer to @p size payload bytes. Must be non-null when
+  ///        @p size is non-zero.
+  /// @param size Number of bytes at @p data. A value of zero is a successful
+  ///        no-op.
   /// @param user_timestamp Optional application-defined timestamp. The unit is
   ///        caller-defined.
   /// @return Success on delivery acceptance, or a typed error describing why
