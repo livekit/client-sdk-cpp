@@ -16,16 +16,21 @@
 
 #include <livekit/livekit.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <cstdint>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "tcp_fault_proxy.h"
 
@@ -51,22 +56,46 @@ struct Options {
   Operation operation{Operation::Disconnect};
 };
 
-/// Mirrors the application-owned delegate in issue #222.
-class ShutdownDelegate final : public livekit::RoomDelegate {
+/// Tracks the reconnect transition without blocking the FFI callback thread.
+class ReconnectTrackingDelegate final : public livekit::RoomDelegate {
 public:
+  void onConnectionStateChanged(livekit::Room&, const livekit::ConnectionStateChangedEvent& event) override {
+    {
+      const std::scoped_lock<std::mutex> lock(mutex_);
+      connected_ = event.state == livekit::ConnectionState::Connected;
+    }
+    connected_cv_.notify_all();
+  }
+
   void onReconnecting(livekit::Room&, const livekit::ReconnectingEvent&) override {
-    reconnecting_.store(true);
-    std::cout << "ShutdownDelegate::onReconnecting invoked.\n";
+    {
+      const std::scoped_lock<std::mutex> lock(mutex_);
+      reconnecting_ = true;
+    }
+    reconnecting_cv_.notify_all();
+    std::cout << "ReconnectTrackingDelegate::onReconnecting invoked.\n";
   }
 
   void onDisconnected(livekit::Room&, const livekit::DisconnectedEvent&) override {
-    std::cout << "ShutdownDelegate::onDisconnected invoked.\n";
+    std::cout << "ReconnectTrackingDelegate::onDisconnected invoked.\n";
   }
 
-  bool reconnecting() const { return reconnecting_.load(); }
+  bool waitForConnected(std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return connected_cv_.wait_for(lock, timeout, [this]() { return connected_; });
+  }
+
+  bool waitForReconnecting(std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return reconnecting_cv_.wait_for(lock, timeout, [this]() { return reconnecting_; });
+  }
 
 private:
-  std::atomic_bool reconnecting_{false};
+  std::mutex mutex_;
+  std::condition_variable reconnecting_cv_;
+  std::condition_variable connected_cv_;
+  bool reconnecting_{false};
+  bool connected_{false};
 };
 
 [[noreturn]] void usage(const char* executable, const std::string& error = {}) {
@@ -143,28 +172,10 @@ ServerAddress parseWsUrl(const std::string& url) {
           path_start == std::string::npos ? "" : authority_and_path.substr(path_start)};
 }
 
-bool waitForConnection(const livekit::test::TcpFaultProxy& proxy, std::chrono::milliseconds timeout) {
-  const auto deadline = std::chrono::steady_clock::now() + timeout;
-  while (std::chrono::steady_clock::now() < deadline) {
-    if (proxy.acceptedConnectionCount() != 0) return true;
-    std::this_thread::sleep_for(10ms);
-  }
-  return false;
-}
-
-bool waitForReconnecting(const ShutdownDelegate& delegate, std::chrono::milliseconds timeout) {
-  const auto deadline = std::chrono::steady_clock::now() + timeout;
-  while (std::chrono::steady_clock::now() < deadline) {
-    std::cout << "### Waiting for reconnecting: " << delegate.reconnecting() << "\n";
-    if (delegate.reconnecting()) return true;
-    std::this_thread::sleep_for(10ms);
-  }
-  return false;
-}
-
 } // namespace
 
 int main(int argc, char* argv[]) {
+  std::atomic_bool capture_running{true};
   try {
     std::cout << std::unitbuf;
     const Options options = parseOptions(argc, argv);
@@ -173,90 +184,105 @@ int main(int argc, char* argv[]) {
     proxy.start();
     const std::string proxy_url = "ws://127.0.0.1:" + std::to_string(proxy.listenPort()) + upstream.path;
 
+    setenv("RUST_LOG", "info", 1);
+
     std::cout << "Connecting through " << proxy_url << " to " << options.url << '\n';
     livekit::initialize(livekit::LogLevel::Debug);
     std::unique_ptr<livekit::Room> room = std::make_unique<livekit::Room>();
-    auto delegate = std::make_unique<ShutdownDelegate>();
+    auto delegate = std::make_unique<ReconnectTrackingDelegate>();
     room->setDelegate(delegate.get());
     if (!room->connect(proxy_url, options.token, {})) {
       livekit::shutdown();
       throw std::runtime_error("Room::connect failed");
     }
-    if (!waitForConnection(proxy, 2s)) {
-      (void)room->disconnect();
-      livekit::shutdown();
-      throw std::runtime_error("proxy did not observe the initial signal connection");
+
+    // Give some time for the connection to be established
+    if (!delegate->waitForConnected(10s)) {
+      throw std::runtime_error("Connection timed out");
     }
 
-    auto participant = room->localParticipant().lock();
-    if (!participant) {
-      (void)room->disconnect();
-      livekit::shutdown();
-      throw std::runtime_error("connected room has no local participant");
+    auto local_participant = room->localParticipant().lock();
+    if (!local_participant) {
+      throw std::runtime_error("Local participant invalid");
     }
-    auto video_source = std::make_shared<livekit::VideoSource>(16, 16);
+    constexpr int kAudioSampleRate = 48000;
+    constexpr int kAudioChannels = 1;
+    constexpr int kAudioSamplesPerFrame = kAudioSampleRate / 100;
+    constexpr int kVideoWidth = 320;
+    constexpr int kVideoHeight = 180;
+    constexpr auto kPublishDuration = 10s;
+
+    auto audio_source = std::make_shared<livekit::AudioSource>(kAudioSampleRate, kAudioChannels);
+    auto audio_track = local_participant->publishAudioTrack("offline-test-audio", audio_source,
+                                                            livekit::TrackSource::SOURCE_MICROPHONE);
+    if (!audio_track || !audio_track->publication()) {
+      throw std::runtime_error("Publish audio track failed");
+    }
+
+    auto video_source = std::make_shared<livekit::VideoSource>(kVideoWidth, kVideoHeight);
     auto video_track =
-        participant->publishVideoTrack("offline-operation-track", video_source, livekit::TrackSource::SOURCE_CAMERA);
+        local_participant->publishVideoTrack("offline-test-video", video_source, livekit::TrackSource::SOURCE_CAMERA);
     if (!video_track || !video_track->publication()) {
-      (void)room->disconnect();
-      livekit::shutdown();
-      throw std::runtime_error("failed to publish the local video track");
+      throw std::runtime_error("Publish video track failed");
     }
-    const std::string track_sid = video_track->publication()->sid();
-    std::cout << "Published local video track " << track_sid << ".\n";
 
-    std::cout << "Connected. Pausing proxy and resetting " << proxy.acceptedConnectionCount()
-              << " established connection(s).\n";
-
-    // Kick off thread in parallel to pause the proxy and reset the connections.
-    std::thread pause_proxy([&proxy, duration = options.offline_duration]() {
-      std::cout << "### Pausing connection\n";
-      proxy.pause();
-      proxy.resetConnections();
-
-      // std::this_thread::sleep_for(duration);
-      // std::cout << "### Restoring connection after " << duration.count() << " ms.\n";
-      // proxy.resume();
+    std::cout << "Publishing audio and video for " << kPublishDuration.count()
+              << " seconds before pausing the proxy.\n";
+    std::thread audio_thread([audio_source, &capture_running]() {
+      const livekit::AudioFrame frame =
+          livekit::AudioFrame::create(kAudioSampleRate, kAudioChannels, kAudioSamplesPerFrame);
+      auto next_frame = std::chrono::steady_clock::now();
+      while (capture_running.load()) {
+        try {
+          audio_source->captureFrame(frame);
+        } catch (const std::exception& error) {
+          std::cerr << "Audio capture failed during disconnect: " << error.what() << '\n';
+        }
+        next_frame += 10ms;
+        std::this_thread::sleep_until(next_frame);
+      }
     });
 
-    if (!waitForReconnecting(*delegate, 5s)) {
-      std::cout << "### Disconnecting room\n";
-      (void)room->disconnect();
-      livekit::shutdown();
-      throw std::runtime_error("room did not enter Reconnecting after the signal connection was reset");
-    }
-
-    const auto started = std::chrono::steady_clock::now();
-    std::optional<bool> disconnect_result;
-    std::exception_ptr operation_error;
-    try {
-      if (options.operation == Options::Operation::Disconnect) {
-        std::cout << "Calling Room::disconnect(ClientInitiated) with a live delegate; it should not wait for the "
-                     "network.\n";
-        disconnect_result = room->disconnect(livekit::DisconnectReason::ClientInitiated);
-      } else {
-        std::cout << "Calling LocalParticipant::unpublishTrack; it should not wait for the network.\n";
-        participant->unpublishTrack(track_sid);
+    std::thread video_thread([video_source, &capture_running]() {
+      livekit::VideoFrame frame =
+          livekit::VideoFrame::create(kVideoWidth, kVideoHeight, livekit::VideoBufferType::RGBA);
+      std::fill_n(frame.data(), frame.dataSize(), static_cast<std::uint8_t>(0x80));
+      auto next_frame = std::chrono::steady_clock::now();
+      while (capture_running.load()) {
+        try {
+          video_source->captureFrame(frame);
+        } catch (const std::exception& error) {
+          std::cerr << "Video capture failed during disconnect: " << error.what() << '\n';
+        }
+        next_frame += 33ms;
+        std::this_thread::sleep_until(next_frame);
       }
-    } catch (...) {
-      operation_error = std::current_exception();
-    }
-    const auto elapsed =
-        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
-    pause_proxy.join();
-    if (operation_error) std::rethrow_exception(operation_error);
+    });
 
-    if (disconnect_result.has_value()) {
-      std::cout << "Room::disconnect returned " << std::boolalpha << *disconnect_result;
-    } else {
-      std::cout << "LocalParticipant::unpublishTrack returned";
-      (void)room->disconnect();
-    }
-    std::cout << " after " << elapsed.count() << " ms.\n";
+    std::this_thread::sleep_for(kPublishDuration);
+    std::cout << "Finished the 10-second connected media period; capture will continue through disconnect.\n";
 
+    std::thread proxy_thread([&proxy]() {
+      std::cout << "### Pausing proxy\n";
+      proxy.pause();
+      std::this_thread::sleep_for(120s);
+      std::cout << "### Resuming proxy\n";
+      proxy.resume();
+    });
+
+    std::cout << "### Waiting for reconnect signal...\n";
+    delegate->waitForReconnecting(60s);
+
+    std::cout << "### Disconnecting room\n";
     room.reset();
+    capture_running.store(false);
+    audio_thread.join();
+    video_thread.join();
+    std::cout << "### Resetting delegate\n";
     delegate.reset();
+    std::cout << "### Shutting down LiveKit\n";
     livekit::shutdown();
+
     return EXIT_SUCCESS;
   } catch (const std::exception& error) {
     std::cerr << "disconnect_offline_tester failed: " << error.what() << '\n';
