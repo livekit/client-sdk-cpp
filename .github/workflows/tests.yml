@@ -366,22 +366,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euxo pipefail
+          # Change these to change the retry count and delay across all OS entries
+          retry_count=3
+          retry_delay_seconds=3
           if [[ "$RUNNER_OS" == "Linux" ]]; then
-            curl -sSL --retry 3 --retry-delay 3 https://get.livekit.io/cli | bash
+            curl -sSL --retry "$retry_count" --retry-delay "$retry_delay_seconds" https://get.livekit.io/cli | bash
           elif [[ "$RUNNER_OS" == "macOS" ]]; then
-            for attempt in {0..3}; do
+            for attempt in $(seq 0 "$retry_count"); do
               if brew install livekit-cli; then
                 break
               fi
-              if [[ "$attempt" == 3 ]]; then
+              if [[ "$attempt" == "$retry_count" ]]; then
                 exit 1
               fi
-              sleep 3
+              sleep "$retry_delay_seconds"
             done
           elif [[ "$RUNNER_OS" == "Windows" ]]; then
             install_dir="$RUNNER_TEMP/livekit-cli"
             mkdir -p "$install_dir"
-            for attempt in {0..3}; do
+            for attempt in $(seq 0 "$retry_count"); do
               if tag="$(gh api repos/livekit/livekit-cli/releases/latest --jq '.tag_name')" && \
                 gh release download "$tag" \
                   --repo livekit/livekit-cli \
@@ -389,11 +392,11 @@ jobs:
                   --output "$RUNNER_TEMP/lk.zip"; then
                 break
               fi
-              if [[ "$attempt" == 3 ]]; then
+              if [[ "$attempt" == "$retry_count" ]]; then
                 exit 1
               fi
               rm -f "$RUNNER_TEMP/lk.zip"
-              sleep 3
+              sleep "$retry_delay_seconds"
             done
             unzip -o "$RUNNER_TEMP/lk.zip" -d "$install_dir"
             # GITHUB_PATH updates apply to subsequent steps only; export PATH here
