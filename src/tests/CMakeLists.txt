@@ -89,6 +89,7 @@ if(UNIT_TEST_SOURCES)
   target_link_libraries(livekit_unit_tests
     PRIVATE
       livekit
+      livekit_uniffi_cpp
       spdlog::spdlog
       ${LIVEKIT_PROTOBUF_TARGET}
       GTest::gtest_main
@@ -146,6 +147,12 @@ if(UNIT_TEST_SOURCES)
       COMMENT "Copying shared libraries to unit test directory"
     )
   endif()
+  add_custom_command(TARGET livekit_unit_tests POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit_uniffi>
+      $<TARGET_FILE_DIR:livekit_unit_tests>
+    COMMENT "Copying UniFFI library to unit test directory"
+  )
 
   # Register tests with CTest
   gtest_discover_tests(livekit_unit_tests

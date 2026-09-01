@@ -788,6 +788,7 @@ if(LIVEKIT_BUILD_EXAMPLES)
 endif()
 
 if(LIVEKIT_BUILD_TESTS)
+  include(uniffi-token)
   add_subdirectory(src/tests)
 endif()
 
