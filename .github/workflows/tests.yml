@@ -348,7 +348,9 @@ jobs:
             --gtest_output="xml:${{ env.BUILD_DIR }}\unit-test-results.xml"
 
       - name: Start livekit-server
-        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        # The offline-disconnect tester below always needs a local server, even
+        # when a manual run disables integration and stress tests.
+        if: matrix.e2e-testing
         id: livekit_server
         uses: livekit/dev-server-action@5d4d5337a875e2d1afd37bed03c601d159dab002 # v1.1.1
         with:
@@ -359,7 +361,7 @@ jobs:
 
       # Needed by token helper script
       - name: Install livekit-cli
-        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        if: matrix.e2e-testing
         shell: bash
         env:
           # Windows installs lk via `gh api` / `gh release download`, which need this env var
@@ -431,8 +433,25 @@ jobs:
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_output=xml:${{ env.BUILD_DIR }}/stress-test-results.xml
 
+      # Keep this last: it is a standalone regression reproducer rather than
+      # part of the unit, integration, or stress suites. Git Bash is present
+      # on GitHub's Windows image and lets all matrix entries share the token
+      # helper and invocation.
+      - name: Run offline disconnect tester
+        if: matrix.e2e-testing
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/set-test-tokens.sh
+          tester="${{ env.BUILD_DIR }}/bin/livekit_disconnect_offline_tester"
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            tester+=".exe"
+          fi
+          bash scripts/run-with-backtrace.sh "$tester" --offline-duration-ms 5000
+
       - name: Dump livekit-server log on failure
-        if: failure() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        if: failure() && matrix.e2e-testing
         shell: bash
         run: tail -n 500 "${{ steps.livekit_server.outputs.log-path }}" || true
 

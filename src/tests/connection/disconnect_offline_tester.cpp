@@ -45,6 +45,11 @@ struct ServerAddress {
 };
 
 struct Options {
+  enum class DisconnectTiming {
+    Immediate,
+    AfterReconnecting,
+  };
+
   enum class Operation {
     Disconnect,
     UnpublishTrack,
@@ -52,8 +57,9 @@ struct Options {
 
   std::string url;
   std::string token;
-  std::chrono::milliseconds offline_duration{30s};
+  std::chrono::milliseconds offline_duration{120s};
   Operation operation{Operation::Disconnect};
+  DisconnectTiming disconnect_timing{DisconnectTiming::Immediate};
 };
 
 /// Tracks the reconnect transition without blocking the FFI callback thread.
@@ -102,7 +108,8 @@ private:
   if (!error.empty()) std::cerr << "error: " << error << '\n';
   std::cerr << "Usage: " << executable
             << " [--url ws://host:port[/path]] [--token JWT] [--offline-duration-ms milliseconds]"
-               " [--operation disconnect|unpublish-track]\n"
+               " [--operation disconnect|unpublish-track]"
+               " [--disconnect-timing immediate|after-reconnecting]\n"
                "Defaults: LIVEKIT_URL and LIVEKIT_TOKEN_A. This TCP proxy supports ws:// only.\n";
   std::exit(error.empty() ? EXIT_SUCCESS : EXIT_FAILURE);
 }
@@ -110,6 +117,14 @@ private:
 std::string valueFromEnv(const char* name) {
   const char* value = std::getenv(name);
   return value == nullptr ? "" : value;
+}
+
+void setRustLogLevel() {
+#if defined(_WIN32)
+  if (_putenv_s("RUST_LOG", "info") != 0) throw std::runtime_error("Unable to set RUST_LOG");
+#else
+  if (setenv("RUST_LOG", "info", 1) != 0) throw std::runtime_error("Unable to set RUST_LOG");
+#endif
 }
 
 Options parseOptions(int argc, char* argv[]) {
@@ -130,6 +145,13 @@ Options parseOptions(int argc, char* argv[]) {
         options.operation = Options::Operation::UnpublishTrack;
       else
         usage(argv[0], "invalid --operation value");
+    } else if (argument == "--disconnect-timing") {
+      if (value == "immediate")
+        options.disconnect_timing = Options::DisconnectTiming::Immediate;
+      else if (value == "after-reconnecting")
+        options.disconnect_timing = Options::DisconnectTiming::AfterReconnecting;
+      else
+        usage(argv[0], "invalid --disconnect-timing value");
     } else if (argument == "--offline-duration-ms") {
       try {
         options.offline_duration = std::chrono::milliseconds(std::stoll(value));
@@ -184,7 +206,7 @@ int main(int argc, char* argv[]) {
     proxy.start();
     const std::string proxy_url = "ws://127.0.0.1:" + std::to_string(proxy.listenPort()) + upstream.path;
 
-    setenv("RUST_LOG", "info", 1);
+    setRustLogLevel();
 
     std::cout << "Connecting through " << proxy_url << " to " << options.url << '\n';
     livekit::initialize(livekit::LogLevel::Debug);
@@ -225,9 +247,10 @@ int main(int argc, char* argv[]) {
     if (!video_track || !video_track->publication()) {
       throw std::runtime_error("Publish video track failed");
     }
+    const std::string video_track_sid = video_track->publication()->sid();
 
     std::cout << "Publishing audio and video for " << kPublishDuration.count()
-              << " seconds before pausing the proxy.\n";
+              << " seconds before simulating the network loss.\n";
     std::thread audio_thread([audio_source, &capture_running]() {
       const livekit::AudioFrame frame =
           livekit::AudioFrame::create(kAudioSampleRate, kAudioChannels, kAudioSamplesPerFrame);
@@ -260,24 +283,49 @@ int main(int argc, char* argv[]) {
     });
 
     std::this_thread::sleep_for(kPublishDuration);
-    std::cout << "Finished the 10-second connected media period; capture will continue through disconnect.\n";
+    capture_running.store(false);
+    audio_thread.join();
+    video_thread.join();
+    std::cout << "Finished the 10-second connected media period.\n";
 
-    std::thread proxy_thread([&proxy]() {
-      std::cout << "### Pausing proxy\n";
-      proxy.pause();
-      std::this_thread::sleep_for(120s);
+    std::cout << "### Pausing proxy\n";
+    proxy.pause();
+    std::thread proxy_thread([&proxy, duration = options.offline_duration]() {
+      std::this_thread::sleep_for(duration);
       std::cout << "### Resuming proxy\n";
       proxy.resume();
     });
 
-    std::cout << "### Waiting for reconnect signal...\n";
-    delegate->waitForReconnecting(60s);
+    if (options.disconnect_timing == Options::DisconnectTiming::AfterReconnecting) {
+      std::cout << "### Waiting for reconnect signal...\n";
+      if (!delegate->waitForReconnecting(60s)) {
+        proxy.resume();
+        proxy_thread.join();
+        capture_running.store(false);
+        audio_thread.join();
+        video_thread.join();
+        throw std::runtime_error("Room did not enter Reconnecting within 60 seconds");
+      }
+    } else {
+      std::cout << "### Disconnecting immediately, before LiveKit reports Reconnecting\n";
+    }
 
-    std::cout << "### Disconnecting room\n";
+    if (options.operation == Options::Operation::Disconnect) {
+      // Match the corrected reporter sequence: application media sources are
+      // released before an explicit client-initiated room disconnect.
+      audio_source.reset();
+      video_source.reset();
+      std::cout << "### Calling Room::disconnect(ClientInitiated)\n";
+      (void)room->disconnect(livekit::DisconnectReason::ClientInitiated);
+    } else {
+      std::cout << "### Calling LocalParticipant::unpublishTrack\n";
+      local_participant->unpublishTrack(video_track_sid);
+      audio_source.reset();
+      video_source.reset();
+    }
+
+    proxy_thread.join();
     room.reset();
-    capture_running.store(false);
-    audio_thread.join();
-    video_thread.join();
     std::cout << "### Resetting delegate\n";
     delegate.reset();
     std::cout << "### Shutting down LiveKit\n";

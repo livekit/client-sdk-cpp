@@ -47,17 +47,17 @@ __Note:__ The tests require tokens and a running LiveKit server. See the section
 
 ## Offline room-operation reproducer
 
-`livekit_disconnect_offline_tester` is a standalone POSIX-only tester for an
-offline `Room::disconnect()` or `LocalParticipant::unpublishTrack()` call. It
-publishes a local video track, places a loopback TCP fault proxy in front of a
-`ws://` LiveKit server, resets the active signal connection, waits for the room
-to enter `Reconnecting`, and invokes the selected operation while reconnect
-traffic remains frozen. Forwarding resumes after the chosen observation
-period.
+`livekit_disconnect_offline_tester` is a standalone cross-platform tester for
+an offline `Room::disconnect()` or `LocalParticipant::unpublishTrack()` call. It
+publishes local audio and video tracks, captures media for ten seconds, stops
+capture, then pauses traffic through a loopback TCP fault proxy in front of a
+`ws://` LiveKit server. By default it calls the selected operation immediately,
+before the room observes the failure; this matches the timing in issue #222.
+Forwarding resumes after the chosen observation period.
 
-The tester keeps its `RoomDelegate` alive throughout disconnect. This follows
-the corrected shutdown ordering from issue #222 and isolates the blocking
-behavior from the original report's separate dangling-delegate risk.
+The tester releases application-held audio/video sources before explicit
+disconnect and keeps its `RoomDelegate` alive until after disconnect returns.
+This follows the corrected shutdown ordering from issue #222.
 
 Build it with the normal test build:
 
@@ -77,17 +77,19 @@ export LIVEKIT_TOKEN_A='<token with room-join permission>'
 # Exercise the related unpublishTrack wait reported in the follow-up.
 ./build-debug/bin/livekit_disconnect_offline_tester \
   --operation unpublish-track --offline-duration-ms 10000
+
+# Compare the separate case where LiveKit has already reported Reconnecting.
+./build-debug/bin/livekit_disconnect_offline_tester \
+  --operation disconnect --disconnect-timing after-reconnecting --offline-duration-ms 30000
 ```
 
 The proxy cannot be used with `wss://`: it tunnels raw TCP through
 `127.0.0.1`, which does not preserve the server hostname required for TLS
-certificate validation. The program prints the elapsed time spent inside
-the selected operation; an elapsed time near or above the offline duration
-reproduces the reported blocking behavior. A healthy implementation should
-return promptly without waiting for proxy forwarding to resume. With the
-current Rust FFI, the unpublish variant can remain blocked even after forwarding
-resumes and must be terminated manually; this reproduces the missing
-`UnpublishTrackCallback`, not a fault in the tester.
+certificate validation. The proxy interrupts signaling traffic only; it does
+not disable direct UDP media transport. A healthy implementation should return
+promptly without waiting for proxy forwarding to resume. With the current Rust
+FFI, the unpublish variant can remain blocked even after forwarding resumes and
+may need to be terminated manually.
 
 ## Running a local LiveKit server for tests
 
