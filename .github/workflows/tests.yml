@@ -229,6 +229,14 @@ jobs:
             libwayland-dev libdecor-0-dev \
             gdb jq
 
+      # The libwebrtc artifact ships a hermetic libc++ built from LLVM trunk.
+      # Distro clang (14 on Ubuntu 22.04, 18 on 24.04) cannot compile its
+      # headers; the submodule script installs LLVM 21 and exports CC/CXX.
+      - name: Install clang for libwebrtc
+        if: runner.os == 'Linux'
+        shell: bash
+        run: client-sdk-rust/.github/scripts/install-clang.sh
+
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
         run: |
@@ -510,6 +518,12 @@ jobs:
             libcurl4-openssl-dev \
             libwayland-dev libdecor-0-dev
           pip install --break-system-packages gcovr
+
+      # The coverage build compiles the Rust FFI too, so it needs the same
+      # compiler floor as the normal Linux build/test matrices.
+      - name: Install clang for libwebrtc
+        shell: bash
+        run: client-sdk-rust/.github/scripts/install-clang.sh
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
