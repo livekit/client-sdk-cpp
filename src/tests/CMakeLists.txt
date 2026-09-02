@@ -90,6 +90,7 @@ if(UNIT_TEST_SOURCES)
     PRIVATE
       livekit
       livekit_uniffi_cpp
+      livekit_uniffi
       spdlog::spdlog
       ${LIVEKIT_PROTOBUF_TARGET}
       GTest::gtest_main

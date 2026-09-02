@@ -238,6 +238,13 @@ jobs:
           grep -F "\"sdk_version\": \"${version}\"" "$buildInfo"
           grep -Eq '"rust_submodule_commit": "[0-9a-f]{7,}"' "$buildInfo"
           grep -Eq '"livekit_ffi_version": "[0-9]+\.[0-9]+\.[0-9]+' "$buildInfo"
+          grep -Eq '"livekit_uniffi_version": "[0-9]+\.[0-9]+\.[0-9]+' "$buildInfo"
+          test -f "${bundleDir}/include/livekit/uniffi/livekit_uniffi.hpp"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            test -f "${bundleDir}/lib/liblivekit_uniffi.dylib"
+          else
+            test -f "${bundleDir}/lib/liblivekit_uniffi.so"
+          fi
 
       # ---------- Build + Bundle (Windows) ----------
       - name: Build and Bundle (Windows)
@@ -277,6 +284,12 @@ jobs:
             fi
           fi
           python3 .github/scripts/check_no_private_symbols.py "${lib}"
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            uniffi_lib="${libdir}/liblivekit_uniffi.dylib"
+          else
+            uniffi_lib="${libdir}/liblivekit_uniffi.so"
+          fi
+          python3 .github/scripts/check_no_private_symbols.py "${uniffi_lib}"
 
       - name: Symbol leak check (Windows)
         if: runner.os == 'Windows'
@@ -295,6 +308,15 @@ jobs:
             exit 1
           }
           python .github/scripts/check_no_private_symbols.py "$lib"
+          $uniffiLib = "build-release/bin/livekit_uniffi.dll"
+          if (!(Test-Path -LiteralPath $uniffiLib)) {
+            $uniffiLib = "build-release/lib/livekit_uniffi.dll"
+          }
+          if (!(Test-Path -LiteralPath $uniffiLib)) {
+            Write-Error "livekit_uniffi.dll not found"
+            exit 1
+          }
+          python .github/scripts/check_no_private_symbols.py "$uniffiLib"
 
       - name: Validate bundle version metadata (Windows)
         if: runner.os == 'Windows'
@@ -328,6 +350,13 @@ jobs:
           if ($buildInfoText -match '"livekit_ffi_version": "unknown"') {
             throw "Build info is missing livekit-ffi version"
           }
+          if ($buildInfoText -match '"livekit_uniffi_version": "unknown"') {
+            throw "Build info is missing livekit-uniffi version"
+          }
+          $uniffiHeader = Join-Path $bundleDir "include/livekit/uniffi/livekit_uniffi.hpp"
+          if (!(Test-Path $uniffiHeader)) { throw "Missing $uniffiHeader" }
+          $uniffiRuntime = Join-Path $bundleDir "bin/livekit_uniffi.dll"
+          if (!(Test-Path $uniffiRuntime)) { throw "Missing $uniffiRuntime" }
 
       # ---------- Upload artifact (raw directory, no pre-compression) ----------
       - name: Upload build artifact

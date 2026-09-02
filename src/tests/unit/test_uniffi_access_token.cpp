@@ -38,10 +38,6 @@ TEST(UniFfiAccessTokenTest, GeneratesAndVerifiesParticipantToken) {
   ASSERT_FALSE(token.empty());
 
   const auto claims = livekit_uniffi::token_verify(token, credentials);
-  std::cout << "Generated UniFFI access token: " << token << '\n'
-            << "Verified claims: issuer=" << claims.iss << ", identity=" << claims.sub << ", room=" << claims.video.room
-            << '\n';
-
   EXPECT_EQ(claims.iss, credentials.key);
   EXPECT_EQ(claims.sub, *options.identity);
   EXPECT_EQ(claims.name, *options.name);
