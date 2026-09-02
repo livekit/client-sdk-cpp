@@ -31,9 +31,19 @@ namespace livekit::test {
 
 namespace {
 
-// A non-expired unsigned JWT (alg=none, exp far in the future) used for stubbed
-// token-endpoint responses.
-constexpr const char* kValidToken = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
+// Non-production ES256 fixtures shared with the JS SDK's token-source tests.
+// Their signatures have no corresponding private key in this repository.
+constexpr const char* kValidToken =
+    "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJzdWIiOiIxMjM0NTY3ODkwIiwiZXhwIjo5ODc2NTQzMjEwLCJuYmYiOjEyMzQ1Njc4OTAsImlhdCI6MTIzNDU2Nzg5MCwicm9vbUNvbmZpZyI6ey"
+    "JuYW1lIjoidGVzdCByb29tIG5hbWUiLCJlbXB0eVRpbWVvdXQiOjAsImRlcGFydHVyZVRpbWVvdXQiOjAsIm1heFBhcnRpY2lwYW50cyI6MCwibWlu"
+    "UGxheW91dERlbGF5IjowLCJtYXhQbGF5b3V0RGVsYXkiOjAsInN5bmNTdHJlYW1zIjpmYWxzZSwiYWdlbnRzIjpbeyJhZ2VudE5hbWUiOiJ0ZXN0IG"
+    "FnZW50IG5hbWUiLCJtZXRhZGF0YSI6InRlc3QgYWdlbnQgbWV0YWRhdGEifV0sIm1ldGFkYXRhIjoiIn19."
+    "EDetpHG8cSubaApzgWJaQrpCiSy9KDBlfCfVdIydbQ-_CHiNnXOK_f_mCJbTf9A-duT1jmvPOkLrkkWFT60XPQ";
+constexpr const char* kExpiredToken =
+    "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJzdWIiOiIxMjM0NTY3ODkwIiwiZXhwIjoxMjM0NTY3ODkxLCJuYmYiOjEyMzQ1Njc4OTAsImlhdCI6MTIzNDU2Nzg5MH0."
+    "OYP1NITayotBYt0mioInLJmaIM0bHyyR-yG6iwKyQDzhoGha15qbsc7dOJlzz4za1iW5EzCgjc2_xGxqaSu5XA";
 constexpr const char* kServerUrl = "wss://localhost:7000";
 
 // Captures the arguments the token source passed to the HTTP transport so tests
@@ -299,11 +309,8 @@ TEST(TokenSourceJsonTest, ParseResponseMissingParticipantTokenFails) {
 }
 
 TEST(TokenSourceJwtTest, ValidAndExpiredTokens) {
-  const std::string valid_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
-  const std::string expired_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjF9.";
-
-  EXPECT_TRUE(isParticipantTokenValid(valid_token));
-  EXPECT_FALSE(isParticipantTokenValid(expired_token));
+  EXPECT_TRUE(isParticipantTokenValid(kValidToken));
+  EXPECT_FALSE(isParticipantTokenValid(kExpiredToken));
 }
 
 TEST(TokenSourceJwtTest, UnparseableTokenIsInvalid) { EXPECT_FALSE(isParticipantTokenValid("not-a-jwt")); }
@@ -347,7 +354,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceReusesValidToken) {
         ++fetch_count;
         TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
-        details.participant_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
+        details.participant_token = kValidToken;
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
@@ -371,7 +378,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesAfterInvalidate) {
         ++fetch_count;
         TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
-        details.participant_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
+        details.participant_token = kValidToken;
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
@@ -391,7 +398,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceExposesCachedResponse) {
       [](const TokenRequestOptions&) -> std::future<Result<TokenSourceResponse, TokenSourceError>> {
         TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
-        details.participant_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
+        details.participant_token = kValidToken;
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
@@ -418,7 +425,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenOptionsChange) {
         ++fetch_count;
         TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
-        details.participant_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
+        details.participant_token = kValidToken;
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
@@ -443,8 +450,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenExpired) {
         const int count = ++fetch_count;
         TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
-        details.participant_token =
-            (count == 1) ? "eyJhbGciOiJub25lIn0.eyJleHAiOjF9." : "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
+        details.participant_token = (count == 1) ? kExpiredToken : kValidToken;
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
@@ -470,7 +476,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceRefetchesWhenTokenUnparseable) {
         const int count = ++fetch_count;
         TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
-        details.participant_token = (count == 1) ? "not-a-jwt" : "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
+        details.participant_token = (count == 1) ? "not-a-jwt" : kValidToken;
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         return promise.get_future();
@@ -506,7 +512,7 @@ TEST(TokenSourceFactoryTest, CachingTokenSourceSerializesConcurrentFetches) {
 
         TokenSourceResponse details;
         details.server_url = "wss://example.livekit.io";
-        details.participant_token = "eyJhbGciOiJub25lIn0.eyJleHAiOjk5OTk5OTk5OTk5fQ.";
+        details.participant_token = kValidToken;
         std::promise<Result<TokenSourceResponse, TokenSourceError>> promise;
         promise.set_value(Result<TokenSourceResponse, TokenSourceError>::success(details));
         --concurrent_calls;

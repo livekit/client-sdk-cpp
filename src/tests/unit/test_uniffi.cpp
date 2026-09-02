@@ -30,11 +30,18 @@ TEST(UniFfiBuildInfoTest, ReturnsCrateVersion) {
   EXPECT_NE(version, "unknown");
 }
 
-TEST(UniFfiLogForwardTest, BootstrapsIdempotently) {
-  EXPECT_NO_THROW({
-    livekit_uniffi::log_forward_bootstrap(livekit_uniffi::LogForwardFilter::kInfo);
-    livekit_uniffi::log_forward_bootstrap(livekit_uniffi::LogForwardFilter::kWarn);
-  });
+TEST(UniFfiLogForwardTest, ForwardsRustLogEntriesWithoutSdkInitialization) {
+  livekit_uniffi::log_forward_bootstrap(livekit_uniffi::LogForwardFilter::kDebug);
+
+  const livekit_uniffi::ApiCredentials credentials{"devkey", "secret"};
+  const livekit_uniffi::TokenOptions options{};
+  (void)livekit_uniffi::token_generate(options, credentials);
+
+  const auto entry = livekit_uniffi::log_forward_receive().get();
+  std::cout << "Entry: " << entry->message << std::endl;
+  ASSERT_TRUE(entry.has_value());
+  EXPECT_EQ(entry->level, livekit_uniffi::LogForwardLevel::kDebug);
+  EXPECT_EQ(entry->message, "Generating access token");
 }
 
 TEST(UniFfiGeneratedBindingsTest, ExposesAllGeneratedComponents) {

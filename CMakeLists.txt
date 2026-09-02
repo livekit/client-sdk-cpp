@@ -661,6 +661,7 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 include(uniffi)
 add_dependencies(livekit livekit_uniffi_cpp)
+target_link_libraries(livekit PRIVATE livekit_uniffi_cpp livekit_uniffi)
 
 set(LIVEKIT_PACKAGE_NAME "LiveKit")
 set(LIVEKIT_EXPORT_NAMESPACE "LiveKit::")
