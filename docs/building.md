@@ -211,11 +211,14 @@ build-release/
 ├── lib/
 │   ├── liblivekit.{so,dylib}       # Main SDK shared library (Linux/macOS)
 │   ├── liblivekit_ffi.{so,dylib}   # Rust FFI shared library (Linux/macOS)
-│   └── livekit{,_ffi}.lib          # Import libraries (Windows)
+│   ├── liblivekit_uniffi.{so,dylib} # UniFFI Rust runtime (Linux/macOS)
+│   ├── liblivekit_uniffi_cpp.a     # Generated UniFFI C++ bindings
+│   └── livekit{,_ffi,_uniffi}.lib  # Import libraries (Windows)
 ├── include/                        # Public headers (auto-synced)
 │   └── livekit/
+│       └── uniffi/                 # Generated UniFFI C++ headers
 └── bin/
-    └── livekit{,_ffi}.dll          # SDK DLLs (Windows)
+    └── livekit{,_ffi,_uniffi}.dll  # SDK DLLs (Windows)
 ```
 
 Release archives use the same layout: `include/`, `lib/`, and (on Windows)
@@ -233,7 +236,17 @@ target_link_libraries(your_target PRIVATE livekit)
 # Method 2: find_package (after install)
 find_package(LiveKit CONFIG REQUIRED)
 target_link_libraries(your_target PRIVATE LiveKit::livekit)
+
+# Link this alongside LiveKit::livekit to use the UniFFI API.
+target_link_libraries(your_target PRIVATE LiveKit::uniffi)
 ```
+
+### UniFFI bindings
+
+The SDK always builds and bundles generated C++ UniFFI bindings and the
+`livekit-uniffi` Rust runtime. `LiveKit::uniffi` links the installed static
+bindings library and its runtime dependency. Include generated APIs from
+`<livekit_uniffi.hpp>` and the other headers under `include/livekit/uniffi/`.
 
 ### Using prebuilt releases
 

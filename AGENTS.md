@@ -85,12 +85,13 @@ Be sure to update the directory layout in this file if the directory layout chan
 |------|-------------|
 | `include/livekit/` | Public API headers (what SDK consumers include) |
 | `src/` | Implementation files and internal-only headers (`ffi_client.h`, `lk_log.h`, etc.) |
-| `src/tests/` | Google Test integration and stress tests |
+| `src/tests/` | Google Test unit, integration, and stress tests |
 | `examples/` | In-tree example applications |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
 | `cpp-tools/` | Git submodule holding shared LiveKit C++ engineering guidance, clang-format / clang-tidy configs, scripts, docs, and CI workflow |
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
-| `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `nlohmann_json.cmake`, `LiveKitConfig.cmake.in`) |
+| `client-sdk-rust/livekit-uniffi/` | UniFFI Rust crate, built and bundled alongside the protobuf FFI |
+| `cmake/` | Build helpers (`protobuf.cmake`, `uniffi.cmake`, `spdlog.cmake`, `nlohmann_json.cmake`, `LiveKitConfig.cmake.in`) |
 | `scripts/` | Local helper scripts for SDK-specific development tasks |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |

@@ -2,3 +2,34 @@
 
 include("${CMAKE_CURRENT_LIST_DIR}/LiveKitTargets.cmake")
 
+if(NOT TARGET LiveKit::uniffi_runtime)
+  if(WIN32)
+    set(_livekit_uniffi_runtime "${PACKAGE_PREFIX_DIR}/bin/livekit_uniffi.dll")
+    set(_livekit_uniffi_implib "${PACKAGE_PREFIX_DIR}/lib/livekit_uniffi.dll.lib")
+  elseif(APPLE)
+    set(_livekit_uniffi_runtime "${PACKAGE_PREFIX_DIR}/lib/liblivekit_uniffi.dylib")
+  else()
+    set(_livekit_uniffi_runtime "${PACKAGE_PREFIX_DIR}/lib/liblivekit_uniffi.so")
+  endif()
+
+  set_and_check(_livekit_uniffi_runtime "${_livekit_uniffi_runtime}")
+  add_library(LiveKit::uniffi_runtime SHARED IMPORTED GLOBAL)
+  set_target_properties(LiveKit::uniffi_runtime PROPERTIES
+    IMPORTED_LOCATION "${_livekit_uniffi_runtime}"
+  )
+  if(WIN32)
+    set_and_check(_livekit_uniffi_implib "${_livekit_uniffi_implib}")
+    set_target_properties(LiveKit::uniffi_runtime PROPERTIES
+      IMPORTED_IMPLIB "${_livekit_uniffi_implib}"
+    )
+  elseif(UNIX AND NOT APPLE)
+    set_target_properties(LiveKit::uniffi_runtime PROPERTIES IMPORTED_NO_SONAME TRUE)
+  endif()
+endif()
+
+if(TARGET LiveKit::uniffi)
+  set_property(TARGET LiveKit::uniffi APPEND PROPERTY
+    INTERFACE_LINK_LIBRARIES LiveKit::uniffi_runtime
+  )
+endif()
+
