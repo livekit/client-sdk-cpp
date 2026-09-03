@@ -299,8 +299,9 @@ jobs:
         run: |
           echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
           echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
-          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
-          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
+          LLVM_ROOT="$(dirname "${CXX}")/.."
+          test -f "${LLVM_ROOT}/lib/libclang.so"
+          echo "LIBCLANG_PATH=${LLVM_ROOT}/lib" >> "$GITHUB_ENV"
 
       - name: Configure Unix crash diagnostics
         if: runner.os != 'Windows'
@@ -558,10 +559,12 @@ jobs:
       # ---------- Build environment setup ----------
       - name: Set build environment
         run: |
-          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
-          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
-          GCC_VER=$(gcc -dumpversion | cut -d. -f1)
-          echo "GCOV_EXECUTABLE=gcov-${GCC_VER}" >> "$GITHUB_ENV"
+          LLVM_ROOT="$(dirname "${CXX}")/.."
+          test -f "${LLVM_ROOT}/lib/libclang.so"
+          LLVM_COV="${LLVM_ROOT}/bin/llvm-cov"
+          test -x "${LLVM_COV}"
+          echo "LIBCLANG_PATH=${LLVM_ROOT}/lib" >> "$GITHUB_ENV"
+          echo "GCOV_EXECUTABLE=${LLVM_COV} gcov" >> "$GITHUB_ENV"
 
       # ---------- Configure with upstream preset + coverage flag overrides ----------
       - name: Configure (linux-debug-tests preset + coverage flags)
