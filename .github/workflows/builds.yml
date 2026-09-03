@@ -125,6 +125,14 @@ jobs:
             libcurl4-openssl-dev \
             libwayland-dev libdecor-0-dev
 
+      # The libwebrtc artifact ships a hermetic libc++ built from LLVM trunk.
+      # Distro clang (14 on Ubuntu 22.04, 18 on 24.04) cannot compile its
+      # headers; the submodule script installs LLVM 21 and exports CC/CXX.
+      - name: Install clang for libwebrtc
+        if: runner.os == 'Linux'
+        shell: bash
+        run: client-sdk-rust/.github/scripts/install-clang.sh
+
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
         run: |
