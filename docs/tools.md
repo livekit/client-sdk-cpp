@@ -140,20 +140,26 @@ For details on the Doxygen configuration and CI pipeline, see the
 
 ### Bump the pinned Rust submodule
 
+Update to the commit from the most recent published Rust SDK release:
+
 ```bash
-cd client-sdk-cpp
-git fetch origin
-git switch -c try-rust-main origin/main
+./scripts/update-rust-sdk.sh
+```
 
-# Sync submodule URLs and check out what origin/main pins (recursively):
-git submodule sync --recursive
-git submodule update --init --recursive --checkout
+The script requires the GitHub CLI (`gh`). To select a specific commit, pass
+its full or abbreviated hash:
 
-# If the nested submodule under yuv-sys didn't materialize, force it:
-git -C client-sdk-rust/yuv-sys submodule sync --recursive
-git -C client-sdk-rust/yuv-sys submodule update --init --recursive --checkout
+```bash
+./scripts/update-rust-sdk.sh --hash 1a477bc
+```
 
-# Sanity check:
+The script updates the `client-sdk-rust` gitlink and synchronizes its nested
+submodules. It stops without changing the checkout if the Rust submodule has
+tracked changes.
+
+Review the selected commits before committing the gitlink update:
+
+```bash
 git submodule status --recursive
 ```
 
