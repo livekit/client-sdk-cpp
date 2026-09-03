@@ -163,6 +163,25 @@ Review the selected commits before committing the gitlink update:
 git submodule status --recursive
 ```
 
+### Bump the pinned C++ example collection
+
+Update to the most recent commit on the `main` branch of the examples
+repository:
+
+```bash
+./scripts/update-cpp-example-collection.sh
+```
+
+To select a specific commit, pass its full or abbreviated hash:
+
+```bash
+./scripts/update-cpp-example-collection.sh --hash 7e76bea
+```
+
+The script updates the `cpp-example-collection` gitlink and synchronizes its
+nested submodules. It stops without changing the checkout if the examples
+submodule has tracked changes.
+
 ### If `yuv-sys` fails to build
 
 ```bash
