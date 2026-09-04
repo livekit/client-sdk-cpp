@@ -54,6 +54,12 @@ public:
   /// Called when a local track is unpublished.
   virtual void onLocalTrackUnpublished(Room&, const LocalTrackUnpublishedEvent&) {}
 
+  /// @brief Called when a local track is republished during a full reconnect.
+  ///
+  /// The publication and track have already been updated and rekeyed under the
+  /// current SID. This callback runs before @ref onReconnected.
+  virtual void onLocalTrackRepublished(Room&, const LocalTrackRepublishedEvent&) {}
+
   /// Called when a local track gains its first subscriber.
   virtual void onLocalTrackSubscribed(Room&, const LocalTrackSubscribedEvent&) {}
 
