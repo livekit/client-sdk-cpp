@@ -35,16 +35,20 @@ In another terminal, load the test credentials and prefer the NVIDIA encoder:
 ```bash
 source scripts/set-test-tokens.sh
 export LIVEKIT_PREFERRED_HW_ENCODER=nvenc
+export RUST_LOG=libwebrtc=debug
 
 ./build-release/bin/livekit_cuda_video_lifecycle_tester --iterations 100
 ```
 
-The tester enables SDK Info logging. Confirm that the output includes messages
-such as `Using NVIDIA HW encoder (NVENC) for H264` and `Using NVIDIA HW decoder
-(NVDEC) for H264`. `LIVEKIT_PREFERRED_HW_ENCODER=nvenc` is a preference: it
-does not turn an unavailable NVENC backend into a hard failure, so those log
-messages are the current proof that the negotiated video path used NVIDIA
-hardware.
+Confirm that stderr includes messages such as `Using NVIDIA HW encoder (NVENC)
+for H264` and `Using NVIDIA HW decoder (NVDEC) for H264`. The native WebRTC
+logs are forwarded to Rust with the `libwebrtc` target and Debug severity, so
+`RUST_LOG=libwebrtc=debug` must be set before starting the tester.
+The tester explicitly requests H264 because NVENC does not support the default
+VP8 codec. `LIVEKIT_PREFERRED_HW_ENCODER=nvenc` selects the NVIDIA backend for
+that codec, but it does not turn an unavailable NVENC backend into a hard
+failure, so those log messages are the current proof that the negotiated video
+path used NVIDIA hardware.
 
 For a memory regression run:
 

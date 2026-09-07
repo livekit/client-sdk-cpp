@@ -36,6 +36,7 @@ constexpr int kVideoWidth = 640;
 constexpr int kVideoHeight = 360;
 constexpr int kFramesPerIteration = 500;
 constexpr char kTrackName[] = "cuda-lifecycle-video";
+constexpr auto kH264VideoCodec = static_cast<livekit::VideoCodec>(1);
 
 struct Configuration {
   std::string url;
@@ -130,6 +131,7 @@ void runIteration(const Configuration& config) {
     livekit::TrackPublishOptions publish_options;
     publish_options.source = livekit::TrackSource::SOURCE_CAMERA;
     publish_options.simulcast = false;
+    publish_options.video_codec = kH264VideoCodec;
     localParticipant(sender_room)->publishTrack(track, publish_options);
 
     auto frame = livekit::VideoFrame::create(kVideoWidth, kVideoHeight, livekit::VideoBufferType::I420);
