@@ -343,7 +343,13 @@ else()
   )
 endif()
 
-add_custom_target(build_rust_ffi
+file(GLOB_RECURSE RUST_SOURCES 
+  "${RUST_ROOT}/livekit-ffi/src/*.rs"
+  "${RUST_ROOT}/livekit-ffi/Cargo.toml"
+)
+
+add_custom_command(
+  OUTPUT "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
   COMMAND "${CMAKE_COMMAND}"
           -DCFG=$<CONFIG>
           -DRUST_ROOT=${RUST_ROOT}
@@ -353,8 +359,13 @@ add_custom_target(build_rust_ffi
           -DGCC_LIB_DIR=${GCC_LIB_DIR}
           -P "${RUN_CARGO_SCRIPT}"
   WORKING_DIRECTORY "${RUST_ROOT}"
+  DEPENDS ${RUST_SOURCES}
   COMMENT "Building Rust FFI via cargo"
   VERBATIM
+)
+
+add_custom_target(build_rust_ffi
+  DEPENDS "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
 )
 
 # Note: protozero_plugin.o removal is no longer needed since we use dynamic libraries on Unix
