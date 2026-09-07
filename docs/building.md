@@ -58,7 +58,7 @@ sudo apt update && sudo apt install -y \
   build-essential cmake ninja-build pkg-config \
   llvm-dev libclang-dev clang \
   libprotobuf-dev protobuf-compiler libabsl-dev \
-  libssl-dev
+  libssl-dev libcurl4-openssl-dev
 
 # Install Rust if you don't already have it
 curl https://sh.rustup.rs -sSf | sh

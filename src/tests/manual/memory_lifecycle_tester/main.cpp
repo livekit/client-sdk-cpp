@@ -17,6 +17,8 @@
 #include <livekit/livekit.h>
 
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <iostream>
 #include <memory>
@@ -33,6 +35,30 @@ constexpr int kAudioQueueSizeMs = 100;
 constexpr int kVideoWidth = 1'280;
 constexpr int kVideoHeight = 720;
 constexpr std::size_t kDataPayloadSize = 1'024;
+constexpr int kDataFrameCount = 10;
+constexpr char kDataTrackName[] = "lifecycle-data";
+
+struct Configuration {
+  std::string url;
+  std::string token;
+};
+
+struct Options {
+  int iteration_count{kDefaultIterations};
+  bool sources{false};
+  bool connect{false};
+  bool data_track{false};
+  bool data_frames{false};
+  bool mode_selected{false};
+};
+
+const char* requiredEnvironment(const char* name) {
+  const char* value = std::getenv(name);
+  if (value == nullptr || *value == '\0') {
+    throw std::runtime_error(std::string(name) + " must be set");
+  }
+  return value;
+}
 
 int parseIterationCount(const char* value) {
   try {
@@ -48,7 +74,7 @@ int parseIterationCount(const char* value) {
   }
 }
 
-void exerciseCommonFeatures() {
+void runSources() {
   auto audio_source = std::make_shared<livekit::AudioSource>(kAudioSampleRate, kAudioChannels, kAudioQueueSizeMs);
   auto audio_track = livekit::LocalAudioTrack::createLocalAudioTrack("lifecycle-audio", audio_source);
   if (!audio_track) {
@@ -61,46 +87,145 @@ void exerciseCommonFeatures() {
   if (!video_track) {
     throw std::runtime_error("failed to create local video track");
   }
+}
 
-  // A LocalDataTrack requires a connected LocalParticipant. Constructing the
-  // public frame type still covers the common offline data allocation surface.
-  livekit::DataTrackFrame data_frame(std::vector<std::uint8_t>(kDataPayloadSize, 0x5a));
-  if (data_frame.payload.size() != kDataPayloadSize) {
-    throw std::runtime_error("failed to create data track frame");
+void runRoomIteration(const Configuration& config, const Options& options) {
+  livekit::Room room;
+  if (!room.connect(config.url, config.token, {})) {
+    throw std::runtime_error("failed to connect to the LiveKit room");
   }
+
+  try {
+    if (!options.data_track) {
+      if (!room.disconnect()) {
+        throw std::runtime_error("failed to disconnect from the LiveKit room");
+      }
+      return;
+    }
+
+    auto participant = room.localParticipant().lock();
+    if (!participant) {
+      throw std::runtime_error("local participant is unavailable");
+    }
+
+    auto result = participant->publishDataTrack(kDataTrackName);
+    if (!result) {
+      throw std::runtime_error("failed to publish data track: " + result.error().message);
+    }
+    const auto& data_track = result.value();
+
+    if (options.data_frames) {
+      const livekit::DataTrackFrame data_frame(std::vector<std::uint8_t>(kDataPayloadSize, 0x5a));
+      for (int frame = 0; frame < kDataFrameCount; ++frame) {
+        auto push_result = data_track->tryPush(data_frame);
+        if (!push_result) {
+          throw std::runtime_error("failed to publish data: " + push_result.error().message);
+        }
+      }
+    }
+
+    data_track->unpublishDataTrack();
+  } catch (...) {
+    (void)room.disconnect();
+    throw;
+  }
+
+  if (!room.disconnect()) {
+    throw std::runtime_error("failed to disconnect from the LiveKit room");
+  }
+}
+
+void printUsage(const char* executable) {
+  std::cerr << "usage: " << executable << " [--iterations N] [--sources] [--connect] [--data-track] [--data-frames]\n"
+            << "  --sources      Create local audio and video sources and tracks.\n"
+            << "  --connect      Connect to and leave a room.\n"
+            << "  --data-track   Publish and unpublish a data track (implies --connect).\n"
+            << "  --data-frames  Send data frames (implies --data-track and --connect).\n"
+            << "  No mode flags runs all modes. A single numeric argument remains supported as the iteration count.\n";
+}
+
+Options parseOptions(int argc, char* argv[]) {
+  Options options;
+  for (int argument = 1; argument < argc; ++argument) {
+    const char* value = argv[argument];
+    if (std::strcmp(value, "--iterations") == 0) {
+      if (++argument == argc) {
+        throw std::runtime_error("--iterations requires a value");
+      }
+      options.iteration_count = parseIterationCount(argv[argument]);
+    } else if (std::strcmp(value, "--sources") == 0) {
+      options.sources = true;
+      options.mode_selected = true;
+    } else if (std::strcmp(value, "--connect") == 0) {
+      options.connect = true;
+      options.mode_selected = true;
+    } else if (std::strcmp(value, "--data-track") == 0) {
+      options.data_track = true;
+      options.mode_selected = true;
+    } else if (std::strcmp(value, "--data-frames") == 0) {
+      options.data_frames = true;
+      options.mode_selected = true;
+    } else if (std::strcmp(value, "--help") == 0 || std::strcmp(value, "-h") == 0) {
+      printUsage(argv[0]);
+      std::exit(0);
+    } else if (argument == 1 && argc == 2) {
+      options.iteration_count = parseIterationCount(value);
+    } else {
+      throw std::runtime_error(std::string("unknown argument: ") + value);
+    }
+  }
+
+  if (!options.mode_selected) {
+    options.sources = true;
+    options.connect = true;
+    options.data_track = true;
+    options.data_frames = true;
+  } else if (options.data_frames) {
+    options.data_track = true;
+    options.connect = true;
+  } else if (options.data_track) {
+    options.connect = true;
+  }
+  return options;
 }
 
 } // namespace
 
 int main(int argc, char* argv[]) {
-  if (argc > 2) {
-    std::cerr << "usage: " << argv[0] << " [iteration-count]\n";
-    return 2;
-  }
-
   try {
-    const int iteration_count = argc == 2 ? parseIterationCount(argv[1]) : kDefaultIterations;
-    std::cout << "Running " << iteration_count << " LiveKit initialize/shutdown cycles\n";
+    const Options options = parseOptions(argc, argv);
+    const int progress_interval = options.iteration_count < 10 ? 1 : options.iteration_count / 10;
+    std::cout << "Running " << options.iteration_count << " LiveKit initialize/shutdown cycles\n";
 
-    for (int iteration = 1; iteration <= iteration_count; ++iteration) {
+    for (int iteration = 1; iteration <= options.iteration_count; ++iteration) {
       if (!livekit::initialize(livekit::LogLevel::Warn)) {
         throw std::runtime_error("initialize failed at iteration " + std::to_string(iteration));
       }
 
       try {
-        exerciseCommonFeatures();
+        if (options.sources) {
+          runSources();
+        }
+        if (options.connect) {
+          const Configuration config{
+              requiredEnvironment("LIVEKIT_URL"),
+              requiredEnvironment("LIVEKIT_TOKEN_A"),
+          };
+          runRoomIteration(config, options);
+        }
       } catch (...) {
         livekit::shutdown();
         throw;
       }
       livekit::shutdown();
 
-      if (iteration % 100 == 0 || iteration == iteration_count) {
-        std::cout << "Completed " << iteration << "/" << iteration_count << " cycles\n";
+      if (iteration % progress_interval == 0 || iteration == options.iteration_count) {
+        std::cout << "Completed " << iteration << "/" << options.iteration_count << " cycles\n";
       }
     }
   } catch (const std::exception& error) {
     std::cerr << "memory lifecycle tester failed: " << error.what() << '\n';
+    printUsage(argv[0]);
     return 1;
   }
 
