@@ -85,7 +85,8 @@ Be sure to update the directory layout in this file if the directory layout chan
 |------|-------------|
 | `include/livekit/` | Public API headers (what SDK consumers include) |
 | `src/` | Implementation files and internal-only headers (`ffi_client.h`, `lk_log.h`, etc.) |
-| `src/tests/` | Google Test integration and stress tests |
+| `src/tests/` | Google Test unit, integration, and stress tests |
+| `src/tests/manual/` | Standalone testers built with the test targets but not registered with CTest |
 | `examples/` | In-tree example applications |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
 | `cpp-tools/` | Git submodule holding shared LiveKit C++ engineering guidance, clang-format / clang-tidy configs, scripts, docs, and CI workflow |
