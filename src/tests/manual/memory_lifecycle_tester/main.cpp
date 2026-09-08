@@ -16,6 +16,7 @@
 
 #include <livekit/livekit.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -32,8 +33,10 @@ constexpr int kDefaultIterations = 1'000;
 constexpr int kAudioSampleRate = 48'000;
 constexpr int kAudioChannels = 1;
 constexpr int kAudioQueueSizeMs = 100;
+constexpr int kAudioFrameDurationMs = 10;
 constexpr int kVideoWidth = 1'280;
 constexpr int kVideoHeight = 720;
+constexpr int kMediaFrameCount = 3;
 constexpr std::size_t kDataPayloadSize = 1'024;
 constexpr int kDataFrameCount = 10;
 constexpr char kDataTrackName[] = "lifecycle-data";
@@ -47,8 +50,10 @@ struct Options {
   int iteration_count{kDefaultIterations};
   bool sources{false};
   bool connect{false};
+  bool media{false};
   bool data_track{false};
   bool data_frames{false};
+  bool ffi_cycles{false};
   bool mode_selected{false};
 };
 
@@ -74,7 +79,7 @@ int parseIterationCount(const char* value) {
   }
 }
 
-void runSources() {
+void runUnusedSources() {
   auto audio_source = std::make_shared<livekit::AudioSource>(kAudioSampleRate, kAudioChannels, kAudioQueueSizeMs);
   auto audio_track = livekit::LocalAudioTrack::createLocalAudioTrack("lifecycle-audio", audio_source);
   if (!audio_track) {
@@ -89,6 +94,51 @@ void runSources() {
   }
 }
 
+template <typename LocalTrackType>
+void unpublishTrackIfPublished(const std::shared_ptr<livekit::LocalParticipant>& participant,
+                               const std::shared_ptr<LocalTrackType>& track) {
+  const auto publication = track->publication();
+  if (publication) {
+    participant->unpublishTrack(publication->sid());
+  }
+}
+
+void runMediaWork(const std::shared_ptr<livekit::LocalParticipant>& participant) {
+  auto audio_source = std::make_shared<livekit::AudioSource>(kAudioSampleRate, kAudioChannels, 0);
+  auto audio_track = livekit::LocalAudioTrack::createLocalAudioTrack("lifecycle-audio-active", audio_source);
+  if (!audio_track) {
+    throw std::runtime_error("failed to create active local audio track");
+  }
+
+  auto video_source = std::make_shared<livekit::VideoSource>(kVideoWidth, kVideoHeight);
+  auto video_track = livekit::LocalVideoTrack::createLocalVideoTrack("lifecycle-video-active", video_source);
+  if (!video_track) {
+    throw std::runtime_error("failed to create active local video track");
+  }
+
+  livekit::TrackPublishOptions audio_options;
+  audio_options.source = livekit::TrackSource::SOURCE_MICROPHONE;
+  livekit::TrackPublishOptions video_options;
+  video_options.source = livekit::TrackSource::SOURCE_CAMERA;
+  video_options.simulcast = false;
+
+  participant->publishTrack(audio_track, audio_options);
+  participant->publishTrack(video_track, video_options);
+
+  auto audio_frame =
+      livekit::AudioFrame::create(kAudioSampleRate, kAudioChannels, kAudioSampleRate * kAudioFrameDurationMs / 1'000);
+  auto video_frame = livekit::VideoFrame::create(kVideoWidth, kVideoHeight, livekit::VideoBufferType::RGBA);
+  std::fill(video_frame.data(), video_frame.data() + video_frame.dataSize(), 0x40);
+
+  for (int frame = 0; frame < kMediaFrameCount; ++frame) {
+    audio_source->captureFrame(audio_frame, 1'000);
+    video_source->captureFrame(video_frame);
+  }
+
+  unpublishTrackIfPublished(participant, video_track);
+  unpublishTrackIfPublished(participant, audio_track);
+}
+
 void runRoomIteration(const Configuration& config, const Options& options) {
   livekit::Room room;
   if (!room.connect(config.url, config.token, {})) {
@@ -96,35 +146,34 @@ void runRoomIteration(const Configuration& config, const Options& options) {
   }
 
   try {
-    if (!options.data_track) {
-      if (!room.disconnect()) {
-        throw std::runtime_error("failed to disconnect from the LiveKit room");
-      }
-      return;
-    }
-
     auto participant = room.localParticipant().lock();
     if (!participant) {
       throw std::runtime_error("local participant is unavailable");
     }
 
-    auto result = participant->publishDataTrack(kDataTrackName);
-    if (!result) {
-      throw std::runtime_error("failed to publish data track: " + result.error().message);
+    if (options.media) {
+      runMediaWork(participant);
     }
-    const auto& data_track = result.value();
 
-    if (options.data_frames) {
-      const livekit::DataTrackFrame data_frame(std::vector<std::uint8_t>(kDataPayloadSize, 0x5a));
-      for (int frame = 0; frame < kDataFrameCount; ++frame) {
-        auto push_result = data_track->tryPush(data_frame);
-        if (!push_result) {
-          throw std::runtime_error("failed to publish data: " + push_result.error().message);
+    if (options.data_track) {
+      auto result = participant->publishDataTrack(kDataTrackName);
+      if (!result) {
+        throw std::runtime_error("failed to publish data track: " + result.error().message);
+      }
+      const auto& data_track = result.value();
+
+      if (options.data_frames) {
+        const livekit::DataTrackFrame data_frame(std::vector<std::uint8_t>(kDataPayloadSize, 0x5a));
+        for (int frame = 0; frame < kDataFrameCount; ++frame) {
+          auto push_result = data_track->tryPush(data_frame);
+          if (!push_result) {
+            throw std::runtime_error("failed to publish data: " + push_result.error().message);
+          }
         }
       }
-    }
 
-    data_track->unpublishDataTrack();
+      data_track->unpublishDataTrack();
+    }
   } catch (...) {
     (void)room.disconnect();
     throw;
@@ -136,12 +185,16 @@ void runRoomIteration(const Configuration& config, const Options& options) {
 }
 
 void printUsage(const char* executable) {
-  std::cerr << "usage: " << executable << " [--iterations N] [--sources] [--connect] [--data-track] [--data-frames]\n"
-            << "  --sources      Create local audio and video sources and tracks.\n"
+  std::cerr << "usage: " << executable
+            << " [--iterations N] [--ffi-cycles] [--sources] [--connect] [--media] [--data-track] [--data-frames]\n"
+            << "  --ffi-cycles   Initialize and shut down the SDK on every iteration.\n"
+            << "  --sources      Create and drop unused local audio/video sources and tracks.\n"
             << "  --connect      Connect to and leave a room.\n"
+            << "  --media        Publish, capture, and unpublish audio/video tracks (implies --connect).\n"
             << "  --data-track   Publish and unpublish a data track (implies --connect).\n"
             << "  --data-frames  Send data frames (implies --data-track and --connect).\n"
-            << "  No mode flags runs all modes. A single numeric argument remains supported as the iteration count.\n";
+            << "  By default the SDK is initialized once and all workloads run on every iteration.\n"
+            << "  A single numeric argument remains supported as the iteration count.\n";
 }
 
 Options parseOptions(int argc, char* argv[]) {
@@ -159,12 +212,17 @@ Options parseOptions(int argc, char* argv[]) {
     } else if (std::strcmp(value, "--connect") == 0) {
       options.connect = true;
       options.mode_selected = true;
+    } else if (std::strcmp(value, "--media") == 0) {
+      options.media = true;
+      options.mode_selected = true;
     } else if (std::strcmp(value, "--data-track") == 0) {
       options.data_track = true;
       options.mode_selected = true;
     } else if (std::strcmp(value, "--data-frames") == 0) {
       options.data_frames = true;
       options.mode_selected = true;
+    } else if (std::strcmp(value, "--ffi-cycles") == 0) {
+      options.ffi_cycles = true;
     } else if (std::strcmp(value, "--help") == 0 || std::strcmp(value, "-h") == 0) {
       printUsage(argv[0]);
       std::exit(0);
@@ -178,9 +236,13 @@ Options parseOptions(int argc, char* argv[]) {
   if (!options.mode_selected) {
     options.sources = true;
     options.connect = true;
+    options.media = true;
     options.data_track = true;
     options.data_frames = true;
-  } else if (options.data_frames) {
+  } else if (options.media) {
+    options.connect = true;
+  }
+  if (options.data_frames) {
     options.data_track = true;
     options.connect = true;
   } else if (options.data_track) {
@@ -189,39 +251,60 @@ Options parseOptions(int argc, char* argv[]) {
   return options;
 }
 
+void runIteration(const Configuration& config, const Options& options) {
+  if (options.sources) {
+    runUnusedSources();
+  }
+  if (options.connect) {
+    runRoomIteration(config, options);
+  }
+}
+
+void initializeSdk(int iteration) {
+  if (!livekit::initialize(livekit::LogLevel::Warn)) {
+    throw std::runtime_error("initialize failed at iteration " + std::to_string(iteration));
+  }
+}
+
 } // namespace
 
 int main(int argc, char* argv[]) {
   try {
     const Options options = parseOptions(argc, argv);
     const int progress_interval = options.iteration_count < 10 ? 1 : options.iteration_count / 10;
-    std::cout << "Running " << options.iteration_count << " LiveKit initialize/shutdown cycles\n";
+    const Configuration config =
+        options.connect ? Configuration{requiredEnvironment("LIVEKIT_URL"), requiredEnvironment("LIVEKIT_TOKEN_A")}
+                        : Configuration{};
+
+    if (options.ffi_cycles) {
+      std::cout << "Running " << options.iteration_count << " LiveKit initialize/work/shutdown cycles\n";
+    } else {
+      std::cout << "Running " << options.iteration_count << " workload cycles in one LiveKit SDK lifecycle\n";
+      initializeSdk(1);
+    }
 
     for (int iteration = 1; iteration <= options.iteration_count; ++iteration) {
-      if (!livekit::initialize(livekit::LogLevel::Warn)) {
-        throw std::runtime_error("initialize failed at iteration " + std::to_string(iteration));
+      if (options.ffi_cycles) {
+        initializeSdk(iteration);
       }
 
       try {
-        if (options.sources) {
-          runSources();
-        }
-        if (options.connect) {
-          const Configuration config{
-              requiredEnvironment("LIVEKIT_URL"),
-              requiredEnvironment("LIVEKIT_TOKEN_A"),
-          };
-          runRoomIteration(config, options);
-        }
+        runIteration(config, options);
       } catch (...) {
         livekit::shutdown();
         throw;
       }
-      livekit::shutdown();
+      if (options.ffi_cycles) {
+        livekit::shutdown();
+      }
 
       if (iteration % progress_interval == 0 || iteration == options.iteration_count) {
         std::cout << "Completed " << iteration << "/" << options.iteration_count << " cycles\n";
       }
+    }
+
+    if (!options.ffi_cycles) {
+      livekit::shutdown();
     }
   } catch (const std::exception& error) {
     std::cerr << "memory lifecycle tester failed: " << error.what() << '\n';
