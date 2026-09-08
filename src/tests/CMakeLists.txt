@@ -358,6 +358,9 @@ add_executable(livekit_memory_lifecycle_tester
 )
 
 target_link_libraries(livekit_memory_lifecycle_tester PRIVATE livekit)
+if(WIN32)
+  target_link_libraries(livekit_memory_lifecycle_tester PRIVATE psapi)
+endif()
 target_include_directories(livekit_memory_lifecycle_tester PRIVATE ${LIVEKIT_ROOT_DIR}/include)
 target_compile_definitions(livekit_memory_lifecycle_tester PRIVATE
   $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>

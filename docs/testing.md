@@ -44,6 +44,7 @@ __Note:__ The tests require tokens and a running LiveKit server. See the section
 | `livekit_unit_tests` | Pure unit tests (no server required) |
 | `livekit_integration_tests` | Quick tests (~1-2 minutes) for SDK functionality |
 | `livekit_stress_tests` | Long-running tests (configurable, default 1 hour) |
+| `livekit_memory_lifecycle_tester` | Manual/CI smoke for SDK connect/publish/subscribe teardown and RSS growth. Not registered with CTest. |
 
 ## Running a local LiveKit server for tests
 
@@ -72,6 +73,9 @@ export LIVEKIT_TOKEN_B="<second participant token>"
 # Optional (for stress tests)
 export RPC_STRESS_DURATION_SECONDS=3600   # Test duration (default: 1 hour)
 export RPC_STRESS_CALLER_THREADS=4        # Concurrent caller threads (default: 4)
+
+# Optional (memory lifecycle tester / CI smoke)
+export LIVEKIT_MEMORY_MAX_FINAL_RSS_KIB=1048576  # fail if final RSS exceeds this many KiB
 ```
 
 ### Generating tokens for the test suites
@@ -105,6 +109,28 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
 - **Audio frame**: frame creation, manipulation, edge cases.
 - **RPC**: round-trip calls, max payload (15 KB), timeouts, errors, concurrent calls.
 - **Stress**: high throughput, bidirectional RPC, memory pressure.
+- **Memory lifecycle**: repeated source, room, media, data-track, and software
+  subscribe teardown. CI runs this as a short RSS-capped smoke test; longer
+  hardware runs stay manual.
+
+## Memory lifecycle smoke
+
+`livekit_memory_lifecycle_tester` is built with the test targets but is not
+part of `ctest`. CI runs two short software-only invocations after the
+integration suite:
+
+```bash
+source scripts/set-test-tokens.sh
+./build-release/bin/livekit_memory_lifecycle_tester --iterations 30 --ffi-cycles --sources
+./build-release/bin/livekit_memory_lifecycle_tester --iterations 20 --sources --media --data-frames --receive
+```
+
+`--receive` needs `LIVEKIT_TOKEN_B` and a running LiveKit server. The tester
+fails if `LIVEKIT_MEMORY_MAX_FINAL_RSS_KIB` is set and final process RSS exceeds
+that cap; leave the variable unset for local runs. CUDA and platform-audio
+paths are not part of this smoke test; see
+`src/tests/manual/cuda_video_lifecycle_tester` and
+`src/tests/manual/memory_lifecycle_tester/README.md`.
 
 ## Memory checks (valgrind)
 
