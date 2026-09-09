@@ -67,6 +67,9 @@ add_custom_command(
 )
 add_custom_target(build_livekit_ffi_metadata
   DEPENDS "${LIVEKIT_UNIFFI_METADATA_LIBRARY}")
+# Both commands invoke rustup/Cargo and share toolchain state. Keep them
+# serialized so fresh CI runners cannot race while installing the toolchain.
+add_dependencies(build_livekit_ffi_metadata build_rust_ffi)
 
 add_custom_command(
   OUTPUT
