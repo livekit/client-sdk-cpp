@@ -24,37 +24,10 @@
 #include <vector>
 
 #include "../common/ffi_utils.h"
+#include "../common/room_test_access.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "room_proto_converter.h"
-
-namespace livekit {
-
-struct RoomTestAccess {
-  static void installConnectedListener(Room& room, std::atomic<int>& callback_count) {
-    const auto listener_id = FfiClient::instance().addListener([&room, &callback_count](const proto::FfiEvent& event) {
-      callback_count.fetch_add(1, std::memory_order_relaxed);
-      room.onEvent(event);
-    });
-
-    const std::scoped_lock<std::mutex> guard(room.lock_);
-    room.connection_state_ = ConnectionState::Connected;
-    room.room_handle_ = std::make_shared<FfiHandle>();
-    room.listener_id_ = listener_id;
-  }
-
-  static bool hasRoomHandle(const Room& room) {
-    const std::scoped_lock<std::mutex> guard(room.lock_);
-    return static_cast<bool>(room.room_handle_);
-  }
-
-  static int listenerId(const Room& room) {
-    const std::scoped_lock<std::mutex> guard(room.lock_);
-    return room.listener_id_;
-  }
-};
-
-} // namespace livekit
 
 namespace livekit::test {
 

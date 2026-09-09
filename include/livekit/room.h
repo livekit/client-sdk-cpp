@@ -313,16 +313,15 @@ public:
   // Frame callbacks
   // ---------------------------------------------------------------
 
-  /// @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
+  /// Register or replace an audio frame callback for a remote subscription via SubscriptionThreadDispatcher.
   void setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                AudioFrameCallback callback, const AudioStream::Options& opts = {});
 
-  /// @brief Sets the video frame callback via SubscriptionThreadDispatcher.
+  /// Register or replace a video frame callback for a remote subscription via SubscriptionThreadDispatcher.
   void setOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                VideoFrameCallback callback, const VideoStream::Options& opts = {});
 
-  /// @brief Sets the video frame event callback via
-  /// SubscriptionThreadDispatcher.
+  /// Register or replace a video frame event callback for a remote subscription via SubscriptionThreadDispatcher.
   void setOnVideoFrameEventCallback(const std::string& participant_identity, const std::string& track_name,
                                     VideoFrameEventCallback callback, const VideoStream::Options& opts = {});
 
@@ -363,6 +362,12 @@ private:
 
   // FfiClient listener ID (0 means no listener registered)
   int listener_id_{0};
+
+  /// Find a currently subscribed remote track matching the given participant
+  /// identity and track name. Returns nullptr if no such subscribed track
+  /// exists. Acquires @ref lock_.
+  std::shared_ptr<Track> findSubscribedRemoteTrack(const std::string& participant_identity,
+                                                   const std::string& track_name) const;
 
   void onEvent(const proto::FfiEvent& event);
 

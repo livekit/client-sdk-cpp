@@ -400,27 +400,88 @@ void Room::unregisterByteStreamHandler(const std::string& topic) {
 // Frame callback registration
 // -------------------------------------------------------------------
 
+std::shared_ptr<Track> Room::findSubscribedRemoteTrack(const std::string& participant_identity,
+                                                       const std::string& track_name) const {
+  const std::scoped_lock<std::mutex> guard(lock_);
+  auto pit = remote_participants_.find(participant_identity);
+  if (pit == remote_participants_.end() || !pit->second) {
+    return nullptr;
+  }
+  for (const auto& [sid, publication] : pit->second->trackPublications()) {
+    (void)sid;
+    if (publication && publication->subscribed() && publication->name() == track_name) {
+      return publication->track();
+    }
+  }
+  return nullptr;
+}
+
 void Room::setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                    AudioFrameCallback callback, const AudioStream::Options& opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnAudioFrameCallback(participant_identity, track_name, std::move(callback),
-                                                             opts);
+  if (!subscription_thread_dispatcher_) {
+    LK_LOG_ERROR("Room::setOnAudioFrameCallback: subscription_thread_dispatcher_ is nullptr");
+    return;
+  }
+  // Installs the callback and stops any reader still dispatching to the previous
+  // one, so the restart below binds a fresh reader to the new callback.
+  subscription_thread_dispatcher_->setOnAudioFrameCallback(participant_identity, track_name, std::move(callback), opts);
+
+  // If we've already subscribed to the track, handle it immediately
+  auto track = findSubscribedRemoteTrack(participant_identity, track_name);
+  if (track) {
+    subscription_thread_dispatcher_->handleTrackSubscribed(participant_identity, track_name, track);
+  } else {
+    // The track is not subscribed yet. The callback is registered; the reader
+    // starts when the track is subscribed (see kTrackSubscribed in onEvent).
+    LK_LOG_DEBUG(
+        "Room::setOnAudioFrameCallback: track not yet subscribed for participant={} track_name={}; "
+        "callback registered for deferred start",
+        participant_identity, track_name);
   }
 }
 
 void Room::setOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                    VideoFrameCallback callback, const VideoStream::Options& opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnVideoFrameCallback(participant_identity, track_name, std::move(callback),
-                                                             opts);
+  if (!subscription_thread_dispatcher_) {
+    LK_LOG_ERROR("Room::setOnVideoFrameCallback: subscription_thread_dispatcher_ is nullptr");
+    return;
+  }
+  subscription_thread_dispatcher_->setOnVideoFrameCallback(participant_identity, track_name, std::move(callback), opts);
+
+  // If we've already subscribed to the track, handle it immediately
+  auto track = findSubscribedRemoteTrack(participant_identity, track_name);
+  if (track) {
+    subscription_thread_dispatcher_->handleTrackSubscribed(participant_identity, track_name, track);
+  } else {
+    // The track is not subscribed yet. The callback is registered; the reader
+    // starts when the track is subscribed (see kTrackSubscribed in onEvent).
+    LK_LOG_DEBUG(
+        "Room::setOnVideoFrameCallback: track not yet subscribed for participant={} track_name={}; "
+        "callback registered for deferred start",
+        participant_identity, track_name);
   }
 }
 
 void Room::setOnVideoFrameEventCallback(const std::string& participant_identity, const std::string& track_name,
                                         VideoFrameEventCallback callback, const VideoStream::Options& opts) {
-  if (subscription_thread_dispatcher_) {
-    subscription_thread_dispatcher_->setOnVideoFrameEventCallback(participant_identity, track_name, std::move(callback),
-                                                                  opts);
+  if (!subscription_thread_dispatcher_) {
+    LK_LOG_ERROR("Room::setOnVideoFrameEventCallback: subscription_thread_dispatcher_ is nullptr");
+    return;
+  }
+  subscription_thread_dispatcher_->setOnVideoFrameEventCallback(participant_identity, track_name, std::move(callback),
+                                                                opts);
+
+  // If we've already subscribed to the track, handle it immediately
+  auto track = findSubscribedRemoteTrack(participant_identity, track_name);
+  if (track) {
+    subscription_thread_dispatcher_->handleTrackSubscribed(participant_identity, track_name, track);
+  } else {
+    // The track is not subscribed yet. The callback is registered; the reader
+    // starts when the track is subscribed (see kTrackSubscribed in onEvent).
+    LK_LOG_DEBUG(
+        "Room::setOnVideoFrameEventCallback: track not yet subscribed for participant={} track_name={}; "
+        "callback registered for deferred start",
+        participant_identity, track_name);
   }
 }
 
