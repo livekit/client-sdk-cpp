@@ -269,6 +269,10 @@ endif()
 message(STATUS \"[run_cargo.cmake] CFG=\${CFG}  CARGO=\${CARGO}  PROTOC=\${PROTOC_PATH}\")
 set(ENV{PROTOC} \"\${PROTOC_PATH}\")
 
+if(DEFINED CARGO_TARGET_DIR AND NOT CARGO_TARGET_DIR STREQUAL \"\")
+  set(ENV{CARGO_TARGET_DIR} \"\${CARGO_TARGET_DIR}\")
+endif()
+
 if(DEFINED GCC_LIB_DIR AND NOT GCC_LIB_DIR STREQUAL \"\")
   set(ENV{RUSTFLAGS} \"-L \${GCC_LIB_DIR} \$ENV{RUSTFLAGS}\")
   set(ENV{LD_LIBRARY_PATH} \"\${GCC_LIB_DIR}:\$ENV{LD_LIBRARY_PATH}\")
@@ -368,6 +372,8 @@ add_custom_target(build_rust_ffi
   DEPENDS "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
 )
 
+include(uniffi_cpp)
+
 # Note: protozero_plugin.o removal is no longer needed since we use dynamic libraries on Unix
 
 add_library(livekit SHARED
@@ -466,6 +472,7 @@ target_link_libraries(livekit
   PRIVATE
     spdlog::spdlog
     nlohmann_json::nlohmann_json
+    livekit_uniffi_cpp
     livekit_ffi
     ${LIVEKIT_PROTOBUF_TARGET}
 )
