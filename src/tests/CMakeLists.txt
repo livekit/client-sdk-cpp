@@ -249,6 +249,59 @@ if(INTEGRATION_TEST_SOURCES)
 endif()
 
 # ============================================================================
+# Connection Fault Testers
+# ============================================================================
+
+# Standalone reproducer for offline disconnect and track-unpublish waits.
+add_executable(livekit_disconnect_offline_tester
+  "${CMAKE_CURRENT_SOURCE_DIR}/connection/disconnect_offline_tester.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/common/tcp_fault_proxy.h"
+)
+target_link_libraries(livekit_disconnect_offline_tester PRIVATE
+  livekit
+  $<$<PLATFORM_ID:Windows>:ws2_32>
+)
+target_include_directories(livekit_disconnect_offline_tester PRIVATE
+  ${LIVEKIT_ROOT_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/common
+)
+target_compile_definitions(livekit_disconnect_offline_tester PRIVATE
+  $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
+)
+
+if(WIN32)
+  add_custom_command(TARGET livekit_disconnect_offline_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_disconnect_offline_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
+      $<TARGET_FILE_DIR:livekit_disconnect_offline_tester>
+    COMMENT "Copying tester DLLs"
+  )
+elseif(APPLE)
+  add_custom_command(TARGET livekit_disconnect_offline_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_disconnect_offline_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+      $<TARGET_FILE_DIR:livekit_disconnect_offline_tester>
+    COMMENT "Copying tester shared libraries"
+  )
+else()
+  add_custom_command(TARGET livekit_disconnect_offline_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_disconnect_offline_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+      $<TARGET_FILE_DIR:livekit_disconnect_offline_tester>
+    COMMENT "Copying tester shared libraries"
+  )
+endif()
+
+# ============================================================================
 # Stress Tests
 # ============================================================================
 
