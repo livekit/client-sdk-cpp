@@ -34,8 +34,14 @@ class RemoteTrack;
 
 /// @brief Base class for a track that has been published to a room.
 ///
-/// Wraps the immutable publication info plus an FFI handle, and
-/// holds a weak reference to the associated Track (if any).
+/// Wraps publication info plus an FFI handle and holds a reference to the
+/// associated Track, if any. A local publication's SID and metadata can change
+/// in place during a full reconnect.
+///
+/// @warning Publication properties are not safe to read concurrently with a
+/// reconnect update. Read the refreshed properties from
+/// RoomDelegate::onLocalTrackRepublished or after synchronizing application
+/// state from RoomDelegate::onReconnected.
 class LIVEKIT_API TrackPublication {
 public:
   virtual ~TrackPublication() = default;

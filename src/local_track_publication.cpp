@@ -27,4 +27,21 @@ LocalTrackPublication::LocalTrackPublication(const proto::OwnedTrackPublication&
                        static_cast<EncryptionType>(owned.info().encryption_type()),
                        convertAudioFeatures(owned.info().audio_features())) {}
 
+void LocalTrackPublication::updateFromProto(uintptr_t publication_handle, const proto::TrackPublicationInfo& info) {
+  if (handle_.get() != publication_handle) {
+    handle_.reset(publication_handle);
+  }
+  sid_ = info.sid();
+  name_ = info.name();
+  kind_ = fromProto(info.kind());
+  source_ = fromProto(info.source());
+  simulcasted_ = info.simulcasted();
+  width_ = info.width();
+  height_ = info.height();
+  mime_type_ = info.mime_type();
+  muted_ = info.muted();
+  encryption_type_ = static_cast<EncryptionType>(info.encryption_type());
+  audio_features_ = convertAudioFeatures(info.audio_features());
+}
+
 } // namespace livekit
