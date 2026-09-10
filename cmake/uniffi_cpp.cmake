@@ -20,17 +20,13 @@ set(LIVEKIT_UNIFFI_CPP_HEADER
 set(LIVEKIT_UNIFFI_CPP_SCAFFOLDING_HEADER
     "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}/livekit_ffi_scaffolding.hpp")
 
-# Generate from an unstripped host library. Release Linux builds strip the
-# UniFFI metadata symbols, while generated C++ source is platform-independent.
-set(LIVEKIT_UNIFFI_METADATA_TARGET_DIR
-    "${RUST_ROOT}/target/uniffi-cpp-metadata")
-if(WIN32)
-  set(LIVEKIT_UNIFFI_METADATA_LIBRARY
-      "${LIVEKIT_UNIFFI_METADATA_TARGET_DIR}/debug/livekit_ffi.dll")
-elseif(APPLE)
-  set(LIVEKIT_UNIFFI_METADATA_LIBRARY
-      "${LIVEKIT_UNIFFI_METADATA_TARGET_DIR}/debug/liblivekit_ffi.dylib")
-else()
+# Release Linux builds strip the UniFFI metadata symbols, so generate from a
+# separate unstripped Debug library there. PE and Mach-O retain the metadata,
+# allowing Windows and macOS to reuse the livekit-ffi library already built for
+# the selected CMake configuration.
+if(UNIX AND NOT APPLE)
+  set(LIVEKIT_UNIFFI_METADATA_TARGET_DIR
+      "${RUST_ROOT}/target/uniffi-cpp-metadata")
   set(LIVEKIT_UNIFFI_METADATA_LIBRARY
       "${LIVEKIT_UNIFFI_METADATA_TARGET_DIR}/debug/liblivekit_ffi.so")
 endif()
@@ -50,25 +46,31 @@ file(GLOB_RECURSE LIVEKIT_UNIFFI_BINDGEN_SOURCES CONFIGURE_DEPENDS
   "${RUST_ROOT}/tools/bindgens/Cargo.toml"
 )
 
-add_custom_command(
-  OUTPUT "${LIVEKIT_UNIFFI_METADATA_LIBRARY}"
-  COMMAND "${CMAKE_COMMAND}"
-          -DCFG=Debug
-          -DRUST_ROOT=${RUST_ROOT}
-          -DCARGO=${CARGO_EXECUTABLE}
-          -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
-          -DGCC_LIB_DIR=${GCC_LIB_DIR}
-          -DCARGO_TARGET_DIR=${LIVEKIT_UNIFFI_METADATA_TARGET_DIR}
-          -P "${RUN_CARGO_SCRIPT}"
-  WORKING_DIRECTORY "${RUST_ROOT}"
-  DEPENDS ${LIVEKIT_UNIFFI_RUST_SOURCES}
-  COMMENT "Building unstripped livekit-ffi metadata library"
-  VERBATIM
-)
-add_custom_target(build_livekit_ffi_metadata
-  DEPENDS "${LIVEKIT_UNIFFI_METADATA_LIBRARY}")
-# Both commands invoke rustup/Cargo and share toolchain state. Keep them
-# serialized so fresh CI runners cannot race while installing the toolchain.
+if(UNIX AND NOT APPLE)
+  add_custom_command(
+    OUTPUT "${LIVEKIT_UNIFFI_METADATA_LIBRARY}"
+    COMMAND "${CMAKE_COMMAND}"
+            -DCFG=Debug
+            -DRUST_ROOT=${RUST_ROOT}
+            -DCARGO=${CARGO_EXECUTABLE}
+            -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
+            -DGCC_LIB_DIR=${GCC_LIB_DIR}
+            -DCARGO_TARGET_DIR=${LIVEKIT_UNIFFI_METADATA_TARGET_DIR}
+            -P "${RUN_CARGO_SCRIPT}"
+    WORKING_DIRECTORY "${RUST_ROOT}"
+    DEPENDS ${LIVEKIT_UNIFFI_RUST_SOURCES}
+    COMMENT "Building unstripped livekit-ffi metadata library"
+    VERBATIM
+  )
+  add_custom_target(build_livekit_ffi_metadata
+    DEPENDS "${LIVEKIT_UNIFFI_METADATA_LIBRARY}")
+else()
+  set(LIVEKIT_UNIFFI_METADATA_LIBRARY "$<TARGET_FILE:livekit_ffi>")
+  add_custom_target(build_livekit_ffi_metadata)
+endif()
+
+# Keep Cargo invocations serialized on fresh runners, and ensure the selected
+# livekit-ffi library exists before it is inspected on Windows and macOS.
 add_dependencies(build_livekit_ffi_metadata build_rust_ffi)
 
 add_custom_command(
@@ -80,6 +82,8 @@ add_custom_command(
           "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}"
   COMMAND "${CMAKE_COMMAND}" -E env
           "CARGO_TARGET_DIR=${RUST_ROOT}/target/bindgens"
+          "CARGO_ENCODED_RUSTFLAGS="
+          "RUSTFLAGS="
           "${CARGO_EXECUTABLE}" run --locked
           --package bindgens
           --bin uniffi-bindgen-cpp
