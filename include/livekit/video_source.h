@@ -26,6 +26,7 @@
 namespace livekit {
 
 class VideoFrame;
+class EncodedVideoSource;
 
 /// Rotation of a video frame.
 ///
@@ -95,6 +96,11 @@ public:
                     VideoRotation rotation = VideoRotation::VIDEO_ROTATION_0);
 
 private:
+  friend class EncodedVideoSource;
+
+  enum class SourceType { Native, Encoded };
+  VideoSource(int width, int height, SourceType source_type);
+
   FfiHandle handle_; // owned FFI handle
   int width_{0};
   int height_{0};

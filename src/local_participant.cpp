@@ -17,11 +17,13 @@
 #include "livekit/local_participant.h"
 
 #include <chrono>
+#include <memory>
 #include <stdexcept>
 
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
+#include "livekit/encoded_video_source.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/local_audio_track.h"
 #include "livekit/local_data_track.h"
@@ -209,6 +211,14 @@ std::shared_ptr<LocalVideoTrack> LocalParticipant::publishVideoTrack(const std::
   auto track = LocalVideoTrack::createLocalVideoTrack(name, source);
   TrackPublishOptions opts;
   opts.source = track_source;
+  // A pre-encoded source cannot be re-encoded, so the passthrough backend and
+  // the source's codec are the only valid choices here.
+  if (const auto encoded = std::dynamic_pointer_cast<EncodedVideoSource>(source)) {
+    opts.video_encoder = VideoEncoderBackend::PreEncoded;
+    opts.video_codec = encoded->codec();
+    // A single-stream encoded source cannot supply the requested layers, so turn off simulcast.
+    opts.simulcast = false;
+  }
   publishTrack(track, opts);
   return track;
 }

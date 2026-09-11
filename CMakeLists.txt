@@ -381,6 +381,7 @@ add_library(livekit SHARED
   src/data_track_schema.cpp
   src/data_track_stream.cpp
   src/e2ee.cpp
+  src/encoded_video_source.cpp
   src/ffi_handle.cpp
   src/ffi_client.cpp
   src/ffi_client.h
