@@ -26,6 +26,17 @@
 
 namespace livekit {
 
+namespace {
+
+class FakeAudioTrack : public Track {
+public:
+  FakeAudioTrack()
+      : Track(FfiHandle(), "fake-sid", "fake-name", TrackKind::KIND_AUDIO, StreamState::STATE_ACTIVE,
+              /*muted=*/false, /*remote=*/true) {}
+};
+
+} // namespace
+
 class SubscriptionThreadDispatcherTest : public ::testing::Test {
 protected:
   void SetUp() override { livekit::initialize(livekit::LogLevel::Info); }
@@ -40,6 +51,7 @@ protected:
   static auto& audioCallbacks(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.audio_callbacks_; }
   static auto& videoCallbacks(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.video_callbacks_; }
   static auto& activeReaders(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.active_readers_; }
+  static auto& subscribedTracks(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.subscribed_tracks_; }
   static auto& dataCallbacks(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.data_callbacks_; }
   static auto& activeDataReaders(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.active_data_readers_; }
   static auto& remoteDataTracks(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.remote_data_tracks_; }
@@ -232,6 +244,36 @@ TEST_F(SubscriptionThreadDispatcherTest, ActiveReadersEmptyAfterCallbackRegistra
   EXPECT_TRUE(activeReaders(dispatcher).empty())
       << "Registering a callback without a subscribed track should not spawn "
          "readers";
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, SubscribedTrackIsRetainedWithoutCallback) {
+  SubscriptionThreadDispatcher dispatcher;
+  auto track = std::make_shared<FakeAudioTrack>();
+
+  dispatcher.handleTrackSubscribed("alice", "mic-main", track);
+
+  const CallbackKey key{"alice", "mic-main"};
+  ASSERT_EQ(subscribedTracks(dispatcher).count(key), 1u);
+  EXPECT_EQ(subscribedTracks(dispatcher).at(key), track);
+  EXPECT_TRUE(activeReaders(dispatcher).empty());
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, UnsubscribeRemovesRetainedTrack) {
+  SubscriptionThreadDispatcher dispatcher;
+  dispatcher.handleTrackSubscribed("alice", "mic-main", std::make_shared<FakeAudioTrack>());
+
+  dispatcher.handleTrackUnsubscribed("alice", TrackSource::SOURCE_MICROPHONE, "mic-main");
+
+  EXPECT_TRUE(subscribedTracks(dispatcher).empty());
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, StopAllRemovesRetainedTracks) {
+  SubscriptionThreadDispatcher dispatcher;
+  dispatcher.handleTrackSubscribed("alice", "mic-main", std::make_shared<FakeAudioTrack>());
+
+  dispatcher.stopAll();
+
+  EXPECT_TRUE(subscribedTracks(dispatcher).empty());
 }
 
 // ============================================================================
