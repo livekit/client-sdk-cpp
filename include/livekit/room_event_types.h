@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 
+#include "livekit/video_codec.h"
+
 namespace livekit {
 
 // Forward declarations to avoid pulling in heavy headers.
@@ -35,9 +37,6 @@ class RemoteTrackPublication;
 class TrackPublication;
 
 enum class TrackSource;
-
-/// @brief Codec used to publish a video track.
-enum class VideoCodec { VP8 = 0, H264 = 1, AV1 = 2, VP9 = 3, H265 = 4 };
 
 /// Overall quality of a participant's connection.
 enum class ConnectionQuality {

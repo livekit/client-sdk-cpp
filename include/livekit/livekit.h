@@ -38,6 +38,7 @@
 #include "livekit/token_source.h"
 #include "livekit/tracing.h"
 #include "livekit/track_publication.h"
+#include "livekit/video_codec.h"
 #include "livekit/video_frame.h"
 #include "livekit/video_source.h"
 #include "livekit/video_stream.h"

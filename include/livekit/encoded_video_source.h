@@ -20,7 +20,7 @@
 #include <optional>
 #include <vector>
 
-#include "livekit/room_event_types.h"
+#include "livekit/video_codec.h"
 #include "livekit/video_source.h"
 #include "livekit/visibility.h"
 
