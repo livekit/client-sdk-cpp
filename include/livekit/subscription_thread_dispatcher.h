@@ -96,14 +96,16 @@ public:
   /// Register or replace an audio frame callback for a remote subscription.
   ///
   /// The callback is keyed by remote participant identity plus @p track_name.
-  /// If the matching remote audio track is already subscribed, @ref Room may
-  /// immediately call @ref handleTrackSubscribed to start a reader.
+  /// If the matching remote audio track is already subscribed, this starts a
+  /// reader immediately. Otherwise, the reader starts when the track is
+  /// subscribed.
   ///
   /// Registering again for a key that already has an active reader replaces the
   /// callback in place: the previous reader's stream is closed and its thread
-  /// is joined before this call returns, and @ref Room then starts a fresh
-  /// reader bound to the new callback. When this call returns, the previous
-  /// callback has finished executing and its copy has been destroyed.
+  /// is joined before this call returns. If the track remains subscribed, the
+  /// dispatcher starts a fresh reader bound to the new callback. When this call
+  /// returns, the previous callback has finished executing and its copy has
+  /// been destroyed.
   ///
   /// @warning This call blocks until any in-flight invocation of the previous
   ///          callback returns. A slow callback makes registration slow; a
@@ -124,8 +126,9 @@ public:
   /// Register or replace a video frame callback for a remote subscription.
   ///
   /// The callback is keyed by remote participant identity plus @p track_name.
-  /// If the matching remote video track is already subscribed, @ref Room may
-  /// immediately call @ref handleTrackSubscribed to start a reader.
+  /// If the matching remote video track is already subscribed, this starts a
+  /// reader immediately. Otherwise, the reader starts when the track is
+  /// subscribed.
   ///
   /// Registering again for a key that already has an active reader replaces the
   /// callback in place; see @ref setOnAudioFrameCallback for the full
@@ -146,8 +149,9 @@ public:
   /// subscription.
   ///
   /// The callback is keyed by remote participant identity plus @p track_name.
-  /// If the matching remote video track is already subscribed, @ref Room may
-  /// immediately call @ref handleTrackSubscribed to start a reader.
+  /// If the matching remote video track is already subscribed, this starts a
+  /// reader immediately. Otherwise, the reader starts when the track is
+  /// subscribed.
   ///
   /// Registering again for a key that already has an active reader replaces the
   /// callback in place; see @ref setOnAudioFrameCallback for the full
@@ -203,9 +207,11 @@ public:
   /// AudioStream or @ref VideoStream and launches a reader thread for the
   /// `(participant, track_name)` key.
   ///
-  /// Remote data tracks are handled separately via @ref
-  /// handleDataTrackPublished. If @p track is not audio or video, or no
-  /// matching callback is registered, this is a no-op.
+  /// The dispatcher retains the subscription until it receives
+  /// @ref handleTrackUnsubscribed. This lets a callback registered after this
+  /// method returns start a reader immediately. Remote data tracks are handled
+  /// separately via @ref handleDataTrackPublished. If @p track is not audio or
+  /// video, no reader is started.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name associated with the subscription.
@@ -417,6 +423,11 @@ private:
   /// Must be called with @ref lock_ held.
   std::thread startReaderLocked(const CallbackKey& key, const std::shared_ptr<Track>& track);
 
+  /// Start a reader when a matching subscribed track is retained for @p key.
+  ///
+  /// Must be called with @ref lock_ held.
+  std::thread startReaderForSubscribedTrackLocked(const CallbackKey& key, TrackKind kind);
+
   /// Start an audio reader thread for @p key using @p track.
   ///
   /// Must be called with @ref lock_ held. Any previous reader for the same key
@@ -458,6 +469,9 @@ private:
 
   /// Active stream/thread state keyed by @ref CallbackKey.
   std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash> active_readers_;
+
+  /// Currently subscribed remote audio/video tracks keyed by @ref CallbackKey.
+  std::unordered_map<CallbackKey, std::shared_ptr<Track>, CallbackKeyHash> subscribed_tracks_;
 
   /// Next auto-increment ID for data frame callbacks.
   DataFrameCallbackId next_data_callback_id_{0};

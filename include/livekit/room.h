@@ -313,15 +313,39 @@ public:
   // Frame callbacks
   // ---------------------------------------------------------------
 
-  /// Register or replace an audio frame callback for a remote subscription via SubscriptionThreadDispatcher.
+  /// @brief Sets the callback for frames from a remote audio track.
+  ///
+  /// The callback can be set before or after the matching track is subscribed
+  /// and runs on a dedicated reader thread.
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name Name of the remote audio track.
+  /// @param callback Function invoked for each decoded audio frame.
+  /// @param opts Options used to create the backing audio stream.
   void setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                AudioFrameCallback callback, const AudioStream::Options& opts = {});
 
-  /// Register or replace a video frame callback for a remote subscription via SubscriptionThreadDispatcher.
+  /// @brief Sets the callback for frames from a remote video track.
+  ///
+  /// The callback can be set before or after the matching track is subscribed
+  /// and runs on a dedicated reader thread.
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name Name of the remote video track.
+  /// @param callback Function invoked for each decoded video frame.
+  /// @param opts Options used to create the backing video stream.
   void setOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                VideoFrameCallback callback, const VideoStream::Options& opts = {});
 
-  /// Register or replace a video frame event callback for a remote subscription via SubscriptionThreadDispatcher.
+  /// @brief Sets the event callback for frames from a remote video track.
+  ///
+  /// The callback can be set before or after the matching track is subscribed
+  /// and runs on a dedicated reader thread.
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name Name of the remote video track.
+  /// @param callback Function invoked for each decoded video frame event.
+  /// @param opts Options used to create the backing video stream.
   void setOnVideoFrameEventCallback(const std::string& participant_identity, const std::string& track_name,
                                     VideoFrameEventCallback callback, const VideoStream::Options& opts = {});
 
