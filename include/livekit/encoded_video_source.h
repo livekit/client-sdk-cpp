@@ -51,7 +51,7 @@ public:
     std::optional<VideoFrameMetadata> metadata;
   };
 
-  /// @brief Latest encoder rate-control target requested by WebRTC.
+  /// @brief Latest encoder rate-control target requested by the publishing pipeline.
   struct RateControl {
     /// Requested target bitrate in bits per second.
     std::uint64_t target_bitrate_bps = 0;
@@ -63,7 +63,7 @@ public:
   struct Feedback {
     /// True when the upstream encoder must produce a key frame.
     bool keyframe_requested = false;
-    /// Latest rate-control target, if WebRTC requested one.
+    /// Latest rate-control target, if the publishing pipeline requested one.
     std::optional<RateControl> rate_control;
   };
 
@@ -81,7 +81,7 @@ public:
 
   /// @brief Submit one complete encoded access unit.
   /// @param frame Encoded frame. Its payload is copied during this call.
-  /// @return True if WebRTC accepted the frame.
+  /// @return True if the frame was accepted.
   /// @throws std::invalid_argument if the frame is empty, too large, has only
   ///         one zero dimension, or has a dimension above 65535.
   /// @throws std::runtime_error if the FFI request fails.
