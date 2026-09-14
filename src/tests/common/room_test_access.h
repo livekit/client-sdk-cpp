@@ -23,7 +23,6 @@
 #pragma once
 
 #include <livekit/livekit.h>
-#include <livekit/subscription_thread_dispatcher.h>
 
 #include <atomic>
 #include <cstddef>
@@ -31,8 +30,20 @@
 
 #include "ffi.pb.h"
 #include "ffi_client.h"
+#include "livekit/subscription_thread_dispatcher.h"
 
 namespace livekit {
+
+// RoomTestAccess deliberately reaches into the (deprecated-for-external-use)
+// SubscriptionThreadDispatcher as part of exercising Room's internals; suppress
+// the deprecation warning for that in-tree, intentional use.
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
 
 struct RoomTestAccess {
   static void installConnectedListener(Room& room, std::atomic<int>& callback_count) {
@@ -80,5 +91,11 @@ struct RoomTestAccess {
     return dispatcher->active_data_readers_.size();
   }
 };
+
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 } // namespace livekit

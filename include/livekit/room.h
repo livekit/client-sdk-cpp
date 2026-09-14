@@ -22,18 +22,21 @@
 #include <memory>
 #include <mutex>
 
+#include "livekit/audio_stream.h"
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
+#include "livekit/frame_callbacks.h"
 #include "livekit/room_event_types.h"
 #include "livekit/stats.h"
-#include "livekit/subscription_thread_dispatcher.h"
+#include "livekit/video_stream.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
 
 class RoomDelegate;
 struct RoomInfoData;
+class SubscriptionThreadDispatcher;
 namespace proto {
 class FfiEvent;
 }

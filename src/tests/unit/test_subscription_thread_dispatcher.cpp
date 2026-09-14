@@ -31,6 +31,18 @@
 #include <vector>
 
 #include "../common/remote_data_track_test_access.h"
+#include "livekit/subscription_thread_dispatcher.h"
+
+// This file unit-tests SubscriptionThreadDispatcher's internals directly, an
+// intentional in-tree use of an API that is deprecated for external
+// consumers; suppress the deprecation warning throughout.
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
 
 namespace livekit {
 
@@ -1097,3 +1109,9 @@ TEST_F(SubscriptionThreadDispatcherTest, ConcurrentDataCallbackRegistrationDoesN
 }
 
 } // namespace livekit
+
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif

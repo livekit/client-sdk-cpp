@@ -28,6 +28,7 @@
 #include "livekit/remote_video_track.h"
 #include "livekit/room_delegate.h"
 #include "livekit/room_event_types.h"
+#include "livekit/subscription_thread_dispatcher.h"
 #include "livekit_ffi.h"
 #include "lk_log.h"
 #include "room.pb.h"
