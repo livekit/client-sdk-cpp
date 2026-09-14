@@ -78,14 +78,6 @@ public:
 
   /// Register or replace an audio frame callback for a remote subscription.
   ///
-  /// The callback is keyed by remote participant identity plus @p track_name.
-  /// If the matching remote audio track is already subscribed, this starts a
-  /// reader immediately. Otherwise, the reader starts when the track is
-  /// subscribed.
-  ///
-  /// Registering again for a key that already has an active reader replaces the
-  /// callback in place.
-  ///
   /// @warning This call blocks until any in-flight invocation of the previous
   ///          callback returns. Calling this from inside a frame callback for the same key is not supported.
   ///
@@ -99,9 +91,8 @@ public:
 
   /// Register or replace a video frame callback for a remote subscription.
   ///
-  /// Registering again for a key that already has an active reader replaces the
-  /// callback in place; see @ref setOnAudioFrameCallback for the full
-  /// replacement semantics, blocking behavior, and re-entrancy caveat.
+  /// @warning This call blocks until any in-flight invocation of the previous
+  ///          callback returns. Calling this from inside a frame callback for the same key is not supported.
   /// @note this shares its registration slot with @ref setOnVideoFrameEventCallback -- registering either one
   // replaces the other for the same key.
   ///
@@ -116,9 +107,8 @@ public:
   /// Register or replace a rich video frame event callback for a remote
   /// subscription.
   ///
-  /// Registering again for a key that already has an active reader replaces the
-  /// callback in place; see @ref setOnAudioFrameCallback for the full
-  /// replacement semantics, blocking behavior, and re-entrancy caveat.
+  /// @warning This call blocks until any in-flight invocation of the previous
+  ///          callback returns. Calling this from inside a frame callback for the same key is not supported.
   /// @note this shares its registration slot with @ref setOnVideoFrameCallback -- registering either one replaces the
   // other for the same key.
   //
@@ -205,13 +195,8 @@ public:
   /// for this subscription.
   /// No-op if the ID is not (or no longer) registered.
   ///
-  /// @warning Blocks until any in-flight invocation of the callback returns.
-  ///
-  /// @warning Calling this from inside the data frame callback it removes is
-  ///          discouraged. Joining the reader would be a self-join, so the
-  ///          dispatcher logs a warning and detaches the reader instead. The
-  ///          removal still takes effect: the reader's stream is closed and it
-  ///          exits as soon as the in-flight callback invocation returns.
+  /// @warning This call blocks until any in-flight invocation of the previous
+  ///          callback returns. Calling this from inside a frame callback for the same key is not supported.
   ///
   /// @param id  The identifier returned by addOnDataFrameCallback().
   void removeOnDataFrameCallback(DataFrameCallbackId id);
@@ -235,11 +220,8 @@ public:
 
   /// Stop all readers and clear all callback registrations.
   ///
-  /// This is used during room teardown or EOS handling to ensure no reader
-  /// thread survives beyond the lifetime of the owning @ref Room. If called
-  /// from inside a frame callback (for example `Room::disconnect()` invoked
-  /// from a data frame callback), the calling reader is detached rather than
-  /// self-joined; it exits once that callback invocation returns.
+  /// This is used during room teardown or EOS handling to ensure no reader thread survives beyond the lifetime of the
+  /// owning @ref Room If called from inside a frame callback the calling reader is detached rather than self-joined.
   void stopAll();
 
 private:
@@ -411,8 +393,7 @@ private:
   /// Currently subscribed remote audio/video tracks keyed by @ref CallbackKey.
   std::unordered_map<CallbackKey, std::shared_ptr<Track>, CallbackKeyHash> subscribed_tracks_;
 
-  /// Keys whose previous reader has been extracted but not yet joined, with the
-  /// number of such in-progress drains. No reader is started for a key while
+  /// Keys whose previous reader has been extracted but not yet joined. A reader is not started for a key while
   /// it has an entry here. See @ref extractReaderForDrainLocked.
   std::unordered_map<CallbackKey, int, CallbackKeyHash> draining_readers_;
 
