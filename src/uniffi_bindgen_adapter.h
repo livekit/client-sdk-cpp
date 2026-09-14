@@ -14,21 +14,25 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
+#pragma once
 
-#include "uniffi_bindgen_adapter.h"
+#include <optional>
+#include <string>
+
+///
+/// Note: This adapter is a temporary internal translation unit for exercising UniFFI
+/// bindings. It will be removed when the represented UniFFI APIs are migrated to actual
+/// SDK features.
+///
+
+#include "livekit/visibility.h"
 
 namespace livekit {
-namespace {
 
-TEST(UniFfiTest, BuildVersion) {
-  const auto version = uniffiBindgenBuildVersion();
+/// @brief Gets the build version through the generated UniFFI binding.
+///
+/// @return The generated binding's build version, or no value if it is invalid
+/// or the binding call fails.
+LIVEKIT_INTERNAL_API std::optional<std::string> uniffiBindgenBuildVersion();
 
-  ASSERT_TRUE(version.has_value()) << "Generated UniFFI binding did not return a build version";
-
-  EXPECT_FALSE(version.value().empty());
-  EXPECT_NE(version.value(), "unknown");
-}
-
-} // namespace
 } // namespace livekit

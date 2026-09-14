@@ -14,21 +14,18 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
-
 #include "uniffi_bindgen_adapter.h"
 
+#include "livekit_ffi.hpp"
+
 namespace livekit {
-namespace {
 
-TEST(UniFfiTest, BuildVersion) {
-  const auto version = uniffiBindgenBuildVersion();
-
-  ASSERT_TRUE(version.has_value()) << "Generated UniFFI binding did not return a build version";
-
-  EXPECT_FALSE(version.value().empty());
-  EXPECT_NE(version.value(), "unknown");
+std::optional<std::string> uniffiBindgenBuildVersion() {
+  auto version = livekit_ffi::build_version();
+  if (version.empty() || version == "unknown") {
+    return std::nullopt;
+  }
+  return version;
 }
 
-} // namespace
 } // namespace livekit

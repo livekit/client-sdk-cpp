@@ -79,6 +79,7 @@ set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/track.proto
     ${FFI_PROTO_DIR}/video_frame.proto
     ${FFI_PROTO_DIR}/audio_frame.proto
+    ${FFI_PROTO_DIR}/capture.proto
     ${FFI_PROTO_DIR}/e2ee.proto
     ${FFI_PROTO_DIR}/stats.proto
     ${FFI_PROTO_DIR}/data_stream.proto
@@ -407,6 +408,7 @@ add_library(livekit SHARED
   src/token_source_json.cpp
   src/token_source_jwt.cpp
   src/token_source_internal.h
+  src/uniffi_bindgen_adapter.cpp
   src/local_participant.cpp
   src/remote_participant.cpp
   src/stats.cpp
@@ -451,7 +453,14 @@ if(UNIX AND NOT APPLE)
 endif()
 
 
-target_sources(livekit PRIVATE $<TARGET_OBJECTS:livekit_proto>)
+target_sources(livekit PRIVATE
+  $<TARGET_OBJECTS:livekit_proto>
+  $<TARGET_OBJECTS:livekit_uniffi_cpp>
+)
+set_source_files_properties(
+  ${LIVEKIT_ROOT_DIR}/src/uniffi_bindgen_adapter.cpp
+  PROPERTIES OBJECT_DEPENDS ${LIVEKIT_UNIFFI_CPP_HEADER}
+)
 
 target_include_directories(livekit
   PUBLIC
@@ -460,6 +469,7 @@ target_include_directories(livekit
   PRIVATE
     ${LIVEKIT_ROOT_DIR}/src
     ${LIVEKIT_ROOT_DIR}/src/trace
+    ${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}
     ${LIVEKIT_PROTOBUF_DEP_INCLUDE_DIRS}
 )
 
@@ -473,7 +483,6 @@ target_link_libraries(livekit
   PRIVATE
     spdlog::spdlog
     nlohmann_json::nlohmann_json
-    livekit_uniffi_cpp
     livekit_ffi
     ${LIVEKIT_PROTOBUF_TARGET}
 )
