@@ -94,7 +94,7 @@ public:
   /// @warning This call blocks until any in-flight invocation of the previous
   ///          callback returns. Calling this from inside a frame callback for the same key is not supported.
   /// @note this shares its registration slot with @ref setOnVideoFrameEventCallback -- registering either one
-  // replaces the other for the same key.
+  /// replaces the other for the same key.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to match.
