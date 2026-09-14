@@ -102,7 +102,7 @@ public:
   /// Registering again for a key that already has an active reader replaces the
   /// callback in place; see @ref setOnAudioFrameCallback for the full
   /// replacement semantics, blocking behavior, and re-entrancy caveat.
-  //  Note: this shares its registration slot with @ref setOnVideoFrameEventCallback -- registering either one
+  /// @note this shares its registration slot with @ref setOnVideoFrameEventCallback -- registering either one
   // replaces the other for the same key.
   ///
   /// @param participant_identity Identity of the remote participant.
@@ -119,7 +119,7 @@ public:
   /// Registering again for a key that already has an active reader replaces the
   /// callback in place; see @ref setOnAudioFrameCallback for the full
   /// replacement semantics, blocking behavior, and re-entrancy caveat.
-  // Note: this shares its registration slot with @ref setOnVideoFrameCallback -- registering either one replaces the
+  /// @note this shares its registration slot with @ref setOnVideoFrameCallback -- registering either one replaces the
   // other for the same key.
   //
   /// @param participant_identity Identity of the remote participant.
@@ -134,13 +134,9 @@ public:
   /// Remove an audio callback registration and stop any active reader.
   ///
   /// If an audio reader thread is active for the given key, its stream is
-  /// closed and the thread is joined before this call returns. Replacing a
-  /// callback does not require clearing first -- see
-  /// @ref setOnAudioFrameCallback.
+  /// closed and the thread is joined before this call returns.
   ///
-  /// @warning Blocks until any in-flight callback invocation returns. See
-  ///          @ref setOnAudioFrameCallback for the caveat on calling this from
-  ///          inside a frame callback for the same key.
+  /// @warning Calling this from inside a frame callback for the same key is not supported.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to clear.
@@ -149,13 +145,9 @@ public:
   /// Remove a video callback registration and stop any active reader.
   ///
   /// If a video reader thread is active for the given key, its stream is
-  /// closed and the thread is joined before this call returns. Replacing a
-  /// callback does not require clearing first -- see
-  /// @ref setOnVideoFrameCallback.
+  /// closed and the thread is joined before this call returns.
   ///
-  /// @warning Blocks until any in-flight callback invocation returns. See
-  ///          @ref setOnAudioFrameCallback for the caveat on calling this from
-  ///          inside a frame callback for the same key.
+  /// @warning Calling this from inside a frame callback for the same key is not supported.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to clear.
@@ -164,46 +156,31 @@ public:
   /// Start or restart reader dispatch for a newly subscribed remote audio or
   /// video track.
   ///
-  /// @ref Room calls this after it has processed a track-subscription event and
-  /// updated its publication state. If a matching audio or video callback
-  /// registration exists, the dispatcher creates the appropriate @ref
-  /// AudioStream or @ref VideoStream and launches a reader thread for the
-  /// `(participant, track_name)` key. A repeated event for the track SID a
-  /// reader is already serving is a no-op; a different SID (a republish)
-  /// stops and joins the previous reader before starting the new one.
+  /// A repeated event for the track SID a reader is already serving is a no-op;
+  //  A different SID (a republish) stops and joins the previous reader before starting the new one.
   ///
   /// The dispatcher retains the subscription until it receives
   /// @ref handleTrackUnsubscribed. This lets a callback registered after this
-  /// method returns start a reader immediately. Remote data tracks are handled
-  /// separately via @ref handleDataTrackPublished. If @p track is not audio or
-  /// video, no reader is started.
+  /// method returns start a reader immediately. A reader only starts for  audio and video tracks.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name associated with the subscription.
-  /// @param track                Subscribed remote audio or video track to read
-  /// from.
+  /// @param track                Subscribed remote audio or video track to read from.
   void handleTrackSubscribed(const std::string& participant_identity, const std::string& track_name,
                              const std::shared_ptr<Track>& track);
 
-  /// Stop reader dispatch for an unsubscribed remote audio or video track.
+  /// Stop reader dispatch for an unsubscribed remote track.
   ///
-  /// @ref Room calls this when a remote audio or video track is unsubscribed.
-  /// Any active reader stream for the given `(participant, track_name)` key is
-  /// closed and its thread is joined. Callback registration is preserved so
-  /// future re-subscription can start dispatch again automatically.
-  ///
-  /// Remote data tracks are handled separately via @ref
-  /// handleDataTrackUnpublished.
+  /// @ref Room calls this when a remote track is unsubscribed. Any active
+  /// reader stream for the given `(participant, track_name)` key is closed and its
+  /// thread is joined. Callback registration is preserved so future
+  /// re-subscription can start dispatch again automatically.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param source               Track source associated with the subscription.
   /// @param track_name           Track name associated with the subscription.
   void handleTrackUnsubscribed(const std::string& participant_identity, TrackSource source,
                                const std::string& track_name);
-
-  // ---------------------------------------------------------------
-  // Data track callbacks
-  // ---------------------------------------------------------------
 
   /// Add a callback for data frames from a specific remote participant's
   /// data track.
@@ -293,12 +270,9 @@ private:
     std::shared_ptr<AudioStream> audio_stream;
     std::shared_ptr<VideoStream> video_stream;
     std::thread thread;
-    /// SID of the subscribed track backing this reader, used to skip redundant
-    /// reader restarts when the same publication is re-subscribed.
+    /// SID of the subscribed track backing this reader
     std::string track_sid;
-    /// ID of @ref thread, captured at construction. Used to detect a re-entrant
-    /// call made from inside this reader's own frame callback, where joining
-    /// would be a self-join.
+    /// ID of @ref thread, captured at construction. Used to block a self-join.
     std::thread::id thread_id;
   };
 
@@ -330,20 +304,15 @@ private:
   /// Active read-side resources for one data track stream subscription.
   struct ActiveDataReader {
     std::shared_ptr<RemoteDataTrack> remote_track;
-    /// Set true when this reader is being replaced or torn down so the reader
-    /// thread can abort a subscription that is still in flight.
+    /// Set true when this reader is being replaced or torn down.
     std::atomic<bool> cancelled{false};
-    /// Set true by the reader thread itself when it exits (failed, cancelled,
-    /// or terminal subscription). A finished reader still occupying its slot
-    /// is replaced rather than deduplicated on the next same-SID publish. Only
+    /// Set true by the reader thread itself when it exits (failed, cancelled, or terminal subscription). Only
     /// dispatcher lifecycle paths erase the slot and join or detach the thread.
     std::atomic<bool> finished{false};
     std::mutex sub_mutex;
     std::shared_ptr<DataTrackStream> stream; // guarded by sub_mutex
     std::thread thread;
-    /// ID of @ref thread, captured at construction. Used to detect a re-entrant
-    /// call made from inside this reader's own data frame callback, where
-    /// joining would be a self-join.
+    /// ID of @ref thread, captured at construction. Used to block a self-join.
     std::thread::id thread_id;
   };
 
@@ -366,28 +335,15 @@ private:
   /// must be disposed of after releasing the lock.
   std::thread extractReaderThreadLocked(const CallbackKey& key);
 
-  /// Remove and close the active reader for @p key and, if a thread came out,
-  /// mark the key as draining so that no reader for it is started until
-  /// @ref finishReaderDrainAndRestart has disposed of that thread.
-  ///
-  /// Every audio/video path that stops a reader goes through this, so a
-  /// concurrent registration or subscription event for the same key cannot
-  /// start a replacement while the previous callback may still be executing.
+  /// Wrapper around @ref extractReaderThreadLocked. If extractReaderThreadLocked returns a thread the key is marked as
+  /// draining.
   ///
   /// Must be called with @ref lock_ held.
   std::thread extractReaderForDrainLocked(const CallbackKey& key);
 
-  /// Second half of every audio/video reader restart.
+  /// Dispose of the old reader thread, clear from the drain, and start a new reader.
   ///
-  /// Disposes of @p old_thread (obtained from @ref extractReaderForDrainLocked)
-  /// with @ref lock_ released, then re-acquires the lock, clears the draining
-  /// mark, and starts a reader for @p key if a callback is registered, a
-  /// subscribed track is retained, and no other caller is still draining the
-  /// key. Because the start happens only after the join, the previous and the
-  /// new callback never run concurrently.
-  ///
-  /// Must be called with @ref lock_ released. @p operation names the public
-  /// entry point for diagnostics.
+  /// Must be called with @ref lock_ released.
   void finishReaderDrainAndRestart(const CallbackKey& key, std::thread old_thread, const char* operation);
 
   /// True when @p id identifies the calling thread, i.e. joining that thread
@@ -395,35 +351,19 @@ private:
   static bool isSelfThread(std::thread::id id) { return id == std::this_thread::get_id(); }
 
   /// Dispose of an extracted reader thread (audio, video, or data).
-  ///
-  /// Normally joins, so the caller is guaranteed the reader has stopped and its
-  /// callback copy has been destroyed. If the caller *is* that reader -- a
-  /// re-entrant call from inside its own frame callback -- joining would be a
-  /// self-join, so this logs a warning naming @p operation and detaches
-  /// instead. Detaching is safe because no reader lambda captures @c this:
-  /// each owns its stream, callback, and (for data) its @ref ActiveDataReader
-  /// by value, so a detached thread touches nothing owned by the dispatcher.
-  ///
+  /// @param thread The thread to dispose of. If this is a self thread, detatch and return.
+  /// @param operation for logging
   /// Must be called with @ref lock_ released.
   void disposeReaderThread(std::thread&& thread, const char* operation);
 
-  /// Select the appropriate reader startup path for the media @p track.
+  /// Starts the respective media reader thread for @p track.
   ///
-  /// Looks up the callback registration matching the track's kind and starts
-  /// an audio or video reader bound to it. If no callback is registered for
-  /// that kind, or the kind is unsupported, this is a no-op.
-  ///
-  /// Precondition: no reader is active for @p key. Every caller stops the
-  /// previous reader through the drain protocol first, so a reader found here
-  /// is a bug; it is logged and left untouched rather than replaced.
-  ///
-  /// Must be called with @ref lock_ held.
+  /// This is a no-op if: no callback is registered for the track's kind, the track is not audio or video, or a read is
+  /// active for the key Must be called with @ref lock_ held.
   void startReaderLocked(const CallbackKey& key, const std::shared_ptr<Track>& track);
 
   /// Start a reader for @p key if one should be running: a subscribed track is
   /// retained for the key, no reader is active, and the key is not draining.
-  /// Whether a callback of the matching kind is registered is decided by
-  /// @ref startReaderLocked.
   ///
   /// Must be called with @ref lock_ held.
   void startReaderForSubscribedTrackLocked(const CallbackKey& key);
@@ -452,12 +392,8 @@ private:
                                     const std::shared_ptr<RemoteDataTrack>& track, const DataFrameCallback& cb);
 
   /// Mark @p reader finished and release its stream.
-  ///
-  /// Called by the reader thread itself, on every exit path, so a slot still
-  /// holding a dead reader is recognised as replaceable. Deliberately touches
-  /// only @p reader (never the dispatcher), which is what makes data reader
-  /// threads safe to detach. Reader threads must not erase, detach, or join
-  /// their own @ref std::thread.
+  /// Reader threads must not self join.
+  /// @param reader The reader to mark as finished.
   static void markDataReaderFinished(const std::shared_ptr<ActiveDataReader>& reader);
 
   /// Protects callback registration maps and active reader state.
