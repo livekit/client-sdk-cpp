@@ -333,7 +333,7 @@ private:
   static bool isSelfThread(std::thread::id id) { return id == std::this_thread::get_id(); }
 
   /// Dispose of an extracted reader thread (audio, video, or data).
-  /// @param thread The thread to dispose of. If this is a self thread, detatch and return.
+  /// @param thread The thread to dispose of. If this is a self thread, detach and return.
   /// @param operation for logging
   /// Must be called with @ref lock_ released.
   void disposeReaderThread(std::thread&& thread, const char* operation);
