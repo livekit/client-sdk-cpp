@@ -387,6 +387,56 @@ TEST_F(FrameCallbackReplacementTest, SetOnVideoFrameCallbackBlocksUntilSlowCallb
   fixture.teardown();
 }
 
+// Replacement must join the previous reader *before* starting the new one, so
+// the two callbacks never execute concurrently. Here callback A is mid-flight
+// (sleeping) when B is registered. If B is ever invoked while A is still inside
+// its invocation, the documented ordering is broken -- which is exactly what
+// happened when the replacement reader was started before the join.
+TEST_F(FrameCallbackReplacementTest, ReplacementCallbackNeverOverlapsPreviousCallback) {
+  failIfNotConfigured();
+
+  VideoFixture fixture(config_.url, config_.token_a, config_.token_b);
+  ASSERT_TRUE(fixture.connected());
+
+  constexpr auto kSlowCallbackDuration = 1500ms;
+  std::atomic<bool> slow_entered{false};
+  std::atomic<bool> slow_in_flight{false};
+  std::atomic<bool> overlap_detected{false};
+  std::atomic<int> fast_frames{0};
+
+  fixture.receiver().setOnVideoFrameCallback(fixture.senderIdentity(), fixture.trackName(),
+                                             [&](const VideoFrame&, std::int64_t) {
+                                               slow_in_flight.store(true);
+                                               slow_entered.store(true);
+                                               std::this_thread::sleep_for(kSlowCallbackDuration);
+                                               slow_in_flight.store(false);
+                                             });
+
+  ASSERT_TRUE(fixture.publishAndAwaitSubscription());
+  ASSERT_TRUE(waitFor([&]() { return slow_entered.load(); }, kFrameTimeout))
+      << "Slow callback never started an invocation";
+
+  const bool completed = completesWithoutDeadlock([&]() {
+    fixture.receiver().setOnVideoFrameCallback(fixture.senderIdentity(), fixture.trackName(),
+                                               [&](const VideoFrame&, std::int64_t) {
+                                                 if (slow_in_flight.load()) {
+                                                   overlap_detected.store(true);
+                                                 }
+                                                 fast_frames.fetch_add(1);
+                                               });
+  });
+  ASSERT_TRUE(completed) << "setOnVideoFrameCallback did not return";
+
+  EXPECT_TRUE(waitFor([&]() { return fast_frames.load() > 0; }, kFrameTimeout))
+      << "Replacement callback never received a frame";
+  EXPECT_FALSE(overlap_detected.load())
+      << "Replacement callback was invoked while the previous callback was still executing";
+  EXPECT_EQ(RoomTestAccess::activeReaderCount(fixture.receiver()), 1u);
+  EXPECT_EQ(RoomTestAccess::drainingReaderCount(fixture.receiver()), 0u);
+
+  fixture.teardown();
+}
+
 // The join happens outside the dispatcher lock, so a slow callback on one
 // subscription must not stall readers for other subscriptions.
 TEST_F(FrameCallbackReplacementTest, SlowCallbackDoesNotStallOtherSubscriptionReaders) {
@@ -640,7 +690,8 @@ TEST_F(FrameCallbackReplacementTest, ReplacementSurvivesUnpublishAndRepublish) {
 // ============================================================================
 
 // Registering from inside the frame callback would make the join a self-join.
-// Media readers are detached instead, so the call must return rather than hang.
+// The reader is detached instead, so the call must return rather than hang --
+// and the replacement must still take effect once the detached reader exits.
 TEST_F(FrameCallbackReplacementTest, SetOnVideoFrameCallbackFromInsideCallbackDoesNotDeadlock) {
   failIfNotConfigured();
 
@@ -649,10 +700,12 @@ TEST_F(FrameCallbackReplacementTest, SetOnVideoFrameCallbackFromInsideCallbackDo
 
   std::atomic<bool> reentrant_call_returned{false};
   std::atomic<bool> attempted{false};
+  std::atomic<int> original_frames{0};
   std::atomic<int> replacement_frames{0};
 
   fixture.receiver().setOnVideoFrameCallback(
       fixture.senderIdentity(), fixture.trackName(), [&](const VideoFrame&, std::int64_t) {
+        original_frames.fetch_add(1);
         if (attempted.exchange(true)) {
           return;
         }
@@ -665,6 +718,11 @@ TEST_F(FrameCallbackReplacementTest, SetOnVideoFrameCallbackFromInsideCallbackDo
   ASSERT_TRUE(fixture.publishAndAwaitSubscription());
   EXPECT_TRUE(waitFor([&]() { return reentrant_call_returned.load(); }, kNoDeadlockTimeout))
       << "Re-entrant setOnVideoFrameCallback never returned; the reader self-joined";
+
+  EXPECT_TRUE(waitFor([&]() { return replacement_frames.load() > 0; }, kFrameTimeout))
+      << "The re-entrant registration never took effect";
+  EXPECT_TRUE(wentQuiet(original_frames)) << "The detached original reader is still delivering frames";
+  EXPECT_EQ(RoomTestAccess::activeReaderCount(fixture.receiver()), 1u);
 
   // The detached reader exits on its own, and teardown must still complete.
   const bool torn_down = completesWithoutDeadlock([&]() { fixture.teardown(); });
@@ -697,10 +755,11 @@ TEST_F(FrameCallbackReplacementTest, ClearOnVideoFrameCallbackFromInsideCallback
   EXPECT_TRUE(torn_down) << "Teardown deadlocked after a re-entrant clear";
 }
 
-// Data readers re-enter the dispatcher after their callback returns, so they
-// cannot be detached. The re-entrant removal is refused and the reader is left
-// for teardown to reap -- which must still join cleanly.
-TEST_F(FrameCallbackReplacementTest, RemoveDataCallbackFromInsideDataCallbackIsRefusedWithoutDeadlock) {
+// Removing a data callback from inside that callback would make the join a
+// self-join. The reader is cancelled, its stream closed, and its thread
+// detached instead -- so the removal takes effect (the callback stops being
+// invoked) and teardown afterwards is clean.
+TEST_F(FrameCallbackReplacementTest, RemoveDataCallbackFromInsideDataCallbackStopsDelivery) {
   failIfNotConfigured();
 
   Room sender_room;
@@ -715,10 +774,12 @@ TEST_F(FrameCallbackReplacementTest, RemoveDataCallbackFromInsideDataCallbackIsR
   const std::string track_name = "reentrant-data";
   std::atomic<bool> reentrant_call_returned{false};
   std::atomic<bool> attempted{false};
+  std::atomic<int> invocations{0};
   DataFrameCallbackId callback_id = 0;
 
   callback_id = receiver_room.addOnDataFrameCallback(
       sender_identity, track_name, [&](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {
+        invocations.fetch_add(1);
         if (attempted.exchange(true)) {
           return;
         }
@@ -743,15 +804,82 @@ TEST_F(FrameCallbackReplacementTest, RemoveDataCallbackFromInsideDataCallbackIsR
   EXPECT_TRUE(waitFor([&]() { return reentrant_call_returned.load(); }, kNoDeadlockTimeout))
       << "Re-entrant removeOnDataFrameCallback never returned; the data reader self-joined";
 
+  EXPECT_EQ(RoomTestAccess::activeDataReaderCount(receiver_room), 0u)
+      << "Removal from inside the callback must still release the reader slot";
+  EXPECT_TRUE(wentQuiet(invocations)) << "The removed data callback is still being invoked";
+
   pushing.store(false, std::memory_order_relaxed);
   pusher.join();
 
-  // The refused removal left the reader in place; disconnect must still reap it.
   const bool disconnected = completesWithoutDeadlock([&]() {
     local_track->unpublishDataTrack();
     receiver_room.disconnect();
   });
-  EXPECT_TRUE(disconnected) << "Disconnect deadlocked while reaping the refused data reader";
+  EXPECT_TRUE(disconnected) << "Disconnect deadlocked after a re-entrant data callback removal";
+}
+
+// Room::disconnect() from inside a data frame callback reaches the dispatcher's
+// stopAll() on the reader's own thread. A self-join there throws
+// std::system_error, and the still-joinable std::thread destroyed during the
+// unwind terminates the process. The reader must be detached instead, and the
+// disconnect must complete normally.
+TEST_F(FrameCallbackReplacementTest, DisconnectFromInsideDataCallbackDoesNotCrashOrDeadlock) {
+  failIfNotConfigured();
+
+  Room sender_room;
+  Room receiver_room;
+  const RoomOptions options;
+  ASSERT_TRUE(receiver_room.connect(config_.url, config_.token_b, options));
+  ASSERT_TRUE(sender_room.connect(config_.url, config_.token_a, options));
+
+  const std::string sender_identity = lockLocalParticipant(sender_room)->identity();
+  ASSERT_TRUE(waitForParticipant(&receiver_room, sender_identity, kSubscribeTimeout));
+
+  const std::string track_name = "disconnect-from-data";
+  std::atomic<bool> attempted{false};
+  std::atomic<bool> disconnect_returned{false};
+  std::atomic<bool> disconnect_result{false};
+  std::atomic<bool> callback_exited{false};
+
+  receiver_room.addOnDataFrameCallback(sender_identity, track_name,
+                                       [&](const std::vector<std::uint8_t>&, std::optional<std::uint64_t>) {
+                                         if (attempted.exchange(true)) {
+                                           return;
+                                         }
+                                         disconnect_result.store(receiver_room.disconnect());
+                                         disconnect_returned.store(true);
+                                         callback_exited.store(true);
+                                       });
+
+  auto publish_result = lockLocalParticipant(sender_room)->publishDataTrack(track_name);
+  ASSERT_TRUE(publish_result) << "Failed to publish data track";
+  auto local_track = publish_result.value();
+
+  std::atomic<bool> pushing{true};
+  std::thread pusher([&]() {
+    DataTrackFrame frame;
+    frame.payload.assign(32, 0x5A);
+    while (pushing.load(std::memory_order_relaxed)) {
+      (void)local_track->tryPush(frame);
+      std::this_thread::sleep_for(50ms);
+    }
+  });
+
+  EXPECT_TRUE(waitFor([&]() { return disconnect_returned.load(); }, kNoDeadlockTimeout))
+      << "Room::disconnect() from inside the data callback never returned";
+  EXPECT_TRUE(disconnect_result.load()) << "disconnect() from inside the callback reported failure";
+  EXPECT_EQ(receiver_room.connectionState(), ConnectionState::Disconnected);
+  EXPECT_EQ(RoomTestAccess::activeDataReaderCount(receiver_room), 0u);
+
+  pushing.store(false, std::memory_order_relaxed);
+  pusher.join();
+
+  // Give the detached reader a moment to run off the end of its loop before the
+  // room and this test's state go out of scope.
+  EXPECT_TRUE(waitFor([&]() { return callback_exited.load(); }, kNoDeadlockTimeout));
+  std::this_thread::sleep_for(200ms);
+
+  local_track->unpublishDataTrack();
 }
 
 } // namespace livekit::test

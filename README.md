@@ -191,22 +191,30 @@ room->addOnDataFrameCallback(sender_identity, "app-data",
                              });
 ```
 
+Frame callbacks can be registered before or after the matching track is
+subscribed. If the track is already subscribed, a reader starts immediately;
+otherwise it starts when the subscription arrives.
+
 Calling `setOnAudioFrameCallback` / `setOnVideoFrameCallback` /
 `setOnVideoFrameEventCallback` again for the same
 `(participant_identity, track_name)` **replaces** the callback in place. The
-previous reader is stopped and its thread joined before the call returns, then a
-fresh reader is started bound to the new callback — there is no need to call
-`clearOn*FrameCallback` first. Two consequences worth knowing:
+previous reader is stopped and its thread joined, and only then is a fresh reader
+started bound to the new callback — the old and new callbacks never run at the
+same time, and there is no need to call `clearOn*FrameCallback` first. Two
+consequences worth knowing:
 
 - **These calls block** until any in-flight invocation of the previous callback
   returns. When the call returns, the old callback is guaranteed to have
   finished and been destroyed. A callback that blocks forever blocks
   registration forever.
-- **Do not register or clear from inside a frame callback.** Doing so would make
-  the join a self-join. The SDK detects this, logs an error, and detaches the
-  reader (media) or leaves it in place to be reaped at teardown (data), but the
-  registration does not behave as intended. Drive callback changes from another
-  thread.
+- **Avoid registering, clearing, or disconnecting from inside a frame
+  callback.** Doing so would make the join a self-join, so the SDK logs a
+  warning and detaches that reader instead. The change still takes effect
+  (the new callback is installed, or the reader is stopped, or the room
+  disconnects) and the detached reader exits once the current callback
+  invocation returns — but for that one invocation the "previous callback has
+  finished" guarantee above does not hold. Prefer driving callback changes from
+  another thread.
 
 For end-to-end samples and a fuller set of demos, see the [cpp-example-collection repo](https://github.com/livekit-examples/cpp-example-collection).
 

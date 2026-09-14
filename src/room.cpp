@@ -423,11 +423,17 @@ void Room::setOnAudioFrameCallback(const std::string& participant_identity, cons
     LK_LOG_ERROR("Room::setOnAudioFrameCallback: subscription_thread_dispatcher_ is nullptr");
     return;
   }
-  // Installs the callback and stops any reader still dispatching to the previous
-  // one, so the restart below binds a fresh reader to the new callback.
+  // Installs the callback, stops and joins any reader still dispatching to the
+  // previous one, and -- if the dispatcher has already retained the subscribed
+  // track -- starts a fresh reader bound to the new callback.
   subscription_thread_dispatcher_->setOnAudioFrameCallback(participant_identity, track_name, std::move(callback), opts);
 
-  // If we've already subscribed to the track, handle it immediately
+  // The dispatcher only retains the track once onEvent has forwarded the
+  // subscribe event to it, which happens *after* RoomDelegate::onTrackSubscribed
+  // returns. A callback registered from inside that delegate therefore finds no
+  // retained track, so resolve the publication here as well. When the dispatcher
+  // already started the reader this is a same-SID no-op. The video setters below
+  // follow the same pattern.
   auto track = findSubscribedRemoteTrack(participant_identity, track_name);
   if (track) {
     subscription_thread_dispatcher_->handleTrackSubscribed(participant_identity, track_name, track);

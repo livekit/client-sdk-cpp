@@ -43,12 +43,15 @@ TEST_F(RoomCallbackTest, FrameCallbackRegistrationByTrackNameIsAccepted) {
   EXPECT_NO_THROW(room.clearOnVideoFrameCallback("alice", "cam-main"));
 }
 
-TEST_F(RoomCallbackTest, TrySetOnAudioReturnsTrueWithoutSubscription) {
-  // Without a subscribed track, registration succeeds and no reader starts.
+TEST_F(RoomCallbackTest, ReRegisteringFrameCallbacksWithoutSubscriptionIsAccepted) {
+  // Without a subscribed track, registration is stored for a deferred start
+  // and no reader exists; registering the same key again simply replaces the
+  // stored callback. Neither call may throw or block.
   Room room;
-  room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
-  // Re-registering the same key while no reader is active is allowed.
-  room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {});
+  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {}));
+  EXPECT_NO_THROW(room.setOnAudioFrameCallback("alice", "mic-main", [](const AudioFrame&) {}));
+  EXPECT_NO_THROW(room.setOnVideoFrameCallback("alice", "cam-main", [](const VideoFrame&, std::int64_t) {}));
+  EXPECT_NO_THROW(room.setOnVideoFrameEventCallback("alice", "cam-main", [](const VideoFrameEvent&) {}));
 }
 
 TEST_F(RoomCallbackTest, DataCallbackRegistrationReturnsUsableIds) {

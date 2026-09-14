@@ -90,6 +90,33 @@ struct RoomTestAccess {
     const std::scoped_lock<std::mutex> guard(dispatcher->lock_);
     return dispatcher->active_data_readers_.size();
   }
+
+  /// Whether the room's dispatcher has retained a subscribed audio/video track
+  /// for the given participant and track name. This retention is what lets a
+  /// frame callback registered after the subscription event start a reader
+  /// immediately (GitHub issue #235).
+  static bool hasRetainedSubscribedTrack(const Room& room, const std::string& participant_identity,
+                                         const std::string& track_name) {
+    const auto& dispatcher = room.subscription_thread_dispatcher_;
+    if (!dispatcher) {
+      return false;
+    }
+    const std::scoped_lock<std::mutex> guard(dispatcher->lock_);
+    const SubscriptionThreadDispatcher::CallbackKey key{participant_identity, track_name};
+    const auto it = dispatcher->subscribed_tracks_.find(key);
+    return it != dispatcher->subscribed_tracks_.end() && it->second != nullptr;
+  }
+
+  /// Number of audio/video keys whose previous reader is being joined. Zero
+  /// whenever no replacement, clear, or resubscribe is mid-flight.
+  static std::size_t drainingReaderCount(const Room& room) {
+    const auto& dispatcher = room.subscription_thread_dispatcher_;
+    if (!dispatcher) {
+      return 0;
+    }
+    const std::scoped_lock<std::mutex> guard(dispatcher->lock_);
+    return dispatcher->draining_readers_.size();
+  }
 };
 
 #if defined(__clang__) || defined(__GNUC__)
