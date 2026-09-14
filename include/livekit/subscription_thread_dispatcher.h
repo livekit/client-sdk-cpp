@@ -84,24 +84,10 @@ public:
   /// subscribed.
   ///
   /// Registering again for a key that already has an active reader replaces the
-  /// callback in place: the previous reader's stream is closed and its thread
-  /// is joined, and only then -- if the track is still subscribed -- is a fresh
-  /// reader started bound to the new callback. The old and new callbacks are
-  /// therefore never invoked concurrently, and when this call returns the
-  /// previous callback has finished executing and its copy has been destroyed.
-  /// While the previous reader is being joined, no other caller (a concurrent
-  /// registration or a subscription event) can start a reader for the key.
+  /// callback in place.
   ///
   /// @warning This call blocks until any in-flight invocation of the previous
-  ///          callback returns. A slow callback makes registration slow; a
-  ///          callback that never returns blocks this call indefinitely.
-  ///
-  /// @warning Calling this from inside a frame callback for the same key is
-  ///          discouraged. Joining the reader would be a self-join, so the
-  ///          dispatcher logs a warning and detaches that reader instead. The
-  ///          replacement still takes effect, but the in-flight invocation of
-  ///          the previous callback only finishes after this call returns, so
-  ///          the no-overlap guarantee above does not hold for that invocation.
+  ///          callback returns. Calling this from inside a frame callback for the same key is not supported.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to match.
@@ -113,17 +99,11 @@ public:
 
   /// Register or replace a video frame callback for a remote subscription.
   ///
-  /// The callback is keyed by remote participant identity plus @p track_name.
-  /// If the matching remote video track is already subscribed, this starts a
-  /// reader immediately. Otherwise, the reader starts when the track is
-  /// subscribed.
-  ///
   /// Registering again for a key that already has an active reader replaces the
   /// callback in place; see @ref setOnAudioFrameCallback for the full
-  /// replacement semantics, blocking behavior, and re-entrancy caveat. Note
-  /// that this shares its registration slot with
-  /// @ref setOnVideoFrameEventCallback -- registering either one replaces the
-  /// other for the same key.
+  /// replacement semantics, blocking behavior, and re-entrancy caveat.
+  //  Note: this shares its registration slot with @ref setOnVideoFrameEventCallback -- registering either one
+  // replaces the other for the same key.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to match.
@@ -136,17 +116,12 @@ public:
   /// Register or replace a rich video frame event callback for a remote
   /// subscription.
   ///
-  /// The callback is keyed by remote participant identity plus @p track_name.
-  /// If the matching remote video track is already subscribed, this starts a
-  /// reader immediately. Otherwise, the reader starts when the track is
-  /// subscribed.
-  ///
   /// Registering again for a key that already has an active reader replaces the
   /// callback in place; see @ref setOnAudioFrameCallback for the full
-  /// replacement semantics, blocking behavior, and re-entrancy caveat. Note
-  /// that this shares its registration slot with @ref setOnVideoFrameCallback
-  /// -- registering either one replaces the other for the same key.
-  ///
+  /// replacement semantics, blocking behavior, and re-entrancy caveat.
+  // Note: this shares its registration slot with @ref setOnVideoFrameCallback -- registering either one replaces the
+  // other for the same key.
+  //
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to match.
   /// @param callback             Function invoked for each decoded video frame

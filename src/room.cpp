@@ -423,23 +423,13 @@ void Room::setOnAudioFrameCallback(const std::string& participant_identity, cons
     LK_LOG_ERROR("Room::setOnAudioFrameCallback: subscription_thread_dispatcher_ is nullptr");
     return;
   }
-  // Installs the callback, stops and joins any reader still dispatching to the
-  // previous one, and -- if the dispatcher has already retained the subscribed
-  // track -- starts a fresh reader bound to the new callback.
   subscription_thread_dispatcher_->setOnAudioFrameCallback(participant_identity, track_name, std::move(callback), opts);
 
-  // The dispatcher only retains the track once onEvent has forwarded the
-  // subscribe event to it, which happens *after* RoomDelegate::onTrackSubscribed
-  // returns. A callback registered from inside that delegate therefore finds no
-  // retained track, so resolve the publication here as well. When the dispatcher
-  // already started the reader this is a same-SID no-op. The video setters below
-  // follow the same pattern.
+  // If we've already subscribed to the track, handle it immediately
   auto track = findSubscribedRemoteTrack(participant_identity, track_name);
   if (track) {
     subscription_thread_dispatcher_->handleTrackSubscribed(participant_identity, track_name, track);
   } else {
-    // The track is not subscribed yet. The callback is registered; the reader
-    // starts when the track is subscribed (see kTrackSubscribed in onEvent).
     LK_LOG_DEBUG(
         "Room::setOnAudioFrameCallback: track not yet subscribed for participant={} track_name={}; "
         "callback registered for deferred start",
@@ -455,13 +445,10 @@ void Room::setOnVideoFrameCallback(const std::string& participant_identity, cons
   }
   subscription_thread_dispatcher_->setOnVideoFrameCallback(participant_identity, track_name, std::move(callback), opts);
 
-  // If we've already subscribed to the track, handle it immediately
   auto track = findSubscribedRemoteTrack(participant_identity, track_name);
   if (track) {
     subscription_thread_dispatcher_->handleTrackSubscribed(participant_identity, track_name, track);
   } else {
-    // The track is not subscribed yet. The callback is registered; the reader
-    // starts when the track is subscribed (see kTrackSubscribed in onEvent).
     LK_LOG_DEBUG(
         "Room::setOnVideoFrameCallback: track not yet subscribed for participant={} track_name={}; "
         "callback registered for deferred start",
@@ -478,13 +465,10 @@ void Room::setOnVideoFrameEventCallback(const std::string& participant_identity,
   subscription_thread_dispatcher_->setOnVideoFrameEventCallback(participant_identity, track_name, std::move(callback),
                                                                 opts);
 
-  // If we've already subscribed to the track, handle it immediately
   auto track = findSubscribedRemoteTrack(participant_identity, track_name);
   if (track) {
     subscription_thread_dispatcher_->handleTrackSubscribed(participant_identity, track_name, track);
   } else {
-    // The track is not subscribed yet. The callback is registered; the reader
-    // starts when the track is subscribed (see kTrackSubscribed in onEvent).
     LK_LOG_DEBUG(
         "Room::setOnVideoFrameEventCallback: track not yet subscribed for participant={} track_name={}; "
         "callback registered for deferred start",

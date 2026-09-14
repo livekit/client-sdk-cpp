@@ -66,10 +66,8 @@ void SubscriptionThreadDispatcher::disposeReaderThread(std::thread&& thread, con
     return;
   }
   if (isSelfThread(thread.get_id())) {
-    // The caller IS this reader, so it reached us from inside its own frame
-    // callback. Joining here would be a self-join (std::system_error, and a
-    // still-joinable std::thread destroyed during unwinding would terminate
-    // the process). Detaching is safe: no reader lambda captures `this`; each
+    // The caller IS this reader so this function was called from the set callback.
+    // Joining here would be a self-join. Detaching is safe: no reader lambda captures `this`; each
     // owns its stream, callback, and per-reader state by value, so once
     // extracted the thread touches nothing owned by the dispatcher.
     LK_LOG_WARN(
@@ -87,10 +85,6 @@ void SubscriptionThreadDispatcher::disposeReaderThread(std::thread&& thread, con
 std::thread SubscriptionThreadDispatcher::extractReaderForDrainLocked(const CallbackKey& key) {
   std::thread old_thread = extractReaderThreadLocked(key);
   if (old_thread.joinable()) {
-    // Block every start for this key until finishReaderDrainAndRestart has
-    // joined (or detached) this thread. Without this, a replacement reader
-    // could begin invoking the new callback while the old callback is still
-    // mid-invocation on the thread we are about to join.
     ++draining_readers_[key];
   }
   return old_thread;
@@ -124,9 +118,6 @@ void SubscriptionThreadDispatcher::setOnAudioFrameCallback(const std::string& pa
   std::thread old_thread;
   {
     const std::scoped_lock<std::mutex> lock(lock_);
-    // Stop any reader still dispatching to the previous callback. Reader threads
-    // hold their own copy of the callback, so overwriting the registration alone
-    // would leave the old callback receiving frames.
     old_thread = extractReaderForDrainLocked(key);
     const bool replacing = audio_callbacks_.find(key) != audio_callbacks_.end();
     audio_callbacks_[key] = RegisteredAudioCallback{std::move(callback), opts};
@@ -431,7 +422,7 @@ std::thread SubscriptionThreadDispatcher::extractReaderThreadLocked(const Callba
   if (it == active_readers_.end()) {
     LK_LOG_TRACE("No active reader to extract for participant={} track_name={}", key.participant_identity,
                  key.track_name);
-    return {};
+    return std::thread();
   }
 
   LK_LOG_DEBUG("Extracting active reader for participant={} track_name={}", key.participant_identity, key.track_name);
