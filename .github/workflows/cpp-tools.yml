@@ -113,6 +113,9 @@ jobs:
       - name: Generate protobuf headers
         run: cmake --build build-release --target livekit_proto
 
+      - name: Generate UniFFI C++ bindings
+        run: cmake --build build-release --target generate_livekit_ffi_uniffi_cpp
+
       - name: Run clang-tidy
         env:
           TIDY_BLOB_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
