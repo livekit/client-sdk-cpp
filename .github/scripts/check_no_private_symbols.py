@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 """
-Verify that liblivekit's exported ABI does not leak private dependency symbols.
+Verify that liblivekit's exported ABI does not leak private implementation symbols.
 
 The LiveKit SDK statically links several private dependencies (spdlog, fmt,
 google::protobuf, absl, nlohmann/json).  When those symbols escape the dynamic symbol table
@@ -22,6 +22,10 @@ of liblivekit.{so,dylib,dll}, they collide at runtime with the same libraries
 loaded elsewhere in the host process (a common failure mode is ROS 2's
 rcl_logging_spdlog ABI-clashing with our vendored spdlog and crashing inside
 spdlog::pattern_formatter).
+
+The generated UniFFI C++ bindings are also private implementation details.
+Their generated API and runtime symbols must remain hidden behind the SDK's
+public ABI.
 
 This script lists exported defined symbols from the supplied shared library
 using the platform-appropriate tool and fails (exit code 1) if any of them
@@ -53,6 +57,10 @@ DEFAULT_FORBIDDEN = [
     "google::protobuf",
     "absl::",
     "nlohmann::",
+    # Generated UniFFI C++ binding API and runtime implementation.
+    "livekit_ffi::",
+    "uniffi::",
+    "uniffi_",
 ]
 
 MAX_REPORTED_LEAKS = 20
@@ -237,7 +245,7 @@ def main(argv: list[str]) -> int:
                   "(set LIVEKIT_SYMBOL_CHECK_VERBOSE=1 to see all)")
 
     print(
-        "\nliblivekit must not re-export private dependency symbols.\n"
+        "\nliblivekit must not re-export private dependency or UniFFI implementation symbols.\n"
         "If you intentionally added a public symbol that triggered this, mark\n"
         "it with LIVEKIT_API in include/livekit/visibility.h and rebuild.\n"
     )

@@ -115,6 +115,11 @@ set_source_files_properties(
 add_library(livekit_uniffi_cpp OBJECT
   "${LIVEKIT_UNIFFI_CPP_SOURCE}"
 )
+set_target_properties(livekit_uniffi_cpp PROPERTIES
+  CXX_VISIBILITY_PRESET hidden
+  C_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+)
 add_dependencies(livekit_uniffi_cpp generate_livekit_ffi_uniffi_cpp)
 target_include_directories(livekit_uniffi_cpp
   PUBLIC "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}"
