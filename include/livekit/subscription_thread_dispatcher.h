@@ -78,8 +78,9 @@ public:
 
   /// Register or replace an audio frame callback for a remote subscription.
   ///
-  /// @warning This call blocks until any in-flight invocation of the previous
-  ///          callback returns. Calling this from inside a frame callback for the same key is not supported.
+/// @warning This call normally blocks until any in-flight invocation of the previous
+///          callback returns. If called from the same callback, the current reader
+///          is detached instead of self-joined; such re-entrant use is discouraged.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to match.
