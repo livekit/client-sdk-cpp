@@ -30,6 +30,7 @@
 namespace livekit {
 
 class LocalTrackPublication;
+class LocalParticipant;
 
 /// @brief Media kind for an audio or video track.
 enum class TrackKind {
@@ -80,6 +81,11 @@ struct ParticipantTrackPermission {
 };
 
 /// @brief Base class for local and remote media tracks.
+///
+/// @warning Local-track properties are not safe to read concurrently with a
+/// full reconnect update. Read the refreshed SID from
+/// RoomDelegate::onLocalTrackRepublished or after synchronizing application
+/// state from RoomDelegate::onReconnected.
 class LIVEKIT_API Track {
 public:
   virtual ~Track() = default;
@@ -127,6 +133,10 @@ protected:
                             std::optional<std::string> mime_type);
 
 private:
+  friend class LocalParticipant;
+
+  void setSid(const std::string& sid) { sid_ = sid; }
+
   FfiHandle handle_; // Owned
 
   std::string sid_;
