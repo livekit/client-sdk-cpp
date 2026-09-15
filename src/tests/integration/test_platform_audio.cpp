@@ -285,8 +285,9 @@ TEST_F(PlatformAudioIntegrationTest, PlatformAudioFramesReachRemote) {
   std::condition_variable frame_cv;
   int received_frames = 0;
 
-  // The reader thread is only started when the subscription event fires and a
-  // matching callback is already registered, so register before publishing.
+  // The callback may be registered before or after the subscription event; the
+  // dispatcher retains subscribed tracks and starts the reader either way.
+  // Registering up front simply avoids missing the first frames.
   receiver_room->setOnAudioFrameCallback(sender_identity, track_name, [&](const AudioFrame& frame) {
     if (frame.totalSamples() == 0) {
       return;

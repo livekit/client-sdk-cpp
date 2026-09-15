@@ -22,18 +22,21 @@
 #include <memory>
 #include <mutex>
 
+#include "livekit/audio_stream.h"
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
+#include "livekit/frame_callbacks.h"
 #include "livekit/room_event_types.h"
 #include "livekit/stats.h"
-#include "livekit/subscription_thread_dispatcher.h"
+#include "livekit/video_stream.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
 
 class RoomDelegate;
 struct RoomInfoData;
+class SubscriptionThreadDispatcher;
 namespace proto {
 class FfiEvent;
 }
@@ -184,7 +187,11 @@ public:
   /// @note `~Room()` invokes `disconnect()` automatically if the room is
   ///       still connected, so explicit calls are optional.
   /// @warning Safe to call from any thread, but **must not** be called from inside a
-  /// `RoomDelegate` callback — doing so will deadlock the event listener.
+  /// `RoomDelegate` callback — doing so will deadlock the event listener. It should
+  /// also not be called from inside a frame callback registered through
+  /// @ref setOnAudioFrameCallback and friends: the SDK detaches that reader thread
+  /// instead of self-joining, but the callback that is still executing outlives the
+  /// disconnect.
   ///
   /// @param reason  Reason reported to the server (default: ClientInitiated).
   /// @returns true if the graceful disconnect succeeds; false if the
@@ -313,30 +320,94 @@ public:
   // Frame callbacks
   // ---------------------------------------------------------------
 
-  /// @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
+  /// @brief Sets (or replaces) the callback for frames from a remote audio track.
+  ///
+  /// The callback is keyed by the remote participant's identity and the track
+  /// name. It may be registered before or after the track is subscribed: a
+  /// reader thread starts immediately when the track is already subscribed and
+  /// otherwise as soon as the subscription event arrives. Replacing an existing
+  /// callback stops the previous reader and starts a new one bound to the new
+  /// callback.
+  ///
+  /// @warning **Blocking.** When a reader is already running for this key, this
+  ///          call joins it and returns only after any in-flight invocation of
+  ///          the previous callback has returned. Do not call it while holding a
+  ///          lock the callback also takes, and avoid calling it from inside the
+  ///          frame callback of the same key (the SDK then detaches that reader
+  ///          with a warning; the replacement still takes effect).
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name           Name of the remote audio track.
+  /// @param callback             Function invoked on a dedicated reader thread
+  ///                             for each decoded audio frame.
+  /// @param opts                 Options used to create the backing audio stream.
   void setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                AudioFrameCallback callback, const AudioStream::Options& opts = {});
 
-  /// @brief Sets the video frame callback via SubscriptionThreadDispatcher.
+  /// @brief Sets (or replaces) the callback for frames from a remote video track.
+  ///
+  /// Same registration and lifecycle semantics as @ref setOnAudioFrameCallback.
+  /// Shares its registration slot with @ref setOnVideoFrameEventCallback:
+  /// registering either one replaces the other for the same key.
+  ///
+  /// @warning **Blocking**; see @ref setOnAudioFrameCallback.
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name           Name of the remote video track.
+  /// @param callback             Function invoked on a dedicated reader thread
+  ///                             for each decoded video frame.
+  /// @param opts                 Options used to create the backing video stream.
   void setOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                VideoFrameCallback callback, const VideoStream::Options& opts = {});
 
-  /// @brief Sets the video frame event callback via
-  /// SubscriptionThreadDispatcher.
+  /// @brief Sets (or replaces) the event callback for frames from a remote video
+  /// track, including per-frame metadata.
+  ///
+  /// Same registration and lifecycle semantics as @ref setOnAudioFrameCallback.
+  /// Shares its registration slot with @ref setOnVideoFrameCallback:
+  /// registering either one replaces the other for the same key.
+  ///
+  /// @warning **Blocking**; see @ref setOnAudioFrameCallback.
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name           Name of the remote video track.
+  /// @param callback             Function invoked on a dedicated reader thread
+  ///                             for each decoded video frame event.
+  /// @param opts                 Options used to create the backing video stream.
   void setOnVideoFrameEventCallback(const std::string& participant_identity, const std::string& track_name,
                                     VideoFrameEventCallback callback, const VideoStream::Options& opts = {});
 
-  /// @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
+  /// @brief Clears the audio frame callback for a remote track and stops its
+  /// reader thread.
+  ///
+  /// @warning **Blocking.** Returns only after any in-flight invocation of the
+  ///          callback has returned; see @ref setOnAudioFrameCallback for the
+  ///          re-entrancy caveat.
   void clearOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name);
 
-  /// @brief Clears the video frame callback via SubscriptionThreadDispatcher.
+  /// @brief Clears the video frame (or video frame event) callback for a remote
+  /// track and stops its reader thread.
+  ///
+  /// @warning **Blocking.** Returns only after any in-flight invocation of the
+  ///          callback has returned; see @ref setOnAudioFrameCallback for the
+  ///          re-entrancy caveat.
   void clearOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name);
 
-  /// @brief Adds a data frame callback via SubscriptionThreadDispatcher.
+  /// @brief Adds a callback for frames from a remote data track.
+  ///
+  /// May be registered before or after the track is published; each
+  /// registration gets its own subscription and reader thread.
+  ///
+  /// @return An identifier for @ref removeOnDataFrameCallback.
   DataFrameCallbackId addOnDataFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                              DataFrameCallback callback);
 
-  /// @brief Removes the data frame callback via SubscriptionThreadDispatcher.
+  /// @brief Removes a data frame callback and stops its reader thread.
+  ///
+  /// @warning **Blocking.** Returns only after any in-flight invocation of the
+  ///          callback has returned. Calling it from inside that very callback
+  ///          detaches the reader instead of self-joining (a warning is logged);
+  ///          delivery still stops once the callback returns.
   void removeOnDataFrameCallback(DataFrameCallbackId id);
 
 private:

@@ -191,6 +191,13 @@ room->addOnDataFrameCallback(sender_identity, "app-data",
                              });
 ```
 
+Calling `setOn*FrameCallback` again for the same participant and track name replaces the callback; `setOn*`, `clearOn*` and
+`removeOnDataFrameCallback` block until the previous callback's reader thread
+has stopped, so they must not be called while holding a lock the callback also
+takes, and should not be called from inside that callback. Register frame
+callbacks through `Room` only: direct use of `SubscriptionThreadDispatcher` is
+deprecated.
+
 For end-to-end samples and a fuller set of demos, see the [cpp-example-collection repo](https://github.com/livekit-examples/cpp-example-collection).
 
 ### Generating tokens

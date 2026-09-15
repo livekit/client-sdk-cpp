@@ -28,6 +28,7 @@
 #include "livekit/remote_video_track.h"
 #include "livekit/room_delegate.h"
 #include "livekit/room_event_types.h"
+#include "livekit/subscription_thread_dispatcher.h"
 #include "livekit_ffi.h"
 #include "lk_log.h"
 #include "room.pb.h"
@@ -542,6 +543,19 @@ void Room::onEvent(const FfiEvent& event) {
             if (delegate_snapshot) {
               delegate_snapshot->onParticipantDisconnected(*this, ev);
             }
+            // Safety net: the server normally unsubscribes every track before a
+            // participant leaves, but make sure no retained subscription or
+            // reader thread in the dispatcher outlives its participant. This is
+            // idempotent for tracks that were already unsubscribed.
+            if (subscription_thread_dispatcher_) {
+              for (const auto& [sid, publication] : removed->trackPublications()) {
+                (void)sid;
+                if (publication && publication->subscribed()) {
+                  subscription_thread_dispatcher_->handleTrackUnsubscribed(removed->identity(), publication->source(),
+                                                                           publication->name());
+                }
+              }
+            }
           }
           break;
         }
@@ -770,9 +784,11 @@ void Room::onEvent(const FfiEvent& event) {
             delegate_snapshot->onTrackUnsubscribed(*this, ev);
           }
 
-          if (subscription_thread_dispatcher_ && unsub_source != TrackSource::SOURCE_UNKNOWN) {
+          // Always release the dispatcher's retained subscription (and stop its
+          // reader) for the publication, regardless of the track source.
+          if (subscription_thread_dispatcher_ && ev.publication) {
             subscription_thread_dispatcher_->handleTrackUnsubscribed(unsub_identity, unsub_source,
-                                                                     ev.publication ? ev.publication->name() : "");
+                                                                     ev.publication->name());
           }
           break;
         }
