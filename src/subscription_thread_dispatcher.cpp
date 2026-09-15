@@ -46,7 +46,42 @@ const char* trackKindName(TrackKind kind) {
 
 } // namespace
 
-SubscriptionThreadDispatcher::SubscriptionThreadDispatcher() = default;
+struct SubscriptionThreadDispatcher::ExtraState {
+  /// Currently subscribed remote audio/video tracks keyed by CallbackKey.
+  std::unordered_map<CallbackKey, std::shared_ptr<Track>, CallbackKeyHash> subscribed_tracks;
+
+  /// Keys whose previous reader has been extracted but not yet joined. A
+  /// reader is not started for a key while it has an entry here.
+  std::unordered_map<CallbackKey, int, CallbackKeyHash> draining_readers;
+};
+
+struct SubscriptionThreadDispatcher::ExtraStateRegistry {
+  std::mutex lock;
+  std::unordered_map<SubscriptionThreadDispatcher*, std::unique_ptr<ExtraState>> states;
+};
+
+SubscriptionThreadDispatcher::ExtraStateRegistry& SubscriptionThreadDispatcher::extraStateRegistry() {
+  static ExtraStateRegistry registry;
+  return registry;
+}
+
+SubscriptionThreadDispatcher::ExtraState& SubscriptionThreadDispatcher::extraState() {
+  auto& registry = extraStateRegistry();
+  const std::scoped_lock<std::mutex> lock(registry.lock);
+  return *registry.states.at(this);
+}
+
+void SubscriptionThreadDispatcher::removeExtraState() {
+  auto& registry = extraStateRegistry();
+  const std::scoped_lock<std::mutex> lock(registry.lock);
+  registry.states.erase(this);
+}
+
+SubscriptionThreadDispatcher::SubscriptionThreadDispatcher() {
+  auto& registry = extraStateRegistry();
+  const std::scoped_lock<std::mutex> lock(registry.lock);
+  registry.states.emplace(this, std::make_unique<ExtraState>());
+}
 
 // NOLINTBEGIN(bugprone-exception-escape)
 // Exceptions can be thrown by stopAll() in this desctuctor, and clang flags as
@@ -54,6 +89,7 @@ SubscriptionThreadDispatcher::SubscriptionThreadDispatcher() = default;
 SubscriptionThreadDispatcher::~SubscriptionThreadDispatcher() {
   LK_LOG_DEBUG("Destroying SubscriptionThreadDispatcher");
   stopAll();
+  removeExtraState();
 }
 // NOLINTEND(bugprone-exception-escape)
 
@@ -85,7 +121,7 @@ void SubscriptionThreadDispatcher::disposeReaderThread(std::thread&& thread, con
 std::thread SubscriptionThreadDispatcher::extractReaderForDrainLocked(const CallbackKey& key) {
   std::thread old_thread = extractReaderThreadLocked(key);
   if (old_thread.joinable()) {
-    ++draining_readers_[key];
+    ++extraState().draining_readers[key];
   }
   return old_thread;
 }
@@ -97,9 +133,10 @@ void SubscriptionThreadDispatcher::finishReaderDrainAndRestart(const CallbackKey
 
   const std::scoped_lock<std::mutex> lock(lock_);
   if (drained) {
-    auto it = draining_readers_.find(key);
-    if (it != draining_readers_.end() && --it->second <= 0) {
-      draining_readers_.erase(it);
+    auto& draining_readers = extraState().draining_readers;
+    auto it = draining_readers.find(key);
+    if (it != draining_readers.end() && --it->second <= 0) {
+      draining_readers.erase(it);
     }
   }
   startReaderForSubscribedTrackLocked(key);
@@ -228,7 +265,7 @@ void SubscriptionThreadDispatcher::handleTrackSubscribed(const std::string& part
   std::thread old_thread;
   {
     const std::scoped_lock<std::mutex> lock(lock_);
-    subscribed_tracks_[key] = track;
+    extraState().subscribed_tracks[key] = track;
     auto existing = active_readers_.find(key);
     if (existing != active_readers_.end() && existing->second.track_sid == track->sid()) {
       // A duplicate track_subscribed for the publication this reader already
@@ -252,7 +289,7 @@ void SubscriptionThreadDispatcher::handleTrackUnsubscribed(const std::string& pa
   std::thread old_thread;
   {
     const std::scoped_lock<std::mutex> lock(lock_);
-    subscribed_tracks_.erase(key);
+    extraState().subscribed_tracks.erase(key);
     old_thread = extractReaderForDrainLocked(key);
     LK_LOG_DEBUG(
         "Handling unsubscribed track for participant={} source={} "
@@ -387,7 +424,7 @@ void SubscriptionThreadDispatcher::stopAll() {
       }
     }
     active_readers_.clear();
-    subscribed_tracks_.clear();
+    extraState().subscribed_tracks.clear();
     audio_callbacks_.clear();
     video_callbacks_.clear();
 
@@ -492,7 +529,8 @@ void SubscriptionThreadDispatcher::startReaderForSubscribedTrackLocked(const Cal
   if (active_readers_.find(key) != active_readers_.end()) {
     return;
   }
-  if (draining_readers_.find(key) != draining_readers_.end()) {
+  auto& state = extraState();
+  if (state.draining_readers.find(key) != state.draining_readers.end()) {
     // Another caller is still joining the previous reader for this key. It
     // will start the reader once the join completes; starting one here would
     // let the new callback overlap the old one.
@@ -500,8 +538,8 @@ void SubscriptionThreadDispatcher::startReaderForSubscribedTrackLocked(const Cal
                  key.participant_identity, key.track_name);
     return;
   }
-  const auto track_it = subscribed_tracks_.find(key);
-  if (track_it == subscribed_tracks_.end() || !track_it->second) {
+  const auto track_it = state.subscribed_tracks.find(key);
+  if (track_it == state.subscribed_tracks.end() || !track_it->second) {
     return;
   }
   startReaderLocked(key, track_it->second);

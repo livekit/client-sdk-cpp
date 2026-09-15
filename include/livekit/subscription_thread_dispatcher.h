@@ -78,9 +78,9 @@ public:
 
   /// Register or replace an audio frame callback for a remote subscription.
   ///
-/// @warning This call normally blocks until any in-flight invocation of the previous
-///          callback returns. If called from the same callback, the current reader
-///          is detached instead of self-joined; such re-entrant use is discouraged.
+  /// @warning This call normally blocks until any in-flight invocation of the previous
+  ///          callback returns. If called from the same callback, the current reader
+  ///          is detached instead of self-joined; such re-entrant use is discouraged.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to match.
@@ -228,6 +228,16 @@ public:
 private:
   friend class SubscriptionThreadDispatcherTest;
   friend struct RoomTestAccess;
+
+  // Additional lifecycle state cannot be stored directly in this exported
+  // class without changing its shipped object layout. Keep it in an
+  // out-of-line sidecar until the class can move to a PIMPL in a major release.
+  struct ExtraState;
+  struct ExtraStateRegistry;
+
+  static ExtraStateRegistry& extraStateRegistry();
+  ExtraState& extraState();
+  void removeExtraState();
 
   /// Compound lookup key for audio/video callback dispatch.
   struct CallbackKey {
@@ -390,13 +400,6 @@ private:
 
   /// Active stream/thread state keyed by @ref CallbackKey.
   std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash> active_readers_;
-
-  /// Currently subscribed remote audio/video tracks keyed by @ref CallbackKey.
-  std::unordered_map<CallbackKey, std::shared_ptr<Track>, CallbackKeyHash> subscribed_tracks_;
-
-  /// Keys whose previous reader has been extracted but not yet joined. A reader is not started for a key while
-  /// it has an entry here. See @ref extractReaderForDrainLocked.
-  std::unordered_map<CallbackKey, int, CallbackKeyHash> draining_readers_;
 
   /// Next auto-increment ID for data frame callbacks.
   DataFrameCallbackId next_data_callback_id_{0};
