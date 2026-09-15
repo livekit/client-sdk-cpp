@@ -18,6 +18,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -234,6 +235,14 @@ private:
   // out-of-line sidecar until the class can move to a PIMPL in a major release.
   struct ExtraState;
   struct ExtraStateRegistry;
+  struct ReaderCompletion;
+
+  struct ReaderDrain {
+    std::thread thread;
+    std::thread::id thread_id;
+    std::shared_ptr<ReaderCompletion> completion;
+    std::uint64_t drain_id{0};
+  };
 
   static ExtraStateRegistry& extraStateRegistry();
   ExtraState& extraState();
@@ -262,6 +271,7 @@ private:
   struct ActiveReader {
     std::shared_ptr<AudioStream> audio_stream;
     std::shared_ptr<VideoStream> video_stream;
+    std::shared_ptr<ReaderCompletion> completion;
     std::thread thread;
     /// SID of the subscribed track backing this reader
     std::string track_sid;
@@ -297,6 +307,7 @@ private:
   /// Active read-side resources for one data track stream subscription.
   struct ActiveDataReader {
     std::shared_ptr<RemoteDataTrack> remote_track;
+    std::shared_ptr<ReaderCompletion> completion;
     /// Set true when this reader is being replaced or torn down.
     std::atomic<bool> cancelled{false};
     /// Set true by the reader thread itself when it exits (failed, cancelled, or terminal subscription). Only
@@ -322,22 +333,22 @@ private:
     VideoStream::Options options;
   };
 
-  /// Remove and close the active reader for @p key, returning its thread.
+  /// Remove and close the active reader for @p key, returning its drain state.
   ///
   /// Must be called with @ref lock_ held. The returned thread, if joinable,
   /// must be disposed of after releasing the lock.
-  std::thread extractReaderThreadLocked(const CallbackKey& key);
+  ReaderDrain extractReaderThreadLocked(const CallbackKey& key);
 
   /// Wrapper around @ref extractReaderThreadLocked. If extractReaderThreadLocked returns a thread the key is marked as
   /// draining.
   ///
   /// Must be called with @ref lock_ held.
-  std::thread extractReaderForDrainLocked(const CallbackKey& key);
+  ReaderDrain extractReaderForDrainLocked(const CallbackKey& key);
 
   /// Dispose of the old reader thread, clear from the drain, and start a new reader.
   ///
   /// Must be called with @ref lock_ released.
-  void finishReaderDrainAndRestart(const CallbackKey& key, std::thread old_thread, const char* operation);
+  void finishReaderDrainAndRestart(const CallbackKey& key, ReaderDrain drain, const char* operation);
 
   /// True when @p id identifies the calling thread, i.e. joining that thread
   /// would be a self-join.
@@ -347,7 +358,24 @@ private:
   /// @param thread The thread to dispose of. If this is a self thread, detach and return.
   /// @param operation for logging
   /// Must be called with @ref lock_ released.
-  void disposeReaderThread(std::thread&& thread, const char* operation);
+  bool disposeReaderThread(std::thread&& thread, const char* operation);
+
+  /// Mark a reader as finished without referring back to this dispatcher.
+  static void markReaderFinished(const std::shared_ptr<ReaderCompletion>& completion);
+
+  /// Return whether a reader has completed its thread function.
+  static bool readerFinished(const std::shared_ptr<ReaderCompletion>& completion);
+
+  /// Wait for a reader to complete its thread function.
+  static void waitForReader(const std::shared_ptr<ReaderCompletion>& completion);
+
+  /// Return the number of media, data, draining, and detached readers whose
+  /// thread functions have not completed. Must be called with @ref lock_ held.
+  int liveReaderCountLocked();
+
+  /// Reject a lifecycle mutation while @ref stopAll is in progress.
+  /// Must be called with @ref lock_ held.
+  bool rejectWhileStoppingLocked(const char* operation);
 
   /// Starts the respective media reader thread for @p track.
   ///
@@ -377,12 +405,24 @@ private:
   /// thread.  Marks the reader cancelled so a subscription still in flight is
   /// aborted.  Must be called with @ref lock_ held; the returned thread must be
   /// passed to @ref disposeReaderThread after releasing the lock.
-  std::thread extractDataReaderThreadLocked(DataFrameCallbackId id);
+  ReaderDrain extractDataReaderThreadLocked(DataFrameCallbackId id);
+
+  /// Extract a data reader and record it as draining until disposal completes.
+  /// Must be called with @ref lock_ held.
+  ReaderDrain extractDataReaderForDrainLocked(DataFrameCallbackId id);
+
+  /// Dispose a data reader drain, then restart from the latest registration
+  /// and publication if appropriate. Must be called with @ref lock_ released.
+  void finishDataReaderDrainAndRestart(DataFrameCallbackId id, ReaderDrain drain, const char* operation);
+
+  /// Start the current published data track for @p id when registered and not
+  /// already active or draining. Must be called with @ref lock_ held.
+  void startDataReaderForPublishedTrackLocked(DataFrameCallbackId id);
 
   /// Start a data reader thread for the given callback ID, key, and track.
   /// Must be called with @ref lock_ held.
-  std::thread startDataReaderLocked(DataFrameCallbackId id, const DataCallbackKey& key,
-                                    const std::shared_ptr<RemoteDataTrack>& track, const DataFrameCallback& cb);
+  void startDataReaderLocked(DataFrameCallbackId id, const DataCallbackKey& key,
+                             const std::shared_ptr<RemoteDataTrack>& track, const DataFrameCallback& cb);
 
   /// Mark @p reader finished and release its stream.
   /// Reader threads must not self join.

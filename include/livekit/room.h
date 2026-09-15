@@ -390,12 +390,6 @@ private:
   // FfiClient listener ID (0 means no listener registered)
   int listener_id_{0};
 
-  /// Find a currently subscribed remote track matching the given participant
-  /// identity and track name. Returns nullptr if no such subscribed track
-  /// exists. Acquires @ref lock_.
-  std::shared_ptr<Track> findSubscribedRemoteTrack(const std::string& participant_identity,
-                                                   const std::string& track_name) const;
-
   void onEvent(const proto::FfiEvent& event);
 
   // Shared shutdown path for explicit disconnect, server disconnect, EOS, and destruction.
