@@ -54,6 +54,21 @@ on:
         required: false
         type: boolean
         default: true
+      memory_ffi_iterations:
+        description: Memory lifecycle tester iterations for initialize/shutdown + unused sources.
+        required: false
+        type: number
+        default: 30
+      memory_connected_iterations:
+        description: Memory lifecycle tester iterations for the connected software smoke.
+        required: false
+        type: number
+        default: 20
+      memory_timeout_minutes:
+        description: Memory lifecycle smoke step timeout in minutes.
+        required: false
+        type: number
+        default: 10
   workflow_dispatch:
     inputs:
       build_type:
@@ -109,6 +124,21 @@ on:
         required: false
         type: boolean
         default: true
+      memory_ffi_iterations:
+        description: Memory lifecycle tester iterations for initialize/shutdown + unused sources.
+        required: false
+        type: number
+        default: 30
+      memory_connected_iterations:
+        description: Memory lifecycle tester iterations for the connected software smoke.
+        required: false
+        type: number
+        default: 20
+      memory_timeout_minutes:
+        description: Memory lifecycle smoke step timeout in minutes.
+        required: false
+        type: number
+        default: 10
 
 permissions:
   contents: read
@@ -357,7 +387,7 @@ jobs:
             --gtest_output="xml:${{ env.BUILD_DIR }}\unit-test-results.xml"
 
       - name: Start livekit-server
-        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        if: matrix.e2e-testing
         id: livekit_server
         uses: livekit/dev-server-action@5d4d5337a875e2d1afd37bed03c601d159dab002 # v1.1.1
         with:
@@ -368,7 +398,7 @@ jobs:
 
       # Needed by token helper script
       - name: Install livekit-cli
-        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        if: matrix.e2e-testing
         shell: bash
         env:
           # Windows installs lk via `gh api` / `gh release download`, which need this env var
@@ -425,6 +455,51 @@ jobs:
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_output=xml:${{ env.BUILD_DIR }}/integration-test-results.xml
 
+      - name: Set memory lifecycle RSS cap
+        if: matrix.e2e-testing
+        shell: bash
+        run: |
+          set -euo pipefail
+          build="${{ inputs.build_type }}"
+          case "${RUNNER_OS}-${build}" in
+            Linux-release) cap=262144 ;;
+            Linux-debug) cap=524288 ;;
+            macOS-release) cap=262144 ;;
+            macOS-debug) cap=524288 ;;
+            Windows-release) cap=393216 ;;
+            Windows-debug) cap=786432 ;;
+            *)
+              echo "::error::No memory RSS cap for ${RUNNER_OS} ${build}"
+              exit 1
+              ;;
+          esac
+          # Calibrated from a local macOS release run (~85 MiB connected, ~37 MiB
+          # ffi-cycles). Caps are ~3x that for release and ~2x again for debug,
+          # with extra Windows working-set headroom. Adjust from CI logs if needed.
+          echo "LIVEKIT_MEMORY_MAX_FINAL_RSS_KIB=${cap}" >> "${GITHUB_ENV}"
+          echo "Memory RSS cap: ${cap} KiB (${RUNNER_OS} ${build})"
+
+      - name: Run memory lifecycle smoke
+        if: matrix.e2e-testing
+        timeout-minutes: ${{ inputs.memory_timeout_minutes }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/set-test-tokens.sh
+          tester="${{ env.BUILD_DIR }}/bin/livekit_memory_lifecycle_tester"
+          bash scripts/run-with-backtrace.sh \
+            "${tester}" \
+            --iterations ${{ inputs.memory_ffi_iterations }} \
+            --ffi-cycles \
+            --sources
+          bash scripts/run-with-backtrace.sh \
+            "${tester}" \
+            --iterations ${{ inputs.memory_connected_iterations }} \
+            --sources \
+            --media \
+            --data-frames \
+            --receive
+
       - name: Run stress tests
         if: matrix.e2e-testing && inputs.run_stress_tests
         timeout-minutes: ${{ inputs.stress_timeout_minutes }}
@@ -441,7 +516,7 @@ jobs:
             --gtest_output=xml:${{ env.BUILD_DIR }}/stress-test-results.xml
 
       - name: Dump livekit-server log on failure
-        if: failure() && matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        if: failure() && matrix.e2e-testing
         shell: bash
         run: tail -n 500 "${{ steps.livekit_server.outputs.log-path }}" || true
 

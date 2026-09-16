@@ -40,3 +40,6 @@ web/
 *trace.json
 compile_commands.json
 user_stories
+
+# DELETE ME BEFORE MERGE
+livekit-rss-probe/
