@@ -331,45 +331,45 @@ endif()
 # Manual lifecycle reproducer
 # ============================================================================
 
-add_executable(livekit_lifecycle_reproducer
-  "${CMAKE_CURRENT_SOURCE_DIR}/manual/lifecycle_reproducer.cpp"
+add_executable(server_room_shutdowner
+  "${CMAKE_CURRENT_SOURCE_DIR}/manual/server_room_shutdowner.cpp"
 )
 
-target_link_libraries(livekit_lifecycle_reproducer PRIVATE livekit)
-target_include_directories(livekit_lifecycle_reproducer PRIVATE ${LIVEKIT_ROOT_DIR}/include)
-target_compile_definitions(livekit_lifecycle_reproducer PRIVATE
+target_link_libraries(server_room_shutdowner PRIVATE livekit)
+target_include_directories(server_room_shutdowner PRIVATE ${LIVEKIT_ROOT_DIR}/include)
+target_compile_definitions(server_room_shutdowner PRIVATE
   $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
 )
 
 if(WIN32)
-  target_link_libraries(livekit_lifecycle_reproducer PRIVATE psapi)
-  add_custom_command(TARGET livekit_lifecycle_reproducer POST_BUILD
+  target_link_libraries(server_room_shutdowner PRIVATE psapi)
+  add_custom_command(TARGET server_room_shutdowner POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
       $<TARGET_FILE:livekit>
-      $<TARGET_FILE_DIR:livekit_lifecycle_reproducer>
+      $<TARGET_FILE_DIR:server_room_shutdowner>
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
-      $<TARGET_FILE_DIR:livekit_lifecycle_reproducer>
+      $<TARGET_FILE_DIR:server_room_shutdowner>
     COMMENT "Copying DLLs to lifecycle reproducer directory"
   )
 elseif(APPLE)
-  add_custom_command(TARGET livekit_lifecycle_reproducer POST_BUILD
+  add_custom_command(TARGET server_room_shutdowner POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
       $<TARGET_FILE:livekit>
-      $<TARGET_FILE_DIR:livekit_lifecycle_reproducer>
+      $<TARGET_FILE_DIR:server_room_shutdowner>
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
-      $<TARGET_FILE_DIR:livekit_lifecycle_reproducer>
+      $<TARGET_FILE_DIR:server_room_shutdowner>
     COMMENT "Copying dylibs to lifecycle reproducer directory"
   )
 else()
-  add_custom_command(TARGET livekit_lifecycle_reproducer POST_BUILD
+  add_custom_command(TARGET server_room_shutdowner POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
       $<TARGET_FILE:livekit>
-      $<TARGET_FILE_DIR:livekit_lifecycle_reproducer>
+      $<TARGET_FILE_DIR:server_room_shutdowner>
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
       "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
-      $<TARGET_FILE_DIR:livekit_lifecycle_reproducer>
+      $<TARGET_FILE_DIR:server_room_shutdowner>
     COMMENT "Copying shared libraries to lifecycle reproducer directory"
   )
 endif()
