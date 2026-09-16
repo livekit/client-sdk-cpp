@@ -418,9 +418,6 @@ std::thread SubscriptionThreadDispatcher::startReaderLocked(const CallbackKey& k
 
 std::thread SubscriptionThreadDispatcher::startReaderForSubscribedTrackLocked(const CallbackKey& key,
                                                                               const TrackKind& kind) {
-  if (active_readers_.find(key) != active_readers_.end()) {
-    return {};
-  }
   const auto track_it = subscribed_tracks_.find(key);
   if (track_it == subscribed_tracks_.end() || !track_it->second || track_it->second->kind() != kind) {
     return {};
