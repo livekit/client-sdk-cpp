@@ -324,7 +324,7 @@ private:
   /// Start a reader when a matching subscribed track is retained for @p key.
   ///
   /// Must be called with @ref lock_ held.
-  std::thread startReaderForSubscribedTrackLocked(const CallbackKey& key, TrackKind kind);
+  std::thread startReaderForSubscribedTrackLocked(const CallbackKey& key, const TrackKind& kind);
 
   /// Start an audio reader thread for @p key using @p track.
   ///

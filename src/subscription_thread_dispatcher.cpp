@@ -416,7 +416,8 @@ std::thread SubscriptionThreadDispatcher::startReaderLocked(const CallbackKey& k
   return {};
 }
 
-std::thread SubscriptionThreadDispatcher::startReaderForSubscribedTrackLocked(const CallbackKey& key, TrackKind kind) {
+std::thread SubscriptionThreadDispatcher::startReaderForSubscribedTrackLocked(const CallbackKey& key,
+                                                                              const TrackKind& kind) {
   if (active_readers_.find(key) != active_readers_.end()) {
     return {};
   }
