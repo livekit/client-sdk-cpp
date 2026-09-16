@@ -101,6 +101,9 @@ public:
   /// @param callback             Function invoked for each decoded audio frame.
   /// @param opts                 Options used when creating the backing
   ///                             @ref AudioStream.
+  /// @warning Must not be called from inside an active audio frame callback for
+  ///          the same `(participant_identity, track_name)` pair. Defer
+  ///          registration changes to another thread.
   void setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                AudioFrameCallback callback, const AudioStream::Options& opts = {});
 
@@ -201,6 +204,8 @@ public:
   /// @param callback              Function to invoke per data frame.
   /// @return An opaque ID that can later be passed to
   ///         removeOnDataFrameCallback() to tear down this subscription.
+  /// @warning Must not be called from inside an active data frame callback for
+  ///          the same subscription. Defer registration changes to another thread.
   DataFrameCallbackId addOnDataFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                              DataFrameCallback callback);
 
@@ -210,6 +215,8 @@ public:
   /// No-op if the ID is not (or no longer) registered.
   ///
   /// @param id  The identifier returned by addOnDataFrameCallback().
+  /// @warning Must not be called from inside an active data frame callback for
+  ///          the same subscription ID. Defer registration changes to another thread.
   void removeOnDataFrameCallback(DataFrameCallbackId id);
 
   /// Notify the dispatcher that a remote data track has been published.

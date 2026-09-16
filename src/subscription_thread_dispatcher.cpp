@@ -44,6 +44,21 @@ const char* trackKindName(TrackKind kind) {
   return "unsupported";
 }
 
+/// Join a stopped reader thread, or detach when called from that same thread.
+void joinReaderThread(std::thread& thread) {
+  if (!thread.joinable()) {
+    return;
+  }
+  if (thread.get_id() == std::this_thread::get_id()) {
+    LK_LOG_WARN(
+        "Frame callback registration changed from its own reader thread; "
+        "detaching instead of joining to avoid self-join deadlock");
+    thread.detach();
+    return;
+  }
+  thread.join();
+}
+
 } // namespace
 
 SubscriptionThreadDispatcher::SubscriptionThreadDispatcher() = default;
@@ -72,9 +87,7 @@ void SubscriptionThreadDispatcher::setOnAudioFrameCallback(const std::string& pa
         "replacing_existing={} total_audio_callbacks={}",
         participant_identity, track_name, replacing, audio_callbacks_.size());
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  joinReaderThread(old_thread);
 }
 
 void SubscriptionThreadDispatcher::setOnVideoFrameEventCallback(const std::string& participant_identity,
@@ -97,9 +110,7 @@ void SubscriptionThreadDispatcher::setOnVideoFrameEventCallback(const std::strin
         "replacing_existing={} total_video_callbacks={}",
         participant_identity, track_name, replacing, video_callbacks_.size());
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  joinReaderThread(old_thread);
 }
 
 void SubscriptionThreadDispatcher::setOnVideoFrameCallback(const std::string& participant_identity,
@@ -121,9 +132,7 @@ void SubscriptionThreadDispatcher::setOnVideoFrameCallback(const std::string& pa
         "replacing_existing={} total_video_callbacks={}",
         participant_identity, track_name, replacing, video_callbacks_.size());
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  joinReaderThread(old_thread);
 }
 
 void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(const std::string& participant_identity,
@@ -140,9 +149,7 @@ void SubscriptionThreadDispatcher::clearOnAudioFrameCallback(const std::string& 
         "removed_callback={} stopped_reader={} remaining_audio_callbacks={}",
         participant_identity, track_name, removed_callback, old_thread.joinable(), audio_callbacks_.size());
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  joinReaderThread(old_thread);
 }
 
 void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(const std::string& participant_identity,
@@ -159,9 +166,7 @@ void SubscriptionThreadDispatcher::clearOnVideoFrameCallback(const std::string& 
         "removed_callback={} stopped_reader={} remaining_video_callbacks={}",
         participant_identity, track_name, removed_callback, old_thread.joinable(), video_callbacks_.size());
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  joinReaderThread(old_thread);
 }
 
 void SubscriptionThreadDispatcher::handleTrackSubscribed(const std::string& participant_identity,
@@ -183,9 +188,7 @@ void SubscriptionThreadDispatcher::handleTrackSubscribed(const std::string& part
     subscribed_tracks_[key] = track;
     old_thread = startReaderLocked(key, track);
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  joinReaderThread(old_thread);
 }
 
 void SubscriptionThreadDispatcher::handleTrackUnsubscribed(const std::string& participant_identity, TrackSource source,
@@ -201,9 +204,7 @@ void SubscriptionThreadDispatcher::handleTrackUnsubscribed(const std::string& pa
         "track_name={} stopped_reader={}",
         participant_identity, static_cast<int>(source), track_name, old_thread.joinable());
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  joinReaderThread(old_thread);
 }
 
 // -------------------------------------------------------------------
@@ -226,9 +227,7 @@ DataFrameCallbackId SubscriptionThreadDispatcher::addOnDataFrameCallback(const s
       old_thread = startDataReaderLocked(id, key, track_it->second, data_callbacks_[id].callback);
     }
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  joinReaderThread(old_thread);
   return id;
 }
 
@@ -239,9 +238,7 @@ void SubscriptionThreadDispatcher::removeOnDataFrameCallback(DataFrameCallbackId
     data_callbacks_.erase(id);
     old_thread = extractDataReaderThreadLocked(id);
   }
-  if (old_thread.joinable()) {
-    old_thread.join();
-  }
+  joinReaderThread(old_thread);
 }
 
 void SubscriptionThreadDispatcher::handleDataTrackPublished(const std::shared_ptr<RemoteDataTrack>& track) {
@@ -269,7 +266,7 @@ void SubscriptionThreadDispatcher::handleDataTrackPublished(const std::shared_pt
     }
   }
   for (auto& t : old_threads) {
-    t.join();
+    joinReaderThread(t);
   }
 }
 
@@ -304,7 +301,7 @@ void SubscriptionThreadDispatcher::handleDataTrackUnpublished(const std::string&
     }
   }
   for (auto& t : old_threads) {
-    t.join();
+    joinReaderThread(t);
   }
 }
 
@@ -351,7 +348,7 @@ void SubscriptionThreadDispatcher::stopAll() {
     remote_data_tracks_.clear();
   }
   for (auto& thread : threads) {
-    thread.join();
+    joinReaderThread(thread);
   }
   LK_LOG_DEBUG("Stopped {} subscription reader threads", threads.size());
 }
