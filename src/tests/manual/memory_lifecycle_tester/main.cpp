@@ -53,6 +53,7 @@
 namespace {
 
 constexpr int kDefaultIterations = 1'000;
+constexpr double kDefaultStatusIntervalS = 1.0;
 constexpr int kAudioSampleRate = 48'000;
 constexpr int kAudioChannels = 1;
 constexpr int kAudioQueueSizeMs = 100;
@@ -79,6 +80,7 @@ struct Configuration {
 
 struct Options {
   int iteration_count{kDefaultIterations};
+  double status_interval_s{kDefaultStatusIntervalS};
   bool sources{false};
   bool connect{false};
   bool media{false};
@@ -108,6 +110,20 @@ int parseIterationCount(const char* value) {
     throw std::runtime_error("iteration count must be an integer");
   } catch (const std::out_of_range&) {
     throw std::runtime_error("iteration count is out of range");
+  }
+}
+
+double parseStatusInterval(const char* value) {
+  try {
+    const double parsed = std::stod(value);
+    if (parsed < 0.0) {
+      throw std::runtime_error("status interval must be greater than or equal to zero");
+    }
+    return parsed;
+  } catch (const std::invalid_argument&) {
+    throw std::runtime_error("status interval must be a number");
+  } catch (const std::out_of_range&) {
+    throw std::runtime_error("status interval is out of range");
   }
 }
 
@@ -411,16 +427,18 @@ void runRoomIteration(const Configuration& config, const Options& options) {
 
 void printUsage(const char* executable) {
   std::cerr << "usage: " << executable
-            << " [--iterations N] [--ffi-cycles] [--sources] [--connect] [--media] [--data-track] "
-               "[--data-frames] [--receive]\n"
-            << "  --ffi-cycles   Initialize and shut down the SDK on every iteration.\n"
-            << "  --sources      Create and drop unused local audio/video sources and tracks.\n"
-            << "  --connect      Connect to and leave a room.\n"
-            << "  --media        Publish, capture, and unpublish audio/video tracks (implies --connect).\n"
-            << "  --data-track   Publish and unpublish a data track (implies --connect).\n"
-            << "  --data-frames  Send data frames (implies --data-track and --connect).\n"
-            << "  --receive      Subscribe to synthetic audio/video from a second participant "
+            << " [--iterations N] [--status-interval SECONDS] [--ffi-cycles] [--sources] [--connect] [--media] "
+               "[--data-track] [--data-frames] [--receive]\n"
+            << "  --ffi-cycles         Initialize and shut down the SDK on every iteration.\n"
+            << "  --sources            Create and drop unused local audio/video sources and tracks.\n"
+            << "  --connect            Connect to and leave a room.\n"
+            << "  --media              Publish, capture, and unpublish audio/video tracks (implies --connect).\n"
+            << "  --data-track         Publish and unpublish a data track (implies --connect).\n"
+            << "  --data-frames        Send data frames (implies --data-track and --connect).\n"
+            << "  --receive            Subscribe to synthetic audio/video from a second participant "
                "(implies --connect).\n"
+            << "  --status-interval S  Print cycle/RSS status every S seconds (default: 1). 0 prints every "
+               "iteration.\n"
             << "  By default the SDK is initialized once and all workloads except --receive run on every "
                "iteration.\n"
             << "  A single numeric argument remains supported as the iteration count.\n"
@@ -436,6 +454,11 @@ Options parseOptions(int argc, char* argv[]) {
         throw std::runtime_error("--iterations requires a value");
       }
       options.iteration_count = parseIterationCount(argv[argument]);
+    } else if (std::strcmp(value, "--status-interval") == 0) {
+      if (++argument == argc) {
+        throw std::runtime_error("--status-interval requires a value");
+      }
+      options.status_interval_s = parseStatusInterval(argv[argument]);
     } else if (std::strcmp(value, "--sources") == 0) {
       options.sources = true;
       options.mode_selected = true;
@@ -487,6 +510,19 @@ Options parseOptions(int argc, char* argv[]) {
   return options;
 }
 
+void printCycleStatus(int iteration, int iteration_count) {
+  std::cout << "Completed " << iteration << "/" << iteration_count << " cycles (RSS " << formatRssSample() << ")\n";
+  std::cout.flush();
+}
+
+bool statusIsDue(int iteration, int iteration_count, double interval_s,
+                 std::chrono::steady_clock::time_point last_status, std::chrono::steady_clock::time_point now) {
+  if (iteration == 1 || iteration == iteration_count || interval_s == 0.0) {
+    return true;
+  }
+  return now - last_status >= std::chrono::duration<double>(interval_s);
+}
+
 void runIteration(const Configuration& config, const Options& options) {
   if (options.sources) {
     runUnusedSources();
@@ -520,7 +556,6 @@ Configuration loadConfiguration(const Options& options) {
 int main(int argc, char* argv[]) {
   try {
     const Options options = parseOptions(argc, argv);
-    const int progress_interval = options.iteration_count < 10 ? 1 : options.iteration_count / 10;
     const Configuration config = loadConfiguration(options);
 
     if (options.ffi_cycles) {
@@ -530,6 +565,7 @@ int main(int argc, char* argv[]) {
       initializeSdk(1);
     }
 
+    auto last_status_at = std::chrono::steady_clock::now();
     for (int iteration = 1; iteration <= options.iteration_count; ++iteration) {
       if (options.ffi_cycles) {
         initializeSdk(iteration);
@@ -545,9 +581,10 @@ int main(int argc, char* argv[]) {
         livekit::shutdown();
       }
 
-      if (iteration % progress_interval == 0 || iteration == options.iteration_count) {
-        std::cout << "Completed " << iteration << "/" << options.iteration_count << " cycles (RSS " << formatRssSample()
-                  << ")\n";
+      const auto now = std::chrono::steady_clock::now();
+      if (statusIsDue(iteration, options.iteration_count, options.status_interval_s, last_status_at, now)) {
+        printCycleStatus(iteration, options.iteration_count);
+        last_status_at = now;
       }
     }
 

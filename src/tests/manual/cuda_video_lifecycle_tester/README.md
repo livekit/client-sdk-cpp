@@ -50,10 +50,11 @@ that codec, but it does not turn an unavailable NVENC backend into a hard
 failure, so those log messages are the current proof that the negotiated video
 path used NVIDIA hardware.
 
-For a memory regression run:
+For a memory regression run. The helper prints RSS once per second by default;
+pass `--interval` only if you want a different rate:
 
 ```bash
-python3 scripts/track_process_memory.py --interval 0.01 -- \
+python3 scripts/track_process_memory.py -- \
   ./build-release/bin/livekit_cuda_video_lifecycle_tester --iterations 1000
 ```
 

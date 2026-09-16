@@ -91,7 +91,9 @@ count. Examples:
 ./build-release/bin/livekit_memory_lifecycle_tester --iterations 100 --ffi-cycles
 ```
 
-The tester prints RSS at progress intervals and `RSS final` at the end. Set
+The tester prints cycle/RSS status at 1 Hz by default (first and last cycles
+always print). Use `--status-interval S` to change that; `0` prints every
+iteration. `RSS final` is printed at the end. Set
 `LIVEKIT_MEMORY_MAX_FINAL_RSS_KIB` to fail if that final sample exceeds the
 limit. Leave it unset for local and hardware-lab runs; CI sets it per OS.
 
@@ -101,10 +103,13 @@ LIVEKIT_MEMORY_MAX_FINAL_RSS_KIB=1048576 \
 ```
 
 To compare memory behavior before and after a lifecycle fix, use identical
-iteration counts and build configurations:
+iteration counts and build configurations. The helper prints RSS once per
+second by default (`--interval` changes that), including the signed delta from
+the previous sample. Initial, peak, change, and average/max/min deltas are
+recorded after a 1s warmup (`--warmup` changes that):
 
 ```bash
-python3 scripts/track_process_memory.py --interval 0.01 -- \
+python3 scripts/track_process_memory.py -- \
   ./build-release/bin/livekit_memory_lifecycle_tester 100
 ```
 
