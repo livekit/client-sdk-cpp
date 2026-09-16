@@ -59,6 +59,20 @@ void joinReaderThread(std::thread& thread) {
   thread.join();
 }
 
+/// Detach a stopped reader thread instead of joining it.
+///
+/// The dispatcher calls this from the FFI event thread, where a synchronous
+/// join would block event delivery until the old reader's in-flight callback
+/// returns, and could deadlock if that callback waits on the FFI thread.
+/// Detaching is safe because each reader thread captures only owned copies (its
+/// stream and callback) and never touches dispatcher state. The stream was
+/// already closed, so the detached thread exits after its current callback.
+void detachReaderThread(std::thread& thread) {
+  if (thread.joinable()) {
+    thread.detach();
+  }
+}
+
 } // namespace
 
 SubscriptionThreadDispatcher::SubscriptionThreadDispatcher() = default;
@@ -188,7 +202,8 @@ void SubscriptionThreadDispatcher::handleTrackSubscribed(const std::string& part
     subscribed_tracks_[key] = track;
     old_thread = startReaderLocked(key, track);
   }
-  joinReaderThread(old_thread);
+  // Called on the FFI event thread; detach so event delivery never blocks.
+  detachReaderThread(old_thread);
 }
 
 void SubscriptionThreadDispatcher::handleTrackUnsubscribed(const std::string& participant_identity, TrackSource source,
@@ -204,7 +219,8 @@ void SubscriptionThreadDispatcher::handleTrackUnsubscribed(const std::string& pa
         "track_name={} stopped_reader={}",
         participant_identity, static_cast<int>(source), track_name, old_thread.joinable());
   }
-  joinReaderThread(old_thread);
+  // Called on the FFI event thread; detach so event delivery never blocks.
+  detachReaderThread(old_thread);
 }
 
 // -------------------------------------------------------------------
@@ -265,8 +281,9 @@ void SubscriptionThreadDispatcher::handleDataTrackPublished(const std::shared_pt
       }
     }
   }
+  // Called on the FFI event thread; detach so event delivery never blocks.
   for (auto& t : old_threads) {
-    joinReaderThread(t);
+    detachReaderThread(t);
   }
 }
 
@@ -300,8 +317,9 @@ void SubscriptionThreadDispatcher::handleDataTrackUnpublished(const std::string&
       }
     }
   }
+  // Called on the FFI event thread; detach so event delivery never blocks.
   for (auto& t : old_threads) {
-    joinReaderThread(t);
+    detachReaderThread(t);
   }
 }
 
