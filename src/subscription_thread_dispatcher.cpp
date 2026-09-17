@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "livekit/subscription_thread_dispatcher.h"
+#include "subscription_thread_dispatcher.h"
 
 #include <exception>
 #include <utility>
