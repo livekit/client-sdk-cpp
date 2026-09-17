@@ -347,11 +347,8 @@ clean_all() {
   echo "Removing local-install directory..."
   rm -rf "${LOCAL_INSTALL_DIR}" || true
 
-  echo "Removing Rust debug artifacts..."
-  rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/debug" || true
-
-  echo "Removing Rust release artifacts..."
-  rm -rf "${PROJECT_ROOT}/client-sdk-rust/target/release" || true
+  echo "Removing Rust target directory..."
+  rm -rf "${PROJECT_ROOT}/client-sdk-rust/target" || true
 
   echo "==> Clean-all complete."
 }

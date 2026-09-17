@@ -234,8 +234,9 @@ The exported ABI is enforced by `.github/scripts/check_no_private_symbols.py`,
 run from the `make-release.yml` "Symbol leak check" CI step so a leak blocks
 the release build itself (it does not run on regular pushes/PRs). The script
 fails if `nm`/`dumpbin` reports any exported symbol matching a forbidden
-substring (currently `spdlog::`, `fmt::v`, `google::protobuf`, `absl::`). To
-run it locally, point it at the built shared library:
+substring (including private dependency namespaces and generated UniFFI
+symbols such as `livekit_ffi::`, `uniffi::`, and `uniffi_`). To run it locally,
+point it at the built shared library:
 
 ```bash
 python3 .github/scripts/check_no_private_symbols.py \

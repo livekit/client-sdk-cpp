@@ -75,12 +75,12 @@ jobs:
             llvm-dev libclang-dev clang \
             libssl-dev libcurl4-openssl-dev wget ca-certificates gnupg
 
-      - name: Install clang-tidy 19 (for ExcludeHeaderFilterRegex support)
+      - name: Install clang-tidy 19 and clang 21
         run: |
           set -eux
           # Ubuntu 24.04 apt ships clang-tidy 18, which doesn't understand
           # ExcludeHeaderFilterRegex (added in 19). Pull clang-tidy 19 from
-          # the upstream LLVM apt repository and pin the unversioned names.
+          # the upstream LLVM apt repository. libwebrtc requires clang 21+.
           sudo install -m 0755 -d /etc/apt/keyrings
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
             | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
@@ -88,8 +88,10 @@ jobs:
           codename=$(lsb_release -cs)
           echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-19 main" \
             | sudo tee /etc/apt/sources.list.d/llvm-19.list >/dev/null
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-21 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-21.list >/dev/null
           sudo apt-get update
-          sudo apt-get install -y clang-tidy-19 clang-tools-19
+          sudo apt-get install -y clang-tidy-19 clang-tools-19 clang-21 libclang-21-dev
           sudo ln -sf /usr/bin/clang-tidy-19 /usr/local/bin/clang-tidy
           sudo ln -sf /usr/bin/run-clang-tidy-19 /usr/local/bin/run-clang-tidy
           clang-tidy --version
@@ -104,14 +106,18 @@ jobs:
         run: |
           echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
           echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
-          LLVM_VERSION=$(llvm-config --version | cut -d. -f1)
-          echo "LIBCLANG_PATH=/usr/lib/llvm-${LLVM_VERSION}/lib" >> "$GITHUB_ENV"
+          echo "CC=/usr/bin/clang-21" >> "$GITHUB_ENV"
+          echo "CXX=/usr/bin/clang++-21" >> "$GITHUB_ENV"
+          echo "LIBCLANG_PATH=/usr/lib/llvm-21/lib" >> "$GITHUB_ENV"
 
       - name: Configure compilation database
         run: cmake --preset linux-release
 
       - name: Generate protobuf headers
         run: cmake --build build-release --target livekit_proto
+
+      - name: Generate UniFFI C++ bindings
+        run: cmake --build build-release --target generate_livekit_ffi_uniffi_cpp
 
       - name: Run clang-tidy
         env:
