@@ -486,3 +486,19 @@ else()
     COMMENT "Copying shared libraries next to livekit_cuda_video_lifecycle_tester"
   )
 endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  find_package(CUDAToolkit QUIET)
+  if(CUDAToolkit_FOUND)
+    add_executable(livekit_cuda_context_lifecycle_tester
+      "${CMAKE_CURRENT_SOURCE_DIR}/manual/cuda_context_lifecycle_tester/main.cpp"
+    )
+    target_link_libraries(livekit_cuda_context_lifecycle_tester
+      PRIVATE CUDA::cuda_driver
+    )
+  else()
+    message(STATUS
+      "CUDA Toolkit not found; skipping livekit_cuda_context_lifecycle_tester"
+    )
+  endif()
+endif()

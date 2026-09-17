@@ -265,9 +265,8 @@ std::optional<ConnectCredentials> loadConnectCredentials() {
 
 std::atomic<bool> shutdown_requested = false;
 
-void signalHandler(int signal) {
-  std::cout << "Signal " << signal << " received\n";
-  shutdown_requested = true;
+void signalHandler(int) {
+  shutdown_requested.store(true);
 }
 
 int main(int argc, char** argv) {
@@ -279,6 +278,12 @@ int main(int argc, char** argv) {
     printUsage(argv[0]);
     return 2;
   }
+  
+  signal(SIGINT, signalHandler);
+  signal(SIGTERM, signalHandler);
+#ifndef _WIN32
+  signal(SIGHUP, signalHandler);
+#endif
 
   if (!livekit::initialize(livekit::LogLevel::Info)) {
     std::cerr << "Failed to initialize LiveKit\n";
@@ -287,8 +292,10 @@ int main(int argc, char** argv) {
 
   std::cout << "Running " << options.iteration_count << " iterations\n";
 
-  signal(SIGINT, signalHandler);
-  signal(SIGTERM, signalHandler);
+  if (shutdown_requested.load()) {
+    livekit::shutdown();
+    return 0;
+  }
 
   const auto credentials = loadConnectCredentials();
   if (!credentials.has_value()) {
@@ -312,11 +319,16 @@ int main(int argc, char** argv) {
     std::cout << "Connected to room: " << room.roomInfo().name << "\n";
 
     std::cout << "Waiting for room to disconnect...\n";
-    std::unique_lock<std::mutex> lock(delegate.disconnect_mutex);
-    delegate.disconnect_cv.wait(lock, [&]() { return delegate.disconnected || shutdown_requested; });
+    {
+      std::unique_lock<std::mutex> lock(delegate.disconnect_mutex);
+      while (!delegate.disconnected && !shutdown_requested.load()) {
+        delegate.disconnect_cv.wait_for(lock, std::chrono::milliseconds(100));
+      }
+    }
 
-    if (shutdown_requested) {
-      std::cout << "Shutdown requested, stopping iteration\n";
+    if (shutdown_requested.load()) {
+      std::cout << "Shutdown requested, disconnecting room\n";
+      (void)room.disconnect();
       break;
     }
 
