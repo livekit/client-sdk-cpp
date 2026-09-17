@@ -20,11 +20,25 @@
 #include <livekit/livekit.h>
 
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 #include <unordered_map>
 #include <vector>
 
 namespace livekit {
+
+namespace {
+
+class FakeAudioTrack : public Track {
+public:
+  FakeAudioTrack()
+      : Track(FfiHandle(), "fake-sid", "fake-name", TrackKind::KIND_AUDIO, StreamState::STATE_ACTIVE,
+              /*muted=*/false, /*remote=*/true) {}
+};
+
+} // namespace
 
 class SubscriptionThreadDispatcherTest : public ::testing::Test {
 protected:
@@ -40,6 +54,7 @@ protected:
   static auto& audioCallbacks(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.audio_callbacks_; }
   static auto& videoCallbacks(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.video_callbacks_; }
   static auto& activeReaders(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.active_readers_; }
+  static auto& subscribedTracks(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.subscribed_tracks_; }
   static auto& dataCallbacks(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.data_callbacks_; }
   static auto& activeDataReaders(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.active_data_readers_; }
   static auto& remoteDataTracks(SubscriptionThreadDispatcher& dispatcher) { return dispatcher.remote_data_tracks_; }
@@ -232,6 +247,97 @@ TEST_F(SubscriptionThreadDispatcherTest, ActiveReadersEmptyAfterCallbackRegistra
   EXPECT_TRUE(activeReaders(dispatcher).empty())
       << "Registering a callback without a subscribed track should not spawn "
          "readers";
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, SubscribedTrackIsRetainedWithoutCallback) {
+  SubscriptionThreadDispatcher dispatcher;
+  auto track = std::make_shared<FakeAudioTrack>();
+
+  dispatcher.handleTrackSubscribed("alice", "mic-main", track);
+
+  const CallbackKey key{"alice", "mic-main"};
+  ASSERT_EQ(subscribedTracks(dispatcher).count(key), 1u);
+  EXPECT_EQ(subscribedTracks(dispatcher).at(key), track);
+  EXPECT_TRUE(activeReaders(dispatcher).empty());
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, UnsubscribeRemovesRetainedTrack) {
+  SubscriptionThreadDispatcher dispatcher;
+  dispatcher.handleTrackSubscribed("alice", "mic-main", std::make_shared<FakeAudioTrack>());
+
+  dispatcher.handleTrackUnsubscribed("alice", TrackSource::SOURCE_MICROPHONE, "mic-main");
+
+  EXPECT_TRUE(subscribedTracks(dispatcher).empty());
+}
+
+TEST_F(SubscriptionThreadDispatcherTest, StopAllRemovesRetainedTracks) {
+  SubscriptionThreadDispatcher dispatcher;
+  dispatcher.handleTrackSubscribed("alice", "mic-main", std::make_shared<FakeAudioTrack>());
+
+  dispatcher.stopAll();
+
+  EXPECT_TRUE(subscribedTracks(dispatcher).empty());
+}
+
+// Deterministic coverage for the late-registration path from GH issue 235:
+// a callback registered after the track is already subscribed must start a
+// reader from the retained track. A LocalAudioTrack drives a real reader with
+// no server, unlike FakeAudioTrack, whose empty FFI handle starts no stream.
+TEST_F(SubscriptionThreadDispatcherTest, LateAudioCallbackAfterSubscribeStartsReaderAndReceivesFrames) {
+  using namespace std::chrono_literals;
+
+  SubscriptionThreadDispatcher dispatcher;
+  auto source = std::make_shared<AudioSource>(48000, 1);
+  auto track = LocalAudioTrack::createLocalAudioTrack("mic-main", source);
+
+  const CallbackKey key{"alice", "mic-main"};
+
+  // Subscribe first, with no callback registered: the track is retained, but no
+  // reader starts because startReaderLocked finds no matching callback.
+  dispatcher.handleTrackSubscribed("alice", "mic-main", track);
+  ASSERT_EQ(subscribedTracks(dispatcher).count(key), 1u);
+  ASSERT_TRUE(activeReaders(dispatcher).empty());
+
+  // Register the callback after the subscription. This is the late path: it must
+  // start a reader from the retained track via startReaderForSubscribedTrackLocked.
+  std::mutex frame_mutex;
+  std::condition_variable frame_cv;
+  int received_frames = 0;
+  dispatcher.setOnAudioFrameCallback("alice", "mic-main", [&](const AudioFrame&) {
+    {
+      const std::scoped_lock<std::mutex> lock(frame_mutex);
+      ++received_frames;
+    }
+    frame_cv.notify_all();
+  });
+  ASSERT_EQ(activeReaders(dispatcher).count(key), 1u);
+
+  // Drive frames into the local source until the callback fires or we time out.
+  std::atomic<bool> capturing{true};
+  std::thread capturer([&]() {
+    AudioFrame frame = AudioFrame::create(48000, 1, 480);
+    while (capturing.load(std::memory_order_relaxed)) {
+      try {
+        source->captureFrame(frame);
+      } catch (...) {
+        break;
+      }
+      std::this_thread::sleep_for(10ms);
+    }
+  });
+
+  bool received = false;
+  {
+    std::unique_lock<std::mutex> lock(frame_mutex);
+    received = frame_cv.wait_for(lock, 5s, [&]() { return received_frames > 0; });
+  }
+
+  capturing.store(false, std::memory_order_relaxed);
+  capturer.join();
+  // Stop the reader before the track and source are destroyed.
+  dispatcher.stopAll();
+
+  EXPECT_TRUE(received) << "Late-registered audio callback never received a frame";
 }
 
 // ============================================================================

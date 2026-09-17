@@ -313,30 +313,63 @@ public:
   // Frame callbacks
   // ---------------------------------------------------------------
 
-  /// @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
+  /// @brief Sets the callback for frames from a remote audio track.
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name Name of the remote audio track.
+  /// @param callback Function invoked for each decoded audio frame.
+  /// @param opts Options used to create the backing audio stream.
+  /// @warning Must not be called from inside an active audio frame callback for
+  ///          the same `(participant_identity, track_name)` pair. Defer
+  ///          registration changes to another thread.
   void setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                AudioFrameCallback callback, const AudioStream::Options& opts = {});
 
-  /// @brief Sets the video frame callback via SubscriptionThreadDispatcher.
+  /// @brief Sets the callback for frames from a remote video track.
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name Name of the remote video track.
+  /// @param callback Function invoked for each decoded video frame.
+  /// @param opts Options used to create the backing video stream.
+  /// @warning Must not be called from inside an active video frame callback for
+  ///          the same `(participant_identity, track_name)` pair. Defer
+  ///          registration changes to another thread.
   void setOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                VideoFrameCallback callback, const VideoStream::Options& opts = {});
 
-  /// @brief Sets the video frame event callback via
-  /// SubscriptionThreadDispatcher.
+  /// @brief Sets the event callback for frames from a remote video track.
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name Name of the remote video track.
+  /// @param callback Function invoked for each decoded video frame event.
+  /// @param opts Options used to create the backing video stream.
+  /// @warning Must not be called from inside an active video frame callback for
+  ///          the same `(participant_identity, track_name)` pair. Defer
+  ///          registration changes to another thread.
   void setOnVideoFrameEventCallback(const std::string& participant_identity, const std::string& track_name,
                                     VideoFrameEventCallback callback, const VideoStream::Options& opts = {});
 
   /// @brief Clears the audio frame callback via SubscriptionThreadDispatcher.
+  /// @warning Must not be called from inside an active audio frame callback for
+  ///          the same `(participant_identity, track_name)` pair. Defer
+  ///          registration changes to another thread.
   void clearOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name);
 
   /// @brief Clears the video frame callback via SubscriptionThreadDispatcher.
+  /// @warning Must not be called from inside an active video frame callback for
+  ///          the same `(participant_identity, track_name)` pair. Defer
+  ///          registration changes to another thread.
   void clearOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name);
 
   /// @brief Adds a data frame callback via SubscriptionThreadDispatcher.
+  /// @warning Must not be called from inside an active data frame callback for
+  ///          the same subscription. Defer registration changes to another thread.
   DataFrameCallbackId addOnDataFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                              DataFrameCallback callback);
 
   /// @brief Removes the data frame callback via SubscriptionThreadDispatcher.
+  /// @warning Must not be called from inside an active data frame callback for
+  ///          the same subscription ID. Defer registration changes to another thread.
   void removeOnDataFrameCallback(DataFrameCallbackId id);
 
 private:
@@ -359,7 +392,7 @@ private:
   // The E2EE manager is owned by the room and is not shared with other objects.
   // It is a shared_ptr just to utilize the weak_ptr interface for the e2eeManager() accessor.
   std::shared_ptr<E2EEManager> e2ee_manager_;
-  std::shared_ptr<SubscriptionThreadDispatcher> subscription_thread_dispatcher_;
+  std::unique_ptr<SubscriptionThreadDispatcher> subscription_thread_dispatcher_;
 
   // FfiClient listener ID (0 means no listener registered)
   int listener_id_{0};
