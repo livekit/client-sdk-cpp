@@ -58,3 +58,18 @@
 #define LIVEKIT_INTERNAL_API
 #endif
 #endif
+
+// LIVEKIT_DEPRECATED marks a symbol that remains part of the public,
+// supported ABI but is discouraged for new code and may be removed in a
+// future major version. It expands to the standard [[deprecated(msg)]]
+// attribute for external consumers.
+//
+// SDK sources (compiled with LIVEKIT_BUILDING_SDK) still call into
+// deprecated APIs as part of their own implementation during the transition
+// period, so the attribute compiles away for those translation units instead
+// of warning on our own code.
+#if defined(LIVEKIT_BUILDING_SDK)
+#define LIVEKIT_DEPRECATED(msg)
+#else
+#define LIVEKIT_DEPRECATED(msg) [[deprecated(msg)]]
+#endif
