@@ -81,7 +81,7 @@ using DataFrameCallbackId = std::uint64_t;
 /// The design keeps track-type-specific startup isolated so additional track
 /// kinds can be added later without pushing more thread state back into
 /// @ref Room.
-class LIVEKIT_API SubscriptionThreadDispatcher {
+class LIVEKIT_INTERNAL_API SubscriptionThreadDispatcher {
 public:
   /// Constructs an empty dispatcher with no registered callbacks or readers.
   SubscriptionThreadDispatcher();

@@ -27,8 +27,8 @@
 #include "livekit/ffi_handle.h"
 #include "livekit/room_event_types.h"
 #include "livekit/stats.h"
-#include "livekit/subscription_thread_dispatcher.h"
 #include "livekit/visibility.h"
+#include "subscription_thread_dispatcher.h"
 
 namespace livekit {
 
