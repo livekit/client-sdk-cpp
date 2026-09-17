@@ -512,6 +512,9 @@ proto::TrackPublishOptions toProto(const TrackPublishOptions& in) {
   if (in.video_codec) {
     msg.set_video_codec(static_cast<proto::VideoCodec>(*in.video_codec));
   }
+  if (in.video_encoder) {
+    msg.set_video_encoder(static_cast<proto::VideoEncoderBackend>(*in.video_encoder));
+  }
   if (in.dtx) {
     msg.set_dtx(*in.dtx);
   }
@@ -549,6 +552,9 @@ TrackPublishOptions fromProto(const proto::TrackPublishOptions& in) {
   }
   if (in.has_video_codec()) {
     out.video_codec = static_cast<VideoCodec>(in.video_codec());
+  }
+  if (in.has_video_encoder()) {
+    out.video_encoder = static_cast<VideoEncoderBackend>(in.video_encoder());
   }
   if (in.has_dtx()) {
     out.dtx = in.dtx();

@@ -26,10 +26,13 @@
 
 namespace livekit {
 
-VideoSource::VideoSource(int width, int height) : width_(width), height_(height) {
+VideoSource::VideoSource(int width, int height) : VideoSource(width, height, SourceType::Native) {}
+
+VideoSource::VideoSource(int width, int height, SourceType source_type) : width_(width), height_(height) {
   proto::FfiRequest req;
   auto* msg = req.mutable_new_video_source();
-  msg->set_type(proto::VideoSourceType::VIDEO_SOURCE_NATIVE);
+  msg->set_type(source_type == SourceType::Encoded ? proto::VideoSourceType::VIDEO_SOURCE_ENCODED
+                                                   : proto::VideoSourceType::VIDEO_SOURCE_NATIVE);
   msg->mutable_resolution()->set_width(width_);
   msg->mutable_resolution()->set_height(height_);
 
