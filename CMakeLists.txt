@@ -348,13 +348,29 @@ else()
   )
 endif()
 
-file(GLOB_RECURSE RUST_SOURCES 
+file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS
   "${RUST_ROOT}/livekit-ffi/src/*.rs"
+  "${RUST_ROOT}/livekit-ffi/protocol/*.proto"
+  "${RUST_ROOT}/livekit-ffi/build.rs"
   "${RUST_ROOT}/livekit-ffi/Cargo.toml"
 )
+list(APPEND RUST_SOURCES
+  "${RUST_ROOT}/Cargo.toml"
+  "${RUST_ROOT}/Cargo.lock"
+  "${RUST_ROOT}/rust-toolchain.toml"
+)
+
+set(RUST_BUILD_OUTPUTS
+  "$<IF:$<CONFIG:Debug>,${RUST_LIB_DEBUG},${RUST_LIB_RELEASE}>"
+)
+if(WIN32)
+  list(APPEND RUST_BUILD_OUTPUTS
+    "$<IF:$<CONFIG:Debug>,${RUST_DLL_DEBUG},${RUST_DLL_RELEASE}>"
+  )
+endif()
 
 add_custom_command(
-  OUTPUT "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
+  OUTPUT ${RUST_BUILD_OUTPUTS}
   COMMAND "${CMAKE_COMMAND}"
           -DCFG=$<CONFIG>
           -DRUST_ROOT=${RUST_ROOT}
@@ -370,7 +386,7 @@ add_custom_command(
 )
 
 add_custom_target(build_rust_ffi
-  DEPENDS "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
+  DEPENDS ${RUST_BUILD_OUTPUTS}
 )
 
 include(uniffi_cpp)

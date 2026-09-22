@@ -73,7 +73,8 @@ jobs:
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
             llvm-dev libclang-dev clang \
-            libssl-dev libcurl4-openssl-dev wget ca-certificates gnupg
+            libglib2.0-dev libssl-dev libcurl4-openssl-dev \
+            wget ca-certificates gnupg
 
       - name: Install clang-tidy 19 and clang 21
         run: |

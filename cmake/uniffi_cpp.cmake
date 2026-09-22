@@ -33,6 +33,8 @@ endif()
 
 file(GLOB_RECURSE LIVEKIT_UNIFFI_RUST_SOURCES CONFIGURE_DEPENDS
   "${RUST_ROOT}/livekit-ffi/src/*.rs"
+  "${RUST_ROOT}/livekit-ffi/protocol/*.proto"
+  "${RUST_ROOT}/livekit-ffi/build.rs"
   "${RUST_ROOT}/livekit-ffi/Cargo.toml"
 )
 list(APPEND LIVEKIT_UNIFFI_RUST_SOURCES
