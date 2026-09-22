@@ -22,13 +22,15 @@
 #include <memory>
 #include <mutex>
 
+#include "livekit/audio_stream.h"
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
+#include "livekit/room_callbacks.h"
 #include "livekit/room_event_types.h"
 #include "livekit/stats.h"
+#include "livekit/video_stream.h"
 #include "livekit/visibility.h"
-#include "subscription_thread_dispatcher.h"
 
 namespace livekit {
 
@@ -42,6 +44,7 @@ struct E2EEOptions;
 class E2EEManager;
 class LocalParticipant;
 class RemoteParticipant;
+class SubscriptionThreadDispatcher;
 
 /// Represents a single ICE server configuration.
 struct IceServer {

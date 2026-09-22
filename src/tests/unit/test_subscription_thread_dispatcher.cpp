@@ -24,6 +24,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "subscription_thread_dispatcher.h"
+
 namespace livekit {
 
 class SubscriptionThreadDispatcherTest : public ::testing::Test {
