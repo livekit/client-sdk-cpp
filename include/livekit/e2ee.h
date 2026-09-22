@@ -121,7 +121,7 @@ public:
   /// Use this for key rotation during the lifetime of a single room or for
   /// per-participant keys (e.g., when implementing the MEGOLM or MLS protocol)
   /// via shared-key or participant-keyed APIs paired with the frame cryptor.
-  /// See https://docs.livekit.io/home/client/encryption/#custom-key-provider
+  /// See https://docs.livekit.io/transport/encryption/start/#custom-key-provider
   /// for details.
   class LIVEKIT_API KeyProvider {
   public:
