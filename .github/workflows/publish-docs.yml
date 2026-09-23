@@ -5,6 +5,14 @@ on:
     # "published" covers newly published stable releases and prereleases.
     # "released" also catches promotion of an existing prerelease to stable.
     types: [published, released]
+  # CI calls this on every pull request and main push. Only the credentials
+  # job runs there; validate and publish stay on the release trigger.
+  workflow_call:
+    secrets:
+      DOCS_DEPLOY_AWS_ACCESS_KEY:
+        required: false
+      DOCS_DEPLOY_AWS_API_SECRET:
+        required: false
 
 permissions:
   contents: read
@@ -13,6 +21,7 @@ permissions:
 jobs:
   validate:
     name: Validate (build docs)
+    if: github.event_name == 'release'
     uses: ./.github/workflows/generate-docs.yml
     with:
       version: ${{ github.event.release.tag_name }}
@@ -26,7 +35,8 @@ jobs:
     needs: validate
     # The GitHub release is the source of truth. Drafts do not emit these
     # events until published; prereleases validate docs but never deploy them.
-    if: github.event.release.draft == false && github.event.release.prerelease == false
+    # event_name keeps a CI workflow_call from publishing.
+    if: github.event_name == 'release' && github.event.release.draft == false && github.event.release.prerelease == false
     runs-on: ubuntu-latest
     steps:
       - name: Download docs artifact
@@ -61,3 +71,24 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.DOCS_DEPLOY_AWS_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.DOCS_DEPLOY_AWS_API_SECRET }}
           AWS_DEFAULT_REGION: "us-east-1"
+
+  # Proves the docs-deploy key is still a real AWS access key. This is the
+  # failure mode from v1.10.2 onward (InvalidAccessKeyId). It does not upload
+  # or invalidate CloudFront; those permissions are still exercised on release.
+  credentials:
+    name: Check AWS credentials
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify docs deploy credentials
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DOCS_DEPLOY_AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DOCS_DEPLOY_AWS_API_SECRET }}
+          AWS_DEFAULT_REGION: "us-east-1"
+        run: |
+          set -euo pipefail
+          if [[ -z "${AWS_ACCESS_KEY_ID}" || -z "${AWS_SECRET_ACCESS_KEY}" ]]; then
+            echo "Docs deploy AWS credentials are not available to this workflow."
+            exit 1
+          fi
+          aws sts get-caller-identity --query Arn --output text

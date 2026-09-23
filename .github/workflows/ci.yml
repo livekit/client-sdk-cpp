@@ -117,6 +117,13 @@ jobs:
     name: Link Check
     uses: ./.github/workflows/link_check.yml
 
+  # Confirms the org docs-deploy key still exists. The release publish path
+  # stays inside publish-docs.yml; this call only runs the credentials job.
+  docs-deploy-credentials:
+    name: Docs Deploy Credentials
+    uses: ./.github/workflows/publish-docs.yml
+    secrets: inherit
+
   cpp-tools:
     name: C++ Tools
     needs: changes
@@ -152,6 +159,7 @@ jobs:
       - cpp-tools
       - generate-docs
       - link-check
+      - docs-deploy-credentials
       - rust-release-check
     if: always()
     steps:
