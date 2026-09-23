@@ -235,8 +235,9 @@ The exported ABI is enforced by `.github/scripts/check_no_private_symbols.py`,
 run from the `make-release.yml` "Symbol leak check" CI step so a leak blocks
 the release build itself (it does not run on regular pushes/PRs). The script
 fails if `nm`/`dumpbin` reports any exported symbol matching a forbidden
-substring (currently `spdlog::`, `fmt::v`, `google::protobuf`, `absl::`). To
-run it locally, point it at the built shared library:
+substring (including private dependency namespaces and generated UniFFI
+symbols such as `livekit_ffi::`, `uniffi::`, and `uniffi_`). To run it locally,
+point it at the built shared library:
 
 ```bash
 python3 .github/scripts/check_no_private_symbols.py \
@@ -258,7 +259,7 @@ with the same library loaded elsewhere in the host process.
 ### Public API Documentation (Doxygen)
 
 The public API (`include/livekit/*.h`) is what consumers read first and is also
-published as a Doxygen site (`docs/doxygen/Doxyfile`, `.github/workflows/publish-docs.yml`).
+published as a Doxygen site (`docs/doxygen/Doxyfile`, `.github/workflows/docs.yml`).
 Every doc comment in `include/livekit/` must use the rules below, and PRs that
 add or modify public symbols are gated on these rules during review.
 
@@ -392,7 +393,8 @@ all filtered stages; normal pull requests and pushes use the path filters.
 - `.github/workflows/cpp-tools.yml` — Reusable SDK-specific `clang-format` and
   `clang-tidy` workflow. It prepares the build environment and invokes the
   project wrappers backed by the shared `cpp-tools` scripts.
-- `.github/workflows/generate-docs.yml` — Reusable Doxygen docs validation.
+- `.github/workflows/docs.yml` — Reusable Doxygen docs validation, deploy
+  credential check on trusted `main` pushes, and stable-release publishing.
 - `.github/workflows/rust-release-check.yml` — Reusable check that the pinned
  `client-sdk-rust` submodule commit maps to a published release. Gated by the
  `rust_submodule` path filter so it only runs on a submodule bump, runs in

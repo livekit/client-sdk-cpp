@@ -1,0 +1,225 @@
+name: Docs
+
+on:
+  release:
+    # A stable release publishes docs. A prerelease still builds the docs and
+    # checks the deploy credentials, but does not publish. "released" also
+    # catches promotion of an existing prerelease to stable.
+    types: [published, released]
+  workflow_call:
+    inputs:
+      build_docs:
+        description: "Build and verify the documentation"
+        required: false
+        type: boolean
+        default: true
+      check_credentials:
+        description: "Check the docs deploy AWS credentials"
+        required: false
+        type: boolean
+        default: false
+      version:
+        description: "Documentation version (e.g. v0.1.0)"
+        required: false
+        type: string
+      upload_artifact:
+        description: "Upload the generated docs as a workflow artifact"
+        required: false
+        type: boolean
+        default: true
+      artifact_name:
+        description: "Name of the uploaded docs artifact"
+        required: false
+        type: string
+        default: livekit-cpp-docs
+      artifact_retention_days:
+        description: "Artifact retention in days"
+        required: false
+        type: number
+        default: 7
+    secrets:
+      DOCS_DEPLOY_AWS_ACCESS_KEY:
+        required: false
+      DOCS_DEPLOY_AWS_API_SECRET:
+        required: false
+    outputs:
+      project_number:
+        description: "Doxygen PROJECT_NUMBER used for the build"
+        value: ${{ jobs.build.outputs.project_number }}
+      artifact_name:
+        description: "Uploaded docs artifact name"
+        value: ${{ jobs.build.outputs.artifact_name }}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build:
+    name: Generate and verify docs
+    if: github.event_name == 'release' || inputs.build_docs
+    runs-on: ubuntu-latest
+    outputs:
+      project_number: ${{ steps.build_docs.outputs.project_number }}
+      artifact_name: ${{ steps.artifact_meta.outputs.name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Required so git describe in generate-docs.sh can resolve a version.
+          fetch-depth: 0
+
+      - name: Install Doxygen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz
+
+      - name: Generate docs
+        id: build_docs
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.version || '' }}
+        run: |
+          set -euo pipefail
+
+          args=()
+          if [[ -n "$INPUT_VERSION" ]]; then
+            args+=(--version "$INPUT_VERSION")
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            args+=(--version "${{ github.ref_name }}")
+          fi
+
+          ./scripts/generate-docs.sh "${args[@]}"
+
+      - name: Print docs version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PROJECT_NUMBER="${{ steps.build_docs.outputs.project_number }}"
+          if [[ -z "$PROJECT_NUMBER" ]]; then
+            echo "ERROR: build_docs step did not emit a project_number output."
+            exit 1
+          fi
+
+          echo "Docs version: ${PROJECT_NUMBER}"
+          {
+            echo "Docs version: \`${PROJECT_NUMBER}\`"
+            echo ""
+            echo "> Note: On a non-tag/release run, the version resolves to:"
+            echo "  \`<closest tag>-<commits since tag>-<commit sha>\`"
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Verify docs were generated
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f docs/doxygen/html/index.html ]]; then
+            echo "ERROR: Expected docs at docs/doxygen/html/index.html but file not found."
+            exit 1
+          fi
+
+      - name: Resolve artifact metadata
+        id: artifact_meta
+        if: github.event_name == 'release' || inputs.upload_artifact
+        shell: bash
+        env:
+          INPUT_NAME: ${{ inputs.artifact_name || format('livekit-cpp-docs-{0}', github.run_id) }}
+          INPUT_RETENTION: ${{ inputs.artifact_retention_days || 7 }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$INPUT_NAME" ]]; then
+            echo "ERROR: Artifact name resolved to empty."
+            exit 1
+          fi
+          echo "name=${INPUT_NAME}" >>"$GITHUB_OUTPUT"
+          echo "retention=${INPUT_RETENTION}" >>"$GITHUB_OUTPUT"
+
+      - name: Upload docs artifact
+        if: steps.artifact_meta.outputs.name != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.artifact_meta.outputs.name }}
+          path: docs/doxygen/html/
+          retention-days: ${{ steps.artifact_meta.outputs.retention }}
+          if-no-files-found: error
+
+      - name: Re-download artifact
+        if: steps.artifact_meta.outputs.name != ''
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ steps.artifact_meta.outputs.name }}
+          path: html
+
+      - name: Verify downloaded artifact
+        if: steps.artifact_meta.outputs.name != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TOTAL=$(find html -type f | wc -l | tr -d ' ')
+          echo "Total files: ${TOTAL}"
+          if [[ ! -f html/index.html ]]; then
+            echo "ERROR: html/index.html is missing; the publish artifact layout regressed."
+            exit 1
+          fi
+
+  credentials:
+    name: Check AWS credentials
+    # CI enables this only for trusted main pushes. Release events always
+    # check credentials before publishing. PR jobs never receive deploy keys.
+    if: github.event_name == 'release' || inputs.check_credentials
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify docs deploy credentials
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DOCS_DEPLOY_AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DOCS_DEPLOY_AWS_API_SECRET }}
+          AWS_DEFAULT_REGION: "us-east-1"
+        run: |
+          set -euo pipefail
+          if [[ -z "${AWS_ACCESS_KEY_ID}" || -z "${AWS_SECRET_ACCESS_KEY}" ]]; then
+            echo "Docs deploy AWS credentials are not available to this workflow."
+            exit 1
+          fi
+          aws sts get-caller-identity --query Arn --output text
+
+  publish:
+    name: Publish (S3 + CloudFront)
+    needs: [build, credentials]
+    if: github.event_name == 'release' && github.event.release.prerelease == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download docs artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: html
+
+      - name: S3 Upload
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DOCS_DEPLOY_AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DOCS_DEPLOY_AWS_API_SECRET }}
+          AWS_DEFAULT_REGION: "us-east-1"
+        run: |
+          set -euo pipefail
+
+          if [[ ! -f html/index.html ]]; then
+            echo "Expected docs at html/index.html but file not found."
+            exit 1
+          fi
+
+          VERSIONED_PREFIX="s3://livekit-docs/client-sdk-cpp/${{ needs.build.outputs.project_number }}"
+          LATEST_PREFIX="s3://livekit-docs/client-sdk-cpp"
+
+          aws s3 cp html/ "$VERSIONED_PREFIX" --recursive
+          aws s3 cp html/ "$LATEST_PREFIX" --recursive
+
+      - name: Invalidate CloudFront cache
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.DOCS_DEPLOY_AWS_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.DOCS_DEPLOY_AWS_API_SECRET }}
+          AWS_DEFAULT_REGION: "us-east-1"
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id EJJ40KLJ3TRY9 \
+            --paths "/client-sdk-cpp/*"
