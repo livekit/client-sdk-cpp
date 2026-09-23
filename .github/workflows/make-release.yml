@@ -461,13 +461,13 @@ jobs:
 
   # Build docs for validation and retain them as a workflow artifact. Publishing
   # is triggered separately by the GitHub release's authoritative state.
-  generate-docs:
+  docs:
     name: Generate Documentation
     needs: release
     permissions:
       contents: read
       actions: read
-    uses: ./.github/workflows/generate-docs.yml
+    uses: ./.github/workflows/docs.yml
     with:
       version: ${{ needs.release.outputs.version }}
       upload_artifact: true
