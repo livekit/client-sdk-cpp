@@ -3,8 +3,9 @@ name: Docs
 on:
   release:
     # A stable release publishes docs. A prerelease still builds the docs and
-    # checks the deploy credentials, but does not publish.
-    types: [published]
+    # checks the deploy credentials, but does not publish. "released" also
+    # catches promotion of an existing prerelease to stable.
+    types: [published, released]
   workflow_call:
     inputs:
       build_docs:

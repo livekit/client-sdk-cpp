@@ -128,9 +128,8 @@ jobs:
     uses: ./.github/workflows/docs.yml
     with:
       build_docs: ${{ needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' }}
-      # TEMPORARY: Exercise the org deploy credentials on same-repository PRs.
-      # Remove the pull_request clause after verifying the credential migration.
-      check_credentials: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false) }}
+      # Deploy credentials are deliberately withheld from pull requests.
+      check_credentials: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     secrets: inherit
 
   # Only runs on a client-sdk-rust submodule bump. Runs in parallel and is not a
