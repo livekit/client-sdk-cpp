@@ -16,17 +16,17 @@
 
 #pragma once
 
-#include <cstdint>
+#include <atomic>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <thread>
 #include <unordered_map>
-#include <vector>
 
 #include "livekit/audio_stream.h"
+#include "livekit/frame_callbacks.h"
 #include "livekit/video_stream.h"
 #include "livekit/visibility.h"
 
@@ -38,40 +38,19 @@ class RemoteDataTrack;
 class Track;
 class VideoFrame;
 
-/// Callback type for incoming audio frames.
-/// Invoked on a dedicated reader thread per (participant, track_name) pair.
-using AudioFrameCallback = std::function<void(const AudioFrame&)>;
-
-/// Callback type for incoming video frames.
-/// Invoked on a dedicated reader thread per (participant, track_name) pair.
-using VideoFrameCallback = std::function<void(const VideoFrame& frame, std::int64_t timestamp_us)>;
-
-/// Callback type for incoming video frame events.
-/// Invoked on a dedicated reader thread per (participant, track_name) pair.
-using VideoFrameEventCallback = std::function<void(const VideoFrameEvent&)>;
-
-/// Callback type for incoming data track frames.
-/// Invoked on a dedicated reader thread per subscription.
-/// @param payload        Raw binary data received.
-/// @param user_timestamp Optional application-defined timestamp from sender.
-using DataFrameCallback =
-    std::function<void(const std::vector<std::uint8_t>& payload, std::optional<std::uint64_t> user_timestamp)>;
-
-/// Opaque identifier returned by addOnDataFrameCallback, used to remove an
-/// individual subscription via removeOnDataFrameCallback.
-using DataFrameCallbackId = std::uint64_t;
-
 /// Owns subscription callback registration and per-subscription reader threads.
 ///
 /// `SubscriptionThreadDispatcher` is the low-level companion to @ref Room's
 /// remote track subscription flow. `Room` forwards user-facing callback
-/// registration requests here, and then calls @ref handleTrackSubscribed and
-/// @ref handleTrackUnsubscribed as room events arrive.
+/// registration requests here. For remote audio and video subscriptions it
+/// calls @ref handleTrackSubscribed and @ref handleTrackUnsubscribed; for
+/// data tracks it calls @ref handleDataTrackPublished and
+/// @ref handleDataTrackUnpublished.
 ///
-/// For each registered `(participant identity, track name)` pair, this class
-/// may create a dedicated @ref AudioStream or @ref VideoStream and a matching
-/// reader thread. That thread blocks on stream reads and invokes the
-/// registered callback with decoded frames.
+/// For each registered audio or video `(participant identity, track name)`
+/// pair, this class may create a dedicated @ref AudioStream or @ref
+/// VideoStream and a matching reader thread. That thread blocks on stream
+/// reads and invokes the registered callback with decoded frames.
 ///
 /// This type is intentionally independent from @ref RoomDelegate. High-level
 /// room events such as `RoomDelegate::onTrackSubscribed()` remain in @ref Room,
@@ -81,7 +60,15 @@ using DataFrameCallbackId = std::uint64_t;
 /// The design keeps track-type-specific startup isolated so additional track
 /// kinds can be added later without pushing more thread state back into
 /// @ref Room.
-class LIVEKIT_API SubscriptionThreadDispatcher {
+///
+/// @deprecated Prefer @ref Room's `setOn*FrameCallback` / `clearOn*FrameCallback`
+/// / `addOnDataFrameCallback` / `removeOnDataFrameCallback` methods, which
+/// delegate to this class internally. Direct use of this class is deprecated
+/// and it may be removed, or its API may change, in a future major version.
+class LIVEKIT_DEPRECATED(
+    "SubscriptionThreadDispatcher is deprecated; use Room::setOnAudioFrameCallback / "
+    "setOnVideoFrameCallback / setOnVideoFrameEventCallback / addOnDataFrameCallback instead. "
+    "It may be removed in a future major version.") LIVEKIT_API SubscriptionThreadDispatcher {
 public:
   /// Constructs an empty dispatcher with no registered callbacks or readers.
   SubscriptionThreadDispatcher();
@@ -91,9 +78,9 @@ public:
 
   /// Register or replace an audio frame callback for a remote subscription.
   ///
-  /// The callback is keyed by remote participant identity plus @p track_name.
-  /// If the matching remote audio track is already subscribed, @ref Room may
-  /// immediately call @ref handleTrackSubscribed to start a reader.
+/// @warning This call normally blocks until any in-flight invocation of the previous
+///          callback returns. If called from the same callback, the current reader
+///          is detached instead of self-joined; such re-entrant use is discouraged.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to match.
@@ -105,9 +92,10 @@ public:
 
   /// Register or replace a video frame callback for a remote subscription.
   ///
-  /// The callback is keyed by remote participant identity plus @p track_name.
-  /// If the matching remote video track is already subscribed, @ref Room may
-  /// immediately call @ref handleTrackSubscribed to start a reader.
+  /// @warning This call blocks until any in-flight invocation of the previous
+  ///          callback returns. Calling this from inside a frame callback for the same key is not supported.
+  /// @note this shares its registration slot with @ref setOnVideoFrameEventCallback -- registering either one
+  /// replaces the other for the same key.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to match.
@@ -120,10 +108,11 @@ public:
   /// Register or replace a rich video frame event callback for a remote
   /// subscription.
   ///
-  /// The callback is keyed by remote participant identity plus @p track_name.
-  /// If the matching remote video track is already subscribed, @ref Room may
-  /// immediately call @ref handleTrackSubscribed to start a reader.
-  ///
+  /// @warning This call blocks until any in-flight invocation of the previous
+  ///          callback returns. Calling this from inside a frame callback for the same key is not supported.
+  /// @note this shares its registration slot with @ref setOnVideoFrameCallback -- registering either one replaces the
+  // other for the same key.
+  //
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to match.
   /// @param callback             Function invoked for each decoded video frame
@@ -138,6 +127,8 @@ public:
   /// If an audio reader thread is active for the given key, its stream is
   /// closed and the thread is joined before this call returns.
   ///
+  /// @warning Calling this from inside a frame callback for the same key is not supported.
+  ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to clear.
   void clearOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name);
@@ -147,22 +138,25 @@ public:
   /// If a video reader thread is active for the given key, its stream is
   /// closed and the thread is joined before this call returns.
   ///
+  /// @warning Calling this from inside a frame callback for the same key is not supported.
+  ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name to clear.
   void clearOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name);
 
-  /// Start or restart reader dispatch for a newly subscribed remote track.
+  /// Start or restart reader dispatch for a newly subscribed remote audio or
+  /// video track.
   ///
-  /// @ref Room calls this after it has processed a track-subscription event and
-  /// updated its publication state. If a matching callback registration exists,
-  /// the dispatcher creates the appropriate stream type and launches a reader
-  /// thread for the `(participant, track_name)` key.
+  /// A repeated event for the track SID a reader is already serving is a no-op;
+  //  A different SID (a republish) stops and joins the previous reader before starting the new one.
   ///
-  /// If no matching callback is registered, this is a no-op.
+  /// The dispatcher retains the subscription until it receives
+  /// @ref handleTrackUnsubscribed. This lets a callback registered after this
+  /// method returns start a reader immediately. A reader only starts for  audio and video tracks.
   ///
   /// @param participant_identity Identity of the remote participant.
   /// @param track_name           Track name associated with the subscription.
-  /// @param track                Subscribed remote track to read from.
+  /// @param track                Subscribed remote audio or video track to read from.
   void handleTrackSubscribed(const std::string& participant_identity, const std::string& track_name,
                              const std::shared_ptr<Track>& track);
 
@@ -178,10 +172,6 @@ public:
   /// @param track_name           Track name associated with the subscription.
   void handleTrackUnsubscribed(const std::string& participant_identity, TrackSource source,
                                const std::string& track_name);
-
-  // ---------------------------------------------------------------
-  // Data track callbacks
-  // ---------------------------------------------------------------
 
   /// Add a callback for data frames from a specific remote participant's
   /// data track.
@@ -206,6 +196,9 @@ public:
   /// for this subscription.
   /// No-op if the ID is not (or no longer) registered.
   ///
+  /// @warning This call blocks until any in-flight invocation of the previous
+  ///          callback returns. Calling this from inside a frame callback for the same key is not supported.
+  ///
   /// @param id  The identifier returned by addOnDataFrameCallback().
   void removeOnDataFrameCallback(DataFrameCallbackId id);
 
@@ -228,12 +221,13 @@ public:
 
   /// Stop all readers and clear all callback registrations.
   ///
-  /// This is used during room teardown or EOS handling to ensure no reader
-  /// thread survives beyond the lifetime of the owning @ref Room.
+  /// This is used during room teardown or EOS handling to ensure no reader thread survives beyond the lifetime of the
+  /// owning @ref Room If called from inside a frame callback the calling reader is detached rather than self-joined.
   void stopAll();
 
 private:
   friend class SubscriptionThreadDispatcherTest;
+  friend struct RoomTestAccess;
 
   /// Compound lookup key for audio/video callback dispatch.
   struct CallbackKey {
@@ -259,6 +253,10 @@ private:
     std::shared_ptr<AudioStream> audio_stream;
     std::shared_ptr<VideoStream> video_stream;
     std::thread thread;
+    /// SID of the subscribed track backing this reader
+    std::string track_sid;
+    /// ID of @ref thread, captured at construction. Used to block a self-join.
+    std::thread::id thread_id;
   };
 
   /// Compound lookup key for a remote participant identity and data track name.
@@ -289,9 +287,16 @@ private:
   /// Active read-side resources for one data track stream subscription.
   struct ActiveDataReader {
     std::shared_ptr<RemoteDataTrack> remote_track;
+    /// Set true when this reader is being replaced or torn down.
+    std::atomic<bool> cancelled{false};
+    /// Set true by the reader thread itself when it exits (failed, cancelled, or terminal subscription). Only
+    /// dispatcher lifecycle paths erase the slot and join or detach the thread.
+    std::atomic<bool> finished{false};
     std::mutex sub_mutex;
     std::shared_ptr<DataTrackStream> stream; // guarded by sub_mutex
     std::thread thread;
+    /// ID of @ref thread, captured at construction. Used to block a self-join.
+    std::thread::id thread_id;
   };
 
   /// Stored audio callback registration plus stream-construction options.
@@ -310,40 +315,69 @@ private:
   /// Remove and close the active reader for @p key, returning its thread.
   ///
   /// Must be called with @ref lock_ held. The returned thread, if joinable,
-  /// must be joined after releasing the lock.
+  /// must be disposed of after releasing the lock.
   std::thread extractReaderThreadLocked(const CallbackKey& key);
 
-  /// Select the appropriate reader startup path for @p track.
+  /// Wrapper around @ref extractReaderThreadLocked. If extractReaderThreadLocked returns a thread the key is marked as
+  /// draining.
   ///
   /// Must be called with @ref lock_ held.
-  std::thread startReaderLocked(const CallbackKey& key, const std::shared_ptr<Track>& track);
+  std::thread extractReaderForDrainLocked(const CallbackKey& key);
+
+  /// Dispose of the old reader thread, clear from the drain, and start a new reader.
+  ///
+  /// Must be called with @ref lock_ released.
+  void finishReaderDrainAndRestart(const CallbackKey& key, std::thread old_thread, const char* operation);
+
+  /// True when @p id identifies the calling thread, i.e. joining that thread
+  /// would be a self-join.
+  static bool isSelfThread(std::thread::id id) { return id == std::this_thread::get_id(); }
+
+  /// Dispose of an extracted reader thread (audio, video, or data).
+  /// @param thread The thread to dispose of. If this is a self thread, detach and return.
+  /// @param operation for logging
+  /// Must be called with @ref lock_ released.
+  void disposeReaderThread(std::thread&& thread, const char* operation);
+
+  /// Starts the respective media reader thread for @p track.
+  ///
+  /// This is a no-op if: no callback is registered for the track's kind, the track is not audio or video, or a read is
+  /// active for the key Must be called with @ref lock_ held.
+  void startReaderLocked(const CallbackKey& key, const std::shared_ptr<Track>& track);
+
+  /// Start a reader for @p key if one should be running: a subscribed track is
+  /// retained for the key, no reader is active, and the key is not draining.
+  ///
+  /// Must be called with @ref lock_ held.
+  void startReaderForSubscribedTrackLocked(const CallbackKey& key);
 
   /// Start an audio reader thread for @p key using @p track.
   ///
-  /// Must be called with @ref lock_ held. Any previous reader for the same key
-  /// is extracted and returned to the caller for joining outside the lock.
-  std::thread startAudioReaderLocked(const CallbackKey& key, const std::shared_ptr<Track>& track,
-                                     const AudioFrameCallback& cb, const AudioStream::Options& opts);
+  /// Must be called with @ref lock_ held and with no reader active for @p key.
+  void startAudioReaderLocked(const CallbackKey& key, const std::shared_ptr<Track>& track, const AudioFrameCallback& cb,
+                              const AudioStream::Options& opts);
 
   /// Start a video reader thread for @p key using @p track.
   ///
-  /// Must be called with @ref lock_ held. Any previous reader for the same key
-  /// is extracted and returned to the caller for joining outside the lock.
-  std::thread startVideoReaderLocked(const CallbackKey& key, const std::shared_ptr<Track>& track,
-                                     const RegisteredVideoCallback& callback);
+  /// Must be called with @ref lock_ held and with no reader active for @p key.
+  void startVideoReaderLocked(const CallbackKey& key, const std::shared_ptr<Track>& track,
+                              const RegisteredVideoCallback& callback);
 
   /// Extract and close the data reader for a given callback ID, returning its
-  /// thread.  Must be called with @ref lock_ held.
+  /// thread.  Marks the reader cancelled so a subscription still in flight is
+  /// aborted.  Must be called with @ref lock_ held; the returned thread must be
+  /// passed to @ref disposeReaderThread after releasing the lock.
   std::thread extractDataReaderThreadLocked(DataFrameCallbackId id);
-
-  /// Extract and close the data reader for a given (participant, track_name)
-  /// key, returning its thread.  Must be called with @ref lock_ held.
-  std::thread extractDataReaderThreadLocked(const DataCallbackKey& key);
 
   /// Start a data reader thread for the given callback ID, key, and track.
   /// Must be called with @ref lock_ held.
   std::thread startDataReaderLocked(DataFrameCallbackId id, const DataCallbackKey& key,
                                     const std::shared_ptr<RemoteDataTrack>& track, const DataFrameCallback& cb);
+
+  /// Mark @p reader finished and release its stream.
+  /// Reader threads must not self join.
+  /// @param reader The reader to mark as finished.
+  static void markDataReaderFinished(const std::shared_ptr<ActiveDataReader>& reader);
 
   /// Protects callback registration maps and active reader state.
   mutable std::mutex lock_;
@@ -356,6 +390,13 @@ private:
 
   /// Active stream/thread state keyed by @ref CallbackKey.
   std::unordered_map<CallbackKey, ActiveReader, CallbackKeyHash> active_readers_;
+
+  /// Currently subscribed remote audio/video tracks keyed by @ref CallbackKey.
+  std::unordered_map<CallbackKey, std::shared_ptr<Track>, CallbackKeyHash> subscribed_tracks_;
+
+  /// Keys whose previous reader has been extracted but not yet joined. A reader is not started for a key while
+  /// it has an entry here. See @ref extractReaderForDrainLocked.
+  std::unordered_map<CallbackKey, int, CallbackKeyHash> draining_readers_;
 
   /// Next auto-increment ID for data frame callbacks.
   DataFrameCallbackId next_data_callback_id_{0};

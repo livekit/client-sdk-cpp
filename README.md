@@ -195,6 +195,18 @@ room->addOnDataFrameCallback(sender_identity, "app-data",
                              });
 ```
 
+Frame callbacks can be registered before or after the matching track is
+subscribed.
+
+Calling `setOnAudioFrameCallback` / `setOnVideoFrameCallback` /
+`setOnVideoFrameEventCallback` again for the same
+`(participant_identity, track_name)` **replaces** the callback in place. It waits for the previous reader to finish before clearing. 
+. Two things to note:
+
+> - **These calls block** until any in-flight invocation of the previous callback returns. When the call returns, the old callback is guaranteed to have
+>   finished and been destroyed.
+> - **Avoid calling from inside a frame callback.** Doing so would make the join a self-join, so the SDK logs a warning and detaches that reader instead. 
+
 For end-to-end samples and a fuller set of demos, see the [cpp-example-collection repo](https://github.com/livekit-examples/cpp-example-collection).
 
 ### Generating tokens

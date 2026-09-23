@@ -22,18 +22,21 @@
 #include <memory>
 #include <mutex>
 
+#include "livekit/audio_stream.h"
 #include "livekit/data_stream.h"
 #include "livekit/e2ee.h"
 #include "livekit/ffi_handle.h"
+#include "livekit/frame_callbacks.h"
 #include "livekit/room_event_types.h"
 #include "livekit/stats.h"
-#include "livekit/subscription_thread_dispatcher.h"
+#include "livekit/video_stream.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
 
 class RoomDelegate;
 struct RoomInfoData;
+class SubscriptionThreadDispatcher;
 namespace proto {
 class FfiEvent;
 }
@@ -313,16 +316,39 @@ public:
   // Frame callbacks
   // ---------------------------------------------------------------
 
-  /// @brief Sets the audio frame callback via SubscriptionThreadDispatcher.
+  /// @brief Sets the callback for frames from a remote audio track.
+  ///
+  /// The callback can be set before or after the matching track is subscribed
+  /// and runs on a dedicated reader thread.
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name Name of the remote audio track.
+  /// @param callback Function invoked for each decoded audio frame.
+  /// @param opts Options used to create the backing audio stream.
   void setOnAudioFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                AudioFrameCallback callback, const AudioStream::Options& opts = {});
 
-  /// @brief Sets the video frame callback via SubscriptionThreadDispatcher.
+  /// @brief Sets the callback for frames from a remote video track.
+  ///
+  /// The callback can be set before or after the matching track is subscribed
+  /// and runs on a dedicated reader thread.
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name Name of the remote video track.
+  /// @param callback Function invoked for each decoded video frame.
+  /// @param opts Options used to create the backing video stream.
   void setOnVideoFrameCallback(const std::string& participant_identity, const std::string& track_name,
                                VideoFrameCallback callback, const VideoStream::Options& opts = {});
 
-  /// @brief Sets the video frame event callback via
-  /// SubscriptionThreadDispatcher.
+  /// @brief Sets the event callback for frames from a remote video track.
+  ///
+  /// The callback can be set before or after the matching track is subscribed
+  /// and runs on a dedicated reader thread.
+  ///
+  /// @param participant_identity Identity of the remote participant.
+  /// @param track_name Name of the remote video track.
+  /// @param callback Function invoked for each decoded video frame event.
+  /// @param opts Options used to create the backing video stream.
   void setOnVideoFrameEventCallback(const std::string& participant_identity, const std::string& track_name,
                                     VideoFrameEventCallback callback, const VideoStream::Options& opts = {});
 
@@ -363,6 +389,12 @@ private:
 
   // FfiClient listener ID (0 means no listener registered)
   int listener_id_{0};
+
+  /// Find a currently subscribed remote track matching the given participant
+  /// identity and track name. Returns nullptr if no such subscribed track
+  /// exists. Acquires @ref lock_.
+  std::shared_ptr<Track> findSubscribedRemoteTrack(const std::string& participant_identity,
+                                                   const std::string& track_name) const;
 
   void onEvent(const proto::FfiEvent& event);
 
