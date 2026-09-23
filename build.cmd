@@ -336,14 +336,9 @@ if exist "%LOCAL_INSTALL_DIR%" (
     rmdir /s /q "%LOCAL_INSTALL_DIR%" 2>nul
 )
 
-echo Removing Rust debug artifacts...
-if exist "%PROJECT_ROOT%\client-sdk-rust\target\debug" (
-    rmdir /s /q "%PROJECT_ROOT%\client-sdk-rust\target\debug" 2>nul
-)
-
-echo Removing Rust release artifacts...
-if exist "%PROJECT_ROOT%\client-sdk-rust\target\release" (
-    rmdir /s /q "%PROJECT_ROOT%\client-sdk-rust\target\release" 2>nul
+echo Removing Rust target directory...
+if exist "%PROJECT_ROOT%\client-sdk-rust\target" (
+    rmdir /s /q "%PROJECT_ROOT%\client-sdk-rust\target" 2>nul
 )
 
 echo ==^> Clean-all complete.

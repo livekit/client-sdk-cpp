@@ -79,6 +79,7 @@ set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/track.proto
     ${FFI_PROTO_DIR}/video_frame.proto
     ${FFI_PROTO_DIR}/audio_frame.proto
+    ${FFI_PROTO_DIR}/capture.proto
     ${FFI_PROTO_DIR}/e2ee.proto
     ${FFI_PROTO_DIR}/stats.proto
     ${FFI_PROTO_DIR}/data_stream.proto
@@ -269,6 +270,10 @@ endif()
 message(STATUS \"[run_cargo.cmake] CFG=\${CFG}  CARGO=\${CARGO}  PROTOC=\${PROTOC_PATH}\")
 set(ENV{PROTOC} \"\${PROTOC_PATH}\")
 
+if(DEFINED CARGO_TARGET_DIR AND NOT CARGO_TARGET_DIR STREQUAL \"\")
+  set(ENV{CARGO_TARGET_DIR} \"\${CARGO_TARGET_DIR}\")
+endif()
+
 if(DEFINED GCC_LIB_DIR AND NOT GCC_LIB_DIR STREQUAL \"\")
   set(ENV{RUSTFLAGS} \"-L \${GCC_LIB_DIR} \$ENV{RUSTFLAGS}\")
   set(ENV{LD_LIBRARY_PATH} \"\${GCC_LIB_DIR}:\$ENV{LD_LIBRARY_PATH}\")
@@ -343,13 +348,29 @@ else()
   )
 endif()
 
-file(GLOB_RECURSE RUST_SOURCES 
+file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS
   "${RUST_ROOT}/livekit-ffi/src/*.rs"
+  "${RUST_ROOT}/livekit-ffi/protocol/*.proto"
+  "${RUST_ROOT}/livekit-ffi/build.rs"
   "${RUST_ROOT}/livekit-ffi/Cargo.toml"
 )
+list(APPEND RUST_SOURCES
+  "${RUST_ROOT}/Cargo.toml"
+  "${RUST_ROOT}/Cargo.lock"
+  "${RUST_ROOT}/rust-toolchain.toml"
+)
+
+set(RUST_BUILD_OUTPUTS
+  "$<IF:$<CONFIG:Debug>,${RUST_LIB_DEBUG},${RUST_LIB_RELEASE}>"
+)
+if(WIN32)
+  list(APPEND RUST_BUILD_OUTPUTS
+    "$<IF:$<CONFIG:Debug>,${RUST_DLL_DEBUG},${RUST_DLL_RELEASE}>"
+  )
+endif()
 
 add_custom_command(
-  OUTPUT "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
+  OUTPUT ${RUST_BUILD_OUTPUTS}
   COMMAND "${CMAKE_COMMAND}"
           -DCFG=$<CONFIG>
           -DRUST_ROOT=${RUST_ROOT}
@@ -365,8 +386,10 @@ add_custom_command(
 )
 
 add_custom_target(build_rust_ffi
-  DEPENDS "${RUST_LIB_DEBUG}" "${RUST_LIB_RELEASE}"
+  DEPENDS ${RUST_BUILD_OUTPUTS}
 )
+
+include(uniffi_cpp)
 
 # Note: protozero_plugin.o removal is no longer needed since we use dynamic libraries on Unix
 
@@ -401,6 +424,7 @@ add_library(livekit SHARED
   src/token_source_json.cpp
   src/token_source_jwt.cpp
   src/token_source_internal.h
+  src/uniffi_bindgen_adapter.cpp
   src/local_participant.cpp
   src/remote_participant.cpp
   src/stats.cpp
@@ -445,7 +469,14 @@ if(UNIX AND NOT APPLE)
 endif()
 
 
-target_sources(livekit PRIVATE $<TARGET_OBJECTS:livekit_proto>)
+target_sources(livekit PRIVATE
+  $<TARGET_OBJECTS:livekit_proto>
+  $<TARGET_OBJECTS:livekit_uniffi_cpp>
+)
+set_source_files_properties(
+  ${LIVEKIT_ROOT_DIR}/src/uniffi_bindgen_adapter.cpp
+  PROPERTIES OBJECT_DEPENDS ${LIVEKIT_UNIFFI_CPP_HEADER}
+)
 
 target_include_directories(livekit
   PUBLIC
@@ -454,6 +485,7 @@ target_include_directories(livekit
   PRIVATE
     ${LIVEKIT_ROOT_DIR}/src
     ${LIVEKIT_ROOT_DIR}/src/trace
+    ${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}
     ${LIVEKIT_PROTOBUF_DEP_INCLUDE_DIRS}
 )
 

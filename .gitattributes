@@ -1,1 +1,2 @@
 data/welcome.wav filter=lfs diff=lfs merge=lfs -text
+build.cmd whitespace=cr-at-eol
