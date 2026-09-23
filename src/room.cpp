@@ -32,6 +32,7 @@
 #include "lk_log.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
+#include "subscription_thread_dispatcher.h"
 #include "trace/trace_event.h"
 #include "track.pb.h"
 #include "track_proto_converter.h"
