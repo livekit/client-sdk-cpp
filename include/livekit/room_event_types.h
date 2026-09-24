@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 
+#include "livekit/video_codec.h"
+
 namespace livekit {
 
 // Forward declarations to avoid pulling in heavy headers.
@@ -34,7 +36,6 @@ class LocalTrackPublication;
 class RemoteTrackPublication;
 class TrackPublication;
 
-enum class VideoCodec;
 enum class TrackSource;
 
 /// Overall quality of a participant's connection.
@@ -291,6 +292,24 @@ struct AudioEncodingOptions {
   std::uint64_t max_bitrate = 0;
 };
 
+/// @brief Preferred encoder backend for a published video track.
+enum class VideoEncoderBackend {
+  /// Use the SDK's default encoder selection.
+  Auto = 0,
+  /// Prefer a software encoder.
+  Software = 1,
+  /// Prefer any available hardware encoder.
+  Hardware = 2,
+  /// Prefer NVIDIA NVENC.
+  Nvenc = 3,
+  /// Prefer VAAPI.
+  Vaapi = 4,
+  /// Prefer VideoToolbox on Apple platforms.
+  VideoToolbox = 5,
+  /// Pass pre-encoded access units through without encoding them again.
+  PreEncoded = 6,
+};
+
 /// @brief Controls how the encoder degrades quality when bandwidth is constrained.
 enum class DegradationPreference {
   /// Balance between framerate and resolution degradation.
@@ -359,6 +378,10 @@ struct TrackPublishOptions {
   /// Controls how the encoder trades off between resolution and framerate
   /// when bandwidth is constrained. If not set, the server defaults apply.
   std::optional<DegradationPreference> degradation_preference;
+
+  /// Optional video encoder backend. Pre-encoded sources must select
+  /// @ref VideoEncoderBackend::PreEncoded.
+  std::optional<VideoEncoderBackend> video_encoder;
 };
 
 // ---------------------------------------------------------

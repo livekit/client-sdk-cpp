@@ -23,6 +23,10 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 [![Nightly Tests](https://github.com/livekit/client-sdk-cpp/actions/workflows/nightly.yml/badge.svg?branch=main&event=schedule)](https://github.com/livekit/client-sdk-cpp/actions/workflows/nightly.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
+> [!IMPORTANT]
+> If you're building Voice AI, [LiveKit Agents](https://github.com/livekit/agents) is the SDK for code-first realtime voice agents. STT, LLM, TTS, turn detection, [expressive speech](https://docs.livekit.io/agents/models/tts/expressive/), [keyterm accuracy](https://docs.livekit.io/agents/models/stt/keyterms/), tool usage, and telephony all come bundled in the framework. It's available in both [Python](https://github.com/livekit/agents) and [Node.js](https://github.com/livekit/agents-js).
+> See the [LiveKit Agents docs](https://docs.livekit.io/agents/) for more information!
+
 ## Docs
 
 - [LiveKit docs](https://docs.livekit.io)

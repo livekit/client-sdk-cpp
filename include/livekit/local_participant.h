@@ -146,6 +146,10 @@ public:
   ///
   /// The caller retains ownership of @p source and should use it directly
   /// for frame capture on the video thread.
+  ///
+  /// If @p source is an @ref EncodedVideoSource, the track is published with
+  /// @ref VideoEncoderBackend::PreEncoded and the source's codec. Use
+  /// @ref publishTrack directly to control any other publish option.
   std::shared_ptr<LocalVideoTrack> publishVideoTrack(const std::string& name,
                                                      const std::shared_ptr<VideoSource>& source,
                                                      TrackSource track_source);

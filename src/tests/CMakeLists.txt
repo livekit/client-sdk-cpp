@@ -327,6 +327,26 @@ if(STRESS_TEST_SOURCES)
   )
 endif()
 
+# Cargo records an absolute install name under target/{debug,release}/deps.
+# liblivekit.dylib is rewritten to @rpath after link. An executable that also
+# links livekit_ffi directly keeps the absolute path, so dyld maps a second
+# copy of the FFI library. -change is ignored when that load command is absent.
+function(livekit_rewrite_direct_ffi_dependency target)
+  if(NOT APPLE)
+    return()
+  endif()
+  add_custom_command(TARGET ${target} POST_BUILD
+    COMMAND /usr/bin/install_name_tool
+            -change "${RUST_TARGET_DIR}/release/deps/liblivekit_ffi.dylib"
+                    "@rpath/liblivekit_ffi.dylib"
+            -change "${RUST_TARGET_DIR}/debug/deps/liblivekit_ffi.dylib"
+                    "@rpath/liblivekit_ffi.dylib"
+            "$<TARGET_FILE:${target}>"
+    COMMENT "Rewrite ${target} liblivekit_ffi dependency to @rpath"
+    VERBATIM
+  )
+endfunction()
+
 # ============================================================================
 # Manual lifecycle reproducer
 # ============================================================================
@@ -335,7 +355,9 @@ add_executable(server_room_shutdowner
   "${CMAKE_CURRENT_SOURCE_DIR}/manual/server_room_shutdowner.cpp"
 )
 
-target_link_libraries(server_room_shutdowner PRIVATE livekit)
+# The manual reproducer calls an internal diagnostic entry point from the Rust
+# FFI library directly; production C++ consumers continue to link only livekit.
+target_link_libraries(server_room_shutdowner PRIVATE livekit livekit_ffi)
 target_include_directories(server_room_shutdowner PRIVATE ${LIVEKIT_ROOT_DIR}/include)
 target_compile_definitions(server_room_shutdowner PRIVATE
   $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
@@ -362,6 +384,7 @@ elseif(APPLE)
       $<TARGET_FILE_DIR:server_room_shutdowner>
     COMMENT "Copying dylibs to lifecycle reproducer directory"
   )
+  livekit_rewrite_direct_ffi_dependency(server_room_shutdowner)
 else()
   add_custom_command(TARGET server_room_shutdowner POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -433,6 +456,7 @@ elseif(APPLE)
       $<TARGET_FILE_DIR:livekit_memory_lifecycle_tester>
     COMMENT "Copying dylibs next to livekit_memory_lifecycle_tester"
   )
+  livekit_rewrite_direct_ffi_dependency(livekit_memory_lifecycle_tester)
 else()
   add_custom_command(TARGET livekit_memory_lifecycle_tester POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -559,6 +583,7 @@ elseif(APPLE)
       $<TARGET_FILE_DIR:livekit_cuda_video_lifecycle_tester>
     COMMENT "Copying dylibs next to livekit_cuda_video_lifecycle_tester"
   )
+  livekit_rewrite_direct_ffi_dependency(livekit_cuda_video_lifecycle_tester)
 else()
   add_custom_command(TARGET livekit_cuda_video_lifecycle_tester POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different

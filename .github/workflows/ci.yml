@@ -71,8 +71,7 @@ jobs:
               - docs/**
               - scripts/generate-docs.sh
               - .github/workflows/ci.yml
-              - .github/workflows/generate-docs.yml
-              - .github/workflows/publish-docs.yml
+              - .github/workflows/docs.yml
             cpp_tools:
               - src/**
               - include/**
@@ -123,11 +122,15 @@ jobs:
     if: ${{ needs.changes.outputs.cpp_tools == 'true' || github.event_name == 'workflow_dispatch' }}
     uses: ./.github/workflows/cpp-tools.yml
 
-  generate-docs:
-    name: Generate Docs
+  docs:
+    name: Docs
     needs: changes
-    if: ${{ needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' }}
-    uses: ./.github/workflows/generate-docs.yml
+    uses: ./.github/workflows/docs.yml
+    with:
+      build_docs: ${{ needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch' }}
+      # Deploy credentials are deliberately withheld from pull requests.
+      check_credentials: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    secrets: inherit
 
   # Only runs on a client-sdk-rust submodule bump. Runs in parallel and is not a
   # dependency of builds/tests, so developer iteration against an unreleased
@@ -150,7 +153,7 @@ jobs:
       - tests
       - license-check
       - cpp-tools
-      - generate-docs
+      - docs
       - link-check
       - rust-release-check
     if: always()

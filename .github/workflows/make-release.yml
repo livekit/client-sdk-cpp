@@ -449,7 +449,7 @@ jobs:
         run: ls -la ${{ github.workspace }}/release-assets/
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: v${{ steps.version.outputs.version }}
@@ -461,13 +461,13 @@ jobs:
 
   # Build docs for validation and retain them as a workflow artifact. Publishing
   # is triggered separately by the GitHub release's authoritative state.
-  generate-docs:
+  docs:
     name: Generate Documentation
     needs: release
     permissions:
       contents: read
       actions: read
-    uses: ./.github/workflows/generate-docs.yml
+    uses: ./.github/workflows/docs.yml
     with:
       version: ${{ needs.release.outputs.version }}
       upload_artifact: true
