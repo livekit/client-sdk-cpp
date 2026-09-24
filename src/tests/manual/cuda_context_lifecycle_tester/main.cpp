@@ -82,8 +82,7 @@ Options parseOptions(int argc, char* argv[]) {
 
 void requireSuccess(CUresult result, const char* operation) {
   if (result != CUDA_SUCCESS) {
-    throw std::runtime_error(std::string(operation) +
-                             " failed with CUDA result " +
+    throw std::runtime_error(std::string(operation) + " failed with CUDA result " +
                              std::to_string(static_cast<int>(result)));
   }
 }
@@ -113,10 +112,8 @@ void run(const Options& options) {
   requireSuccess(cuDeviceGet(&device, 0), "cuDeviceGet");
 
   for (int iteration = 1; iteration <= options.iteration_count; ++iteration) {
-    logStep(options.interactive,
-            "################ iteration " + std::to_string(iteration) + '/' +
-                std::to_string(options.iteration_count) +
-                " starting ################");
+    logStep(options.interactive, "################ iteration " + std::to_string(iteration) + '/' +
+                                     std::to_string(options.iteration_count) + " starting ################");
 
     CUcontext context = nullptr;
     waitForEnter(options.interactive, "Press Enter to create context");
@@ -126,14 +123,12 @@ void run(const Options& options) {
     waitForEnter(options.interactive, "Press Enter to destroy context");
     requireSuccess(cuCtxDestroy(context), "cuCtxDestroy");
     logStep(options.interactive, "!!! Context destroyed !!!");
-    logStep(options.interactive,
-            "################ iteration " + std::to_string(iteration) + '/' +
-                std::to_string(options.iteration_count) +
-                " complete ################");
+    logStep(options.interactive, "################ iteration " + std::to_string(iteration) + '/' +
+                                     std::to_string(options.iteration_count) + " complete ################");
   }
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char* argv[]) {
   try {

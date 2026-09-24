@@ -1,4 +1,6 @@
 #include <livekit/livekit.h>
+#include <poll.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <atomic>
@@ -7,6 +9,7 @@
 #include <chrono>
 #include <csignal>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <future>
@@ -18,9 +21,6 @@
 #include <thread>
 #include <variant>
 #include <vector>
-#include <unistd.h>
-#include <poll.h>
-#include <cstdlib>
 
 using Clock = std::chrono::steady_clock;
 using namespace std::chrono_literals;
@@ -28,7 +28,8 @@ volatile std::sig_atomic_t stopped = 0;
 void onSignal(int) { stopped = 1; }
 
 struct Options {
-  std::string url, token, codec = "h264", encoder = "auto", format = "i420", require_encoder, csv_path, leave_mode = "server";
+  std::string url, token, codec = "h264", encoder = "auto", format = "i420", require_encoder, csv_path,
+                          leave_mode = "server";
   int cycles = 100, seconds = 10, settle = 2, warmup = 5;
   int streams = 3, width = 1280, height = 720, fps = 30, bitrate = 4000000;
   bool server_controlled = false, unpublish_before_server_delete = false;
@@ -36,26 +37,27 @@ struct Options {
 
 void usage() {
   std::cerr << "Usage: livekit_rss_probe --url wss://HOST --token JWT [options]\n"
-    "  --server-controlled  Read fresh room credentials/control acknowledgements from stdin\n"
-    "  --leave-mode server|client   Controlled-room departure mode (server)\n"
-    "  --cycles N       Room cycles; 0 = until Ctrl+C (default 100)\n"
-    "  --unpublish-before-server-delete  Unpublish tracks before external room deletion\n"
-    "  --seconds N      Seconds of noise per room (10)\n"
-    "  --settle N       Seconds after releasing each room before RSS sample (2)\n"
-    "  --warmup N       Completed cycles before growth baseline (5; 0 = after init)\n"
-    "  --streams N      Concurrent video tracks per room; 1..16 (default 3)\n"
-    "  --width N --height N --fps N --bitrate N   Per stream (1280 720 30 4000000 bps)\n"
-    "  --codec h264|av1|vp8|vp9|h265             (h264)\n"
-    "  --encoder auto|software|hardware|nvenc|vaapi (auto; preference only)\n"
-    "  --require-encoder TEXT  Fail unless encoder stats contain TEXT (case-sensitive)\n"
-    "  --format i420|nv12                        (i420)\n"
-    "  --csv FILE       Write CSV to FILE (default stdout)\n"
-    "CSV defaults to stdout; progress, encoder details and summary go to stderr.\n";
+               "  --server-controlled  Read fresh room credentials/control acknowledgements from stdin\n"
+               "  --leave-mode server|client   Controlled-room departure mode (server)\n"
+               "  --cycles N       Room cycles; 0 = until Ctrl+C (default 100)\n"
+               "  --unpublish-before-server-delete  Unpublish tracks before external room deletion\n"
+               "  --seconds N      Seconds of noise per room (10)\n"
+               "  --settle N       Seconds after releasing each room before RSS sample (2)\n"
+               "  --warmup N       Completed cycles before growth baseline (5; 0 = after init)\n"
+               "  --streams N      Concurrent video tracks per room; 1..16 (default 3)\n"
+               "  --width N --height N --fps N --bitrate N   Per stream (1280 720 30 4000000 bps)\n"
+               "  --codec h264|av1|vp8|vp9|h265             (h264)\n"
+               "  --encoder auto|software|hardware|nvenc|vaapi (auto; preference only)\n"
+               "  --require-encoder TEXT  Fail unless encoder stats contain TEXT (case-sensitive)\n"
+               "  --format i420|nv12                        (i420)\n"
+               "  --csv FILE       Write CSV to FILE (default stdout)\n"
+               "CSV defaults to stdout; progress, encoder details and summary go to stderr.\n";
 }
 
 template <typename T>
 T choice(const std::string& value, std::initializer_list<std::pair<const char*, T>> values) {
-  for (const auto& [name, result] : values) if (value == name) return result;
+  for (const auto& [name, result] : values)
+    if (value == name) return result;
   throw std::runtime_error("Unsupported choice: " + value);
 }
 // VideoCodec is forward-declared in the public headers. These values match
@@ -84,30 +86,54 @@ Options parse(int argc, char** argv) {
   Options o;
   for (int i = 1; i < argc; ++i) {
     const std::string key = argv[i];
-    if (key == "--server-controlled") { o.server_controlled = true; continue; }
-    if (key == "--unpublish-before-server-delete") { o.unpublish_before_server_delete = true; continue; }
+    if (key == "--server-controlled") {
+      o.server_controlled = true;
+      continue;
+    }
+    if (key == "--unpublish-before-server-delete") {
+      o.unpublish_before_server_delete = true;
+      continue;
+    }
     if (i + 1 == argc) throw std::runtime_error("Missing value for " + key);
     const std::string value = argv[++i];
-    if (key == "--url") o.url = value;
-    else if (key == "--token") o.token = value;
-    else if (key == "--codec") o.codec = value;
-    else if (key == "--encoder") o.encoder = value;
-    else if (key == "--require-encoder") o.require_encoder = value;
-    else if (key == "--format") o.format = value;
-    else if (key == "--csv") o.csv_path = value;
-    else if (key == "--leave-mode") o.leave_mode = value;
+    if (key == "--url")
+      o.url = value;
+    else if (key == "--token")
+      o.token = value;
+    else if (key == "--codec")
+      o.codec = value;
+    else if (key == "--encoder")
+      o.encoder = value;
+    else if (key == "--require-encoder")
+      o.require_encoder = value;
+    else if (key == "--format")
+      o.format = value;
+    else if (key == "--csv")
+      o.csv_path = value;
+    else if (key == "--leave-mode")
+      o.leave_mode = value;
     else {
       int* dest = nullptr;
-      if (key == "--cycles") dest = &o.cycles;
-      else if (key == "--seconds") dest = &o.seconds;
-      else if (key == "--settle") dest = &o.settle;
-      else if (key == "--warmup") dest = &o.warmup;
-      else if (key == "--streams") dest = &o.streams;
-      else if (key == "--width") dest = &o.width;
-      else if (key == "--height") dest = &o.height;
-      else if (key == "--fps") dest = &o.fps;
-      else if (key == "--bitrate") dest = &o.bitrate;
-      else throw std::runtime_error("Unknown option: " + key);
+      if (key == "--cycles")
+        dest = &o.cycles;
+      else if (key == "--seconds")
+        dest = &o.seconds;
+      else if (key == "--settle")
+        dest = &o.settle;
+      else if (key == "--warmup")
+        dest = &o.warmup;
+      else if (key == "--streams")
+        dest = &o.streams;
+      else if (key == "--width")
+        dest = &o.width;
+      else if (key == "--height")
+        dest = &o.height;
+      else if (key == "--fps")
+        dest = &o.fps;
+      else if (key == "--bitrate")
+        dest = &o.bitrate;
+      else
+        throw std::runtime_error("Unknown option: " + key);
       auto r = std::from_chars(value.data(), value.data() + value.size(), *dest);
       if (r.ec != std::errc{} || r.ptr != value.data() + value.size() || *dest < 0)
         throw std::runtime_error("Expected nonnegative integer for " + key);
@@ -120,12 +146,14 @@ Options parse(int argc, char** argv) {
   if (o.leave_mode != "server" && o.leave_mode != "client")
     throw std::runtime_error("--leave-mode must be server or client");
   if (o.streams < 1 || o.streams > 16) throw std::runtime_error("--streams must be 1..16");
-  if (o.width < 2 || o.width > 8192 || o.height < 2 || o.height > 8192 ||
-      o.width % 2 || o.height % 2 || o.fps < 1 || o.fps > 240 || o.bitrate < 1 || o.seconds < 1)
+  if (o.width < 2 || o.width > 8192 || o.height < 2 || o.height > 8192 || o.width % 2 || o.height % 2 || o.fps < 1 ||
+      o.fps > 240 || o.bitrate < 1 || o.seconds < 1)
     throw std::runtime_error("Need even dimensions 2..8192, fps 1..240, positive bitrate and seconds");
   if (o.cycles && o.warmup >= o.cycles)
     throw std::runtime_error("--warmup must be less than --cycles (unless cycles=0)");
-  (void)codec(o); preferEncoder(o); (void)format(o);
+  (void)codec(o);
+  preferEncoder(o);
+  (void)format(o);
   return o;
 }
 
@@ -150,7 +178,10 @@ std::string controlLine() {
 }
 
 // Read current RSS, not getrusage().ru_maxrss (a high-water mark that cannot fall).
-struct Memory { std::int64_t rss_kib = -1; int threads = 0; };
+struct Memory {
+  std::int64_t rss_kib = -1;
+  int threads = 0;
+};
 Memory memory() {
   Memory m;
   std::string line;
@@ -164,7 +195,9 @@ Memory memory() {
   return m;
 }
 
-struct Counts { std::uint64_t captured = 0, encoded = 0, sent = 0, bytes = 0; };
+struct Counts {
+  std::uint64_t captured = 0, encoded = 0, sent = 0, bytes = 0;
+};
 struct Reporter {
   explicit Reporter(std::ostream& stream) : output(stream) {}
   std::ostream& output;
@@ -174,9 +207,9 @@ struct Reporter {
     const auto m = memory();
     if (initial < 0) initial = m.rss_kib;
     output << cycle << ',' << phase << ',' << std::fixed << std::setprecision(3)
-      << std::chrono::duration<double>(Clock::now() - start).count() << ','
-      << m.rss_kib / 1024.0 << ',' << (m.rss_kib - initial) / 1024.0 << ','
-      << m.threads << ',' << c.captured << ',' << c.encoded << ',' << c.sent << ',' << c.bytes << '\n';
+           << std::chrono::duration<double>(Clock::now() - start).count() << ',' << m.rss_kib / 1024.0 << ','
+           << (m.rss_kib - initial) / 1024.0 << ',' << m.threads << ',' << c.captured << ',' << c.encoded << ','
+           << c.sent << ',' << c.bytes << '\n';
     output.flush();
     return m;
   }
@@ -223,11 +256,11 @@ struct Session {
       if (!track) continue;
       try {
         auto publication = track->publication();
-        if (publication && participant && room &&
-            room->connectionState() == livekit::ConnectionState::Connected)
+        if (publication && participant && room && room->connectionState() == livekit::ConnectionState::Connected)
           participant->unpublishTrack(publication->sid());
       } catch (const std::exception& e) {
-        std::cerr << "Unpublish failed: " << e.what() << '\n'; ok = false;
+        std::cerr << "Unpublish failed: " << e.what() << '\n';
+        ok = false;
       }
       track->setPublication(nullptr); // Also break ownership on error, as in the sketch.
     }
@@ -235,7 +268,8 @@ struct Session {
   }
   bool close(bool explicitly_disconnect = false) noexcept {
     bool ok = unpublishTracks();
-    participant.reset(); streams.clear();
+    participant.reset();
+    streams.clear();
     if (explicitly_disconnect && room) {
       try {
         if (!room->disconnect(livekit::DisconnectReason::ClientInitiated)) {
@@ -243,7 +277,8 @@ struct Session {
           ok = false;
         }
       } catch (const std::exception& e) {
-        std::cerr << "Client disconnect failed: " << e.what() << '\n'; ok = false;
+        std::cerr << "Client disconnect failed: " << e.what() << '\n';
+        ok = false;
       }
     }
     // ~Room disconnects if still necessary.
@@ -253,8 +288,8 @@ struct Session {
   ~Session() { close(); }
 };
 
-Counts runCycle(const Options& o, std::uint64_t cycle, Reporter& report,
-                const std::string& expected_name, const std::string& expected_sid) {
+Counts runCycle(const Options& o, std::uint64_t cycle, Reporter& report, const std::string& expected_name,
+                const std::string& expected_sid) {
   Session s;
   if (o.server_controlled) s.room->setDelegate(&s.observer);
   livekit::RoomOptions room_options;
@@ -274,7 +309,9 @@ Counts runCycle(const Options& o, std::uint64_t cycle, Reporter& report,
   pub.source = livekit::TrackSource::SOURCE_CAMERA;
   pub.video_codec = codec(o);
   pub.simulcast = false;
-  pub.red = false; pub.dtx = false; pub.preconnect_buffer = false;
+  pub.red = false;
+  pub.dtx = false;
+  pub.preconnect_buffer = false;
   pub.video_encoding = livekit::VideoEncodingOptions{static_cast<std::uint64_t>(o.bitrate), double(o.fps)};
   pub.degradation_preference = livekit::DegradationPreference::MaintainResolution;
   s.streams.reserve(o.streams);
@@ -291,7 +328,8 @@ Counts runCycle(const Options& o, std::uint64_t cycle, Reporter& report,
   {
     std::vector<livekit::VideoFrame> frames;
     std::vector<std::uint64_t> rng;
-    frames.reserve(o.streams); rng.reserve(o.streams);
+    frames.reserve(o.streams);
+    rng.reserve(o.streams);
     for (int i = 0; i < o.streams; ++i) {
       frames.push_back(livekit::VideoFrame::create(o.width, o.height, format(o)));
       rng.push_back(cycle ^ (UINT64_C(0xd1b54a32d192ed03) * (i + 1)));
@@ -337,15 +375,16 @@ Counts runCycle(const Options& o, std::uint64_t cycle, Reporter& report,
         if (auto* c = std::get_if<livekit::RtcCodecStats>(&other.stats); c && c->rtc.id == out->stream.codec_id)
           mime = c->codec.mime_type;
       std::cerr << "Cycle " << cycle << ": track=" << stream.name << " codec=" << mime
-        << " encoder=" << std::quoted(out->outbound.encoder_implementation)
-        << " power_efficient=" << out->outbound.power_efficient_encoder
-        << " encoded_size=" << out->outbound.frame_width << 'x' << out->outbound.frame_height
-        << " captured=" << track_counts.captured << " encoded=" << track_counts.encoded
-        << " sent=" << track_counts.sent << " bytes=" << track_counts.bytes << '\n';
+                << " encoder=" << std::quoted(out->outbound.encoder_implementation)
+                << " power_efficient=" << out->outbound.power_efficient_encoder
+                << " encoded_size=" << out->outbound.frame_width << 'x' << out->outbound.frame_height
+                << " captured=" << track_counts.captured << " encoded=" << track_counts.encoded
+                << " sent=" << track_counts.sent << " bytes=" << track_counts.bytes << '\n';
       if (out->outbound.frames_encoded && (out->outbound.frame_width != static_cast<unsigned>(o.width) ||
-                                          out->outbound.frame_height != static_cast<unsigned>(o.height)))
+                                           out->outbound.frame_height != static_cast<unsigned>(o.height)))
         throw std::runtime_error(stream.name + ": encoded resolution does not match requested size");
-      if (!o.require_encoder.empty() && out->outbound.encoder_implementation.find(o.require_encoder) == std::string::npos)
+      if (!o.require_encoder.empty() &&
+          out->outbound.encoder_implementation.find(o.require_encoder) == std::string::npos)
         throw std::runtime_error("Actual encoder does not match --require-encoder " + o.require_encoder);
     }
     if (!stopped && (!track_counts.encoded || !track_counts.sent || !track_counts.bytes))
@@ -376,15 +415,14 @@ Counts runCycle(const Options& o, std::uint64_t cycle, Reporter& report,
     report.row(cycle, "ready_for_delete", counts);
     if (controlLine() != "DELETED") throw std::runtime_error("Server deletion was not acknowledged");
     const auto deadline = Clock::now() + 10s;
-    while (!stopped && Clock::now() < deadline &&
-           (s.observer.reason.load() < 0 || !s.observer.eos.load()))
+    while (!stopped && Clock::now() < deadline && (s.observer.reason.load() < 0 || !s.observer.eos.load()))
       std::this_thread::sleep_for(10ms);
-    if (s.observer.reason.load() != static_cast<int>(livekit::DisconnectReason::RoomDeleted) ||
-        !s.observer.eos.load())
+    if (s.observer.reason.load() != static_cast<int>(livekit::DisconnectReason::RoomDeleted) || !s.observer.eos.load())
       throw std::runtime_error("Expected RoomDeleted and room EOS after server deletion");
     std::cerr << "Cycle " << cycle << ": server disconnect=RoomDeleted; room EOS received\n";
     report.row(cycle, "server_deleted", counts);
-  } else report.row(cycle, "before_leave", counts);
+  } else
+    report.row(cycle, "before_leave", counts);
   if (!s.close()) throw std::runtime_error("Cycle teardown failed; excluding from growth summary");
   return counts;
 }
@@ -395,15 +433,19 @@ struct SdkLifetime {
 };
 
 int main(int argc, char** argv) {
-  if (argc == 2 && std::string(argv[1]) == "--help") { usage(); return 0; }
+  if (argc == 2 && std::string(argv[1]) == "--help") {
+    usage();
+    return 0;
+  }
   try {
     const auto o = parse(argc, argv);
-    std::signal(SIGINT, onSignal); std::signal(SIGTERM, onSignal);
-    std::cerr << "PID=" << getpid() << " LiveKit=" << LIVEKIT_BUILD_VERSION
-      << " codec=" << o.codec << " encoder_preference=" << o.encoder << " format=" << o.format
-      << " leave_mode=" << (o.server_controlled ? o.leave_mode : "client")
-      << " streams=" << o.streams << " size=" << o.width << 'x' << o.height
-      << " fps_per_stream=" << o.fps << " bitrate_per_stream=" << o.bitrate << '\n';
+    std::signal(SIGINT, onSignal);
+    std::signal(SIGTERM, onSignal);
+    std::cerr << "PID=" << getpid() << " LiveKit=" << LIVEKIT_BUILD_VERSION << " codec=" << o.codec
+              << " encoder_preference=" << o.encoder << " format=" << o.format
+              << " leave_mode=" << (o.server_controlled ? o.leave_mode : "client") << " streams=" << o.streams
+              << " size=" << o.width << 'x' << o.height << " fps_per_stream=" << o.fps
+              << " bitrate_per_stream=" << o.bitrate << '\n';
     std::ofstream csv_file;
     if (!o.csv_path.empty()) {
       csv_file.open(o.csv_path);
@@ -427,17 +469,24 @@ int main(int argc, char** argv) {
           auto current = o;
           std::string name, sid;
           if (o.server_controlled) {
-            name = controlLine(); sid = controlLine(); current.token = controlLine();
+            name = controlLine();
+            sid = controlLine();
+            current.token = controlLine();
             if (name.empty() || sid.empty() || current.token.empty())
               throw std::runtime_error("Missing fresh room credentials");
           }
           counts = runCycle(current, cycle, report, name, sid);
+        } catch (const std::exception& e) {
+          std::cerr << "Cycle " << cycle << " failed: " << e.what() << '\n';
+          valid = false;
         }
-        catch (const std::exception& e) { std::cerr << "Cycle " << cycle << " failed: " << e.what() << '\n'; valid = false; }
         const auto deadline = Clock::now() + std::chrono::seconds(o.settle);
         while (Clock::now() < deadline) std::this_thread::sleep_for(50ms);
         const auto idle = report.row(cycle, valid && !stopped ? "idle" : "incomplete_idle", counts);
-        if (!valid) { result = 1; break; }
+        if (!valid) {
+          result = 1;
+          break;
+        }
         if (stopped) break; // Interrupted cycles never enter the growth calculation.
         completed = cycle;
         last = idle.rss_kib;
@@ -448,10 +497,11 @@ int main(int argc, char** argv) {
     report.row(completed, "after_shutdown");
     if (baseline >= 0 && completed > std::uint64_t(o.warmup)) {
       const auto delta = (last - baseline) / 1024.0;
-      std::cerr << "Post-warmup idle RSS growth: "
-        << std::fixed << std::setprecision(3) << delta << " MiB over " << completed - o.warmup
-        << " cycles = " << delta / double(completed - o.warmup) << " MiB/cycle (endpoint average).\n";
-    } else std::cerr << "Too few completed cycles for a post-warmup RSS comparison.\n";
+      std::cerr << "Post-warmup idle RSS growth: " << std::fixed << std::setprecision(3) << delta << " MiB over "
+                << completed - o.warmup << " cycles = " << delta / double(completed - o.warmup)
+                << " MiB/cycle (endpoint average).\n";
+    } else
+      std::cerr << "Too few completed cycles for a post-warmup RSS comparison.\n";
     return result;
   } catch (const std::exception& e) {
     std::cerr << "Error: " << e.what() << '\n';

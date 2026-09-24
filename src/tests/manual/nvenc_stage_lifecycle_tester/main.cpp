@@ -39,15 +39,7 @@ constexpr int kHeight = 360;
 constexpr int kFrameRate = 15;
 constexpr int kBitrate = 1'000'000;
 
-enum class Stage {
-  kContext,
-  kSession,
-  kInitialize,
-  kReconfigure,
-  kCopy,
-  kMap,
-  kEncode
-};
+enum class Stage { kContext, kSession, kInitialize, kReconfigure, kCopy, kMap, kEncode };
 
 struct Options {
   int iteration_count = kDefaultIterations;
@@ -58,7 +50,7 @@ struct Options {
 };
 
 class TestNvEncoderCuda final : public NvEncoderCuda {
- public:
+public:
   using NvEncoderCuda::NvEncoderCuda;
 
   void mapFirstInput() { MapResources(0); }
@@ -68,8 +60,7 @@ void requireSuccess(CUresult result, const char* operation) {
   if (result != CUDA_SUCCESS) {
     const char* name = nullptr;
     cuGetErrorName(result, &name);
-    throw std::runtime_error(std::string(operation) + " failed: " +
-                             (name != nullptr ? name : "unknown"));
+    throw std::runtime_error(std::string(operation) + " failed: " + (name != nullptr ? name : "unknown"));
   }
 }
 
@@ -110,8 +101,7 @@ Options parseOptions(int argc, char* argv[]) {
       continue;
     }
     if (index + 1 >= argc) {
-      throw std::runtime_error(
-          "usage: tester [--stage STAGE] [--iterations N] [--worker-thread]");
+      throw std::runtime_error("usage: tester [--stage STAGE] [--iterations N] [--worker-thread]");
     }
     const std::string value = argv[++index];
     if (argument == "--stage") {
@@ -163,42 +153,35 @@ void initializeEncoder(NvEncoder& encoder) {
   encode_config.version = NV_ENC_CONFIG_VER;
   initialize_params.encodeConfig = &encode_config;
 
-  encoder.CreateDefaultEncoderParams(
-      &initialize_params, NV_ENC_CODEC_H264_GUID, NV_ENC_PRESET_P4_GUID,
-      NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY);
+  encoder.CreateDefaultEncoderParams(&initialize_params, NV_ENC_CODEC_H264_GUID, NV_ENC_PRESET_P4_GUID,
+                                     NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY);
   initialize_params.frameRateNum = kFrameRate;
   initialize_params.frameRateDen = 1;
   initialize_params.bufferFormat = NV_ENC_BUFFER_FORMAT_IYUV;
   encode_config.profileGUID = NV_ENC_H264_PROFILE_BASELINE_GUID;
   encode_config.gopLength = NVENC_INFINITE_GOPLENGTH;
   encode_config.frameIntervalP = 1;
-  encode_config.encodeCodecConfig.h264Config.idrPeriod =
-      NVENC_INFINITE_GOPLENGTH;
+  encode_config.encodeCodecConfig.h264Config.idrPeriod = NVENC_INFINITE_GOPLENGTH;
   encode_config.rcParams.version = NV_ENC_RC_PARAMS_VER;
   encode_config.rcParams.rateControlMode = NV_ENC_PARAMS_RC_CBR;
   encode_config.rcParams.averageBitRate = kBitrate;
   encode_config.rcParams.vbvBufferSize = kBitrate * 5 / kFrameRate;
-  encode_config.rcParams.vbvInitialDelay =
-      encode_config.rcParams.vbvBufferSize;
+  encode_config.rcParams.vbvInitialDelay = encode_config.rcParams.vbvBufferSize;
   encoder.CreateEncoder(&initialize_params);
 }
 
 void copyFrame(CUcontext context, NvEncoder& encoder) {
   std::vector<std::uint8_t> frame(kWidth * kHeight * 3 / 2, 0x7f);
   const NvEncInputFrame* input = encoder.GetNextInputFrame();
-  NvEncoderCuda::CopyToDeviceFrame(
-      context, frame.data(), kWidth,
-      reinterpret_cast<CUdeviceptr>(input->inputPtr), input->pitch, kWidth,
-      kHeight, CU_MEMORYTYPE_HOST, input->bufferFormat, input->chromaOffsets,
-      input->numChromaPlanes);
+  NvEncoderCuda::CopyToDeviceFrame(context, frame.data(), kWidth, reinterpret_cast<CUdeviceptr>(input->inputPtr),
+                                   input->pitch, kWidth, kHeight, CU_MEMORYTYPE_HOST, input->bufferFormat,
+                                   input->chromaOffsets, input->numChromaPlanes);
 }
 
 void exerciseEncoder(CUcontext context, Stage stage) {
-  TestNvEncoderCuda encoder(context, kWidth, kHeight,
-                            NV_ENC_BUFFER_FORMAT_IYUV, 0);
+  TestNvEncoderCuda encoder(context, kWidth, kHeight, NV_ENC_BUFFER_FORMAT_IYUV, 0);
   if (stage >= Stage::kInitialize) initializeEncoder(encoder);
-  if (stage >= Stage::kReconfigure &&
-      !encoder.SetRates(kFrameRate, kBitrate)) {
+  if (stage >= Stage::kReconfigure && !encoder.SetRates(kFrameRate, kBitrate)) {
     throw std::runtime_error("NVENC reconfiguration failed");
   }
   if (stage >= Stage::kCopy) copyFrame(context, encoder);
@@ -257,18 +240,14 @@ void run(const Options& options) {
   CUdevice device = 0;
   requireSuccess(cuDeviceGet(&device, 0), "cuDeviceGet");
 
-  if (options.reuse_context &&
-      (options.worker_thread || options.all_worker ||
-       options.stage == Stage::kContext)) {
-    throw std::runtime_error(
-        "--reuse-context requires a codec stage and no worker mode");
+  if (options.reuse_context && (options.worker_thread || options.all_worker || options.stage == Stage::kContext)) {
+    throw std::runtime_error("--reuse-context requires a codec stage and no worker mode");
   }
 
   CUcontext reused_context = nullptr;
   if (options.reuse_context) {
 #if CUDA_VERSION >= 13000
-    requireSuccess(cuCtxCreate(&reused_context, nullptr, 0, device),
-                   "cuCtxCreate");
+    requireSuccess(cuCtxCreate(&reused_context, nullptr, 0, device), "cuCtxCreate");
 #else
     requireSuccess(cuCtxCreate(&reused_context, 0, device), "cuCtxCreate");
 #endif
@@ -298,15 +277,11 @@ void run(const Options& options) {
       }
       std::this_thread::sleep_for(250ms);
       const std::int64_t rss = rssKib();
-      std::cout
-          << stageName(options.stage)
-          << (options.reuse_context
-                  ? "-reuse-context"
-                  : (options.all_worker
-                         ? "-all-worker"
-                         : (options.worker_thread ? "-worker" : "")))
-          << ',' << iteration << ',' << rss / 1024.0 << ','
-          << (rss - initial_rss) / 1024.0 << '\n';
+      std::cout << stageName(options.stage)
+                << (options.reuse_context
+                        ? "-reuse-context"
+                        : (options.all_worker ? "-all-worker" : (options.worker_thread ? "-worker" : "")))
+                << ',' << iteration << ',' << rss / 1024.0 << ',' << (rss - initial_rss) / 1024.0 << '\n';
     }
   } catch (...) {
     if (reused_context) cuCtxDestroy(reused_context);
@@ -317,15 +292,14 @@ void run(const Options& options) {
   }
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char* argv[]) {
   try {
     run(parseOptions(argc, argv));
     return EXIT_SUCCESS;
   } catch (const std::exception& error) {
-    std::cerr << "NVENC stage lifecycle tester failed: " << error.what()
-              << '\n';
+    std::cerr << "NVENC stage lifecycle tester failed: " << error.what() << '\n';
     return EXIT_FAILURE;
   }
 }
