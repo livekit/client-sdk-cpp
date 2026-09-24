@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "livekit/audio_stream.h"
+#include "livekit/room_callbacks.h"
 #include "livekit/video_stream.h"
 #include "livekit/visibility.h"
 
@@ -37,29 +38,6 @@ class DataTrackStream;
 class RemoteDataTrack;
 class Track;
 class VideoFrame;
-
-/// Callback type for incoming audio frames.
-/// Invoked on a dedicated reader thread per (participant, track_name) pair.
-using AudioFrameCallback = std::function<void(const AudioFrame&)>;
-
-/// Callback type for incoming video frames.
-/// Invoked on a dedicated reader thread per (participant, track_name) pair.
-using VideoFrameCallback = std::function<void(const VideoFrame& frame, std::int64_t timestamp_us)>;
-
-/// Callback type for incoming video frame events.
-/// Invoked on a dedicated reader thread per (participant, track_name) pair.
-using VideoFrameEventCallback = std::function<void(const VideoFrameEvent&)>;
-
-/// Callback type for incoming data track frames.
-/// Invoked on a dedicated reader thread per subscription.
-/// @param payload        Raw binary data received.
-/// @param user_timestamp Optional application-defined timestamp from sender.
-using DataFrameCallback =
-    std::function<void(const std::vector<std::uint8_t>& payload, std::optional<std::uint64_t> user_timestamp)>;
-
-/// Opaque identifier returned by addOnDataFrameCallback, used to remove an
-/// individual subscription via removeOnDataFrameCallback.
-using DataFrameCallbackId = std::uint64_t;
 
 /// Owns subscription callback registration and per-subscription reader threads.
 ///
@@ -81,7 +59,7 @@ using DataFrameCallbackId = std::uint64_t;
 /// The design keeps track-type-specific startup isolated so additional track
 /// kinds can be added later without pushing more thread state back into
 /// @ref Room.
-class LIVEKIT_API SubscriptionThreadDispatcher {
+class LIVEKIT_INTERNAL_API SubscriptionThreadDispatcher {
 public:
   /// Constructs an empty dispatcher with no registered callbacks or readers.
   SubscriptionThreadDispatcher();
