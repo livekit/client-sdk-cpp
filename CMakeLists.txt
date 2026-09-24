@@ -85,6 +85,7 @@ set(FFI_PROTO_FILES
     ${FFI_PROTO_DIR}/data_track.proto
     ${FFI_PROTO_DIR}/rpc.proto
     ${FFI_PROTO_DIR}/track_publication.proto
+    ${FFI_PROTO_DIR}/capture.proto
 )
 set(PROTO_BINARY_DIR ${LIVEKIT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${PROTO_BINARY_DIR})
