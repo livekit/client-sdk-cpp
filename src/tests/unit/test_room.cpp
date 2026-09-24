@@ -192,6 +192,7 @@ TEST_F(RoomTest, RoomOptionsDefaults) {
   EXPECT_FALSE(options.join_retries.has_value()) << "join_retries should defer to Rust default";
   EXPECT_TRUE(options.single_peer_connection) << "single_peer_connection should default to true";
   EXPECT_FALSE(options.connect_timeout.has_value()) << "connect_timeout should defer to Rust default";
+  EXPECT_FALSE(options.other_sdks.has_value()) << "other_sdks should not report additional SDKs by default";
 }
 
 TEST_F(RoomTest, RoomOptionsToProtoSerializesDefaults) {
@@ -208,6 +209,7 @@ TEST_F(RoomTest, RoomOptionsToProtoSerializesDefaults) {
   EXPECT_TRUE(proto_options.has_single_peer_connection());
   EXPECT_TRUE(proto_options.single_peer_connection());
   EXPECT_FALSE(proto_options.has_connect_timeout_ms());
+  EXPECT_FALSE(proto_options.has_other_sdks());
 }
 
 TEST_F(RoomTest, RoomOptionsProtoConverter) {
@@ -227,6 +229,7 @@ TEST_F(RoomTest, RoomOptionsProtoConverter) {
   options.join_retries = 8;
   options.single_peer_connection = false;
   options.connect_timeout = std::chrono::milliseconds(750);
+  options.other_sdks = "ros_portal:1.2.3,another-sdk:2.0.0";
 
   const proto::RoomOptions proto_options = toProto(options);
 
@@ -255,6 +258,8 @@ TEST_F(RoomTest, RoomOptionsProtoConverter) {
   EXPECT_FALSE(proto_options.single_peer_connection());
   EXPECT_TRUE(proto_options.has_connect_timeout_ms());
   EXPECT_EQ(proto_options.connect_timeout_ms(), 750U);
+  EXPECT_TRUE(proto_options.has_other_sdks());
+  EXPECT_EQ(proto_options.other_sdks(), "ros_portal:1.2.3,another-sdk:2.0.0");
 }
 
 TEST(RoomOptionsProtoTest, ConnectRequestSerializesRetryOptions) {
@@ -283,6 +288,18 @@ TEST(RoomOptionsProtoTest, ConnectRequestSerializesRetryOptions) {
   ASSERT_TRUE(decoded.ParseFromString(serialized));
   EXPECT_EQ(decoded.connect().options().join_retries(), 8U);
   EXPECT_EQ(decoded.connect().options().connect_timeout_ms(), 750U);
+}
+
+TEST(RoomOptionsProtoTest, EmptyOtherSdksIsStillSerialized) {
+  // An explicitly empty list stays distinguishable from unset on the wire; Rust
+  // collapses both to "no additional SDKs".
+  RoomOptions options;
+  options.other_sdks = "";
+
+  const proto::RoomOptions proto_options = toProto(options);
+
+  ASSERT_TRUE(proto_options.has_other_sdks());
+  EXPECT_EQ(proto_options.other_sdks(), "");
 }
 
 TEST_F(RoomTest, RtcConfigDefaults) {

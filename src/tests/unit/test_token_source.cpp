@@ -207,11 +207,11 @@ TEST(TokenSourceEndpointMockTest, SupportsGetMethod) {
   EXPECT_EQ(capture->method, "GET");
 }
 
-TEST(TokenSourceSandboxMockTest, SetsSandboxHeaderAndResolvesUrl) {
+TEST(TokenSourceDevelopmentMockTest, SetsSandboxHeaderAndResolvesUrl) {
   auto capture = std::make_shared<CapturedRequest>();
-  SandboxTokenServerOptions options;
+  DevelopmentTokenServerOptions options;
   options.base_url = "https://cloud-api.livekit.io";
-  auto source = SandboxTokenSourceTestAccess::create(
+  auto source = DevelopmentTokenSourceTestAccess::create(
       "  sandbox-123  ", options,
       makeStubTransport(capture, Result<std::string, std::string>::success(successResponseJson())));
 

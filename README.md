@@ -23,6 +23,10 @@ Use this SDK to add realtime video, audio and data features to your C++ app. By 
 [![Nightly Tests](https://github.com/livekit/client-sdk-cpp/actions/workflows/nightly.yml/badge.svg?branch=main&event=schedule)](https://github.com/livekit/client-sdk-cpp/actions/workflows/nightly.yml)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
+> [!IMPORTANT]
+> If you're building Voice AI, [LiveKit Agents](https://github.com/livekit/agents) is the SDK for code-first realtime voice agents. STT, LLM, TTS, turn detection, [expressive speech](https://docs.livekit.io/agents/models/tts/expressive/), [keyterm accuracy](https://docs.livekit.io/agents/models/stt/keyterms/), tool usage, and telephony all come bundled in the framework. It's available in both [Python](https://github.com/livekit/agents) and [Node.js](https://github.com/livekit/agents-js).
+> See the [LiveKit Agents docs](https://docs.livekit.io/agents/) for more information!
+
 ## Docs
 
 - [LiveKit docs](https://docs.livekit.io)
@@ -45,7 +49,7 @@ cd client-sdk-cpp
 
 Building requires a stable Rust toolchain and platform-specific build
 deps (`protobuf`, `abseil`, `openssl` on Linux). See [docs/building.md](docs/building.md)
-for full prerequisites table, Docker recipe, CMake presets, and troubleshooting.
+for the full prerequisites table, CMake presets, and troubleshooting.
 
 ### Hello, LiveKit
 
@@ -213,13 +217,13 @@ export LIVEKIT_TOKEN=$(lk token create \
 ```
 
 Pass `LIVEKIT_URL` and `LIVEKIT_TOKEN` into `Room::connect`, or use the SDK's
-token source helpers for endpoint, sandbox, and custom backends. See
+token source helpers for endpoint, development token server, and custom backends. See
 [docs/authentication.md](docs/authentication.md).
 
 ## Features
 
 - Connect to LiveKit rooms (Cloud or self-hosted)
-- Dynamic token sourcing (literal, custom, endpoint, sandbox, caching)
+- Dynamic token sourcing (literal, custom, endpoint, development token server, caching)
 - Receive remote audio/video tracks
 - Publish local audio/video tracks
 - Data tracks (low-level) and data streams (high-level)

@@ -3,7 +3,7 @@
 Additional documentation for the SDK.
 
 - [Building](building.md) — prerequisites, build scripts, CMake presets,
-  vcpkg, Docker, integration into your CMake project, troubleshooting.
+  vcpkg, integration into your CMake project, troubleshooting.
 - [Authentication](authentication.md) — generating tokens, token source types
   (initial connect only), and in-session token refresh.
 - [Logging](logging.md) — compile-time vs runtime filtering, log levels,

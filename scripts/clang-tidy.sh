@@ -36,7 +36,7 @@ fi
 exec "${shared_script}" \
   --repo-root "${repo_root}" \
   --build-dir build-release \
-  --file-regex '^(?!.*/(_deps|build-[^/]*|client-sdk-rust|cpp-example-collection|vcpkg_installed|docker|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$' \
+  --file-regex '^(?!.*/(_deps|build-[^/]*|client-sdk-rust|cpp-example-collection|vcpkg_installed|docs|data)/).*/src/(?!tests/).*\.(c|cpp|cc|cxx)$' \
   --header-filter '.*/(include/livekit|src)/.*\.(h|hpp)$' \
   --exclude-header-filter '(.*/src/tests/.*)|(.*/_deps/.*)|(.*/build-[^/]*/.*)' \
   "$@"

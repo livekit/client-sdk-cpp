@@ -1,0 +1,2 @@
+# Specify default code owners for all files with a wildcard:
+* @livekit/robotics-devs @xianshijing-lk

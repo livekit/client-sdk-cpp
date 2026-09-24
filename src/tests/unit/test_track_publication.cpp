@@ -40,7 +40,13 @@ public:
 // Default-construct the proto: the publication ctor only reads via getters,
 // which return well-defined defaults for unset fields. Using a zero handle
 // keeps the `FfiHandle` a no-op on destruction.
-proto::OwnedTrackPublication makeOwnedPub() { return proto::OwnedTrackPublication{}; }
+proto::OwnedTrackPublication makeOwnedPub(proto::TrackKind kind = proto::TrackKind::KIND_UNKNOWN,
+                                          bool simulcasted = false) {
+  proto::OwnedTrackPublication owned;
+  owned.mutable_info()->set_kind(kind);
+  owned.mutable_info()->set_simulcasted(simulcasted);
+  return owned;
+}
 
 template <typename Pub>
 class TrackPublicationTest : public ::testing::Test {};
@@ -89,6 +95,55 @@ TYPED_TEST(TrackPublicationTest, ReplacingTrackReleasesPrevious) {
   EXPECT_EQ(pub.track().get(), second.get());
   // The publication no longer references `first`; only the local handle does.
   EXPECT_EQ(first.use_count(), 1);
+}
+
+TEST(RemoteTrackPublicationDimensionsTest, RejectsAudioPublication) {
+  RemoteTrackPublication publication(makeOwnedPub(proto::TrackKind::KIND_AUDIO));
+
+  EXPECT_FALSE(publication.setVideoDimensions(320, 180));
+}
+
+TEST(RemoteTrackPublicationDimensionsTest, RejectsZeroDimensions) {
+  RemoteTrackPublication publication(makeOwnedPub(proto::TrackKind::KIND_VIDEO));
+
+  EXPECT_FALSE(publication.setVideoDimensions(0, 180));
+  EXPECT_FALSE(publication.setVideoDimensions(320, 0));
+}
+
+TEST(RemoteTrackPublicationDimensionsTest, RejectsUnsubscribedVideoPublication) {
+  RemoteTrackPublication publication(makeOwnedPub(proto::TrackKind::KIND_VIDEO));
+  publication.setTrack(std::make_shared<FakeTrack>());
+
+  EXPECT_FALSE(publication.setVideoDimensions(320, 180));
+}
+
+TEST(RemoteTrackPublicationControlsTest, DefaultsToEnabledHighQuality) {
+  const RemoteTrackPublication publication(makeOwnedPub(proto::TrackKind::KIND_VIDEO, true));
+
+  EXPECT_TRUE(publication.enabled());
+  EXPECT_EQ(publication.videoQuality(), VideoQuality::HIGH);
+}
+
+TEST(RemoteTrackPublicationControlsTest, RejectsEnableUpdateWhileUnsubscribed) {
+  RemoteTrackPublication publication(makeOwnedPub(proto::TrackKind::KIND_VIDEO));
+  publication.setTrack(std::make_shared<FakeTrack>());
+
+  EXPECT_FALSE(publication.setEnabled(false));
+  EXPECT_TRUE(publication.enabled());
+}
+
+TEST(RemoteTrackPublicationControlsTest, RejectsQualityUpdateForAudioPublication) {
+  RemoteTrackPublication publication(makeOwnedPub(proto::TrackKind::KIND_AUDIO, true));
+
+  EXPECT_FALSE(publication.setVideoQuality(VideoQuality::LOW));
+  EXPECT_EQ(publication.videoQuality(), VideoQuality::HIGH);
+}
+
+TEST(RemoteTrackPublicationControlsTest, RejectsQualityUpdateForNonSimulcastPublication) {
+  RemoteTrackPublication publication(makeOwnedPub(proto::TrackKind::KIND_VIDEO));
+
+  EXPECT_FALSE(publication.setVideoQuality(VideoQuality::LOW));
+  EXPECT_EQ(publication.videoQuality(), VideoQuality::HIGH);
 }
 
 } // namespace livekit::test

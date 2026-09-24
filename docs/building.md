@@ -1,8 +1,8 @@
 # Building
 
 This document covers everything you need to build the LiveKit C++ SDK from
-source: prerequisites, cloning the repository, the build scripts, advanced
-CMake/vcpkg flows, and Docker.
+source: prerequisites, cloning the repository, the build scripts, and advanced
+CMake/vcpkg flows.
 
 ## Prerequisites
 
@@ -115,6 +115,23 @@ wrap the right CMake preset for your platform and pick sensible defaults.
 # ... same suffixes as build.sh
 ```
 
+### Create an SDK bundle
+
+To create an installable SDK bundle with public headers, runtime libraries, and
+CMake package files, add `--bundle --prefix <install-dir>` to a build command:
+
+**Linux/Mac:**
+
+```bash
+./build.sh release --bundle --prefix sdk-out/livekit-sdk
+```
+
+**Windows:**
+
+```powershell
+.\build.cmd release --bundle --prefix C:\path\to\livekit-sdk
+```
+
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the auto-detected logical CPU count.
 
@@ -176,29 +193,6 @@ cmake -B build -S . \
 cmake --build build
 ```
 
-## Building with Docker
-
-The Docker setup is split into a reusable base image (toolchain + system
-deps) and an SDK image layered on top. **Tested on Linux only.**
-
-```bash
-docker build -t livekit-cpp-sdk-base . -f docker/Dockerfile.base
-docker build --build-arg BASE_IMAGE=livekit-cpp-sdk-base \
-  -t livekit-cpp-sdk . -f docker/Dockerfile.sdk
-docker run -it --network host livekit-cpp-sdk:latest bash
-```
-
-If you're authoring your own Dockerfile, mirror the `ENV` block in
-[docker/Dockerfile.base](https://github.com/livekit/client-sdk-cpp/blob/main/docker/Dockerfile.base):
-
-```bash
-export CC=$HOME/gcc-14/bin/gcc
-export CXX=$HOME/gcc-14/bin/g++
-export LD_LIBRARY_PATH=$HOME/gcc-14/lib64:$LD_LIBRARY_PATH
-export PATH=$HOME/.cargo/bin:$PATH
-export PATH=$HOME/cmake-3.31/bin:$PATH
-```
-
 ## CMake options
 
 | Option | Default | Description |
@@ -215,14 +209,17 @@ After a successful build:
 ```
 build-release/
 ├── lib/
-│   ├── liblivekit.{a,lib}          # Main SDK static library
-│   ├── liblivekit_ffi.{so,dylib}   # Rust FFI dynamic library
-│   └── livekit_ffi.dll, *.lib      # (Windows) FFI DLL + import lib
+│   ├── liblivekit.{so,dylib}       # Main SDK shared library (Linux/macOS)
+│   ├── liblivekit_ffi.{so,dylib}   # Rust FFI shared library (Linux/macOS)
+│   └── livekit{,_ffi}.lib          # Import libraries (Windows)
 ├── include/                        # Public headers (auto-synced)
 │   └── livekit/
-└── bin/                            # Example/test executables
-    └── liblivekit_ffi.{so,dylib}   # (Linux/macOS: copied for runtime)
+└── bin/
+    └── livekit{,_ffi}.dll          # SDK DLLs (Windows)
 ```
+
+Release archives use the same layout: `include/`, `lib/`, and (on Windows)
+`bin/`. The exact build-tree layout can vary with the CMake generator.
 
 ## Integrating into your project
 
@@ -234,8 +231,8 @@ add_subdirectory(path/to/client-sdk-cpp)
 target_link_libraries(your_target PRIVATE livekit)
 
 # Method 2: find_package (after install)
-find_package(livekit REQUIRED)
-target_link_libraries(your_target PRIVATE livekit)
+find_package(LiveKit CONFIG REQUIRED)
+target_link_libraries(your_target PRIVATE LiveKit::livekit)
 ```
 
 ### Using prebuilt releases
@@ -252,53 +249,44 @@ See the example collection's
 [`LiveKitSDK.cmake`](https://github.com/livekit-examples/cpp-example-collection/blob/main/cmake/LiveKitSDK.cmake)
 for the full pattern.
 
-### Manual linking
+### Manual linking and deployment
 
-1. Add include path: `build-release/include`
-2. Link the static SDK library:
-   - Windows: `build-release/lib/livekit.lib`
-   - Linux: `build-release/lib/liblivekit.a`
-   - macOS: `build-release/lib/liblivekit.a`
-3. Link/deploy the Rust FFI dynamic library:
-   - Windows: link `livekit_ffi.dll.lib`, deploy `livekit_ffi.dll` next to your `.exe`
-   - Linux: deploy `liblivekit_ffi.so` next to your executable
-   - macOS: deploy `liblivekit_ffi.dylib` next to your executable
-4. Link platform system libraries (see below).
+Prefer the CMake package above. It provides the correct include directory and
+the `LiveKit::livekit` shared-library target. If you link a release archive
+manually, add its `include/` directory and link only the main SDK library:
 
-> **Important:** On Linux/macOS the FFI shared library must live next to the
-> executable. RPATH is set to `$ORIGIN` (Linux) / `@loader_path` (macOS).
+| Platform | Link-time file | Runtime files to deploy |
+|----------|----------------|-------------------------|
+| Windows | `lib/livekit.lib` | `bin/livekit.dll` and `bin/livekit_ffi.dll` beside the application executable |
+| Linux | `lib/liblivekit.so` | `liblivekit.so` and `liblivekit_ffi.so` in the same runtime-library directory |
+| macOS | `lib/liblivekit.dylib` | `liblivekit.dylib` and `liblivekit_ffi.dylib` in the same runtime-library directory |
 
-**Windows system libraries:**
-```
-ntdll userenv winmm iphlpapi msdmo dmoguids wmcodecdspuuid
-ws2_32 secur32 bcrypt crypt32
-```
+Do not link the Rust FFI library directly: `livekit` already records it as a
+shared-library dependency. On Linux, `liblivekit.so` uses a `$ORIGIN` runpath
+to locate `liblivekit_ffi.so` next to it. On macOS, it uses `@loader_path` for
+the same purpose. Your application must still be configured to find
+`liblivekit` at runtime (for example, by using an appropriate executable
+RPATH or platform packaging mechanism).
 
-**macOS frameworks:**
-```
-CoreAudio AudioToolbox CoreFoundation Security CoreGraphics
-CoreMedia VideoToolbox AVFoundation CoreVideo Foundation
-AppKit QuartzCore OpenGL IOSurface Metal MetalKit ScreenCaptureKit
-```
+### Runtime dependencies of release artifacts
 
-**Linux libraries:**
-```
-OpenSSL::SSL OpenSSL::Crypto
-```
+Official release archives bundle the two SDK libraries above. They do not
+bundle, or dynamically depend on, Protobuf, Abseil, or OpenSSL. As of v1.7.0:
 
-### Runtime dependencies of prebuilt artifacts
+- **Windows:** the SDK DLLs depend on Windows system libraries and the
+  Microsoft Visual C++ runtime. Install the supported Visual C++ Redistributable
+  with your application when it is not already present. The archive contains no
+  Protobuf or Abseil DLLs.
+- **Linux:** `liblivekit.so` additionally depends on the system C++ runtime,
+  glibc, and `libcurl.so.4`; `liblivekit_ffi.so` depends on the system C++
+  runtime and glibc. Install the matching runtime packages for your target
+  distribution.
+- **macOS:** the SDK depends on system frameworks and the system `libcurl`;
+  no Homebrew Protobuf, Abseil, or OpenSSL runtime is required.
 
-Whether protobuf / abseil / openssl need to be installed on the target
-machine depends on how the SDK binary was built:
-
-- **Windows** release artifacts use vcpkg triplet `x64-windows-static-md` —
-  protobuf and abseil are statically linked into the DLLs; no runtime install
-  needed.
-- **macOS** release artifacts (from our CI) do **not** dynamically depend on
-  protobuf / abseil / openssl. You can verify with `otool -L liblivekit.dylib`.
-- **Linux** depends on packaging. Check with `ldd liblivekit_ffi.so`; if any
-  of those are listed, install the corresponding `-dev` (build) or runtime
-  package (`libprotobuf32` / `libabsl` / `libssl3`) as appropriate.
+These are release-artifact requirements, not source-build prerequisites. For
+an updated audit of a specific release, inspect its binaries with `ldd`
+(Linux), `otool -L` (macOS), or `dumpbin /dependents` (Windows).
 
 ## Troubleshooting
 

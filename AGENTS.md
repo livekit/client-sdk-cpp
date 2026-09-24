@@ -91,7 +91,6 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `cpp-tools/` | Git submodule holding shared LiveKit C++ engineering guidance, clang-format / clang-tidy configs, scripts, docs, and CI workflow |
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `nlohmann_json.cmake`, `LiveKitConfig.cmake.in`) |
-| `docker/` | Dockerfile for CI and SDK distribution images |
 | `scripts/` | Local helper scripts for SDK-specific development tasks |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
@@ -108,7 +107,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 
 ## Build
 for building, use the build.sh script for Linux and macOS, and the build.cmd script for Windows. Do not invoke CMake directly to build the SDK.
-Updates to ./build.sh and ./build.cmd should be accompanied by updates to this file and the README.md file.
+Updates to ./build.sh and ./build.cmd should be accompanied by updates to this file and docs/building.md.
 
 ```
 ./build.sh debug              # Debug build
@@ -121,6 +120,11 @@ Updates to ./build.sh and ./build.cmd should be accompanied by updates to this f
 ./build.sh clean              # Clean build artifacts + local-install
 ./build.sh clean-all          # Full clean (C++ + local-install + Rust targets)
 ```
+
+To create an installable SDK bundle, use the same build command with
+`--bundle --prefix <install-dir>` (for example,
+`./build.sh release --bundle --prefix sdk-out/livekit-sdk`). On Windows, use
+`build.cmd release --bundle --prefix C:\path\to\livekit-sdk`.
 
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
@@ -230,8 +234,9 @@ The exported ABI is enforced by `.github/scripts/check_no_private_symbols.py`,
 run from the `make-release.yml` "Symbol leak check" CI step so a leak blocks
 the release build itself (it does not run on regular pushes/PRs). The script
 fails if `nm`/`dumpbin` reports any exported symbol matching a forbidden
-substring (currently `spdlog::`, `fmt::v`, `google::protobuf`, `absl::`). To
-run it locally, point it at the built shared library:
+substring (including private dependency namespaces and generated UniFFI
+symbols such as `livekit_ffi::`, `uniffi::`, and `uniffi_`). To run it locally,
+point it at the built shared library:
 
 ```bash
 python3 .github/scripts/check_no_private_symbols.py \
@@ -253,7 +258,7 @@ with the same library loaded elsewhere in the host process.
 ### Public API Documentation (Doxygen)
 
 The public API (`include/livekit/*.h`) is what consumers read first and is also
-published as a Doxygen site (`docs/doxygen/Doxyfile`, `.github/workflows/publish-docs.yml`).
+published as a Doxygen site (`docs/doxygen/Doxyfile`, `.github/workflows/docs.yml`).
 Every doc comment in `include/livekit/` must use the rules below, and PRs that
 add or modify public symbols are gated on these rules during review.
 
@@ -346,7 +351,7 @@ CI step will fail loudly if its symbols escape the public ABI of
 Tests are under `src/tests/` using Google Test:
 
 ```bash
-source .token_helpers/set_data_track_test_tokens.bash
+source scripts/set-test-tokens.sh
 ./build.sh debug-tests
 cd build-debug && ctest
 ```
@@ -354,7 +359,7 @@ cd build-debug && ctest
 Always source the test tokens before running tests, even for a targeted local
 test run. The integration and stress suites require `LIVEKIT_URL`,
 `LIVEKIT_TOKEN_A`, and `LIVEKIT_TOKEN_B`; use
-`source .token_helpers/set_data_track_test_tokens.bash` from the repository
+`source scripts/set-test-tokens.sh` from the repository
 root so the current shell inherits them. Do not report an integration test as
 verified just because it was skipped for missing tokens. If tokens cannot be
 sourced or the LiveKit server is not available, say that the integration test
@@ -387,7 +392,8 @@ all filtered stages; normal pull requests and pushes use the path filters.
 - `.github/workflows/cpp-tools.yml` — Reusable SDK-specific `clang-format` and
   `clang-tidy` workflow. It prepares the build environment and invokes the
   project wrappers backed by the shared `cpp-tools` scripts.
-- `.github/workflows/generate-docs.yml` — Reusable Doxygen docs validation.
+- `.github/workflows/docs.yml` — Reusable Doxygen docs validation, deploy
+  credential check on trusted `main` pushes, and stable-release publishing.
 - `.github/workflows/rust-release-check.yml` — Reusable check that the pinned
  `client-sdk-rust` submodule commit maps to a published release. Gated by the
  `rust_submodule` path filter so it only runs on a submodule bump, runs in
@@ -396,8 +402,6 @@ all filtered stages; normal pull requests and pushes use the path filters.
  feedback.
 - `.github/workflows/license_check.yml` — Cheap license check, run on every CI
   invocation.
-- `.github/workflows/docker-images.yml` — Reusable Docker image smoke-test and
-  publish workflow (optional push via input), called by CI and release workflows.
 
 The `tests.yml` e2e jobs consume two external, pinned composite actions:
 `livekit/dev-server-action` (local `livekit-server`) and
