@@ -719,8 +719,8 @@ TEST_F(AudioProcessingModuleTest, AGCProcessesAudioWithoutError) {
   double avg_input = total_input_energy / kFrames;
   double avg_output = total_output_energy / kFrames;
 
-  std::cout << "[AGC] Processed " << kFrames << " frames. " << "Avg input=" << avg_input
-            << ", Avg output=" << avg_output << std::endl;
+  std::cout << "[AGC] Processed " << kFrames << " frames. "
+            << "Avg input=" << avg_input << ", Avg output=" << avg_output << std::endl;
 
   // Verify output is valid (not zero, not clipped)
   EXPECT_GT(avg_output, 0.0) << "AGC output should not be zero";

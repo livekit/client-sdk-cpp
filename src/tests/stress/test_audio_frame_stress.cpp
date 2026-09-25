@@ -51,8 +51,8 @@ TEST_F(AudioFrameStressTest, RapidFrameCreation) {
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Created " << num_iterations << " AudioFrames in " << duration.count() << "ms" << " ("
-            << (num_iterations * 1000.0 / duration.count()) << " frames/sec)" << std::endl;
+  std::cout << "Created " << num_iterations << " AudioFrames in " << duration.count() << "ms"
+            << " (" << (num_iterations * 1000.0 / duration.count()) << " frames/sec)" << std::endl;
 }
 
 // Stress test: Large buffer allocation

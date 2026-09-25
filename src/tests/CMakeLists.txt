@@ -355,9 +355,7 @@ add_executable(server_room_shutdowner
   "${CMAKE_CURRENT_SOURCE_DIR}/manual/server_room_shutdowner.cpp"
 )
 
-# The manual reproducer calls an internal diagnostic entry point from the Rust
-# FFI library directly; production C++ consumers continue to link only livekit.
-target_link_libraries(server_room_shutdowner PRIVATE livekit livekit_ffi)
+target_link_libraries(server_room_shutdowner PRIVATE livekit)
 target_include_directories(server_room_shutdowner PRIVATE ${LIVEKIT_ROOT_DIR}/include)
 target_compile_definitions(server_room_shutdowner PRIVATE
   $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
@@ -384,7 +382,6 @@ elseif(APPLE)
       $<TARGET_FILE_DIR:server_room_shutdowner>
     COMMENT "Copying dylibs to lifecycle reproducer directory"
   )
-  livekit_rewrite_direct_ffi_dependency(server_room_shutdowner)
 else()
   add_custom_command(TARGET server_room_shutdowner POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -511,46 +508,37 @@ else()
   )
 endif()
 
-add_executable(livekit_customer_tester
-  "${CMAKE_CURRENT_SOURCE_DIR}/manual/customer_tester/customer_tester.cpp"
-)
+# Linux RSS probe. It reads /proc and waits on stdin with poll(), which Windows
+# does not provide.
+if(NOT WIN32)
+  add_executable(livekit_customer_tester
+    "${CMAKE_CURRENT_SOURCE_DIR}/manual/customer_tester/customer_tester.cpp"
+  )
 
-target_link_libraries(livekit_customer_tester PRIVATE livekit)
-target_include_directories(livekit_customer_tester PRIVATE ${LIVEKIT_ROOT_DIR}/include)
-target_compile_definitions(livekit_customer_tester PRIVATE
-  $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
-)
+  target_link_libraries(livekit_customer_tester PRIVATE livekit)
+  target_include_directories(livekit_customer_tester PRIVATE ${LIVEKIT_ROOT_DIR}/include)
 
-if(WIN32)
-  add_custom_command(TARGET livekit_customer_tester POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      $<TARGET_FILE:livekit>
-      $<TARGET_FILE_DIR:livekit_customer_tester>
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
-      $<TARGET_FILE_DIR:livekit_customer_tester>
-    COMMENT "Copying DLLs next to livekit_customer_tester"
-  )
-elseif(APPLE)
-  add_custom_command(TARGET livekit_customer_tester POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      $<TARGET_FILE:livekit>
-      $<TARGET_FILE_DIR:livekit_customer_tester>
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
-      $<TARGET_FILE_DIR:livekit_customer_tester>
-    COMMENT "Copying dylibs next to livekit_customer_tester"
-  )
-else()
-  add_custom_command(TARGET livekit_customer_tester POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      $<TARGET_FILE:livekit>
-      $<TARGET_FILE_DIR:livekit_customer_tester>
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
-      $<TARGET_FILE_DIR:livekit_customer_tester>
-    COMMENT "Copying shared libraries next to livekit_customer_tester"
-  )
+  if(APPLE)
+    add_custom_command(TARGET livekit_customer_tester POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:livekit>
+        $<TARGET_FILE_DIR:livekit_customer_tester>
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+        $<TARGET_FILE_DIR:livekit_customer_tester>
+      COMMENT "Copying dylibs next to livekit_customer_tester"
+    )
+  else()
+    add_custom_command(TARGET livekit_customer_tester POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:livekit>
+        $<TARGET_FILE_DIR:livekit_customer_tester>
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+        $<TARGET_FILE_DIR:livekit_customer_tester>
+      COMMENT "Copying shared libraries next to livekit_customer_tester"
+    )
+  endif()
 endif()
 
 add_executable(livekit_cuda_video_lifecycle_tester

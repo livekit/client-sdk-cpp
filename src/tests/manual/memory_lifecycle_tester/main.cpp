@@ -23,32 +23,15 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
-#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
-#if defined(_WIN32)
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-// clang-format off
-#include <windows.h>
-#include <psapi.h>
-// clang-format on
-#elif defined(__APPLE__)
-#include <mach/mach.h>
-#else
-#include <fstream>
-#endif
+#include "../../common/process_stats.h"
 
 namespace {
 
@@ -145,67 +128,9 @@ std::optional<std::uint64_t> parseMemoryLimitKib() {
   }
 }
 
-std::optional<std::uint64_t> currentRssKib() {
-#if defined(_WIN32)
-  PROCESS_MEMORY_COUNTERS counters{};
-  counters.cb = sizeof(counters);
-  if (GetProcessMemoryInfo(GetCurrentProcess(), &counters, sizeof(counters)) == 0) {
-    return std::nullopt;
-  }
-  return static_cast<std::uint64_t>(counters.WorkingSetSize) / 1024;
-#elif defined(__APPLE__)
-  mach_task_basic_info_data_t info{};
-  mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
-  const kern_return_t result =
-      task_info(mach_task_self(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&info), &count);
-  if (result != KERN_SUCCESS) {
-    return std::nullopt;
-  }
-  return static_cast<std::uint64_t>(info.resident_size) / 1024;
-#else
-  std::ifstream status("/proc/self/status");
-  if (!status) {
-    return std::nullopt;
-  }
-  std::string line;
-  while (std::getline(status, line)) {
-    if (line.compare(0, 6, "VmRSS:") != 0) {
-      continue;
-    }
-    std::istringstream fields(line.substr(6));
-    std::uint64_t kib = 0;
-    fields >> kib;
-    if (!fields) {
-      return std::nullopt;
-    }
-    return kib;
-  }
-  return std::nullopt;
-#endif
-}
-
-std::string formatRssKib(std::uint64_t rss_kib) {
-  std::ostringstream stream;
-  stream << rss_kib << " KiB (" << std::fixed << std::setprecision(2) << static_cast<double>(rss_kib) / 1024.0
-         << " MiB)";
-  return stream.str();
-}
-
-std::string formatRssSample() {
-  const auto rss_kib = currentRssKib();
-  if (!rss_kib) {
-    return "unavailable";
-  }
-  return formatRssKib(*rss_kib);
-}
-
 void checkFinalRss() {
-  const auto rss_kib = currentRssKib();
-  if (rss_kib) {
-    std::cout << "RSS final: " << formatRssKib(*rss_kib) << '\n';
-  } else {
-    std::cout << "RSS final: unavailable\n";
-  }
+  const auto rss_kib = livekit::test::currentRssKib();
+  std::cout << "RSS final: " << livekit::test::formatKibSample(rss_kib) << '\n';
 
   const auto limit_kib = parseMemoryLimitKib();
   if (!limit_kib) {
@@ -215,8 +140,8 @@ void checkFinalRss() {
     throw std::runtime_error(std::string(kMemoryLimitEnv) + " is set but RSS could not be sampled");
   }
   if (*rss_kib > *limit_kib) {
-    throw std::runtime_error("final RSS " + formatRssKib(*rss_kib) + " exceeds " + kMemoryLimitEnv + " " +
-                             formatRssKib(*limit_kib));
+    throw std::runtime_error("final RSS " + livekit::test::formatKib(*rss_kib) + " exceeds " + kMemoryLimitEnv + " " +
+                             livekit::test::formatKib(*limit_kib));
   }
 }
 
@@ -511,7 +436,8 @@ Options parseOptions(int argc, char* argv[]) {
 }
 
 void printCycleStatus(int iteration, int iteration_count) {
-  std::cout << "Completed " << iteration << "/" << iteration_count << " cycles (RSS " << formatRssSample() << ")\n";
+  std::cout << "Completed " << iteration << "/" << iteration_count << " cycles (RSS "
+            << livekit::test::formatKibSample(livekit::test::currentRssKib()) << ")\n";
   std::cout.flush();
 }
 

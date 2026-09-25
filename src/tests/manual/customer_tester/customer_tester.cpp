@@ -1,3 +1,19 @@
+/*
+ * Copyright 2026 LiveKit
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #include <livekit/livekit.h>
 #include <poll.h>
 #include <unistd.h>
@@ -21,6 +37,8 @@
 #include <thread>
 #include <variant>
 #include <vector>
+
+#include "../../common/process_stats.h"
 
 using Clock = std::chrono::steady_clock;
 using namespace std::chrono_literals;
@@ -183,15 +201,11 @@ struct Memory {
   int threads = 0;
 };
 Memory memory() {
+  const livekit::test::ProcessSample sample = livekit::test::currentProcessSample();
   Memory m;
-  std::string line;
-  std::ifstream smaps("/proc/self/smaps_rollup");
-  while (std::getline(smaps, line))
-    if (line.rfind("Rss:", 0) == 0) m.rss_kib = std::stoll(line.substr(4));
-  if (m.rss_kib < 0) throw std::runtime_error("Cannot read Rss in /proc/self/smaps_rollup");
-  std::ifstream status("/proc/self/status");
-  while (std::getline(status, line))
-    if (line.rfind("Threads:", 0) == 0) m.threads = std::stoi(line.substr(8));
+  if (sample.rss_kib) m.rss_kib = static_cast<std::int64_t>(*sample.rss_kib);
+  if (sample.thread_count) m.threads = static_cast<int>(*sample.thread_count);
+  if (m.rss_kib < 0) throw std::runtime_error("Cannot read process RSS");
   return m;
 }
 

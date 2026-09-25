@@ -250,8 +250,9 @@ TEST_F(RpcStressTest, MaxPayloadStress) {
           stats.recordCall(false, latency_ms, kMaxRpcPayloadSize);
 
           auto code = static_cast<RpcError::ErrorCode>(e.code());
-          std::cerr << "[RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\"" << " data=\"" << e.data()
-                    << "\"" << " latency=" << latency_ms << "ms" << std::endl;
+          std::cerr << "[RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\""
+                    << " data=\"" << e.data() << "\""
+                    << " latency=" << latency_ms << "ms" << std::endl;
 
           if (code == RpcError::ErrorCode::RESPONSE_TIMEOUT) {
             stats.recordError("timeout");
@@ -427,8 +428,8 @@ TEST_F(RpcStressTest, SmallPayloadStress) {
           stats.recordCall(false, latency_ms, kSmallPayloadSize);
 
           auto code = static_cast<RpcError::ErrorCode>(e.code());
-          std::cerr << "[RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\"" << " data=\"" << e.data()
-                    << "\"" << std::endl;
+          std::cerr << "[RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\""
+                    << " data=\"" << e.data() << "\"" << std::endl;
           if (code == RpcError::ErrorCode::RESPONSE_TIMEOUT) {
             stats.recordError("timeout");
           } else if (code == RpcError::ErrorCode::CONNECTION_TIMEOUT) {
@@ -590,8 +591,8 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
         }
       } catch (const RpcError& e) {
         stats_a_to_b.recordCall(false, 0, kMaxRpcPayloadSize);
-        std::cerr << "[A->B RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\"" << " data=\""
-                  << e.data() << "\"" << std::endl;
+        std::cerr << "[A->B RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\""
+                  << " data=\"" << e.data() << "\"" << std::endl;
       } catch (const std::exception& ex) {
         stats_a_to_b.recordCall(false, 0, kMaxRpcPayloadSize);
         std::cerr << "[A->B EXCEPTION] " << ex.what() << std::endl;
@@ -639,8 +640,8 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
         }
       } catch (const RpcError& e) {
         stats_b_to_a.recordCall(false, 0, kMaxRpcPayloadSize);
-        std::cerr << "[B->A RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\"" << " data=\""
-                  << e.data() << "\"" << std::endl;
+        std::cerr << "[B->A RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\""
+                  << " data=\"" << e.data() << "\"" << std::endl;
       } catch (const std::exception& ex) {
         stats_b_to_a.recordCall(false, 0, kMaxRpcPayloadSize);
         std::cerr << "[B->A EXCEPTION] " << ex.what() << std::endl;
@@ -659,10 +660,10 @@ TEST_F(RpcStressTest, BidirectionalRpcStress) {
       auto elapsed = std::chrono::steady_clock::now() - start_time;
       auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
 
-      std::cout << "[" << elapsed_seconds << "s] " << "A->B: " << stats_a_to_b.successfulCalls() << "/"
-                << stats_a_to_b.totalCalls() << " | " << "B->A: " << stats_b_to_a.successfulCalls() << "/"
-                << stats_b_to_a.totalCalls() << " | " << "A rcvd: " << a_received.load()
-                << " | B rcvd: " << b_received.load() << std::endl;
+      std::cout << "[" << elapsed_seconds << "s] "
+                << "A->B: " << stats_a_to_b.successfulCalls() << "/" << stats_a_to_b.totalCalls() << " | "
+                << "B->A: " << stats_b_to_a.successfulCalls() << "/" << stats_b_to_a.totalCalls() << " | "
+                << "A rcvd: " << a_received.load() << " | B rcvd: " << b_received.load() << std::endl;
     }
   });
 
@@ -783,8 +784,8 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
           }
         } catch (const RpcError& e) {
           stats.recordCall(false, 0, kMaxRpcPayloadSize);
-          std::cerr << "[BURST RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\"" << " data=\""
-                    << e.data() << "\"" << std::endl;
+          std::cerr << "[BURST RPC ERROR] code=" << e.code() << " message=\"" << e.message() << "\""
+                    << " data=\"" << e.data() << "\"" << std::endl;
         } catch (const std::exception& ex) {
           stats.recordCall(false, 0, kMaxRpcPayloadSize);
           std::cerr << "[BURST EXCEPTION] " << ex.what() << std::endl;
@@ -809,9 +810,10 @@ TEST_F(RpcStressTest, HighThroughputBurst) {
       auto elapsed = std::chrono::steady_clock::now() - start_time;
       auto elapsed_seconds = std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
 
-      std::cout << "[" << elapsed_seconds << "s] " << "Total: " << current << " | Success: " << stats.successfulCalls()
-                << " | Rate: " << rate << " calls/sec" << " | Throughput: " << (rate * kMaxRpcPayloadSize / 1024.0)
-                << " KB/sec" << std::endl;
+      std::cout << "[" << elapsed_seconds << "s] "
+                << "Total: " << current << " | Success: " << stats.successfulCalls() << " | Rate: " << rate
+                << " calls/sec"
+                << " | Throughput: " << (rate * kMaxRpcPayloadSize / 1024.0) << " KB/sec" << std::endl;
     }
   });
 

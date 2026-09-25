@@ -46,8 +46,8 @@ TEST_F(RoomStressTest, RapidRoomCreation) {
   auto end = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  std::cout << "Created and destroyed " << num_iterations << " Room objects in " << duration.count() << "ms" << " ("
-            << (num_iterations * 1000.0 / duration.count()) << " rooms/sec)" << std::endl;
+  std::cout << "Created and destroyed " << num_iterations << " Room objects in " << duration.count() << "ms"
+            << " (" << (num_iterations * 1000.0 / duration.count()) << " rooms/sec)" << std::endl;
 }
 
 // Stress test: Multiple simultaneous Room objects

@@ -20,13 +20,13 @@
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
-#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include "../../common/process_stats.h"
 #include "NvEncoder/NvEncoderCuda.h"
 
 namespace {
@@ -136,14 +136,11 @@ const char* stageName(Stage stage) {
 }
 
 std::int64_t rssKib() {
-  std::ifstream smaps("/proc/self/smaps_rollup");
-  std::string line;
-  while (std::getline(smaps, line)) {
-    if (line.rfind("Rss:", 0) == 0) {
-      return std::stoll(line.substr(4));
-    }
+  const auto rss_kib = livekit::test::currentRssKib();
+  if (!rss_kib) {
+    throw std::runtime_error("cannot read process RSS");
   }
-  throw std::runtime_error("cannot read process RSS");
+  return static_cast<std::int64_t>(*rss_kib);
 }
 
 void initializeEncoder(NvEncoder& encoder) {
