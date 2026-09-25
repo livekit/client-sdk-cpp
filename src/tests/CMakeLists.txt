@@ -327,6 +327,73 @@ if(STRESS_TEST_SOURCES)
   )
 endif()
 
+# Cargo records an absolute install name under target/{debug,release}/deps.
+# liblivekit.dylib is rewritten to @rpath after link. An executable that also
+# links livekit_ffi directly keeps the absolute path, so dyld maps a second
+# copy of the FFI library. -change is ignored when that load command is absent.
+function(livekit_rewrite_direct_ffi_dependency target)
+  if(NOT APPLE)
+    return()
+  endif()
+  add_custom_command(TARGET ${target} POST_BUILD
+    COMMAND /usr/bin/install_name_tool
+            -change "${RUST_TARGET_DIR}/release/deps/liblivekit_ffi.dylib"
+                    "@rpath/liblivekit_ffi.dylib"
+            -change "${RUST_TARGET_DIR}/debug/deps/liblivekit_ffi.dylib"
+                    "@rpath/liblivekit_ffi.dylib"
+            "$<TARGET_FILE:${target}>"
+    COMMENT "Rewrite ${target} liblivekit_ffi dependency to @rpath"
+    VERBATIM
+  )
+endfunction()
+
+# ============================================================================
+# Manual lifecycle reproducer
+# ============================================================================
+
+add_executable(server_room_shutdowner
+  "${CMAKE_CURRENT_SOURCE_DIR}/manual/server_room_shutdowner.cpp"
+)
+
+target_link_libraries(server_room_shutdowner PRIVATE livekit)
+target_include_directories(server_room_shutdowner PRIVATE ${LIVEKIT_ROOT_DIR}/include)
+target_compile_definitions(server_room_shutdowner PRIVATE
+  $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
+)
+
+if(WIN32)
+  target_link_libraries(server_room_shutdowner PRIVATE psapi)
+  add_custom_command(TARGET server_room_shutdowner POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:server_room_shutdowner>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
+      $<TARGET_FILE_DIR:server_room_shutdowner>
+    COMMENT "Copying DLLs to lifecycle reproducer directory"
+  )
+elseif(APPLE)
+  add_custom_command(TARGET server_room_shutdowner POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:server_room_shutdowner>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+      $<TARGET_FILE_DIR:server_room_shutdowner>
+    COMMENT "Copying dylibs to lifecycle reproducer directory"
+  )
+else()
+  add_custom_command(TARGET server_room_shutdowner POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:server_room_shutdowner>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+      $<TARGET_FILE_DIR:server_room_shutdowner>
+    COMMENT "Copying shared libraries to lifecycle reproducer directory"
+  )
+endif()
+
 # ============================================================================
 # Combined test target
 # ============================================================================
@@ -347,4 +414,204 @@ endif()
 
 if(TARGET livekit_stress_tests)
   add_dependencies(run_all_tests livekit_stress_tests)
+endif()
+
+# ============================================================================
+# Manual testers (built with the test targets, not registered with CTest)
+# ============================================================================
+
+add_executable(livekit_memory_lifecycle_tester
+  "${CMAKE_CURRENT_SOURCE_DIR}/manual/memory_lifecycle_tester/main.cpp"
+)
+
+target_link_libraries(livekit_memory_lifecycle_tester PRIVATE livekit)
+if(WIN32)
+  target_link_libraries(livekit_memory_lifecycle_tester PRIVATE psapi)
+endif()
+target_include_directories(livekit_memory_lifecycle_tester PRIVATE ${LIVEKIT_ROOT_DIR}/include)
+target_compile_definitions(livekit_memory_lifecycle_tester PRIVATE
+  $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
+)
+
+if(WIN32)
+  add_custom_command(TARGET livekit_memory_lifecycle_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_memory_lifecycle_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
+      $<TARGET_FILE_DIR:livekit_memory_lifecycle_tester>
+    COMMENT "Copying DLLs next to livekit_memory_lifecycle_tester"
+  )
+elseif(APPLE)
+  add_custom_command(TARGET livekit_memory_lifecycle_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_memory_lifecycle_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+      $<TARGET_FILE_DIR:livekit_memory_lifecycle_tester>
+    COMMENT "Copying dylibs next to livekit_memory_lifecycle_tester"
+  )
+  livekit_rewrite_direct_ffi_dependency(livekit_memory_lifecycle_tester)
+else()
+  add_custom_command(TARGET livekit_memory_lifecycle_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_memory_lifecycle_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+      $<TARGET_FILE_DIR:livekit_memory_lifecycle_tester>
+    COMMENT "Copying shared libraries next to livekit_memory_lifecycle_tester"
+  )
+endif()
+
+add_executable(livekit_simple_cuda_tester
+  "${CMAKE_CURRENT_SOURCE_DIR}/manual/simple_cuda_tester/main.cpp"
+)
+
+target_link_libraries(livekit_simple_cuda_tester PRIVATE livekit)
+target_include_directories(livekit_simple_cuda_tester PRIVATE ${LIVEKIT_ROOT_DIR}/include)
+target_compile_definitions(livekit_simple_cuda_tester PRIVATE
+  $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
+)
+
+if(WIN32)
+  add_custom_command(TARGET livekit_simple_cuda_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_simple_cuda_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
+      $<TARGET_FILE_DIR:livekit_simple_cuda_tester>
+    COMMENT "Copying DLLs next to livekit_simple_cuda_tester"
+  )
+elseif(APPLE)
+  add_custom_command(TARGET livekit_simple_cuda_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_simple_cuda_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+      $<TARGET_FILE_DIR:livekit_simple_cuda_tester>
+    COMMENT "Copying dylibs next to livekit_simple_cuda_tester"
+  )
+else()
+  add_custom_command(TARGET livekit_simple_cuda_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_simple_cuda_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+      $<TARGET_FILE_DIR:livekit_simple_cuda_tester>
+    COMMENT "Copying shared libraries next to livekit_simple_cuda_tester"
+  )
+endif()
+
+# Linux RSS probe. It reads /proc and waits on stdin with poll(), which Windows
+# does not provide.
+if(NOT WIN32)
+  add_executable(livekit_customer_tester
+    "${CMAKE_CURRENT_SOURCE_DIR}/manual/customer_tester/customer_tester.cpp"
+  )
+
+  target_link_libraries(livekit_customer_tester PRIVATE livekit)
+  target_include_directories(livekit_customer_tester PRIVATE ${LIVEKIT_ROOT_DIR}/include)
+
+  if(APPLE)
+    add_custom_command(TARGET livekit_customer_tester POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:livekit>
+        $<TARGET_FILE_DIR:livekit_customer_tester>
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+        $<TARGET_FILE_DIR:livekit_customer_tester>
+      COMMENT "Copying dylibs next to livekit_customer_tester"
+    )
+  else()
+    add_custom_command(TARGET livekit_customer_tester POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_FILE:livekit>
+        $<TARGET_FILE_DIR:livekit_customer_tester>
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+        $<TARGET_FILE_DIR:livekit_customer_tester>
+      COMMENT "Copying shared libraries next to livekit_customer_tester"
+    )
+  endif()
+endif()
+
+add_executable(livekit_cuda_video_lifecycle_tester
+  "${CMAKE_CURRENT_SOURCE_DIR}/manual/cuda_video_lifecycle_tester/main.cpp"
+)
+
+target_link_libraries(livekit_cuda_video_lifecycle_tester PRIVATE livekit)
+target_include_directories(livekit_cuda_video_lifecycle_tester PRIVATE ${LIVEKIT_ROOT_DIR}/include)
+target_compile_definitions(livekit_cuda_video_lifecycle_tester PRIVATE
+  $<$<PLATFORM_ID:Windows>:_USE_MATH_DEFINES>
+)
+
+if(WIN32)
+  add_custom_command(TARGET livekit_cuda_video_lifecycle_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_cuda_video_lifecycle_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
+      $<TARGET_FILE_DIR:livekit_cuda_video_lifecycle_tester>
+    COMMENT "Copying DLLs next to livekit_cuda_video_lifecycle_tester"
+  )
+elseif(APPLE)
+  add_custom_command(TARGET livekit_cuda_video_lifecycle_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_cuda_video_lifecycle_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
+      $<TARGET_FILE_DIR:livekit_cuda_video_lifecycle_tester>
+    COMMENT "Copying dylibs next to livekit_cuda_video_lifecycle_tester"
+  )
+  livekit_rewrite_direct_ffi_dependency(livekit_cuda_video_lifecycle_tester)
+else()
+  add_custom_command(TARGET livekit_cuda_video_lifecycle_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_cuda_video_lifecycle_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+      $<TARGET_FILE_DIR:livekit_cuda_video_lifecycle_tester>
+    COMMENT "Copying shared libraries next to livekit_cuda_video_lifecycle_tester"
+  )
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  find_package(CUDAToolkit QUIET)
+  if(CUDAToolkit_FOUND)
+    add_executable(livekit_cuda_context_lifecycle_tester
+      "${CMAKE_CURRENT_SOURCE_DIR}/manual/cuda_context_lifecycle_tester/main.cpp"
+    )
+    target_link_libraries(livekit_cuda_context_lifecycle_tester
+      PRIVATE CUDA::cuda_driver
+    )
+
+    set(LIVEKIT_NVCODEC_ROOT
+      "${LIVEKIT_ROOT_DIR}/client-sdk-rust/webrtc-sys/src/nvidia/NvCodec"
+    )
+    add_executable(livekit_nvenc_stage_lifecycle_tester
+      "${CMAKE_CURRENT_SOURCE_DIR}/manual/nvenc_stage_lifecycle_tester/main.cpp"
+      "${LIVEKIT_NVCODEC_ROOT}/NvCodec/NvEncoder/NvEncoder.cpp"
+      "${LIVEKIT_NVCODEC_ROOT}/NvCodec/NvEncoder/NvEncoderCuda.cpp"
+    )
+    target_include_directories(livekit_nvenc_stage_lifecycle_tester PRIVATE
+      "${LIVEKIT_NVCODEC_ROOT}/include"
+      "${LIVEKIT_NVCODEC_ROOT}/NvCodec"
+    )
+    target_link_libraries(livekit_nvenc_stage_lifecycle_tester
+      PRIVATE CUDA::cuda_driver ${CMAKE_DL_LIBS}
+    )
+  else()
+    message(STATUS
+      "CUDA Toolkit not found; skipping livekit_cuda_context_lifecycle_tester"
+    )
+  endif()
 endif()
