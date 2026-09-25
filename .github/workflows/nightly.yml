@@ -26,4 +26,5 @@ jobs:
       stress_timeout_minutes: 120
       artifact_retention_days: 14
       run_coverage: false
+      rust_log: info
     secrets: inherit
