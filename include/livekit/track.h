@@ -113,10 +113,19 @@ public:
   /// with this track. Default implementation is a no-op (e.g. remote tracks).
   virtual void setPublication(const std::shared_ptr<LocalTrackPublication>& publication) noexcept { (void)publication; }
 
-  // Internal updates (called by Room)
+  // Internal updates (called by Room / LocalParticipant)
   void setStreamState(StreamState s) noexcept { state_ = s; }
   void setMuted(bool m) noexcept { muted_ = m; }
   void setName(std::string n) noexcept { name_ = std::move(n); }
+  /// @brief Replace the cached track SID.
+  ///
+  /// Local tracks are created with the Rust placeholder `"TR_unknown"`.
+  /// @ref LocalParticipant::publishTrack updates this to the server-assigned
+  /// SID so @c sid() matches the publication (same invariant as the Python
+  /// and Unity FFI bindings).
+  ///
+  /// @param sid New track SID.
+  void setSid(std::string sid) noexcept { sid_ = std::move(sid); }
 
 protected:
   Track(FfiHandle handle, std::string sid, std::string name, TrackKind kind, StreamState state, bool muted,

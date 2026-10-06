@@ -136,9 +136,16 @@ public:
   void setTrackSubscriptionPermissions(bool allow_all_participants,
                                        const std::vector<ParticipantTrackPermission>& participant_permissions = {});
 
-  /// Publish a local track to the room.
+  /// @brief Publish a local track to the room.
   ///
+  /// On success, updates @p track's SID from the resulting publication so
+  /// @c track->sid() matches the server-assigned publication SID (local tracks
+  /// are created with the Rust placeholder `"TR_unknown"`).
+  ///
+  /// @param track   Local track to publish. Must be non-null with a valid FFI handle.
+  /// @param options Publish options (source, codec, simulcast, etc.).
   /// @throws std::runtime_error on error (e.g. publish failure).
+  /// @throws std::invalid_argument if @p track is null.
   void publishTrack(const std::shared_ptr<Track>& track, const TrackPublishOptions& options);
 
   /// Create a @ref LocalVideoTrack backed by the given @ref VideoSource,

@@ -55,8 +55,8 @@ TEST_F(EncodedVideoIngestionIntegrationTest, PublishVideoTrackAssignsRealSid) {
 
   auto source = std::make_shared<EncodedVideoSource>(VideoCodec::H264, 16, 16);
   std::shared_ptr<LocalVideoTrack> track;
-  ASSERT_NO_THROW(track = lockLocalParticipant(room)->publishVideoTrack("encoded-sid-check", source,
-                                                                        TrackSource::SOURCE_CAMERA));
+  ASSERT_NO_THROW(
+      track = lockLocalParticipant(room)->publishVideoTrack("encoded-sid-check", source, TrackSource::SOURCE_CAMERA));
   ASSERT_NE(track, nullptr);
   ASSERT_NE(track->publication(), nullptr);
 
