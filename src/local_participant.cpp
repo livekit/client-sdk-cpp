@@ -202,7 +202,6 @@ void LocalParticipant::publishTrack(const std::shared_ptr<Track>& track, const T
   const std::string sid = publication->sid();
   published_tracks_by_sid_[sid] = std::weak_ptr<Track>(track);
 
-  track->setSid(sid);
   track->setPublication(publication);
 }
 

@@ -43,9 +43,6 @@ constexpr std::array<std::uint8_t, 59> kH264KeyAccessUnit = {
 
 class EncodedVideoIngestionIntegrationTest : public LiveKitTestBase {};
 
-// Regression: LocalVideoTrack is created with the Rust placeholder SID
-// "TR_unknown". After publishVideoTrack returns, Track::sid() must reflect the
-// server-assigned SID (matching the publication), not the placeholder.
 TEST_F(EncodedVideoIngestionIntegrationTest, PublishVideoTrackAssignsRealSid) {
   failIfNotConfigured();
 
@@ -62,7 +59,7 @@ TEST_F(EncodedVideoIngestionIntegrationTest, PublishVideoTrackAssignsRealSid) {
 
   const std::string& track_sid = track->sid();
   const std::string& publication_sid = track->publication()->sid();
-  EXPECT_NE(track_sid, "TR_unknown") << "LocalVideoTrack::sid() still has the pre-publish placeholder";
+  EXPECT_NE(track_sid, "TR_unknown");
   EXPECT_FALSE(track_sid.empty());
   EXPECT_EQ(track_sid, publication_sid);
 

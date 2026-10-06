@@ -89,6 +89,9 @@ public:
   /// a true move but is a API-breaking change hence left for a future revision.
   void setPublication(const std::shared_ptr<LocalTrackPublication>& publication) noexcept override {
     local_publication_ = publication;
+    if (publication) {
+      setSid(publication->sid());
+    }
   }
 
 private:

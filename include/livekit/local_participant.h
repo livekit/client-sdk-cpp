@@ -138,7 +138,6 @@ public:
 
   /// Publish a local track to the room.
   ///
-  /// @param options Publish options (source, codec, simulcast, etc.).
   /// @throws std::runtime_error on error (e.g. publish failure).
   void publishTrack(const std::shared_ptr<Track>& track, const TrackPublishOptions& options);
 
