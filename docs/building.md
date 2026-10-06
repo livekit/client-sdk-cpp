@@ -58,11 +58,30 @@ sudo apt update && sudo apt install -y \
   build-essential cmake ninja-build pkg-config \
   llvm-dev libclang-dev clang \
   libprotobuf-dev protobuf-compiler libabsl-dev \
-  libssl-dev
+  libssl-dev libcurl4-openssl-dev
 
 # Install Rust if you don't already have it
 curl https://sh.rustup.rs -sSf | sh
 ```
+
+The bundled `libwebrtc` artifact uses a hermetic libc++ built from LLVM trunk.
+Ubuntu 24.04's Clang 18 is too old for it. The Linux CI uses LLVM 21.1.8; install
+that toolchain and select it for the SDK build without replacing Ubuntu's
+system compiler:
+
+```bash
+export LLVM_VERSION=21.1.8
+export LLVM_ROOT="$HOME/.local/llvm-$LLVM_VERSION"
+client-sdk-rust/.github/scripts/install-clang.sh
+export CC="$LLVM_ROOT/bin/clang"
+export CXX="$LLVM_ROOT/bin/clang++"
+
+# Confirm the selected compiler before configuring the SDK.
+"$CXX" --version
+```
+
+Set `CC` and `CXX` before the first build, or remove the affected build
+directory before reconfiguring so CMake does not retain the previous compiler.
 
 If you plan to build the [example collection](https://github.com/livekit-examples/cpp-example-collection)
 (SDL-based renderer + camera/mic capture), also install:
