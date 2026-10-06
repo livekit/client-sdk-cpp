@@ -116,6 +116,9 @@ public:
   /// the association.
   void setPublication(const std::shared_ptr<LocalTrackPublication>& publication) noexcept override {
     local_publication_ = publication;
+    if (publication) {
+      setSid(publication->sid());
+    }
   }
 
 private:

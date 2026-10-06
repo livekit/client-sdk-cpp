@@ -122,6 +122,8 @@ protected:
   Track(FfiHandle handle, std::string sid, std::string name, TrackKind kind, StreamState state, bool muted,
         bool remote);
 
+  void setSid(std::string sid) noexcept { sid_ = std::move(sid); }
+
   void setPublicationFields(std::optional<TrackSource> source, std::optional<bool> simulcasted,
                             std::optional<uint32_t> width, std::optional<uint32_t> height,
                             std::optional<std::string> mime_type);
