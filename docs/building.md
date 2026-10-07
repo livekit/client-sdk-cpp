@@ -198,6 +198,7 @@ cmake --build build
 | Option | Default | Description |
 |--------|---------|-------------|
 | `LIVEKIT_BUILD_EXAMPLES` | OFF | Build example applications |
+| `LIVEKIT_ENABLE_CAPTURE` | OFF | Build Rust pattern and clock capture sources; the repository's build presets enable this option |
 | `LIVEKIT_USE_SYSTEM_PROTOBUF` | OFF | Use system Protobuf instead of vcpkg's |
 | `LIVEKIT_LOG_LEVEL` | `TRACE` | Compile-time log threshold (see [logging.md](logging.md)) |
 | `LIVEKIT_VERSION` | repo-derived | SDK version string baked into the binary |

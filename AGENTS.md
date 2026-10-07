@@ -56,7 +56,7 @@ The SDK has three categories of threads:
 1. Completes any pending async `std::promise` matched by `async_id`.
 2. Invokes all registered `FfiClient` listeners (including `Room::onEvent`).
 
-All `RoomDelegate` callbacks and stream handler callbacks (e.g., `registerTextStreamHandler`) are invoked on this FFI callback thread. **Handlers must not block**; spawn a background thread if synchronous work is needed.
+All `RoomDelegate` callbacks, stream handler callbacks (e.g., `registerTextStreamHandler`), and `CaptureSource::FinishedCallback` notifications are invoked on this FFI callback thread. **Handlers must not block**; spawn a background thread if synchronous work is needed.
 
 **Per-subscription reader threads** — `SubscriptionThreadDispatcher` creates a dedicated `std::thread` for each active audio, video, or data track subscription. These threads block on `AudioStream::read()`, `VideoStream::read()`, or `DataTrackStream::read()` and invoke the registered `AudioFrameCallback`, `VideoFrameCallback`, or `DataFrameCallback` on that reader thread — not on the FFI callback thread. A hard limit of 20 concurrent reader threads is enforced.
 
@@ -77,6 +77,7 @@ All `RoomDelegate` callbacks and stream handler callbacks (e.g., `registerTextSt
 | `LocalAudioTrack` / `LocalVideoTrack` | No | Thin `sendRequest` wrappers with no internal synchronization. |
 | `LocalDataTrack::tryPush` | No | Thin `sendRequest` wrapper with no internal synchronization. |
 | `TextStreamWriter` / `ByteStreamWriter` | Serialized | `write()` is serialized by an internal `write_mutex_`. |
+| `CaptureSource` | Partially | Callback registration is mutex-protected; `start()` and `stop()` send FFI requests. Destruction must be synchronized with application calls. The finished callback runs on the FFI callback thread. |
 
 ### Directory Layout
 Be sure to update the directory layout in this file if the directory layout changes.
@@ -104,6 +105,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 - **`RoomDelegate`** — Virtual callback interface for room lifecycle events.
 - **`SubscriptionThreadDispatcher`** — Owns callback registrations and per-subscription reader threads for audio, video, and data tracks. `Room` delegates callback management here.
 - **`LocalParticipant` / `RemoteParticipant`** — Participant objects for publishing and receiving tracks.
+- **`CaptureSource`** — Wrapper for Rust-owned video capture producers and their frame pumps. Pattern and clock sources are supported initially.
 
 ## Build
 for building, use the build.sh script for Linux and macOS, and the build.cmd script for Windows. Do not invoke CMake directly to build the SDK.

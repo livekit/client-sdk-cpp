@@ -18,6 +18,7 @@ include(warnings)
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 option(LIVEKIT_BUILD_TESTS "Build LiveKit tests" OFF)
+option(LIVEKIT_ENABLE_CAPTURE "Build the Rust FFI with pattern and clock capture sources" OFF)
 
 # vcpkg is only used on Windows; Linux/macOS use system package managers
 if(WIN32)
@@ -167,6 +168,14 @@ set(GENERATED_BUILD_H "${LIVEKIT_ROOT_DIR}/include/livekit/build.h")
 set(GENERATED_BUILD_INFO_JSON "${LIVEKIT_BINARY_DIR}/build-info.json")
 set(RUST_ROOT ${LIVEKIT_ROOT_DIR}/client-sdk-rust)
 
+# Cargo features for the Rust FFI build.
+set(LIVEKIT_CARGO_FEATURES "")
+set(LIVEKIT_CAPTURE_ENABLED 0)
+if(LIVEKIT_ENABLE_CAPTURE)
+  set(LIVEKIT_CARGO_FEATURES "capture-pattern,capture-clock")
+  set(LIVEKIT_CAPTURE_ENABLED 1)
+endif()
+
 set(GIT_COMMIT "unknown")
 set(RUST_GIT_COMMIT "unknown")
 find_package(Git QUIET)
@@ -260,6 +269,11 @@ endif()
 set(ARGS build --package livekit-ffi)
 if(NOT CFG STREQUAL \"Debug\")
   list(APPEND ARGS --release)
+endif()
+
+if(DEFINED CARGO_FEATURES AND NOT CARGO_FEATURES STREQUAL \"\")
+  list(APPEND ARGS --features \"\${CARGO_FEATURES}\")
+  message(STATUS \"[run_cargo.cmake] Cargo features: \${CARGO_FEATURES}\")
 endif()
 
 if(DEFINED RUST_TARGET AND NOT RUST_TARGET STREQUAL \"\")
@@ -378,6 +392,7 @@ add_custom_command(
           -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
           -DRUST_TARGET=${RUST_TARGET_TRIPLE}
           -DGCC_LIB_DIR=${GCC_LIB_DIR}
+          -DCARGO_FEATURES=${LIVEKIT_CARGO_FEATURES}
           -P "${RUN_CARGO_SCRIPT}"
   WORKING_DIRECTORY "${RUST_ROOT}"
   DEPENDS ${RUST_SOURCES}
@@ -396,6 +411,7 @@ include(uniffi_cpp)
 add_library(livekit SHARED
   src/audio_frame.cpp
   src/audio_processing_module.cpp
+  src/capture_source.cpp
   src/audio_source.cpp
   src/audio_stream.cpp
   src/data_track_frame.cpp
