@@ -71,7 +71,7 @@ enum class Pattern {
 
 /// @brief Configuration for the built-in test source rendering a @ref Pattern.
 struct PatternVideoSourceConfig {
-  /// Output resolution; both components must be non-zero.
+  /// Output resolution; width and height must both be positive.
   CaptureResolution resolution;
 
   /// Output frame rate in frames per second; must be non-zero.
