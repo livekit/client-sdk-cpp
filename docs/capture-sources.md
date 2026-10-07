@@ -8,9 +8,9 @@ request per frame.
 The pattern source offers `Pattern::Gradient` and `Pattern::Logo`. The clock
 source displays the local time with millisecond precision.
 
-The repository build presets enable `LIVEKIT_ENABLE_CAPTURE`. A custom CMake
-configuration must set `-DLIVEKIT_ENABLE_CAPTURE=ON`; otherwise source creation
-fails. A GPU adapter must be available at runtime.
+Only the repository's `*-tests` and `*-all` build presets enable
+`LIVEKIT_ENABLE_CAPTURE`. Other presets and custom CMake configurations must set
+`-DLIVEKIT_ENABLE_CAPTURE=ON`; otherwise source creation fails. A GPU adapter must be available at runtime.
 
 Create a source, publish its video source as a local track, and start capture
 after publication:
