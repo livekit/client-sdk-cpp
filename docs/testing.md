@@ -106,6 +106,32 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
 - **RPC**: round-trip calls, max payload (15 KB), timeouts, errors, concurrent calls.
 - **Stress**: high throughput, bidirectional RPC, memory pressure.
 
+## Linux memory regression gate
+
+The Linux PR gate repeatedly initializes the SDK, creates and destroys unused
+audio/video sources and tracks, then shuts the SDK down. It compares process
+RSS and thread count after cycle 20 with cycle 100, failing on thread growth or
+more than 8 MiB of RSS growth.
+
+The workflow sets `MALLOC_ARENA_MAX=1` before process launch. This limits
+glibc's allocator arenas, reducing Linux thread-churn RSS noise; it is a
+controlled CI signal, not evidence that the default allocator returns all
+freed pages to the OS.
+
+To reproduce locally (no LiveKit server or tokens are required):
+
+```bash
+./build.sh release-tests
+scripts/memory-regression.sh \
+  --iterations 100 --warmup 20 \
+  --max-rss-growth-kib 8192 --max-thread-growth 0
+```
+
+The limits are command-line options so a longer local run can use different
+budgets. The wrapper defaults `MALLOC_ARENA_MAX` to `1` and appends a compact
+results table when `GITHUB_STEP_SUMMARY` is set. Hardware encoding and
+connected-room lifecycle coverage are separate follow-up work.
+
 ## Memory checks (valgrind)
 
 Run `valgrind` against the test binaries to check for memory leaks and other

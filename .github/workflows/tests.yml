@@ -425,6 +425,21 @@ jobs:
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_output=xml:${{ env.BUILD_DIR }}/integration-test-results.xml
 
+      - name: Run Linux memory regression gate
+        if: matrix.name == 'ubuntu-24.04-x64' && inputs.build_type == 'release'
+        timeout-minutes: 10
+        shell: bash
+        env:
+          MALLOC_ARENA_MAX: "1"
+        run: |
+          set -euo pipefail
+          scripts/memory-regression.sh \
+            --build-dir "${{ env.BUILD_DIR }}" \
+            --iterations 100 \
+            --warmup 20 \
+            --max-rss-growth-kib 8192 \
+            --max-thread-growth 0
+
       - name: Run stress tests
         if: matrix.e2e-testing && inputs.run_stress_tests
         timeout-minutes: ${{ inputs.stress_timeout_minutes }}
