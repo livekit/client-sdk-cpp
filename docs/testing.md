@@ -109,18 +109,22 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
 
 ## Linux memory regression gate
 
-The Linux PR gate runs four lifecycle scenarios in separate processes:
+The Linux PR gate runs five lifecycle scenarios in separate processes:
 
 - `audio-track` repeatedly initializes the SDK, creates an audio source and
   track, captures synthetic PCM frames, destroys them, and shuts the SDK down.
 - `video-track` repeatedly initializes the SDK, creates a video source and
   track, captures synthetic I420 frames, destroys them, and shuts the SDK down.
+- `data-track` repeatedly connects, publishes a data track, pushes synthetic
+  payloads, unpublishes it, and disconnects.
 - `room-client-leave` repeatedly connects, disconnects, and destroys a room.
 - `room-server-delete` repeatedly connects and uses `lk` to delete the local
   test room, then verifies the disconnect and end-of-stream callbacks.
 
-Each scenario compares process RSS and thread count after cycle 20 with cycle
-100, failing on thread growth or more than 8 MiB of RSS growth.
+Each scenario reports process RSS and thread count at cycle 0, after warmup
+cycle 20, and after final cycle 100. The cycle 0 to warmup growth shows expected
+one-time initialization; the gate applies to warmup-to-final growth and fails
+on thread growth or more than 8 MiB of RSS growth.
 
 The workflow sets `MALLOC_ARENA_MAX=1` before process launch. This limits
 glibc's allocator arenas, reducing Linux thread-churn RSS noise; it is a
@@ -139,12 +143,13 @@ scripts/memory-regression.sh --scenario video-track \
   --max-rss-growth-kib 8192 --max-thread-growth 0
 ```
 
-To run either room scenario, start `livekit-server --dev`, install the `lk`
-CLI, and source the local test tokens. Use `--scenario all` to run all four
+To run the data-track or room scenarios, start `livekit-server --dev`, install
+the `lk` CLI, and source the local test tokens. Use `--scenario all` to run all five
 scenarios, each in a fresh tester process:
 
 ```bash
 source scripts/set-test-tokens.sh
+scripts/memory-regression.sh --scenario data-track
 scripts/memory-regression.sh --scenario room-client-leave
 scripts/memory-regression.sh --scenario room-server-delete
 scripts/memory-regression.sh --scenario all

@@ -15,6 +15,7 @@
  */
 
 #include <livekit/livekit.h>
+#include <livekit/local_data_track.h>
 
 #include <algorithm>
 #include <cctype>
@@ -42,6 +43,7 @@ constexpr int kFramesPerCycle = 3;
 enum class Scenario {
   AudioTrack,
   VideoTrack,
+  DataTrack,
   RoomClientLeave,
   RoomServerDelete,
 };
@@ -130,6 +132,8 @@ std::string_view scenarioName(Scenario scenario) {
       return "audio-track";
     case Scenario::VideoTrack:
       return "video-track";
+    case Scenario::DataTrack:
+      return "data-track";
     case Scenario::RoomClientLeave:
       return "room-client-leave";
     case Scenario::RoomServerDelete:
@@ -144,6 +148,9 @@ Scenario parseScenario(std::string_view value) {
   }
   if (value == "video-track") {
     return Scenario::VideoTrack;
+  }
+  if (value == "data-track") {
+    return Scenario::DataTrack;
   }
   if (value == "room-client-leave") {
     return Scenario::RoomClientLeave;
@@ -269,6 +276,41 @@ void connectRoom(livekit::Room& room, const RoomCredentials& credentials) {
   }
 }
 
+void runDataTrackCycle(const RoomCredentials& credentials) {
+  DisconnectTrackingDelegate delegate;
+  livekit::Room room;
+  room.setDelegate(&delegate);
+  connectRoom(room, credentials);
+
+  auto participant = room.localParticipant().lock();
+  if (!participant) {
+    throw std::runtime_error("local participant expired before publishing data track");
+  }
+  auto publish_result = participant->publishDataTrack("memory-data");
+  if (!publish_result) {
+    throw std::runtime_error("failed to publish local data track");
+  }
+
+  const auto& track = publish_result.value();
+  livekit::DataTrackFrame frame;
+  frame.payload.assign(256, 0xFA);
+  for (int frame_index = 0; frame_index < kFramesPerCycle; ++frame_index) {
+    frame.user_timestamp = static_cast<std::uint64_t>(frame_index);
+    if (!track->tryPush(frame)) {
+      throw std::runtime_error("failed to push local data track frame");
+    }
+  }
+
+  track->unpublishDataTrack();
+  if (track->isPublished()) {
+    throw std::runtime_error("local data track remained published");
+  }
+  if (!room.disconnect()) {
+    throw std::runtime_error("client room disconnect failed");
+  }
+  delegate.requireDisconnect(livekit::DisconnectReason::ClientInitiated);
+}
+
 void runRoomClientLeaveCycle(const RoomCredentials& credentials) {
   DisconnectTrackingDelegate delegate;
   livekit::Room room;
@@ -315,6 +357,9 @@ void runCycle(Scenario scenario, const RoomCredentials& credentials) {
     case Scenario::VideoTrack:
       runVideoTrackCycle();
       return;
+    case Scenario::DataTrack:
+      runDataTrackCycle(credentials);
+      return;
     case Scenario::RoomClientLeave:
       runRoomClientLeaveCycle(credentials);
       return;
@@ -330,33 +375,42 @@ void runCycle(Scenario scenario, const RoomCredentials& credentials) {
 int main(int argc, char* argv[]) {
   try {
     const Options options = parseOptions(argc, argv);
-    const bool room_scenario =
-        options.scenario == Scenario::RoomClientLeave || options.scenario == Scenario::RoomServerDelete;
-    const RoomCredentials credentials = room_scenario ? roomCredentials() : RoomCredentials{};
+    const bool connected_scenario = options.scenario == Scenario::DataTrack ||
+                                    options.scenario == Scenario::RoomClientLeave ||
+                                    options.scenario == Scenario::RoomServerDelete;
+    const RoomCredentials credentials = connected_scenario ? roomCredentials() : RoomCredentials{};
     std::unique_ptr<SdkLifetime> room_sdk;
-    if (room_scenario) {
+    if (connected_scenario) {
       room_sdk = std::make_unique<SdkLifetime>();
     }
 
-    ProcessSample baseline;
+    const ProcessSample initial = sampleProcess();
+    ProcessSample warmup;
     ProcessSample final;
     for (std::uint64_t iteration = 1; iteration <= options.iterations; ++iteration) {
       runCycle(options.scenario, credentials);
       std::this_thread::sleep_for(100ms);
       if (iteration == options.warmup) {
-        baseline = sampleProcess();
+        warmup = sampleProcess();
       } else if (iteration == options.iterations) {
         final = sampleProcess();
       }
     }
 
-    const auto rss_growth = static_cast<std::int64_t>(final.rss_kib) - static_cast<std::int64_t>(baseline.rss_kib);
-    const auto thread_growth = static_cast<std::int64_t>(final.threads) - static_cast<std::int64_t>(baseline.threads);
-    const bool passed = rss_growth <= static_cast<std::int64_t>(options.max_rss_growth_kib) &&
-                        thread_growth <= static_cast<std::int64_t>(options.max_thread_growth);
-    std::cout << "memory lifecycle: scenario=" << scenarioName(options.scenario) << ", RSS " << baseline.rss_kib
-              << " -> " << final.rss_kib << " KiB (" << rss_growth << " KiB), threads " << baseline.threads << " -> "
-              << final.threads << " (" << thread_growth << "), verdict=" << (passed ? "PASS" : "FAIL") << '\n';
+    const auto warmup_rss_growth =
+        static_cast<std::int64_t>(warmup.rss_kib) - static_cast<std::int64_t>(initial.rss_kib);
+    const auto final_rss_growth = static_cast<std::int64_t>(final.rss_kib) - static_cast<std::int64_t>(warmup.rss_kib);
+    const auto warmup_thread_growth =
+        static_cast<std::int64_t>(warmup.threads) - static_cast<std::int64_t>(initial.threads);
+    const auto final_thread_growth =
+        static_cast<std::int64_t>(final.threads) - static_cast<std::int64_t>(warmup.threads);
+    const bool passed = final_rss_growth <= static_cast<std::int64_t>(options.max_rss_growth_kib) &&
+                        final_thread_growth <= static_cast<std::int64_t>(options.max_thread_growth);
+    std::cout << "memory lifecycle: scenario=" << scenarioName(options.scenario) << ", RSS 0 " << initial.rss_kib
+              << " -> warmup " << warmup.rss_kib << " KiB (" << warmup_rss_growth << " KiB) -> final " << final.rss_kib
+              << " KiB (" << final_rss_growth << " KiB), threads 0 " << initial.threads << " -> warmup "
+              << warmup.threads << " (" << warmup_thread_growth << ") -> final " << final.threads << " ("
+              << final_thread_growth << "), verdict=" << (passed ? "PASS" : "FAIL") << '\n';
     return passed ? 0 : 1;
   } catch (const std::exception& error) {
     std::cerr << "memory lifecycle tester failed: " << error.what() << '\n';
