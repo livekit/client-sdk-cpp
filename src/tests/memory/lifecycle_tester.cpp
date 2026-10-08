@@ -16,6 +16,7 @@
 
 #include <livekit/livekit.h>
 
+#include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <chrono>
@@ -36,15 +37,17 @@ namespace {
 using namespace std::chrono_literals;
 
 constexpr std::string_view kLocalTestLiveKitUrl = "ws://localhost:7880";
+constexpr int kFramesPerCycle = 3;
 
 enum class Scenario {
-  SdkSources,
+  AudioTrack,
+  VideoTrack,
   RoomClientLeave,
   RoomServerDelete,
 };
 
 struct Options {
-  Scenario scenario{Scenario::SdkSources};
+  Scenario scenario{Scenario::AudioTrack};
   std::uint64_t iterations{100};
   std::uint64_t warmup{20};
   std::uint64_t max_rss_growth_kib{std::uint64_t{8} * 1024U};
@@ -123,8 +126,10 @@ private:
 
 std::string_view scenarioName(Scenario scenario) {
   switch (scenario) {
-    case Scenario::SdkSources:
-      return "sdk-sources";
+    case Scenario::AudioTrack:
+      return "audio-track";
+    case Scenario::VideoTrack:
+      return "video-track";
     case Scenario::RoomClientLeave:
       return "room-client-leave";
     case Scenario::RoomServerDelete:
@@ -134,8 +139,11 @@ std::string_view scenarioName(Scenario scenario) {
 }
 
 Scenario parseScenario(std::string_view value) {
-  if (value == "sdk-sources") {
-    return Scenario::SdkSources;
+  if (value == "audio-track") {
+    return Scenario::AudioTrack;
+  }
+  if (value == "video-track") {
+    return Scenario::VideoTrack;
   }
   if (value == "room-client-leave") {
     return Scenario::RoomClientLeave;
@@ -222,14 +230,33 @@ RoomCredentials roomCredentials() {
   return {url, token};
 }
 
-void runSdkSourcesCycle() {
+void runAudioTrackCycle() {
   SdkLifetime sdk;
-  auto audio_source = std::make_shared<livekit::AudioSource>(48'000, 1, 100);
+  auto audio_source = std::make_shared<livekit::AudioSource>(48'000, 1);
   auto audio_track = livekit::LocalAudioTrack::createLocalAudioTrack("memory-audio", audio_source);
+  if (!audio_track) {
+    throw std::runtime_error("failed to create local audio track");
+  }
+
+  auto frame = livekit::AudioFrame::create(48'000, 1, 480);
+  std::fill(frame.data().begin(), frame.data().end(), 100);
+  for (int frame_index = 0; frame_index < kFramesPerCycle; ++frame_index) {
+    audio_source->captureFrame(frame, 1'000);
+  }
+}
+
+void runVideoTrackCycle() {
+  SdkLifetime sdk;
   auto video_source = std::make_shared<livekit::VideoSource>(640, 360);
   auto video_track = livekit::LocalVideoTrack::createLocalVideoTrack("memory-video", video_source);
-  if (!audio_track || !video_track) {
-    throw std::runtime_error("failed to create local tracks");
+  if (!video_track) {
+    throw std::runtime_error("failed to create local video track");
+  }
+
+  auto frame = livekit::VideoFrame::create(640, 360, livekit::VideoBufferType::I420);
+  std::fill(frame.data(), frame.data() + frame.dataSize(), 0x7f);
+  for (int frame_index = 0; frame_index < kFramesPerCycle; ++frame_index) {
+    video_source->captureFrame(frame);
   }
 }
 
@@ -282,8 +309,11 @@ void runRoomServerDeleteCycle(const RoomCredentials& credentials) {
 
 void runCycle(Scenario scenario, const RoomCredentials& credentials) {
   switch (scenario) {
-    case Scenario::SdkSources:
-      runSdkSourcesCycle();
+    case Scenario::AudioTrack:
+      runAudioTrackCycle();
+      return;
+    case Scenario::VideoTrack:
+      runVideoTrackCycle();
       return;
     case Scenario::RoomClientLeave:
       runRoomClientLeaveCycle(credentials);
@@ -300,7 +330,8 @@ void runCycle(Scenario scenario, const RoomCredentials& credentials) {
 int main(int argc, char* argv[]) {
   try {
     const Options options = parseOptions(argc, argv);
-    const bool room_scenario = options.scenario != Scenario::SdkSources;
+    const bool room_scenario =
+        options.scenario == Scenario::RoomClientLeave || options.scenario == Scenario::RoomServerDelete;
     const RoomCredentials credentials = room_scenario ? roomCredentials() : RoomCredentials{};
     std::unique_ptr<SdkLifetime> room_sdk;
     if (room_scenario) {

@@ -25,8 +25,8 @@ GitHub step summary when GITHUB_STEP_SUMMARY is set.
 
 Options:
   --build-dir PATH            Build directory (default: build-release)
-  --scenario NAME             sdk-sources, room-client-leave,
-                              room-server-delete, or all (default: sdk-sources)
+  --scenario NAME             audio-track, video-track, room-client-leave,
+                              room-server-delete, or all (default: audio-track)
   --iterations N              Lifecycle cycles (default: 100)
   --warmup N                  Baseline cycle (default: 20)
   --max-rss-growth-kib N      Allowed RSS growth (default: 8192)
@@ -44,7 +44,7 @@ EOF
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 build_dir="${MEMORY_REGRESSION_BUILD_DIR:-build-release}"
-scenario="${MEMORY_REGRESSION_SCENARIO:-sdk-sources}"
+scenario="${MEMORY_REGRESSION_SCENARIO:-audio-track}"
 iterations="${MEMORY_REGRESSION_ITERATIONS:-100}"
 warmup="${MEMORY_REGRESSION_WARMUP:-20}"
 max_rss_growth_kib="${MEMORY_REGRESSION_MAX_RSS_GROWTH_KIB:-8192}"
@@ -73,11 +73,11 @@ if [[ ! -x "${tester}" ]]; then
 fi
 
 case "${scenario}" in
-  sdk-sources|room-client-leave|room-server-delete)
+  audio-track|video-track|room-client-leave|room-server-delete)
     scenarios=("${scenario}")
     ;;
   all)
-    scenarios=(sdk-sources room-client-leave room-server-delete)
+    scenarios=(audio-track video-track room-client-leave room-server-delete)
     ;;
   *)
     echo "ERROR: invalid scenario: ${scenario}" >&2
@@ -87,7 +87,7 @@ case "${scenario}" in
 esac
 
 for current_scenario in "${scenarios[@]}"; do
-  if [[ "${current_scenario}" != "sdk-sources" ]] &&
+  if [[ "${current_scenario}" == room-* ]] &&
      [[ -z "${LIVEKIT_URL:-}" || -z "${LIVEKIT_TOKEN_A:-}" ]]; then
     echo "ERROR: ${current_scenario} requires LIVEKIT_URL and LIVEKIT_TOKEN_A." >&2
     echo "Run: source scripts/set-test-tokens.sh" >&2
