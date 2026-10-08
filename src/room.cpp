@@ -63,20 +63,6 @@ std::shared_ptr<LocalTrackPublication> localTrackPublication(const std::shared_p
   return nullptr;
 }
 
-void updateLocalTrackPublicationInfo(LocalTrackPublication& publication, const proto::TrackPublicationInfo& info) {
-  publication.sid_ = info.sid();
-  publication.name_ = info.name();
-  publication.kind_ = fromProto(info.kind());
-  publication.source_ = fromProto(info.source());
-  publication.simulcasted_ = info.simulcasted();
-  publication.width_ = info.width();
-  publication.height_ = info.height();
-  publication.mime_type_ = info.mime_type();
-  publication.muted_ = info.muted();
-  publication.encryption_type_ = static_cast<EncryptionType>(info.encryption_type());
-  publication.audio_features_ = convertAudioFeatures(info.audio_features());
-}
-
 std::shared_ptr<livekit::RemoteParticipant> createRemoteParticipant(const proto::OwnedParticipant& owned) {
   const auto& pinfo = owned.info();
   std::unordered_map<std::string, std::string> attrs;
@@ -632,6 +618,7 @@ void Room::onEvent(const FfiEvent& event) {
           const auto& ltr = re.local_track_republished();
           const std::string& previous_sid = ltr.previous_sid();
 
+          const std::scoped_lock<std::mutex> publications_guard(local_participant_->published_tracks_mutex_);
           auto& published = local_participant_->published_tracks_by_sid_;
           auto it = published.find(previous_sid);
           if (it == published.end()) {
@@ -649,7 +636,18 @@ void Room::onEvent(const FfiEvent& event) {
             LK_LOG_WARN("local_track_republished missing publication for sid: {}", previous_sid);
             break;
           }
-          updateLocalTrackPublicationInfo(*publication, ltr.info());
+          const auto& info = ltr.info();
+          publication->sid_ = info.sid();
+          publication->name_ = info.name();
+          publication->kind_ = fromProto(info.kind());
+          publication->source_ = fromProto(info.source());
+          publication->simulcasted_ = info.simulcasted();
+          publication->width_ = info.width();
+          publication->height_ = info.height();
+          publication->mime_type_ = info.mime_type();
+          publication->muted_ = info.muted();
+          publication->encryption_type_ = static_cast<EncryptionType>(info.encryption_type());
+          publication->audio_features_ = convertAudioFeatures(info.audio_features());
           published.erase(it);
           published[publication->sid()] = track;
           track->setPublication(publication);

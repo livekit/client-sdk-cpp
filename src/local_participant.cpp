@@ -190,19 +190,18 @@ void LocalParticipant::publishTrack(const std::shared_ptr<Track>& track, const T
   if (track_handle == 0) {
     throw std::runtime_error("LocalParticipant::publishTrack: invalid track FFI handle");
   }
-  auto fut = FfiClient::instance().publishTrackAsync(static_cast<std::uint64_t>(participant_handle),
-                                                     static_cast<std::uint64_t>(track_handle), options);
+  auto fut = FfiClient::instance().publishTrackAsync(
+      static_cast<std::uint64_t>(participant_handle), static_cast<std::uint64_t>(track_handle), options,
+      [this, track](const proto::OwnedTrackPublication& owned_pub) {
+        auto publication = std::make_shared<LocalTrackPublication>(owned_pub);
+        const std::scoped_lock<std::mutex> guard(published_tracks_mutex_);
+        published_tracks_by_sid_[publication->sid()] = track;
+        track->setPublication(publication);
+      });
 
-  // Will throw if the async op fails (error in callback).
-  const proto::OwnedTrackPublication owned_pub = fut.get();
-
-  // Construct a LocalTrackPublication from the proto publication.
-  auto publication = std::make_shared<LocalTrackPublication>(owned_pub);
-
-  const std::string sid = publication->sid();
-  published_tracks_by_sid_[sid] = std::weak_ptr<Track>(track);
-
-  track->setPublication(publication);
+  // Publication state is installed on the FFI thread before this future is
+  // completed and before Rust can emit LocalTrackPublished.
+  (void)fut.get();
 }
 
 std::shared_ptr<LocalVideoTrack> LocalParticipant::publishVideoTrack(const std::string& name,
@@ -248,6 +247,7 @@ void LocalParticipant::unpublishTrack(const std::string& track_sid) {
 
   fut.get();
 
+  const std::scoped_lock<std::mutex> guard(published_tracks_mutex_);
   if (auto it = published_tracks_by_sid_.find(track_sid); it != published_tracks_by_sid_.end()) {
     if (auto t = it->second.lock()) {
       t->setPublication(nullptr);
@@ -257,6 +257,7 @@ void LocalParticipant::unpublishTrack(const std::string& track_sid) {
 }
 
 LocalParticipant::PublicationMap LocalParticipant::trackPublications() const {
+  const std::scoped_lock<std::mutex> guard(published_tracks_mutex_);
   PublicationMap out;
   for (auto it = published_tracks_by_sid_.begin(); it != published_tracks_by_sid_.end();) {
     auto t = it->second.lock();
@@ -494,6 +495,7 @@ void LocalParticipant::handleRpcMethodInvocation(uint64_t invocation_id, const s
 }
 
 std::shared_ptr<TrackPublication> LocalParticipant::findTrackPublication(const std::string& sid) const {
+  const std::scoped_lock<std::mutex> guard(published_tracks_mutex_);
   auto it = published_tracks_by_sid_.find(sid);
   if (it == published_tracks_by_sid_.end()) {
     return nullptr;

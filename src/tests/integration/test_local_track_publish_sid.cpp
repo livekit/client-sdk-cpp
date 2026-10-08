@@ -17,9 +17,12 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
+#include <unordered_set>
 
 #include "../common/audio_utils.h"
 #include "../common/room_test_access.h"
@@ -30,6 +33,30 @@ namespace livekit::test {
 namespace {
 
 using namespace std::chrono_literals;
+
+class LocalPublicationDelegate final : public RoomDelegate {
+public:
+  void onLocalTrackPublished(Room&, const LocalTrackPublishedEvent& event) override {
+    if (!event.publication) {
+      return;
+    }
+    {
+      const std::scoped_lock<std::mutex> guard(mutex_);
+      published_sids_.insert(event.publication->sid());
+    }
+    cv_.notify_all();
+  }
+
+  bool waitForPublished(const std::string& sid, std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    return cv_.wait_for(lock, timeout, [&] { return published_sids_.count(sid) != 0; });
+  }
+
+private:
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  std::unordered_set<std::string> published_sids_;
+};
 
 void expectTrackSidAssigned(const Track& track, const LocalTrackPublication& publication) {
   const std::string& track_sid = track.sid();
@@ -58,6 +85,8 @@ TEST_F(LocalTrackPublishSidTest, PublishVideoTrackAssignsSid) {
   failIfNotConfigured();
 
   Room room;
+  LocalPublicationDelegate delegate;
+  room.setDelegate(&delegate);
   const RoomOptions room_options;
   ASSERT_TRUE(room.connect(config_.url, config_.token_a, room_options));
 
@@ -69,6 +98,7 @@ TEST_F(LocalTrackPublishSidTest, PublishVideoTrackAssignsSid) {
   ASSERT_NE(track->publication(), nullptr);
 
   expectTrackSidAssigned(*track, *track->publication());
+  EXPECT_TRUE(delegate.waitForPublished(track->sid(), 5s));
   lockLocalParticipant(room)->unpublishTrack(track->publication()->sid());
 }
 
@@ -76,6 +106,8 @@ TEST_F(LocalTrackPublishSidTest, PublishAudioTrackAssignsSid) {
   failIfNotConfigured();
 
   Room room;
+  LocalPublicationDelegate delegate;
+  room.setDelegate(&delegate);
   const RoomOptions room_options;
   ASSERT_TRUE(room.connect(config_.url, config_.token_a, room_options));
 
@@ -87,6 +119,7 @@ TEST_F(LocalTrackPublishSidTest, PublishAudioTrackAssignsSid) {
   ASSERT_NE(track->publication(), nullptr);
 
   expectTrackSidAssigned(*track, *track->publication());
+  EXPECT_TRUE(delegate.waitForPublished(track->sid(), 5s));
   lockLocalParticipant(room)->unpublishTrack(track->publication()->sid());
 }
 
