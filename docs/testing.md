@@ -44,6 +44,7 @@ __Note:__ The tests require tokens and a running LiveKit server. See the section
 | `livekit_unit_tests` | Pure unit tests (no server required) |
 | `livekit_integration_tests` | Quick tests (~1-2 minutes) for SDK functionality |
 | `livekit_stress_tests` | Long-running tests (configurable, default 1 hour) |
+| `livekit_memory_lifecycle_tester` | Linux lifecycle RSS and thread regression scenarios |
 
 ## Running a local LiveKit server for tests
 
@@ -108,29 +109,47 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
 
 ## Linux memory regression gate
 
-The Linux PR gate repeatedly initializes the SDK, creates and destroys unused
-audio/video sources and tracks, then shuts the SDK down. It compares process
-RSS and thread count after cycle 20 with cycle 100, failing on thread growth or
-more than 8 MiB of RSS growth.
+The Linux PR gate runs three lifecycle scenarios in separate processes:
+
+- `sdk-sources` repeatedly initializes the SDK, creates and destroys unused
+  audio/video sources and tracks, then shuts the SDK down.
+- `room-client-leave` repeatedly connects, disconnects, and destroys a room.
+- `room-server-delete` repeatedly connects and uses `lk` to delete the local
+  test room, then verifies the disconnect and end-of-stream callbacks.
+
+Each scenario compares process RSS and thread count after cycle 20 with cycle
+100, failing on thread growth or more than 8 MiB of RSS growth.
 
 The workflow sets `MALLOC_ARENA_MAX=1` before process launch. This limits
 glibc's allocator arenas, reducing Linux thread-churn RSS noise; it is a
 controlled CI signal, not evidence that the default allocator returns all
 freed pages to the OS.
 
-To reproduce locally (no LiveKit server or tokens are required):
+The offline source scenario requires no LiveKit server or tokens:
 
 ```bash
 ./build.sh release-tests
 scripts/memory-regression.sh \
+  --scenario sdk-sources \
   --iterations 100 --warmup 20 \
   --max-rss-growth-kib 8192 --max-thread-growth 0
 ```
 
+To run either room scenario, start `livekit-server --dev`, install the `lk`
+CLI, and source the local test tokens. Use `--scenario all` to run all three
+scenarios, each in a fresh tester process:
+
+```bash
+source scripts/set-test-tokens.sh
+scripts/memory-regression.sh --scenario room-client-leave
+scripts/memory-regression.sh --scenario room-server-delete
+scripts/memory-regression.sh --scenario all
+```
+
 The limits are command-line options so a longer local run can use different
-budgets. The wrapper defaults `MALLOC_ARENA_MAX` to `1` and appends a compact
-results table when `GITHUB_STEP_SUMMARY` is set. Hardware encoding and
-connected-room lifecycle coverage are separate follow-up work.
+budgets. The wrapper defaults `MALLOC_ARENA_MAX` to `1` and appends one results
+row per scenario when `GITHUB_STEP_SUMMARY` is set. Hardware encoding coverage
+is separate follow-up work.
 
 ## Memory checks (valgrind)
 
