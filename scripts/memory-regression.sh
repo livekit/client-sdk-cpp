@@ -26,8 +26,8 @@ GitHub step summary when GITHUB_STEP_SUMMARY is set.
 Options:
   --build-dir PATH            Build directory (default: build-release)
   --scenario NAME             audio-track, video-track, data-track,
-                              room-client-leave, room-server-delete, or all
-                              (default: audio-track)
+                              room-reuse, room-client-leave,
+                              room-server-delete, or all (default: audio-track)
   --iterations N              Lifecycle cycles (default: 100)
   --warmup N                  Baseline cycle (default: 20)
   --max-rss-growth-kib N      Allowed RSS growth (default: 8192)
@@ -39,7 +39,7 @@ Environment:
   MEMORY_REGRESSION_ITERATIONS,
   MEMORY_REGRESSION_WARMUP, MEMORY_REGRESSION_MAX_RSS_GROWTH_KIB,
   MEMORY_REGRESSION_MAX_THREAD_GROWTH, MALLOC_ARENA_MAX.
-  Room scenarios also require LIVEKIT_URL and LIVEKIT_TOKEN_A.
+  All scenarios require LIVEKIT_URL and LIVEKIT_TOKEN_A.
 EOF
 }
 
@@ -74,11 +74,11 @@ if [[ ! -x "${tester}" ]]; then
 fi
 
 case "${scenario}" in
-  audio-track|video-track|data-track|room-client-leave|room-server-delete)
+  audio-track|video-track|data-track|room-reuse|room-client-leave|room-server-delete)
     scenarios=("${scenario}")
     ;;
   all)
-    scenarios=(audio-track video-track data-track room-client-leave room-server-delete)
+    scenarios=(audio-track video-track data-track room-reuse room-client-leave room-server-delete)
     ;;
   *)
     echo "ERROR: invalid scenario: ${scenario}" >&2
@@ -88,8 +88,7 @@ case "${scenario}" in
 esac
 
 for current_scenario in "${scenarios[@]}"; do
-  if [[ "${current_scenario}" == "data-track" || "${current_scenario}" == room-* ]] &&
-     [[ -z "${LIVEKIT_URL:-}" || -z "${LIVEKIT_TOKEN_A:-}" ]]; then
+  if [[ -z "${LIVEKIT_URL:-}" || -z "${LIVEKIT_TOKEN_A:-}" ]]; then
     echo "ERROR: ${current_scenario} requires LIVEKIT_URL and LIVEKIT_TOKEN_A." >&2
     echo "Run: source scripts/set-test-tokens.sh" >&2
     exit 1
@@ -102,12 +101,21 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     echo
     echo "Warmup → final limits: RSS growth ≤ ${max_rss_growth_kib} KiB; thread growth ≤ ${max_thread_growth}."
     echo
-    echo "| Scenario | Metric | Cycle 0 | Warmup (${warmup}) | Final (${iterations}) | 0 → warmup | Warmup → final | Verdict |"
-    echo "|---|---|---:|---:|---:|---:|---:|---|"
+    echo "| Scenario | RSS 0→${warmup} | RSS ${warmup}→${iterations} | Threads 0→${warmup} | Threads ${warmup}→${iterations} |"
+    echo "|---|---:|---:|---:|---:|"
   } >> "${GITHUB_STEP_SUMMARY}"
 fi
 
 report_regex='memory lifecycle: scenario=([a-z-]+), RSS 0 ([0-9]+) -> warmup ([0-9]+) KiB \((-?[0-9]+) KiB\) -> final ([0-9]+) KiB \((-?[0-9]+) KiB\), threads 0 ([0-9]+) -> warmup ([0-9]+) \((-?[0-9]+)\) -> final ([0-9]+) \((-?[0-9]+)\), verdict=(PASS|FAIL)'
+
+format_growth() {
+  if [[ "$1" == "0" || "$1" == -* ]]; then
+    printf '%s' "$1"
+  else
+    printf '+%s' "$1"
+  fi
+}
+
 overall_status=0
 for current_scenario in "${scenarios[@]}"; do
   set +e
@@ -125,15 +133,17 @@ for current_scenario in "${scenarios[@]}"; do
 
   if [[ "${output}" =~ ${report_regex} ]]; then
     if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-      {
-        echo "| ${BASH_REMATCH[1]} | RSS | ${BASH_REMATCH[2]} KiB | ${BASH_REMATCH[3]} KiB | ${BASH_REMATCH[5]} KiB | ${BASH_REMATCH[4]} KiB | ${BASH_REMATCH[6]} KiB | ${BASH_REMATCH[12]} |"
-        echo "| ${BASH_REMATCH[1]} | Threads | ${BASH_REMATCH[7]} | ${BASH_REMATCH[8]} | ${BASH_REMATCH[10]} | ${BASH_REMATCH[9]} | ${BASH_REMATCH[11]} | ${BASH_REMATCH[12]} |"
-      } >> "${GITHUB_STEP_SUMMARY}"
+      rss_warmup_growth="$(format_growth "${BASH_REMATCH[4]}")"
+      rss_final_growth="$(format_growth "${BASH_REMATCH[6]}")"
+      thread_warmup_growth="$(format_growth "${BASH_REMATCH[9]}")"
+      thread_final_growth="$(format_growth "${BASH_REMATCH[11]}")"
+      echo "| ${BASH_REMATCH[1]} | ${rss_warmup_growth} KiB | ${rss_final_growth} KiB | ${thread_warmup_growth} | ${thread_final_growth} |" \
+        >> "${GITHUB_STEP_SUMMARY}"
     fi
   else
     echo "ERROR: ${current_scenario} did not produce a memory report." >&2
     if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-      echo "| ${current_scenario} | — | — | — | — | — | — | ERROR |" >> "${GITHUB_STEP_SUMMARY}"
+      echo "| ${current_scenario} | — | — | — | ERROR |" >> "${GITHUB_STEP_SUMMARY}"
     fi
     status=1
   fi
