@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -53,7 +54,7 @@ struct Options {
   Scenario scenario{Scenario::AudioTrack};
   std::uint64_t iterations{100};
   std::uint64_t warmup{20};
-  std::uint64_t max_rss_growth_kib{std::uint64_t{8} * 1024U};
+  std::uint64_t max_rss_growth_mib{8};
   std::uint64_t max_thread_growth{0};
 };
 
@@ -190,8 +191,8 @@ Options parseOptions(int argc, char* argv[]) {
       options.iterations = parseUnsigned(value, option);
     } else if (option == "--warmup") {
       options.warmup = parseUnsigned(value, option);
-    } else if (option == "--max-rss-growth-kib") {
-      options.max_rss_growth_kib = parseUnsigned(value, option);
+    } else if (option == "--max-rss-growth-mib") {
+      options.max_rss_growth_mib = parseUnsigned(value, option);
     } else if (option == "--max-thread-growth") {
       options.max_thread_growth = parseUnsigned(value, option);
     } else {
@@ -233,6 +234,10 @@ ProcessSample sampleProcess() {
   }
   return sample;
 }
+
+double kibToMib(std::uint64_t kib) { return static_cast<double>(kib) / 1024.0; }
+
+double kibToMib(std::int64_t kib) { return static_cast<double>(kib) / 1024.0; }
 
 RoomCredentials roomCredentials() {
   const char* url = std::getenv("LIVEKIT_URL");
@@ -487,13 +492,14 @@ int main(int argc, char* argv[]) {
         static_cast<std::int64_t>(warmup.threads) - static_cast<std::int64_t>(initial.threads);
     const auto final_thread_growth =
         static_cast<std::int64_t>(final.threads) - static_cast<std::int64_t>(warmup.threads);
-    const bool passed = final_rss_growth <= static_cast<std::int64_t>(options.max_rss_growth_kib) &&
+    const bool passed = kibToMib(final_rss_growth) <= static_cast<double>(options.max_rss_growth_mib) &&
                         final_thread_growth <= static_cast<std::int64_t>(options.max_thread_growth);
-    std::cout << "memory lifecycle: scenario=" << scenarioName(options.scenario) << ", RSS 0 " << initial.rss_kib
-              << " -> warmup " << warmup.rss_kib << " KiB (" << warmup_rss_growth << " KiB) -> final " << final.rss_kib
-              << " KiB (" << final_rss_growth << " KiB), threads 0 " << initial.threads << " -> warmup "
-              << warmup.threads << " (" << warmup_thread_growth << ") -> final " << final.threads << " ("
-              << final_thread_growth << "), verdict=" << (passed ? "PASS" : "FAIL") << '\n';
+    std::cout << std::fixed << std::setprecision(2) << "memory lifecycle: scenario=" << scenarioName(options.scenario)
+              << ", RSS 0 " << kibToMib(initial.rss_kib) << " -> warmup " << kibToMib(warmup.rss_kib) << " MiB ("
+              << kibToMib(warmup_rss_growth) << " MiB) -> final " << kibToMib(final.rss_kib) << " MiB ("
+              << kibToMib(final_rss_growth) << " MiB), threads 0 " << initial.threads << " -> warmup " << warmup.threads
+              << " (" << warmup_thread_growth << ") -> final " << final.threads << " (" << final_thread_growth
+              << "), verdict=" << (passed ? "PASS" : "FAIL") << '\n';
     return passed ? 0 : 1;
   } catch (const std::exception& error) {
     std::cerr << "memory lifecycle tester failed: " << error.what() << '\n';

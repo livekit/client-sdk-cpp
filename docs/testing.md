@@ -145,10 +145,10 @@ tokens before running any scenario:
 source scripts/set-test-tokens.sh
 scripts/memory-regression.sh --scenario audio-track \
   --iterations 100 --warmup 20 \
-  --max-rss-growth-kib 8192 --max-thread-growth 0
+  --max-rss-growth-mib 8 --max-thread-growth 0
 scripts/memory-regression.sh --scenario video-track \
   --iterations 100 --warmup 20 \
-  --max-rss-growth-kib 8192 --max-thread-growth 0
+  --max-rss-growth-mib 8 --max-thread-growth 0
 ```
 
 Use `--scenario all` to run all six scenarios, each in a fresh tester process:

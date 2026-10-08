@@ -433,7 +433,7 @@ jobs:
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_output=xml:${{ env.BUILD_DIR }}/integration-test-results.xml
 
-      - name: Run Linux memory regression gate
+      - name: Run memory regression tests
         if: matrix.name == 'ubuntu-24.04-x64' && inputs.build_type == 'release'
         timeout-minutes: 10
         shell: bash
@@ -445,7 +445,7 @@ jobs:
             --scenario all \
             --iterations 100 \
             --warmup 20 \
-            --max-rss-growth-kib 8192 \
+            --max-rss-growth-mib 8 \
             --max-thread-growth 0
 
       - name: Run stress tests
