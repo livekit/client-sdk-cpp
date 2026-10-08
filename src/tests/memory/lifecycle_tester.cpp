@@ -44,6 +44,7 @@ enum class Scenario {
   AudioTrack,
   VideoTrack,
   DataTrack,
+  RoomReuse,
   RoomClientLeave,
   RoomServerDelete,
 };
@@ -134,6 +135,8 @@ std::string_view scenarioName(Scenario scenario) {
       return "video-track";
     case Scenario::DataTrack:
       return "data-track";
+    case Scenario::RoomReuse:
+      return "room-reuse";
     case Scenario::RoomClientLeave:
       return "room-client-leave";
     case Scenario::RoomServerDelete:
@@ -151,6 +154,9 @@ Scenario parseScenario(std::string_view value) {
   }
   if (value == "data-track") {
     return Scenario::DataTrack;
+  }
+  if (value == "room-reuse") {
+    return Scenario::RoomReuse;
   }
   if (value == "room-client-leave") {
     return Scenario::RoomClientLeave;
@@ -232,39 +238,9 @@ RoomCredentials roomCredentials() {
   const char* url = std::getenv("LIVEKIT_URL");
   const char* token = std::getenv("LIVEKIT_TOKEN_A");
   if (url == nullptr || token == nullptr || *url == '\0' || *token == '\0') {
-    throw std::runtime_error("room scenarios require LIVEKIT_URL and LIVEKIT_TOKEN_A");
+    throw std::runtime_error("memory scenarios require LIVEKIT_URL and LIVEKIT_TOKEN_A");
   }
   return {url, token};
-}
-
-void runAudioTrackCycle() {
-  SdkLifetime sdk;
-  auto audio_source = std::make_shared<livekit::AudioSource>(48'000, 1);
-  auto audio_track = livekit::LocalAudioTrack::createLocalAudioTrack("memory-audio", audio_source);
-  if (!audio_track) {
-    throw std::runtime_error("failed to create local audio track");
-  }
-
-  auto frame = livekit::AudioFrame::create(48'000, 1, 480);
-  std::fill(frame.data().begin(), frame.data().end(), 100);
-  for (int frame_index = 0; frame_index < kFramesPerCycle; ++frame_index) {
-    audio_source->captureFrame(frame, 1'000);
-  }
-}
-
-void runVideoTrackCycle() {
-  SdkLifetime sdk;
-  auto video_source = std::make_shared<livekit::VideoSource>(640, 360);
-  auto video_track = livekit::LocalVideoTrack::createLocalVideoTrack("memory-video", video_source);
-  if (!video_track) {
-    throw std::runtime_error("failed to create local video track");
-  }
-
-  auto frame = livekit::VideoFrame::create(640, 360, livekit::VideoBufferType::I420);
-  std::fill(frame.data(), frame.data() + frame.dataSize(), 0x7f);
-  for (int frame_index = 0; frame_index < kFramesPerCycle; ++frame_index) {
-    video_source->captureFrame(frame);
-  }
 }
 
 void connectRoom(livekit::Room& room, const RoomCredentials& credentials) {
@@ -276,6 +252,89 @@ void connectRoom(livekit::Room& room, const RoomCredentials& credentials) {
   }
 }
 
+// Exercises SDK startup, room connection, audio publication and capture,
+// explicit unpublication, client disconnect, and complete process-side teardown.
+void runAudioTrackCycle(const RoomCredentials& credentials) {
+  SdkLifetime sdk;
+  DisconnectTrackingDelegate delegate;
+  livekit::Room room;
+  room.setDelegate(&delegate);
+  connectRoom(room, credentials);
+
+  auto audio_source = std::make_shared<livekit::AudioSource>(48'000, 1);
+  auto audio_track = livekit::LocalAudioTrack::createLocalAudioTrack("memory-audio", audio_source);
+  if (!audio_track) {
+    throw std::runtime_error("failed to create local audio track");
+  }
+
+  auto participant = room.localParticipant().lock();
+  if (!participant) {
+    throw std::runtime_error("local participant expired before publishing audio track");
+  }
+  livekit::TrackPublishOptions publish_options;
+  publish_options.source = livekit::TrackSource::SOURCE_MICROPHONE;
+  participant->publishTrack(audio_track, publish_options);
+  const auto publication = audio_track->publication();
+  if (!publication) {
+    throw std::runtime_error("failed to publish local audio track");
+  }
+
+  auto frame = livekit::AudioFrame::create(48'000, 1, 480);
+  std::fill(frame.data().begin(), frame.data().end(), 100);
+  for (int frame_index = 0; frame_index < kFramesPerCycle; ++frame_index) {
+    audio_source->captureFrame(frame, 1'000);
+  }
+
+  participant->unpublishTrack(publication->sid());
+  if (!room.disconnect()) {
+    throw std::runtime_error("client room disconnect failed");
+  }
+  delegate.requireDisconnect(livekit::DisconnectReason::ClientInitiated);
+}
+
+// Exercises SDK startup, room connection, video publication and capture,
+// encoder/resource teardown, explicit unpublication, and client disconnect.
+void runVideoTrackCycle(const RoomCredentials& credentials) {
+  SdkLifetime sdk;
+  DisconnectTrackingDelegate delegate;
+  livekit::Room room;
+  room.setDelegate(&delegate);
+  connectRoom(room, credentials);
+
+  auto video_source = std::make_shared<livekit::VideoSource>(640, 360);
+  auto video_track = livekit::LocalVideoTrack::createLocalVideoTrack("memory-video", video_source);
+  if (!video_track) {
+    throw std::runtime_error("failed to create local video track");
+  }
+
+  auto participant = room.localParticipant().lock();
+  if (!participant) {
+    throw std::runtime_error("local participant expired before publishing video track");
+  }
+  livekit::TrackPublishOptions publish_options;
+  publish_options.source = livekit::TrackSource::SOURCE_CAMERA;
+  publish_options.simulcast = false;
+  participant->publishTrack(video_track, publish_options);
+  const auto publication = video_track->publication();
+  if (!publication) {
+    throw std::runtime_error("failed to publish local video track");
+  }
+
+  auto frame = livekit::VideoFrame::create(640, 360, livekit::VideoBufferType::I420);
+  std::fill(frame.data(), frame.data() + frame.dataSize(), 0x7f);
+  for (int frame_index = 0; frame_index < kFramesPerCycle; ++frame_index) {
+    video_source->captureFrame(frame);
+  }
+
+  participant->unpublishTrack(publication->sid());
+  if (!room.disconnect()) {
+    throw std::runtime_error("client room disconnect failed");
+  }
+  delegate.requireDisconnect(livekit::DisconnectReason::ClientInitiated);
+}
+
+// Exercises data-track publication, payload enqueueing, explicit unpublication,
+// and room teardown while the SDK remains initialized across cycles.
 void runDataTrackCycle(const RoomCredentials& credentials) {
   DisconnectTrackingDelegate delegate;
   livekit::Room room;
@@ -311,6 +370,20 @@ void runDataTrackCycle(const RoomCredentials& credentials) {
   delegate.requireDisconnect(livekit::DisconnectReason::ClientInitiated);
 }
 
+// Exercises repeated connect/disconnect cycles on one Room instance to detect
+// connection state, participant, listener, or FFI resources retained by reuse.
+void runRoomReuseCycle(livekit::Room& room, const RoomCredentials& credentials) {
+  connectRoom(room, credentials);
+  if (!room.disconnect()) {
+    throw std::runtime_error("client room disconnect failed");
+  }
+  if (room.connectionState() != livekit::ConnectionState::Disconnected || !room.localParticipant().expired()) {
+    throw std::runtime_error("reused room disconnect did not tear down local state");
+  }
+}
+
+// Exercises application-initiated disconnect and destruction of a fresh Room,
+// including local-participant cleanup and the expected disconnect callback.
 void runRoomClientLeaveCycle(const RoomCredentials& credentials) {
   DisconnectTrackingDelegate delegate;
   livekit::Room room;
@@ -326,6 +399,8 @@ void runRoomClientLeaveCycle(const RoomCredentials& credentials) {
   delegate.requireDisconnect(livekit::DisconnectReason::ClientInitiated);
 }
 
+// Exercises server-initiated room deletion and validates disconnect, event-stream
+// completion, local-participant cleanup, and destruction of the torn-down Room.
 void runRoomServerDeleteCycle(const RoomCredentials& credentials) {
   if (std::string_view(credentials.url) != kLocalTestLiveKitUrl) {
     throw std::runtime_error("room-server-delete requires LIVEKIT_URL=ws://localhost:7880");
@@ -349,16 +424,22 @@ void runRoomServerDeleteCycle(const RoomCredentials& credentials) {
   delegate.requireServerTeardown();
 }
 
-void runCycle(Scenario scenario, const RoomCredentials& credentials) {
+void runCycle(Scenario scenario, const RoomCredentials& credentials, livekit::Room* reusable_room) {
   switch (scenario) {
     case Scenario::AudioTrack:
-      runAudioTrackCycle();
+      runAudioTrackCycle(credentials);
       return;
     case Scenario::VideoTrack:
-      runVideoTrackCycle();
+      runVideoTrackCycle(credentials);
       return;
     case Scenario::DataTrack:
       runDataTrackCycle(credentials);
+      return;
+    case Scenario::RoomReuse:
+      if (reusable_room == nullptr) {
+        throw std::runtime_error("room-reuse scenario is missing its persistent room");
+      }
+      runRoomReuseCycle(*reusable_room, credentials);
       return;
     case Scenario::RoomClientLeave:
       runRoomClientLeaveCycle(credentials);
@@ -375,20 +456,22 @@ void runCycle(Scenario scenario, const RoomCredentials& credentials) {
 int main(int argc, char* argv[]) {
   try {
     const Options options = parseOptions(argc, argv);
-    const bool connected_scenario = options.scenario == Scenario::DataTrack ||
-                                    options.scenario == Scenario::RoomClientLeave ||
-                                    options.scenario == Scenario::RoomServerDelete;
-    const RoomCredentials credentials = connected_scenario ? roomCredentials() : RoomCredentials{};
+    const RoomCredentials credentials = roomCredentials();
+    const bool per_cycle_sdk = options.scenario == Scenario::AudioTrack || options.scenario == Scenario::VideoTrack;
     std::unique_ptr<SdkLifetime> room_sdk;
-    if (connected_scenario) {
+    if (!per_cycle_sdk) {
       room_sdk = std::make_unique<SdkLifetime>();
+    }
+    std::unique_ptr<livekit::Room> reusable_room;
+    if (options.scenario == Scenario::RoomReuse) {
+      reusable_room = std::make_unique<livekit::Room>();
     }
 
     const ProcessSample initial = sampleProcess();
     ProcessSample warmup;
     ProcessSample final;
     for (std::uint64_t iteration = 1; iteration <= options.iterations; ++iteration) {
-      runCycle(options.scenario, credentials);
+      runCycle(options.scenario, credentials, reusable_room.get());
       std::this_thread::sleep_for(100ms);
       if (iteration == options.warmup) {
         warmup = sampleProcess();

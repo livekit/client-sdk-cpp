@@ -437,8 +437,6 @@ jobs:
         if: matrix.name == 'ubuntu-24.04-x64' && inputs.build_type == 'release'
         timeout-minutes: 10
         shell: bash
-        env:
-          MALLOC_ARENA_MAX: "1"
         run: |
           set -euo pipefail
           source scripts/set-test-tokens.sh

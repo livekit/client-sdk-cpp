@@ -107,34 +107,42 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
 - **RPC**: round-trip calls, max payload (15 KB), timeouts, errors, concurrent calls.
 - **Stress**: high throughput, bidirectional RPC, memory pressure.
 
-## Linux memory regression gate
+## Memory lifecycle tester
 
-The Linux PR gate runs five lifecycle scenarios in separate processes:
+> Note: Linux only
 
-- `audio-track` repeatedly initializes the SDK, creates an audio source and
-  track, captures synthetic PCM frames, destroys them, and shuts the SDK down.
-- `video-track` repeatedly initializes the SDK, creates a video source and
-  track, captures synthetic I420 frames, destroys them, and shuts the SDK down.
+The memory lifecycle tester binary catches resource leak regressions in an
+automated fashion, and is invoked in CI. This single binary runs individual
+or groups of scenarios:
+
+- `audio-track` repeatedly initializes the SDK, connects, publishes an audio
+  track, captures synthetic PCM frames, unpublishes, disconnects, and shuts down.
+- `video-track` repeatedly initializes the SDK, connects, publishes a video
+  track, captures synthetic I420 frames, unpublishes, disconnects, and shuts down.
 - `data-track` repeatedly connects, publishes a data track, pushes synthetic
   payloads, unpublishes it, and disconnects.
+- `room-reuse` repeatedly connects and disconnects the same room object.
 - `room-client-leave` repeatedly connects, disconnects, and destroys a room.
 - `room-server-delete` repeatedly connects and uses `lk` to delete the local
   test room, then verifies the disconnect and end-of-stream callbacks.
 
 Each scenario reports process RSS and thread count at cycle 0, after warmup
-cycle 20, and after final cycle 100. The cycle 0 to warmup growth shows expected
-one-time initialization; the gate applies to warmup-to-final growth and fails
-on thread growth or more than 8 MiB of RSS growth.
+cycle 20, and after final cycle 100. The gate applies to warmup-to-final growth
+and fails on thread growth or more than the configured amount of RSS growth.
 
-The workflow sets `MALLOC_ARENA_MAX=1` before process launch. This limits
-glibc's allocator arenas, reducing Linux thread-churn RSS noise; it is a
+The binary can be run directly, or via a helper script at  `scripts/memory-regression.sh`, 
+which invokes the binary but also has GitHub actions support for a results summary table. 
+The helper defaults `MALLOC_ARENA_MAX` to `1` when launching each tester process. 
+This limits glibc's allocator arenas, reducing Linux thread-churn RSS noise; it is a
 controlled CI signal, not evidence that the default allocator returns all
 freed pages to the OS.
 
-The offline track scenarios require no LiveKit server or tokens:
+Start `livekit-server --dev`, install the `lk` CLI, and source the local test
+tokens before running any scenario:
 
 ```bash
 ./build.sh release-tests
+source scripts/set-test-tokens.sh
 scripts/memory-regression.sh --scenario audio-track \
   --iterations 100 --warmup 20 \
   --max-rss-growth-kib 8192 --max-thread-growth 0
@@ -143,24 +151,20 @@ scripts/memory-regression.sh --scenario video-track \
   --max-rss-growth-kib 8192 --max-thread-growth 0
 ```
 
-To run the data-track or room scenarios, start `livekit-server --dev`, install
-the `lk` CLI, and source the local test tokens. Use `--scenario all` to run all five
-scenarios, each in a fresh tester process:
+Use `--scenario all` to run all six scenarios, each in a fresh tester process:
 
 ```bash
-source scripts/set-test-tokens.sh
 scripts/memory-regression.sh --scenario data-track
+scripts/memory-regression.sh --scenario room-reuse
 scripts/memory-regression.sh --scenario room-client-leave
 scripts/memory-regression.sh --scenario room-server-delete
 scripts/memory-regression.sh --scenario all
 ```
 
 The limits are command-line options so a longer local run can use different
-budgets. The wrapper defaults `MALLOC_ARENA_MAX` to `1` and appends one results
-row per scenario when `GITHUB_STEP_SUMMARY` is set. Hardware encoding coverage
-is separate follow-up work.
+budgets.
 
-## Memory checks (valgrind)
+## Additional memory checks (valgrind)
 
 Run `valgrind` against the test binaries to check for memory leaks and other
 issues. See [tools.md](tools.md) for the recipe.
