@@ -109,10 +109,12 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
 
 ## Linux memory regression gate
 
-The Linux PR gate runs three lifecycle scenarios in separate processes:
+The Linux PR gate runs four lifecycle scenarios in separate processes:
 
-- `sdk-sources` repeatedly initializes the SDK, creates and destroys unused
-  audio/video sources and tracks, then shuts the SDK down.
+- `audio-track` repeatedly initializes the SDK, creates an audio source and
+  track, captures synthetic PCM frames, destroys them, and shuts the SDK down.
+- `video-track` repeatedly initializes the SDK, creates a video source and
+  track, captures synthetic I420 frames, destroys them, and shuts the SDK down.
 - `room-client-leave` repeatedly connects, disconnects, and destroys a room.
 - `room-server-delete` repeatedly connects and uses `lk` to delete the local
   test room, then verifies the disconnect and end-of-stream callbacks.
@@ -125,18 +127,20 @@ glibc's allocator arenas, reducing Linux thread-churn RSS noise; it is a
 controlled CI signal, not evidence that the default allocator returns all
 freed pages to the OS.
 
-The offline source scenario requires no LiveKit server or tokens:
+The offline track scenarios require no LiveKit server or tokens:
 
 ```bash
 ./build.sh release-tests
-scripts/memory-regression.sh \
-  --scenario sdk-sources \
+scripts/memory-regression.sh --scenario audio-track \
+  --iterations 100 --warmup 20 \
+  --max-rss-growth-kib 8192 --max-thread-growth 0
+scripts/memory-regression.sh --scenario video-track \
   --iterations 100 --warmup 20 \
   --max-rss-growth-kib 8192 --max-thread-growth 0
 ```
 
 To run either room scenario, start `livekit-server --dev`, install the `lk`
-CLI, and source the local test tokens. Use `--scenario all` to run all three
+CLI, and source the local test tokens. Use `--scenario all` to run all four
 scenarios, each in a fresh tester process:
 
 ```bash
