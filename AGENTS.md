@@ -94,6 +94,8 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `scripts/` | Local helper scripts for SDK-specific development tasks |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
+| `src/tests/packaging/` | Standalone CTest integration tests consuming installed SDK bundles |
+| `.github/actions/setup-capture/` | Shared CI setup for capture runtime and development dependencies |
 | `.github/workflows/` | GitHub Actions CI workflows |
 
 ### Key Types
@@ -125,6 +127,24 @@ To create an installable SDK bundle, use the same build command with
 `--bundle --prefix <install-dir>` (for example,
 `./build.sh release --bundle --prefix sdk-out/livekit-sdk`). On Windows, use
 `build.cmd release --bundle --prefix C:\path\to\livekit-sdk`.
+
+The build scripts set `LIVEKIT_BUILD_CAPTURE`. The generated
+`LIVEKIT_CAPTURE_ENABLED` macro is 0 or 1 and supports `#if` checks in consumers.
+
+Both build scripts accept `--capture` to enable GStreamer, pattern, and clock
+sources, and `--no-capture` to disable them. Test/all presets enable capture by
+default; normal and example presets disable it. Capture-enabled builds need
+GStreamer development and runtime libraries. Release workflows publish separate
+`-capture` bundles and validate creation through the installed SDK using the standalone CTest project in
+`src/tests/packaging/`.
+
+Rust FFI outputs live under `client-sdk-rust/target/cpp-<feature-hash>/` to isolate
+Cargo feature configurations. Set `CARGO_TARGET_DIR` to override the root;
+feature-specific directories are appended. Windows CI uses a short root under
+`runner.temp` to keep nested WebRTC header paths below the Windows path limit.
+Generated public build metadata lives under each
+build directory's `generated/include/livekit/build.h`; do not generate it into
+the source tree. Track capture Rust sources and shaders in build dependencies.
 
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
@@ -338,6 +358,7 @@ malformed table, missing `@param` on a documented function, …) fails the build
 | nlohmann/json | **Private** | Header-only; vendored via FetchContent (Unix) or vcpkg (Windows); must NOT leak into public API |
 | client-sdk-rust | Build-time | Git submodule, built via cargo during CMake build |
 | cpp-tools | Developer / CI | Git submodule containing shared LiveKit C++ formatting and static-analysis tooling |
+| GStreamer | Capture builds / runtime | System libraries and plugins; accessed through Rust; not redistributed in SDK bundles |
 | Google Test | Test only | FetchContent in `src/tests/CMakeLists.txt` |
 
 When adding a new private/vendored dependency to this table, also add a

@@ -348,6 +348,44 @@ cmake --build build --target clean_generated    # Generated protobuf headers
 cmake --build build --target clean_all          # Full clean
 ```
 
+## Cargo output paths on Windows
+
+The SDK places Rust FFI outputs in `client-sdk-rust/target/cpp-<feature-hash>/`.
+Deep checkout paths can make WebRTC header paths exceed the Windows path limit.
+Set `CARGO_TARGET_DIR` to a short absolute path before building, for example
+`set CARGO_TARGET_DIR=C:\lk-rust` in Command Prompt. The SDK appends the
+feature directory so capture-enabled and disabled outputs remain separate.
+Windows CI uses this setting for builds, tests, and release bundles.
+`clean-all` removes the default Rust target directory; remove a custom root
+separately when it is no longer needed.
+
+## Capture sources
+
+Standard `debug`, `release`, and `*-examples` builds disable capture. The
+`*-tests` and `*-all` presets enable it by default. Both build scripts accept
+`--capture` and `--no-capture` to override the preset:
+
+```bash
+./build.sh release --capture --bundle --prefix sdk-out/livekit-sdk-capture
+```
+
+The build scripts set `LIVEKIT_BUILD_CAPTURE`. The generated
+`LIVEKIT_CAPTURE_ENABLED` macro is 0 or 1 and supports `#if` checks in consumers.
+
+On Windows, use `build.cmd release --capture --bundle --prefix sdk-out\livekit-sdk-capture`.
+Capture builds enable GStreamer, GPU test patterns, and the GPU wall clock.
+They require GStreamer development libraries at build time and its runtime
+libraries when the SDK is loaded. Release artifacts with `-capture` in their
+names include capture; standard artifacts disable it.
+
+Rust artifacts are stored under `client-sdk-rust/target/cpp-<feature-hash>/`,
+with separate directories for capture-enabled and disabled builds. Generated
+`build.h` files live in each CMake build directory, so feature metadata follows
+the installed SDK instead of another configuration's most recent build.
+
+See [Capture sources](capture-sources.md) for dependencies and usage.
+
+
 ## Support
 
 - GitHub Issues: <https://github.com/livekit/client-sdk-cpp/issues>

@@ -11,6 +11,9 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
@@ -47,10 +50,49 @@ jobs:
             name: windows-x64
             generator: "Visual Studio 17 2022"
 
+          - os: ubuntu-22.04
+            name: ubuntu-22.04-x64-capture
+            generator: Ninja
+            capture: true
+          - os: ubuntu-22.04-arm
+            name: ubuntu-22.04-arm64-capture
+            generator: Ninja
+            capture: true
+          - os: ubuntu-24.04
+            name: ubuntu-24.04-x64-capture
+            generator: Ninja
+            capture: true
+          - os: ubuntu-24.04-arm
+            name: ubuntu-24.04-arm64-capture
+            generator: Ninja
+            capture: true
+          - os: macos-26-xlarge
+            name: macos-arm64-capture
+            generator: Ninja
+            capture: true
+          - os: macos-26-large
+            name: macos-x64-capture
+            generator: Ninja
+            # Pinned to Windows 2022 for current VS 17 implementation
+            capture: true
+          - os: windows-2022
+            name: windows-x64-capture
+            generator: "Visual Studio 17 2022"
+            capture: true
+
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Set Cargo output root
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            echo "CARGO_TARGET_DIR=$(cygpath -m "$RUNNER_TEMP")/lk-rust" >> "$GITHUB_ENV"
+          else
+            echo "CARGO_TARGET_DIR=$GITHUB_WORKSPACE/client-sdk-rust/target" >> "$GITHUB_ENV"
+          fi
+
       - name: Checkout (with submodules)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,6 +182,10 @@ jobs:
           brew update
           brew install cmake ninja protobuf abseil
 
+      - name: Set up capture dependencies
+        if: matrix.capture == true
+        uses: ./.github/actions/setup-capture
+
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
@@ -147,7 +193,7 @@ jobs:
           toolchain: stable
 
       - name: Install Rust cross-compilation target
-        if: matrix.name == 'macos-x64'
+        if: startsWith(matrix.name, 'macos-x64')
         run: rustup target add x86_64-apple-darwin
 
       # ---------- Cache Cargo ----------
@@ -177,17 +223,19 @@ jobs:
         id: cache-cargo-target
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: client-sdk-rust/target/
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
+          path: |
+            client-sdk-rust/target/
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v2-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
-            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-
+            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v2-
 
       # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
       # artifacts in webrtc-sys are not compatible across those bumps.
       - name: Drop stale cargo target on submodule SHA cache miss
         if: steps.cache-cargo-target.outputs.cache-hit != 'true'
         shell: bash
-        run: rm -rf client-sdk-rust/target/
+        run: rm -rf client-sdk-rust/target/ "$CARGO_TARGET_DIR"
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
@@ -217,10 +265,12 @@ jobs:
             exit 1
           fi
 
-          if [[ "${{ matrix.name }}" == "macos-x64" ]]; then
-            ./build.sh release-examples --version "$version" --bundle --prefix "$bundleDir" --macos-arch x86_64
+          capture_args=()
+          if [[ "${{ matrix.capture }}" == "true" ]]; then capture_args+=(--capture); fi
+          if [[ "${{ matrix.name }}" == macos-x64* ]]; then
+            ./build.sh release-examples "${capture_args[@]}" --version "$version" --bundle --prefix "$bundleDir" --macos-arch x86_64
           else
-            ./build.sh release-examples --version "$version" --bundle --prefix "$bundleDir"
+            ./build.sh release-examples "${capture_args[@]}" --version "$version" --bundle --prefix "$bundleDir"
           fi
 
           # List bundle contents
@@ -257,7 +307,10 @@ jobs:
           $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-$version"
 
           if ([string]::IsNullOrWhiteSpace($version)) { throw "version is empty" }
-          .\build.cmd release-examples --version "$version" --bundle --prefix "$bundleDir"
+          $captureArgs = @()
+          if ("${{ matrix.capture }}" -eq "true") { $captureArgs += "--capture" }
+          .\build.cmd release-examples @captureArgs --version "$version" --bundle --prefix "$bundleDir"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           Write-Host "Bundle contents:"
           Get-ChildItem -Recurse -File $bundleDir | Select-Object -First 200 | ForEach-Object { $_.FullName }
@@ -338,6 +391,32 @@ jobs:
             throw "Build info is missing livekit-ffi version"
           }
 
+      - name: Test installed capture SDK (Unix)
+        if: matrix.capture == true && runner.os != 'Windows'
+        shell: bash
+        run: |
+          bundle="$GITHUB_WORKSPACE/sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
+          arch_args=()
+          if [[ "${{ matrix.name }}" == macos-x64* ]]; then arch_args+=(-DCMAKE_OSX_ARCHITECTURES=x86_64); fi
+          cmake -S src/tests/packaging -B build-packaging-tests -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$bundle" \
+            -DLIVEKIT_EXPECT_CAPTURE=ON "${arch_args[@]}"
+          cmake --build build-packaging-tests
+          ctest --test-dir build-packaging-tests -C Release --output-on-failure -L packaging
+
+      - name: Test installed capture SDK (Windows)
+        if: matrix.capture == true && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bundle = Join-Path $env:GITHUB_WORKSPACE "sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
+          cmake -S src/tests/packaging -B build-packaging-tests -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_EXPECT_CAPTURE=ON
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build build-packaging-tests --config Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:PATH = "$bundle\bin;$env:PATH"
+          ctest --test-dir build-packaging-tests -C Release --output-on-failure -L packaging
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       # ---------- Upload artifact (raw directory, no pre-compression) ----------
       - name: Upload build artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -412,14 +491,14 @@ jobs:
           echo "Artifacts downloaded:"
           ls -la
           
-          # Create tar.gz for Ubuntu and macOS
+          # Standard and capture-enabled Ubuntu and macOS bundles.
           for platform in ubuntu-22.04-x64 ubuntu-22.04-arm64 ubuntu-24.04-x64 ubuntu-24.04-arm64 macos-arm64 macos-x64; do
-            dirName="livekit-sdk-${platform}-${VERSION}"
-            if [[ -d "${dirName}" ]]; then
-              echo "Creating archive for ${platform}..."
+            for suffix in "" "-capture"; do
+              dirName="livekit-sdk-${platform}${suffix}-${VERSION}"
+              test -d "${dirName}"
               tar -czf "${{ github.workspace }}/release-assets/${dirName}.tar.gz" "${dirName}"
               echo "Created: ${dirName}.tar.gz"
-            fi
+            done
           done
 
           # Deprecated compatibility aliases for existing Linux release consumers.
@@ -437,13 +516,12 @@ jobs:
             fi
           done
           
-          # Create zip for Windows
-          dirName="livekit-sdk-windows-x64-${VERSION}"
-          if [[ -d "${dirName}" ]]; then
-            echo "Creating archive for windows-x64..."
+          # Standard and capture-enabled Windows bundles.
+          for suffix in "" "-capture"; do
+            dirName="livekit-sdk-windows-x64${suffix}-${VERSION}"
+            test -d "${dirName}"
             zip -r "${{ github.workspace }}/release-assets/${dirName}.zip" "${dirName}"
-            echo "Created: ${dirName}.zip"
-          fi
+          done
 
       - name: List release assets
         run: ls -la ${{ github.workspace }}/release-assets/

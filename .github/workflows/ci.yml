@@ -49,6 +49,9 @@ jobs:
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
+              - .github/workflows/make-release.yml
+              - .github/actions/setup-capture/**
+              - .github/scripts/check_no_private_symbols.py
             tests:
               - src/**
               - include/**

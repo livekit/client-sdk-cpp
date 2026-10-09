@@ -29,6 +29,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "capture.pb.h"
 #include "data_track.pb.h"
 #include "livekit/data_track_error.h"
 #include "livekit/data_track_options.h"
@@ -57,6 +58,7 @@ class DataStream;
 
 struct RoomOptions;
 struct TrackPublishOptions;
+class CaptureSource;
 
 using FfiCallbackFn = void (*)(const uint8_t*, size_t);
 extern "C" void livekit_ffi_initialize(FfiCallbackFn cb, bool capture_logs, const char* sdk, const char* sdk_version);
@@ -118,6 +120,13 @@ public:
   std::future<void> publishSipDtmfAsync(std::uint64_t local_participant_handle, std::uint32_t code,
                                         const std::string& digit,
                                         const std::vector<std::string>& destination_identities);
+
+  // Capture APIs
+  // Optional request transport permits deterministic callback tests without
+  // starting a GPU renderer or GStreamer pipeline.
+  std::future<std::shared_ptr<CaptureSource>> newCaptureSourceAsync(
+      proto::NewCaptureSourceRequest request,
+      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
   std::future<void> setLocalMetadataAsync(std::uint64_t local_participant_handle, const std::string& metadata);
   std::future<void> captureAudioFrameAsync(std::uint64_t source_handle, const proto::AudioFrameBufferInfo& buffer);
   std::future<std::string> performRpcAsync(std::uint64_t local_participant_handle,
@@ -158,6 +167,8 @@ public:
   proto::FfiResponse sendRequest(const proto::FfiRequest& request) const;
 
 private:
+  friend struct FfiClientTestAccess;
+
   FfiClient() = default;
 
   /// Lifecycle state of the FfiClient
@@ -182,6 +193,7 @@ private:
     std::promise<T> promise;
     std::function<bool(const proto::FfiEvent&)> match;
     std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler;
+    std::exception_ptr cancellation_error;
 
     bool matches(const proto::FfiEvent& event) const override { return match && match(event); }
 
@@ -189,7 +201,9 @@ private:
 
     void cancel() override {
       try {
-        promise.set_exception(std::make_exception_ptr(std::runtime_error("Async operation cancelled")));
+        promise.set_exception(cancellation_error
+                                  ? cancellation_error
+                                  : std::make_exception_ptr(std::runtime_error("Async operation cancelled")));
       } catch (const std::future_error& e) {
         // Unlikely to throw here as the promise should be satisfied before
         // cancel() Logging a debug message to avoid clang empty catch warning
@@ -219,7 +233,8 @@ private:
 
   template <typename T>
   std::future<T> registerAsync(AsyncId async_id, std::function<bool(const proto::FfiEvent&)> match,
-                               std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler);
+                               std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler,
+                               std::exception_ptr cancellation_error = {});
 
   // Generate a unique client-side async ID for request correlation
   AsyncId generateAsyncId();

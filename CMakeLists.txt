@@ -18,6 +18,7 @@ include(warnings)
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 option(LIVEKIT_BUILD_TESTS "Build LiveKit tests" OFF)
+option(LIVEKIT_BUILD_CAPTURE "Build the Rust FFI with the capture feature (livekit-capture sources; links system GStreamer)" OFF)
 
 # vcpkg is only used on Windows; Linux/macOS use system package managers
 if(WIN32)
@@ -162,10 +163,19 @@ add_custom_command(
 
 target_sources(livekit_proto PRIVATE ${PROTO_SRCS} ${PROTO_HDRS})
 
-# Generate build.h directly into include/livekit/ for simpler include paths
-set(GENERATED_BUILD_H "${LIVEKIT_ROOT_DIR}/include/livekit/build.h")
+# Keep feature metadata local to each build directory.
+set(LIVEKIT_GENERATED_INCLUDE_DIR "${LIVEKIT_BINARY_DIR}/generated/include")
+set(GENERATED_BUILD_H "${LIVEKIT_GENERATED_INCLUDE_DIR}/livekit/build.h")
 set(GENERATED_BUILD_INFO_JSON "${LIVEKIT_BINARY_DIR}/build-info.json")
 set(RUST_ROOT ${LIVEKIT_ROOT_DIR}/client-sdk-rust)
+
+# Cargo features for the Rust FFI build.
+set(LIVEKIT_CARGO_FEATURES "")
+set(LIVEKIT_CAPTURE_ENABLED 0)
+if(LIVEKIT_BUILD_CAPTURE)
+  set(LIVEKIT_CARGO_FEATURES "capture-gstreamer,capture-pattern,capture-clock")
+  set(LIVEKIT_CAPTURE_ENABLED 1)
+endif()
 
 set(GIT_COMMIT "unknown")
 set(RUST_GIT_COMMIT "unknown")
@@ -225,10 +235,22 @@ if(APPLE AND CMAKE_OSX_ARCHITECTURES)
   endif()
 endif()
 
+# Cargo artifacts cannot be shared between capture-enabled and disabled SDKs.
+# Include the feature selection in the path, including future feature changes.
+string(SHA256 LIVEKIT_CARGO_FEATURE_HASH "${LIVEKIT_CARGO_FEATURES}")
+string(SUBSTRING "${LIVEKIT_CARGO_FEATURE_HASH}" 0 16 LIVEKIT_CARGO_FEATURE_HASH)
+# A short Cargo root avoids MAX_PATH failures in nested WebRTC headers on Windows.
+# Treat CARGO_TARGET_DIR as the root; retain feature-specific subdirectories.
+set(LIVEKIT_CARGO_TARGET_ROOT "${RUST_ROOT}/target")
+if(DEFINED ENV{CARGO_TARGET_DIR} AND NOT "$ENV{CARGO_TARGET_DIR}" STREQUAL "")
+  get_filename_component(LIVEKIT_CARGO_TARGET_ROOT "$ENV{CARGO_TARGET_DIR}"
+    ABSOLUTE BASE_DIR "${RUST_ROOT}")
+endif()
+set(LIVEKIT_CARGO_TARGET_DIR "${LIVEKIT_CARGO_TARGET_ROOT}/cpp-${LIVEKIT_CARGO_FEATURE_HASH}")
 if(RUST_TARGET_TRIPLE)
-  set(RUST_TARGET_DIR "${RUST_ROOT}/target/${RUST_TARGET_TRIPLE}")
+  set(RUST_TARGET_DIR "${LIVEKIT_CARGO_TARGET_DIR}/${RUST_TARGET_TRIPLE}")
 else()
-  set(RUST_TARGET_DIR "${RUST_ROOT}/target")
+  set(RUST_TARGET_DIR "${LIVEKIT_CARGO_TARGET_DIR}")
 endif()
 
 # Detect the GCC toolchain's library directory so cargo can find the matching libstdc++.
@@ -245,59 +267,17 @@ if(NOT WIN32)
   endif()
 endif()
 
-set(RUN_CARGO_SCRIPT ${LIVEKIT_BINARY_DIR}/run_cargo.cmake)
-file(WRITE ${RUN_CARGO_SCRIPT}
-"if(NOT DEFINED CFG)
-  set(CFG Debug)
-endif()
-if(NOT DEFINED RUST_ROOT)
-  message(FATAL_ERROR \"RUST_ROOT not set\")
-endif()
-if(NOT DEFINED CARGO)
-  message(FATAL_ERROR \"CARGO not set\")
-endif()
-
-set(ARGS build --package livekit-ffi)
-if(NOT CFG STREQUAL \"Debug\")
-  list(APPEND ARGS --release)
-endif()
-
-if(DEFINED RUST_TARGET AND NOT RUST_TARGET STREQUAL \"\")
-  list(APPEND ARGS --target \"\${RUST_TARGET}\")
-  message(STATUS \"[run_cargo.cmake] Cross-compiling for target: \${RUST_TARGET}\")
-endif()
-
-message(STATUS \"[run_cargo.cmake] CFG=\${CFG}  CARGO=\${CARGO}  PROTOC=\${PROTOC_PATH}\")
-set(ENV{PROTOC} \"\${PROTOC_PATH}\")
-
-if(DEFINED CARGO_TARGET_DIR AND NOT CARGO_TARGET_DIR STREQUAL \"\")
-  set(ENV{CARGO_TARGET_DIR} \"\${CARGO_TARGET_DIR}\")
-endif()
-
-if(DEFINED GCC_LIB_DIR AND NOT GCC_LIB_DIR STREQUAL \"\")
-  set(ENV{RUSTFLAGS} \"-L \${GCC_LIB_DIR} \$ENV{RUSTFLAGS}\")
-  set(ENV{LD_LIBRARY_PATH} \"\${GCC_LIB_DIR}:\$ENV{LD_LIBRARY_PATH}\")
-endif()
-
-execute_process(
-  COMMAND \"\${CARGO}\" \${ARGS}
-  WORKING_DIRECTORY \"\${RUST_ROOT}\"
-  RESULT_VARIABLE rv
-)
-if(rv)
-  message(FATAL_ERROR \"cargo build failed with code: \${rv}\")
-endif()
-")
+set(RUN_CARGO_SCRIPT "${LIVEKIT_ROOT_DIR}/cmake/run_cargo.cmake")
 
 # Use SHARED library (DLL) on Windows to isolate /MT CRT from consuming /MD apps
 if(WIN32)
   add_library(livekit_ffi SHARED IMPORTED GLOBAL)
   # DLL import libraries (.dll.lib)
-  set(RUST_IMPLIB_DEBUG   "${RUST_ROOT}/target/debug/livekit_ffi.dll.lib")
-  set(RUST_IMPLIB_RELEASE "${RUST_ROOT}/target/release/livekit_ffi.dll.lib")
+  set(RUST_IMPLIB_DEBUG   "${RUST_TARGET_DIR}/debug/livekit_ffi.dll.lib")
+  set(RUST_IMPLIB_RELEASE "${RUST_TARGET_DIR}/release/livekit_ffi.dll.lib")
   # Actual DLL files
-  set(RUST_DLL_DEBUG      "${RUST_ROOT}/target/debug/livekit_ffi.dll")
-  set(RUST_DLL_RELEASE    "${RUST_ROOT}/target/release/livekit_ffi.dll")
+  set(RUST_DLL_DEBUG      "${RUST_TARGET_DIR}/debug/livekit_ffi.dll")
+  set(RUST_DLL_RELEASE    "${RUST_TARGET_DIR}/release/livekit_ffi.dll")
   # For OUTPUT dependency checking
   set(RUST_LIB_DEBUG   "${RUST_IMPLIB_DEBUG}")
   set(RUST_LIB_RELEASE "${RUST_IMPLIB_RELEASE}")
@@ -353,6 +333,10 @@ file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS
   "${RUST_ROOT}/livekit-ffi/protocol/*.proto"
   "${RUST_ROOT}/livekit-ffi/build.rs"
   "${RUST_ROOT}/livekit-ffi/Cargo.toml"
+  "${RUST_ROOT}/livekit-capture/Cargo.toml"
+  "${RUST_ROOT}/livekit-capture/src/*"
+  "${RUST_ROOT}/livekit-capture/shaders/*"
+  "${RUST_ROOT}/livekit-capture/build.rs"
 )
 list(APPEND RUST_SOURCES
   "${RUST_ROOT}/Cargo.toml"
@@ -378,9 +362,11 @@ add_custom_command(
           -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
           -DRUST_TARGET=${RUST_TARGET_TRIPLE}
           -DGCC_LIB_DIR=${GCC_LIB_DIR}
+          -DCARGO_FEATURES=${LIVEKIT_CARGO_FEATURES}
+          -DCARGO_TARGET_DIR=${LIVEKIT_CARGO_TARGET_DIR}
           -P "${RUN_CARGO_SCRIPT}"
   WORKING_DIRECTORY "${RUST_ROOT}"
-  DEPENDS ${RUST_SOURCES}
+  DEPENDS ${RUST_SOURCES} "${RUN_CARGO_SCRIPT}"
   COMMENT "Building Rust FFI via cargo"
   VERBATIM
 )
@@ -396,6 +382,8 @@ include(uniffi_cpp)
 add_library(livekit SHARED
   src/audio_frame.cpp
   src/audio_processing_module.cpp
+  src/capture_source.cpp
+  src/capture_source_internal.h
   src/audio_source.cpp
   src/audio_stream.cpp
   src/data_track_frame.cpp
@@ -480,6 +468,7 @@ set_source_files_properties(
 
 target_include_directories(livekit
   PUBLIC
+    $<BUILD_INTERFACE:${LIVEKIT_GENERATED_INCLUDE_DIR}>
     $<BUILD_INTERFACE:${LIVEKIT_ROOT_DIR}/include>
     $<INSTALL_INTERFACE:include>
   PRIVATE
@@ -520,22 +509,24 @@ message(STATUS "Protobuf: version=${Protobuf_VERSION}; protoc=${Protobuf_PROTOC_
 add_dependencies(livekit build_rust_ffi)
 
 if(LIVEKIT_IS_TOPLEVEL)
-  # Copy public headers to build/include (build.h is already in include/livekit/)
+  # Copy public headers and build-local feature metadata to build/include
   add_custom_command(
     TARGET livekit POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${LIVEKIT_ROOT_DIR}/include
             ${CMAKE_BINARY_DIR}/include
+    COMMAND ${CMAKE_COMMAND} -E copy
+            "${GENERATED_BUILD_H}" "${CMAKE_BINARY_DIR}/include/livekit/build.h"
     COMMENT "Copying public headers to build/include"
   )
 
   # Copy livekit_ffi library to output directory alongside livekit library
   if(WIN32)
     # Copy both DLL and import library
-    set(FFI_DLL_DEBUG     "${RUST_ROOT}/target/debug/livekit_ffi.dll")
-    set(FFI_DLL_RELEASE   "${RUST_ROOT}/target/release/livekit_ffi.dll")
-    set(FFI_IMPLIB_DEBUG  "${RUST_ROOT}/target/debug/livekit_ffi.dll.lib")
-    set(FFI_IMPLIB_RELEASE "${RUST_ROOT}/target/release/livekit_ffi.dll.lib")
+    set(FFI_DLL_DEBUG     "${RUST_TARGET_DIR}/debug/livekit_ffi.dll")
+    set(FFI_DLL_RELEASE   "${RUST_TARGET_DIR}/release/livekit_ffi.dll")
+    set(FFI_IMPLIB_DEBUG  "${RUST_TARGET_DIR}/debug/livekit_ffi.dll.lib")
+    set(FFI_IMPLIB_RELEASE "${RUST_TARGET_DIR}/release/livekit_ffi.dll.lib")
     
     # Copy DLL file
     add_custom_command(
@@ -777,11 +768,12 @@ if(APPLE)
 endif()
 
 
-# Install public headers (includes generated build.h which is now in include/livekit/)
+# Install public headers with this build directory's generated feature metadata.
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-  FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+  FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "build.h" EXCLUDE
 )
+install(FILES "${GENERATED_BUILD_H}" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/livekit")
 
 # ---- Create Config + Version + Targets for find_package(LiveKit CONFIG) ----
 
@@ -831,7 +823,7 @@ add_custom_target(clean_generated
 )
 
 add_custom_target(cargo_clean
-  COMMAND "${CARGO_EXECUTABLE}" clean
+  COMMAND "${CMAKE_COMMAND}" -E env "CARGO_TARGET_DIR=${LIVEKIT_CARGO_TARGET_DIR}" "${CARGO_EXECUTABLE}" clean
   WORKING_DIRECTORY "${RUST_ROOT}"
   COMMENT "Clean Rust target directory via cargo"
   VERBATIM
@@ -843,7 +835,7 @@ add_custom_target(clean_all
   COMMAND ${CMAKE_COMMAND} --build "${CMAKE_BINARY_DIR}" --target clean
   # 2) Cargo clean (Rust target/)
   COMMAND ${CMAKE_COMMAND} -E echo "==> cargo clean in: ${RUST_ROOT}"
-  COMMAND ${CMAKE_COMMAND} -E chdir "${RUST_ROOT}" "${CARGO_EXECUTABLE}" clean
+  COMMAND ${CMAKE_COMMAND} -E chdir "${RUST_ROOT}" "${CMAKE_COMMAND}" -E env "CARGO_TARGET_DIR=${LIVEKIT_CARGO_TARGET_DIR}" "${CARGO_EXECUTABLE}" clean
   # 3) Remove generated protobufs (lives under build/)
   COMMAND ${CMAKE_COMMAND} -E echo "==> removing generated protobufs: ${PROTO_BINARY_DIR}"
   COMMAND ${CMAKE_COMMAND} -E rm -rf "${PROTO_BINARY_DIR}"

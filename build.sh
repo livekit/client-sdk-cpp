@@ -14,6 +14,7 @@ ARCHIVE_NAME=""
 GENERATOR=""
 MACOS_ARCH=""
 LIVEKIT_VERSION=""
+CAPTURE_OVERRIDE=""
 
 # Detect OS for preset selection
 detect_os() {
@@ -46,6 +47,8 @@ Commands:
   help              Show this help message
 
 Options (for debug / release):
+  --capture                Enable all capture sources (requires GStreamer)
+  --no-capture             Disable capture sources, overriding the preset
   --bundle                 Install the SDK bundle using 'cmake --install'
   --prefix <dir>           Install prefix for --bundle
                            (default: ./sdk-out/livekit-sdk)
@@ -75,6 +78,14 @@ parse_opts() {
   shift || true
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --capture)
+        CAPTURE_OVERRIDE="ON"
+        shift
+        ;;
+      --no-capture)
+        CAPTURE_OVERRIDE="OFF"
+        shift
+        ;;
       --bundle)
         DO_BUNDLE="1"
         shift
@@ -136,6 +147,9 @@ parse_opts() {
 configure() {
   echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
   local -a extra_args=()
+  if [[ -n "${CAPTURE_OVERRIDE:-}" ]]; then
+    extra_args+=("-DLIVEKIT_BUILD_CAPTURE=${CAPTURE_OVERRIDE}")
+  fi
   if [[ -n "${LIVEKIT_VERSION}" ]]; then
     echo "==> Injecting LIVEKIT_VERSION=${LIVEKIT_VERSION}"
     extra_args+=("-DLIVEKIT_VERSION=${LIVEKIT_VERSION}")

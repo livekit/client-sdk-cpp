@@ -4,6 +4,8 @@ Additional documentation for the SDK.
 
 - [Building](building.md) — prerequisites, build scripts, CMake presets,
   vcpkg, integration into your CMake project, troubleshooting.
+- [Capture sources](capture-sources.md) — pattern, clock, and GStreamer sources;
+  build features, release bundles, and publishing.
 - [Authentication](authentication.md) — generating tokens, token source types
   (initial connect only), and in-session token refresh.
 - [Logging](logging.md) — compile-time vs runtime filtering, log levels,

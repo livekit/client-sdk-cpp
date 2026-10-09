@@ -62,10 +62,56 @@ jobs:
             build_cmd: .\build.cmd release-examples --bundle --prefix sdk-out\livekit-sdk-windows-x64
             build_dir: build-release
 
+          - os: ubuntu-22.04
+            name: ubuntu-22.04-x64-capture
+            build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-22.04-x64-capture
+            build_dir: build-release
+            capture: true
+          - os: ubuntu-22.04-arm
+            name: ubuntu-22.04-arm64-capture
+            build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-22.04-arm64-capture
+            build_dir: build-release
+            capture: true
+          - os: ubuntu-24.04
+            name: ubuntu-24.04-x64-capture
+            build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-24.04-x64-capture
+            build_dir: build-release
+            capture: true
+          - os: ubuntu-24.04-arm
+            name: ubuntu-24.04-arm64-capture
+            build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-24.04-arm64-capture
+            build_dir: build-release
+            capture: true
+          - os: macos-26-xlarge
+            name: macos-arm64-capture
+            build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-macos-arm64-capture
+            build_dir: build-release
+            capture: true
+          - os: macos-26-large
+            name: macos-x64-capture
+            build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-macos-x64-capture --macos-arch x86_64
+            build_dir: build-release
+            # Pinned to Windows 2022 for current VS 17 implementation
+            capture: true
+          - os: windows-2022
+            name: windows-x64-capture
+            build_cmd: .\build.cmd release-examples --capture --bundle --prefix sdk-out\livekit-sdk-windows-x64-capture
+            build_dir: build-release
+            capture: true
+
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Set Cargo output root
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            echo "CARGO_TARGET_DIR=$(cygpath -m "$RUNNER_TEMP")/lk-rust" >> "$GITHUB_ENV"
+          else
+            echo "CARGO_TARGET_DIR=$GITHUB_WORKSPACE/client-sdk-rust/target" >> "$GITHUB_ENV"
+          fi
+
       - name: Checkout (with submodules)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -140,6 +186,10 @@ jobs:
           brew update
           brew install cmake ninja protobuf abseil
 
+      - name: Set up capture dependencies
+        if: matrix.capture == true
+        uses: ./.github/actions/setup-capture
+
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772
@@ -147,7 +197,7 @@ jobs:
           toolchain: stable
 
       - name: Install Rust cross-compilation target
-        if: matrix.name == 'macos-x64'
+        if: startsWith(matrix.name, 'macos-x64')
         run: rustup target add x86_64-apple-darwin
 
       # ---------- Cache Cargo ----------
@@ -181,17 +231,19 @@ jobs:
         id: cache-cargo-target
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: client-sdk-rust/target/
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
+          path: |
+            client-sdk-rust/target/
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v2-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
-            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-
+            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v2-
 
       # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
       # artifacts in webrtc-sys are not compatible across those bumps.
       - name: Drop stale cargo target on submodule SHA cache miss
         if: steps.cache-cargo-target.outputs.cache-hit != 'true'
         shell: bash
-        run: rm -rf client-sdk-rust/target/
+        run: rm -rf client-sdk-rust/target/ "$CARGO_TARGET_DIR"
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
@@ -224,8 +276,10 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache-cargo-target.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: client-sdk-rust/target/
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
+          path: |
+            client-sdk-rust/target/
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v2-${{ steps.rust_sha.outputs.sha }}
 
       - name: Save vcpkg binary cache
         if: runner.os == 'Windows' && steps.cache-vcpkg-binary.outputs.cache-hit != 'true'
@@ -344,6 +398,32 @@ jobs:
           test -f "${bundle}/lib/cmake/LiveKit/LiveKitConfig.cmake"
           test -f "${bundle}/lib/cmake/LiveKit/LiveKitConfigVersion.cmake"
           test -f "${bundle}/lib/cmake/LiveKit/LiveKitTargets.cmake"
+
+      - name: Test installed capture SDK (Unix)
+        if: matrix.capture == true && runner.os != 'Windows'
+        shell: bash
+        run: |
+          bundle="$GITHUB_WORKSPACE/sdk-out/livekit-sdk-${{ matrix.name }}"
+          arch_args=()
+          if [[ "${{ matrix.name }}" == macos-x64* ]]; then arch_args+=(-DCMAKE_OSX_ARCHITECTURES=x86_64); fi
+          cmake -S src/tests/packaging -B build-packaging-tests -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$bundle" \
+            -DLIVEKIT_EXPECT_CAPTURE=ON "${arch_args[@]}"
+          cmake --build build-packaging-tests
+          ctest --test-dir build-packaging-tests -C Release --output-on-failure -L packaging
+
+      - name: Test installed capture SDK (Windows)
+        if: matrix.capture == true && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bundle = Join-Path $env:GITHUB_WORKSPACE "sdk-out/livekit-sdk-${{ matrix.name }}"
+          cmake -S src/tests/packaging -B build-packaging-tests -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_EXPECT_CAPTURE=ON
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build build-packaging-tests --config Release
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:PATH = "$bundle\bin;$env:PATH"
+          ctest --test-dir build-packaging-tests -C Release --output-on-failure -L packaging
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # ---------- Upload artifacts ----------
       - name: Upload SDK bundle
