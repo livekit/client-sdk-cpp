@@ -25,12 +25,12 @@ them explicitly:
 ```
 
 On Windows, use `build.cmd release --capture --bundle --prefix sdk-out\livekit-sdk-capture`.
-Custom CMake configurations can set `LIVEKIT_ENABLE_CAPTURE=ON`. The build enables
+Custom CMake configurations can set `LIVEKIT_BUILD_CAPTURE=ON`. The build enables
 `capture-gstreamer`, `capture-pattern`, and `capture-clock` in the Rust FFI.
 
 Release downloads with `-capture` in their names include these features, for
 example `livekit-sdk-macos-arm64-capture-<version>.tar.gz`. Standard release
-bundles have capture disabled. The generated `livekit::kCaptureEnabled` constant
+bundles have capture disabled. The generated numeric `LIVEKIT_CAPTURE_ENABLED` macro (0 or 1)
 and `share/livekit/build-info.json` describe the selected bundle's build features;
 they do not test whether a GPU or a requested GStreamer plugin is available.
 
