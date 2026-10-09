@@ -98,6 +98,32 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
   --token-only)"
 ```
 
+## Installed SDK packaging tests
+
+`src/tests/packaging/` is a standalone CMake consumer of an installed SDK.
+CTest registers `InstalledSdk.Capture` with the `packaging` and `integration`
+labels and a 30-second timeout. It checks the bundle's capture metadata and
+creates a GStreamer VP8 source through the installed library. It needs no
+LiveKit server; capture-enabled runs require GStreamer and the pipeline's plugins.
+
+From the repository root:
+
+```bash
+source scripts/set-test-tokens.sh
+./build.sh debug --capture --bundle --prefix sdk-out/livekit-sdk-capture
+cmake -S src/tests/packaging -B build-packaging-tests \
+  -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH="$PWD/sdk-out/livekit-sdk-capture" \
+  -DLIVEKIT_EXPECT_CAPTURE=ON
+cmake --build build-packaging-tests --config Debug
+ctest --test-dir build-packaging-tests -C Debug --output-on-failure -L packaging
+```
+
+Use `LIVEKIT_EXPECT_CAPTURE=OFF` when testing a standard bundle. A mismatch
+between the expected capability and the installed header fails the test. In
+capture-enabled CI release jobs, the expectation is explicitly `ON`; a disabled
+bundle cannot pass by rejecting source creation. On Windows, add the installed
+SDK's `bin` directory and GStreamer's `bin` directory to `PATH` before running CTest.
+
 ## Test coverage
 
 - **SDK initialization**: initialize / shutdown lifecycle.
