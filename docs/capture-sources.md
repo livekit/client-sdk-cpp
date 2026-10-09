@@ -52,6 +52,9 @@ Invalid configurations produce `CaptureSourceError` when the returned future is
 awaited. For GStreamer, resolution and codec can be omitted to discover them from
 negotiated pipeline caps.
 
+Discarding a creation future does not wait for creation to finish. Creation
+continues, and the source is released when the callback arrives.
+
 ```cpp
 #include <livekit/livekit.h>
 
@@ -98,5 +101,7 @@ auto capture = livekit::CaptureSource::create(config).get();
 The optional rate-control binding forwards WebRTC bitrate targets to the named
 encoder property. Without it, the pipeline uses its configured fixed bitrate.
 Use `capture->publishOptions()` when publishing: encoded sources require the
-source's codec and encoder settings, which override conflicting application
-options.
+source's codec, the `PreEncoded` encoder, and disabled simulcast, which override
+conflicting application options. All other application options are preserved.
+Pattern and clock sources preserve every application option, including explicit
+codec and simulcast choices. Rust supplies defaults for fields left unset.
