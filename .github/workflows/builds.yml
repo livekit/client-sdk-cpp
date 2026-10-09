@@ -386,29 +386,30 @@ jobs:
           test -f "${bundle}/lib/cmake/LiveKit/LiveKitConfigVersion.cmake"
           test -f "${bundle}/lib/cmake/LiveKit/LiveKitTargets.cmake"
 
-      - name: Smoke-test installed capture SDK (Unix)
+      - name: Test installed capture SDK (Unix)
         if: matrix.capture == true && runner.os != 'Windows'
         shell: bash
         run: |
           bundle="$GITHUB_WORKSPACE/sdk-out/livekit-sdk-${{ matrix.name }}"
           arch_args=()
           if [[ "${{ matrix.name }}" == macos-x64* ]]; then arch_args+=(-DCMAKE_OSX_ARCHITECTURES=x86_64); fi
-          cmake -S scripts/capture-bundle-smoke -B capture-smoke -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$bundle" "${arch_args[@]}"
-          cmake --build capture-smoke
-          ./capture-smoke/capture_bundle_smoke
+          cmake -S src/tests/packaging -B build-packaging-tests -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$bundle" \
+            -DLIVEKIT_EXPECT_CAPTURE=ON "${arch_args[@]}"
+          cmake --build build-packaging-tests
+          ctest --test-dir build-packaging-tests -C Release --output-on-failure -L packaging
 
-      - name: Smoke-test installed capture SDK (Windows)
+      - name: Test installed capture SDK (Windows)
         if: matrix.capture == true && runner.os == 'Windows'
         shell: pwsh
         run: |
           $bundle = Join-Path $env:GITHUB_WORKSPACE "sdk-out/livekit-sdk-${{ matrix.name }}"
-          cmake -S scripts/capture-bundle-smoke -B capture-smoke -DCMAKE_PREFIX_PATH="$bundle"
+          cmake -S src/tests/packaging -B build-packaging-tests -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_EXPECT_CAPTURE=ON
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cmake --build capture-smoke --config Release
+          cmake --build build-packaging-tests --config Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $env:PATH = "$bundle\bin;$env:PATH"
-          & .\capture-smoke\Release\capture_bundle_smoke.exe
+          ctest --test-dir build-packaging-tests -C Release --output-on-failure -L packaging
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       # ---------- Upload artifacts ----------

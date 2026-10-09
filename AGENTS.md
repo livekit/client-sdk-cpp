@@ -94,7 +94,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `scripts/` | Local helper scripts for SDK-specific development tasks |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
-| `scripts/capture-bundle-smoke/` | Standalone downstream CMake consumer that validates capture-enabled SDK bundles |
+| `src/tests/packaging/` | Standalone CTest integration tests consuming installed SDK bundles |
 | `.github/actions/setup-capture/` | Shared CI setup for capture runtime and development dependencies |
 | `.github/workflows/` | GitHub Actions CI workflows |
 
@@ -132,8 +132,8 @@ Both build scripts accept `--capture` to enable GStreamer, pattern, and clock
 sources, and `--no-capture` to disable them. Test/all presets enable capture by
 default; normal and example presets disable it. Capture-enabled builds need
 GStreamer development and runtime libraries. Release workflows publish separate
-`-capture` bundles and validate creation through the installed SDK using
-`scripts/capture-bundle-smoke/`.
+`-capture` bundles and validate creation through the installed SDK using the standalone CTest project in
+`src/tests/packaging/`.
 
 Rust FFI outputs live under `client-sdk-rust/target/cpp-<feature-hash>/` to isolate
 Cargo feature configurations. Generated public build metadata lives under each
