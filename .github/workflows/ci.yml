@@ -52,7 +52,6 @@ jobs:
               - .github/workflows/make-release.yml
               - .github/actions/setup-capture/**
               - .github/scripts/check_no_private_symbols.py
-              - scripts/capture-bundle-smoke/**
             tests:
               - src/**
               - include/**
