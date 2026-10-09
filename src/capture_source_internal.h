@@ -16,20 +16,15 @@
 
 #pragma once
 
-#include <vector>
-
 #include "livekit/capture_source.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
 
-namespace proto {
-class CaptureDeviceList;
-}
-
-/// Convert an FFI capture-device list to public device information.
-///
+/// Serialize capture configurations for the FFI request.
 /// Internal test seam; not part of the public SDK API.
-LIVEKIT_INTERNAL_API std::vector<CaptureDeviceInfo> fromProto(const proto::CaptureDeviceList& list);
+LIVEKIT_INTERNAL_API proto::NewCaptureSourceRequest toProto(GstreamerVideoSourceConfig config);
+LIVEKIT_INTERNAL_API proto::NewCaptureSourceRequest toProto(const PatternVideoSourceConfig& config);
+LIVEKIT_INTERNAL_API proto::NewCaptureSourceRequest toProto(const ClockVideoSourceConfig& config);
 
 } // namespace livekit
