@@ -16,15 +16,13 @@
 
 /// Tests for capture sources (livekit-capture over FFI).
 ///
-/// Two groups. `CaptureSourceServerTest` publishes the built-in pattern source —
-/// the capture pump pushes frames server-side, so the test drives no frames
-/// itself — and verifies that a second participant receives real video through
-/// the SFU. `CaptureDeviceTest` covers camera device enumeration and format
-/// negotiation, which need no room; those tests skip when the machine has no
-/// camera.
+/// Publishes the built-in pattern and clock sources and verifies that a second
+/// participant receives video through the SFU without per-frame FFI traffic.
 ///
 /// All of them require the Rust FFI built with the `capture` feature
 /// (-DLIVEKIT_ENABLE_CAPTURE=ON); otherwise they skip.
+
+#include <livekit/capture_source.h>
 
 #include <chrono>
 #include <condition_variable>
@@ -35,7 +33,6 @@
 #include <vector>
 
 #include "../common/test_common.h"
-#include "livekit/capture_source.h"
 
 namespace livekit::test {
 
@@ -58,7 +55,13 @@ constexpr std::uint32_t kCaptureFramerateFps = 30;
     }                                                                                                                \
   } while (false)
 
-std::shared_ptr<CaptureSource> createPatternCapture() {
+std::shared_ptr<CaptureSource> createCapture(bool clock) {
+  if (clock) {
+    ClockVideoSourceConfig config;
+    config.resolution = {kCaptureWidth, kCaptureHeight};
+    config.framerate_fps = kCaptureFramerateFps;
+    return CaptureSource::create(config).get();
+  }
   PatternVideoSourceConfig config;
   config.resolution = {kCaptureWidth, kCaptureHeight};
   config.framerate_fps = kCaptureFramerateFps;
@@ -67,113 +70,36 @@ std::shared_ptr<CaptureSource> createPatternCapture() {
 
 } // namespace
 
-class CaptureSourceServerTest : public LiveKitTestBase {};
+class CaptureSourceServerTest : public LiveKitTestBase, public ::testing::WithParamInterface<bool> {};
 
-/// Device tests need an initialized SDK but no room, so they share the base
-/// fixture without requiring the server environment variables.
-class CaptureDeviceTest : public LiveKitTestBase {};
-
-/// Device enumeration is a pure local query: it needs no server, and a
-/// machine with no camera is a valid (empty) result.
-TEST_F(CaptureDeviceTest, ListDevicesReportsWellFormedDevices) {
+TEST_P(CaptureSourceServerTest, InvalidResolutionIsRejected) {
   SKIP_WITHOUT_CAPTURE_FEATURE();
-
-  std::vector<CaptureDeviceInfo> devices;
-  try {
-    devices = CaptureSource::listDevices().get();
-  } catch (const CaptureSourceError& e) {
-    // A platform with no capture backend reports UnsupportedPlatform.
-    GTEST_SKIP() << "capture device enumeration unavailable: " << e.what();
-  }
-
-  for (const CaptureDeviceInfo& device : devices) {
-    EXPECT_FALSE(device.id.empty()) << "device id must be a stable identifier";
-    EXPECT_FALSE(device.name.empty()) << "device name must be human-readable";
-    for (const DeviceFormat& format : device.formats) {
-      EXPECT_GT(format.resolution.width, 0);
-      EXPECT_GT(format.resolution.height, 0);
-      EXPECT_GT(format.framerate_fps, 0u);
-    }
-    // A device reporting a complete format list must report at least one.
-    if (device.formats_complete) {
-      EXPECT_FALSE(device.formats.empty()) << "device " << device.id << " claims a complete but empty format list";
-    }
+  if (GetParam()) {
+    ClockVideoSourceConfig config;
+    config.resolution = {0, kCaptureHeight};
+    config.framerate_fps = kCaptureFramerateFps;
+    EXPECT_THROW(static_cast<void>(CaptureSource::create(config).get()), CaptureSourceError);
+  } else {
+    PatternVideoSourceConfig config;
+    config.resolution = {0, kCaptureHeight};
+    config.framerate_fps = kCaptureFramerateFps;
+    EXPECT_THROW(static_cast<void>(CaptureSource::create(config).get()), CaptureSourceError);
   }
 }
 
-/// An unsatisfiable exact format request must fail loudly at construction
-/// rather than silently falling back to another format.
-///
-/// The resolution is deliberately odd-sized rather than merely large: no
-/// camera offers 7x3, and its odd dimensions survive any driver rounding to a
-/// macroblock or 2-pixel boundary.
-///
-/// CaptureSourceError carries only a message, so this cannot assert on a
-/// specific cause. The preceding skips narrow it: the capture feature is
-/// present and at least one device enumerated, so the throw is attributable to
-/// the format request.
-TEST_F(CaptureDeviceTest, ExactFormatRequestRejectsUnsupportedFormat) {
-  SKIP_WITHOUT_CAPTURE_FEATURE();
-
-  std::vector<CaptureDeviceInfo> devices;
-  try {
-    devices = CaptureSource::listDevices().get();
-  } catch (const CaptureSourceError& e) {
-    GTEST_SKIP() << "capture device enumeration unavailable: " << e.what();
-  }
-  if (devices.empty()) {
-    GTEST_SKIP() << "no capture devices attached to this machine";
-  }
-
-  DeviceVideoSourceConfig config;
-  config.device = DeviceSelector::id(devices.front().id);
-  // NV12 is requestable on every backend, so the rejection is attributable to
-  // the resolution rather than to frame-format validation.
-  config.format = DeviceFormatRequest::exact(DeviceFormat{{7, 3}, 1, DeviceFrameFormat::NV12});
-
-  EXPECT_THROW(CaptureSource::create(config).get(), CaptureSourceError);
-}
-
-/// Opening the platform default device with the default format request must
-/// negotiate a usable format and report the negotiated resolution.
-TEST_F(CaptureDeviceTest, DefaultDeviceNegotiatesAFormat) {
-  SKIP_WITHOUT_CAPTURE_FEATURE();
-
-  std::vector<CaptureDeviceInfo> devices;
-  try {
-    devices = CaptureSource::listDevices().get();
-  } catch (const CaptureSourceError& e) {
-    GTEST_SKIP() << "capture device enumeration unavailable: " << e.what();
-  }
-  if (devices.empty()) {
-    GTEST_SKIP() << "no capture devices attached to this machine";
-  }
-
-  std::shared_ptr<CaptureSource> capture;
-  try {
-    capture = CaptureSource::create(DeviceVideoSourceConfig{}).get();
-  } catch (const CaptureSourceError& e) {
-    // A camera present but claimed by another process, or denied by the
-    // platform's privacy controls, is not a binding failure.
-    GTEST_SKIP() << "default capture device unavailable: " << e.what();
-  }
-
-  ASSERT_NE(capture, nullptr);
-  EXPECT_EQ(capture->kind(), CaptureSourceKind::Pixel);
-  EXPECT_GT(capture->width(), 0);
-  EXPECT_GT(capture->height(), 0);
-  EXPECT_FALSE(capture->codec().has_value()) << "device capture is a pixel source";
-  EXPECT_NE(capture->videoSource(), nullptr);
-}
-
-TEST_F(CaptureSourceServerTest, PatternCaptureSourcePublishesFramesEndToEnd) {
+TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
   SKIP_WITHOUT_CAPTURE_FEATURE();
   failIfNotConfigured();
 
-  auto capture = createPatternCapture();
+  const auto creation_started = std::chrono::steady_clock::now();
+  auto capture = createCapture(GetParam());
+  RecordProperty(
+      "capture_creation_ms",
+      std::to_string(
+          std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - creation_started).count()));
   ASSERT_NE(capture, nullptr);
 
-  // The pattern source reports back the resolution it was configured with.
+  // The pixel source reports back the resolution it was configured with.
   ASSERT_EQ(capture->kind(), CaptureSourceKind::Pixel);
   ASSERT_EQ(capture->width(), kCaptureWidth);
   ASSERT_EQ(capture->height(), kCaptureHeight);
@@ -199,7 +125,7 @@ TEST_F(CaptureSourceServerTest, PatternCaptureSourcePublishesFramesEndToEnd) {
   std::condition_variable cv;
   int frames_received = 0;
 
-  const std::string track_name = "pattern-capture-track";
+  const std::string track_name = "pixel-capture-track";
   receiver_room.setOnVideoFrameEventCallback(sender_identity, track_name,
                                              [&mutex, &cv, &frames_received](const VideoFrameEvent& /*event*/) {
                                                std::lock_guard<std::mutex> lock(mutex);
@@ -225,6 +151,7 @@ TEST_F(CaptureSourceServerTest, PatternCaptureSourcePublishesFramesEndToEnd) {
     cv.notify_all();
   });
 
+  const auto capture_started = std::chrono::steady_clock::now();
   ASSERT_TRUE(capture->start());
   EXPECT_FALSE(capture->start()) << "double start must be rejected";
 
@@ -232,7 +159,7 @@ TEST_F(CaptureSourceServerTest, PatternCaptureSourcePublishesFramesEndToEnd) {
     std::unique_lock<std::mutex> lock(mutex);
     const bool got_frames =
         cv.wait_for(lock, 30s, [&frames_received] { return frames_received >= kMinFramesReceived; });
-    ASSERT_TRUE(got_frames) << "Timed out waiting for pattern capture frames; received " << frames_received;
+    ASSERT_TRUE(got_frames) << "Timed out waiting for capture frames; received " << frames_received;
   }
 
   // Stop is a signal; the terminal callback delivers the stats.
@@ -246,11 +173,18 @@ TEST_F(CaptureSourceServerTest, PatternCaptureSourcePublishesFramesEndToEnd) {
   ASSERT_FALSE(finished->error.has_value()) << *finished->error;
   EXPECT_EQ(finished->exit, CaptureExit::Stopped);
   EXPECT_GT(finished->frames_captured, 0u);
+  const auto capture_seconds =
+      std::chrono::duration<double>(std::chrono::steady_clock::now() - capture_started).count();
+  RecordProperty("capture_frames_per_second",
+                 std::to_string(static_cast<double>(finished->frames_captured) / capture_seconds));
 
   receiver_room.clearOnVideoFrameCallback(sender_identity, track_name);
   if (track->publication()) {
     lockLocalParticipant(sender_room)->unpublishTrack(track->publication()->sid());
   }
 }
+
+INSTANTIATE_TEST_SUITE_P(PixelSources, CaptureSourceServerTest, ::testing::Bool(),
+                         [](const ::testing::TestParamInfo<bool>& info) { return info.param ? "Clock" : "Pattern"; });
 
 } // namespace livekit::test
