@@ -22,37 +22,60 @@
 namespace livekit::test {
 namespace {
 
-TEST(CaptureSourceProtoTest, ConvertsDeviceListToPublicTypes) {
-  proto::CaptureDeviceList list;
-  auto* device = list.add_devices();
-  device->set_id("camera-1");
-  device->set_name("Front camera");
-  device->set_model_id("model-1");
-  device->set_manufacturer("LiveKit");
-  device->set_formats_complete(true);
+TEST(CaptureSourceProtoTest, ClockConfigurationUsesMainlineWireContract) {
+  ClockVideoSourceConfig config;
+  config.resolution = {1920, 1080};
+  config.framerate_fps = 30;
 
-  auto* format = device->add_formats();
-  format->mutable_resolution()->set_width(1920);
-  format->mutable_resolution()->set_height(1080);
-  format->set_framerate_fps(30);
-  format->set_frame_format(proto::DeviceFrameFormat::DEVICE_FRAME_FORMAT_NV12);
+  const auto request = toProto(config);
+  ASSERT_TRUE(request.IsInitialized());
+  ASSERT_TRUE(request.has_clock());
+  EXPECT_EQ(request.clock().resolution().width(), 1920u);
+  EXPECT_EQ(request.clock().resolution().height(), 1080u);
+  EXPECT_EQ(request.clock().framerate_fps(), 30u);
+  EXPECT_FALSE(request.has_gstreamer());
+  EXPECT_FALSE(request.has_pattern());
+}
 
-  const std::vector<CaptureDeviceInfo> devices = fromProto(list);
+TEST(CaptureSourceProtoTest, RejectsNonPositiveDimensionsBeforeUnsignedConversion) {
+  for (const CaptureResolution resolution : {CaptureResolution{0, 720}, CaptureResolution{-1, 720},
+                                             CaptureResolution{1280, 0}, CaptureResolution{1280, -1}}) {
+    PatternVideoSourceConfig pattern;
+    pattern.resolution = resolution;
+    pattern.framerate_fps = 30;
+    EXPECT_THROW(toProto(pattern), CaptureSourceError);
+    ClockVideoSourceConfig clock;
+    clock.resolution = resolution;
+    clock.framerate_fps = 30;
+    EXPECT_THROW(toProto(clock), CaptureSourceError);
+    GstreamerVideoSourceConfig gstreamer;
+    gstreamer.resolution = resolution;
+    EXPECT_THROW(toProto(gstreamer), CaptureSourceError);
+  }
+}
 
-  ASSERT_EQ(devices.size(), 1u);
-  const CaptureDeviceInfo& converted = devices.front();
-  EXPECT_EQ(converted.id, "camera-1");
-  EXPECT_EQ(converted.name, "Front camera");
-  ASSERT_TRUE(converted.model_id.has_value());
-  EXPECT_EQ(*converted.model_id, "model-1");
-  ASSERT_TRUE(converted.manufacturer.has_value());
-  EXPECT_EQ(*converted.manufacturer, "LiveKit");
-  EXPECT_TRUE(converted.formats_complete);
-  ASSERT_EQ(converted.formats.size(), 1u);
-  EXPECT_EQ(converted.formats.front().resolution.width, 1920);
-  EXPECT_EQ(converted.formats.front().resolution.height, 1080);
-  EXPECT_EQ(converted.formats.front().framerate_fps, 30u);
-  EXPECT_EQ(converted.formats.front().frame_format, DeviceFrameFormat::NV12);
+TEST(CaptureSourceProtoTest, RejectsZeroFrameRate) {
+  PatternVideoSourceConfig pattern;
+  pattern.resolution = {1280, 720};
+  EXPECT_THROW(toProto(pattern), CaptureSourceError);
+  ClockVideoSourceConfig clock;
+  clock.resolution = {1280, 720};
+  EXPECT_THROW(toProto(clock), CaptureSourceError);
+}
+
+TEST(CaptureSourceProtoTest, ValidationErrorsAreDeliveredThroughFuture) {
+  std::future<std::shared_ptr<CaptureSource>> future;
+  EXPECT_NO_THROW(future = CaptureSource::create(ClockVideoSourceConfig{}));
+  ASSERT_TRUE(future.valid());
+  EXPECT_THROW(static_cast<void>(future.get()), CaptureSourceError);
+}
+
+TEST(CaptureSourceProtoTest, GstreamerCanDiscoverResolution) {
+  GstreamerVideoSourceConfig config;
+  config.pipeline = "videotestsrc ! vp8enc ! appsink name=lk_appsink";
+  const auto request = toProto(config);
+  EXPECT_TRUE(request.IsInitialized());
+  EXPECT_FALSE(request.gstreamer().has_resolution());
 }
 
 } // namespace

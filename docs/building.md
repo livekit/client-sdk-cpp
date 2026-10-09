@@ -348,6 +348,30 @@ cmake --build build --target clean_generated    # Generated protobuf headers
 cmake --build build --target clean_all          # Full clean
 ```
 
+## Capture sources
+
+Standard `debug`, `release`, and `*-examples` builds disable capture. The
+`*-tests` and `*-all` presets enable it by default. Both build scripts accept
+`--capture` and `--no-capture` to override the preset:
+
+```bash
+./build.sh release --capture --bundle --prefix sdk-out/livekit-sdk-capture
+```
+
+On Windows, use `build.cmd release --capture --bundle --prefix sdk-out\livekit-sdk-capture`.
+Capture builds enable GStreamer, GPU test patterns, and the GPU wall clock.
+They require GStreamer development libraries at build time and its runtime
+libraries when the SDK is loaded. Release artifacts with `-capture` in their
+names include capture; standard artifacts disable it.
+
+Rust artifacts are stored under `client-sdk-rust/target/cpp-<feature-hash>/`,
+with separate directories for capture-enabled and disabled builds. Generated
+`build.h` files live in each CMake build directory, so feature metadata follows
+the installed SDK instead of another configuration's most recent build.
+
+See [Capture sources](capture-sources.md) for dependencies and usage.
+
+
 ## Support
 
 - GitHub Issues: <https://github.com/livekit/client-sdk-cpp/issues>
