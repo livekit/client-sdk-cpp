@@ -160,7 +160,7 @@ struct CaptureResult {
 /// a track from @ref CaptureSource::videoSource(), merge application options
 /// through @ref CaptureSource::publishOptions(), then call @ref CaptureSource::start().
 ///
-/// Requires a capture-enabled SDK build (`LIVEKIT_ENABLE_CAPTURE`), with
+/// Requires a capture-enabled SDK build (`LIVEKIT_BUILD_CAPTURE`), with
 /// `capture-gstreamer`, `capture-pattern`, and `capture-clock` Rust features.
 /// Otherwise creation fails.
 ///
@@ -186,12 +186,19 @@ public:
 
   /// @brief Create the built-in test pattern capture source.
   ///
+  /// Completes asynchronously after Rust initializes the GPU renderer.
+  /// Keep the future to overlap setup with other work, or await it immediately.
+  ///
   /// @param config Pattern source configuration.
   /// @return A future that resolves to the created capture source.
   /// @throws CaptureSourceError When awaiting the future if creation fails.
   static std::future<std::shared_ptr<CaptureSource>> create(PatternVideoSourceConfig config);
 
   /// @brief Create the built-in wall clock capture source.
+  ///
+  /// Completes asynchronously after Rust initializes the GPU renderer.
+  /// Keep the future to overlap setup with other work, or await it immediately.
+  ///
   /// @param config Clock source configuration.
   /// @return A future that resolves to the created capture source.
   /// @throws CaptureSourceError When awaiting the future if creation fails.

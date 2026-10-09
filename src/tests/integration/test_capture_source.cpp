@@ -19,8 +19,8 @@
 /// Publishes the built-in pattern and clock sources and verifies that a second
 /// participant receives video through the SFU without per-frame FFI traffic.
 ///
-/// All of them require the Rust FFI built with the `capture` feature
-/// (-DLIVEKIT_ENABLE_CAPTURE=ON); otherwise they skip.
+/// All of them require the Rust FFI built with capture-source support
+/// (-DLIVEKIT_BUILD_CAPTURE=ON); otherwise they skip.
 
 #include <livekit/capture_source.h>
 
@@ -45,15 +45,13 @@ constexpr int kCaptureWidth = 1280;
 constexpr int kCaptureHeight = 720;
 constexpr std::uint32_t kCaptureFramerateFps = 30;
 
-/// Skips the calling test when the FFI library was built without the capture
-/// feature. A feature-less FFI reports only a generic invalid handle, so this
-/// has to be decided at compile time rather than sniffed from an error string.
-#define SKIP_WITHOUT_CAPTURE_FEATURE()                                                                               \
-  do {                                                                                                               \
-    if constexpr (!kCaptureEnabled) {                                                                                \
-      GTEST_SKIP() << "livekit-ffi built without the 'capture' feature; configure with -DLIVEKIT_ENABLE_CAPTURE=ON"; \
-    }                                                                                                                \
-  } while (false)
+// Decide from build metadata rather than interpreting source-creation errors.
+#if LIVEKIT_CAPTURE_ENABLED
+#define SKIP_WITHOUT_CAPTURE_FEATURE() ((void)0)
+#else
+#define SKIP_WITHOUT_CAPTURE_FEATURE() \
+  GTEST_SKIP() << "livekit-ffi built without capture support; configure with -DLIVEKIT_BUILD_CAPTURE=ON"
+#endif
 
 std::shared_ptr<CaptureSource> createCapture(bool clock) {
   if (clock) {

@@ -148,7 +148,7 @@ configure() {
   echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
   local -a extra_args=()
   if [[ -n "${CAPTURE_OVERRIDE:-}" ]]; then
-    extra_args+=("-DLIVEKIT_ENABLE_CAPTURE=${CAPTURE_OVERRIDE}")
+    extra_args+=("-DLIVEKIT_BUILD_CAPTURE=${CAPTURE_OVERRIDE}")
   fi
   if [[ -n "${LIVEKIT_VERSION}" ]]; then
     echo "==> Injecting LIVEKIT_VERSION=${LIVEKIT_VERSION}"

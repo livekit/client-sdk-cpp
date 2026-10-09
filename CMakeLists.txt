@@ -18,7 +18,7 @@ include(warnings)
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 option(LIVEKIT_BUILD_TESTS "Build LiveKit tests" OFF)
-option(LIVEKIT_ENABLE_CAPTURE "Build the Rust FFI with the capture feature (livekit-capture sources; links system GStreamer)" OFF)
+option(LIVEKIT_BUILD_CAPTURE "Build the Rust FFI with the capture feature (livekit-capture sources; links system GStreamer)" OFF)
 
 # vcpkg is only used on Windows; Linux/macOS use system package managers
 if(WIN32)
@@ -172,7 +172,7 @@ set(RUST_ROOT ${LIVEKIT_ROOT_DIR}/client-sdk-rust)
 # Cargo features for the Rust FFI build.
 set(LIVEKIT_CARGO_FEATURES "")
 set(LIVEKIT_CAPTURE_ENABLED 0)
-if(LIVEKIT_ENABLE_CAPTURE)
+if(LIVEKIT_BUILD_CAPTURE)
   set(LIVEKIT_CARGO_FEATURES "capture-gstreamer,capture-pattern,capture-clock")
   set(LIVEKIT_CAPTURE_ENABLED 1)
 endif()
