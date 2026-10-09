@@ -239,7 +239,14 @@ endif()
 # Include the feature selection in the path, including future feature changes.
 string(SHA256 LIVEKIT_CARGO_FEATURE_HASH "${LIVEKIT_CARGO_FEATURES}")
 string(SUBSTRING "${LIVEKIT_CARGO_FEATURE_HASH}" 0 16 LIVEKIT_CARGO_FEATURE_HASH)
-set(LIVEKIT_CARGO_TARGET_DIR "${RUST_ROOT}/target/cpp-${LIVEKIT_CARGO_FEATURE_HASH}")
+# A short Cargo root avoids MAX_PATH failures in nested WebRTC headers on Windows.
+# Treat CARGO_TARGET_DIR as the root; retain feature-specific subdirectories.
+set(LIVEKIT_CARGO_TARGET_ROOT "${RUST_ROOT}/target")
+if(DEFINED ENV{CARGO_TARGET_DIR} AND NOT "$ENV{CARGO_TARGET_DIR}" STREQUAL "")
+  get_filename_component(LIVEKIT_CARGO_TARGET_ROOT "$ENV{CARGO_TARGET_DIR}"
+    ABSOLUTE BASE_DIR "${RUST_ROOT}")
+endif()
+set(LIVEKIT_CARGO_TARGET_DIR "${LIVEKIT_CARGO_TARGET_ROOT}/cpp-${LIVEKIT_CARGO_FEATURE_HASH}")
 if(RUST_TARGET_TRIPLE)
   set(RUST_TARGET_DIR "${LIVEKIT_CARGO_TARGET_DIR}/${RUST_TARGET_TRIPLE}")
 else()

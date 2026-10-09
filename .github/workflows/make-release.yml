@@ -84,6 +84,15 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Set Cargo output root
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            echo "CARGO_TARGET_DIR=$(cygpath -m "$RUNNER_TEMP")/lk-rust" >> "$GITHUB_ENV"
+          else
+            echo "CARGO_TARGET_DIR=$GITHUB_WORKSPACE/client-sdk-rust/target" >> "$GITHUB_ENV"
+          fi
+
       - name: Checkout (with submodules)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -214,17 +223,19 @@ jobs:
         id: cache-cargo-target
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: client-sdk-rust/target/
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
+          path: |
+            client-sdk-rust/target/
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v2-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
-            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-
+            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v2-
 
       # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
       # artifacts in webrtc-sys are not compatible across those bumps.
       - name: Drop stale cargo target on submodule SHA cache miss
         if: steps.cache-cargo-target.outputs.cache-hit != 'true'
         shell: bash
-        run: rm -rf client-sdk-rust/target/
+        run: rm -rf client-sdk-rust/target/ "$CARGO_TARGET_DIR"
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment

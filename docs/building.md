@@ -348,6 +348,17 @@ cmake --build build --target clean_generated    # Generated protobuf headers
 cmake --build build --target clean_all          # Full clean
 ```
 
+## Cargo output paths on Windows
+
+The SDK places Rust FFI outputs in `client-sdk-rust/target/cpp-<feature-hash>/`.
+Deep checkout paths can make WebRTC header paths exceed the Windows path limit.
+Set `CARGO_TARGET_DIR` to a short absolute path before building, for example
+`set CARGO_TARGET_DIR=C:\lk-rust` in Command Prompt. The SDK appends the
+feature directory so capture-enabled and disabled outputs remain separate.
+Windows CI uses this setting for builds, tests, and release bundles.
+`clean-all` removes the default Rust target directory; remove a custom root
+separately when it is no longer needed.
+
 ## Capture sources
 
 Standard `debug`, `release`, and `*-examples` builds disable capture. The

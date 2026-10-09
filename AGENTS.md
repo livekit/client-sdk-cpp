@@ -139,7 +139,10 @@ GStreamer development and runtime libraries. Release workflows publish separate
 `src/tests/packaging/`.
 
 Rust FFI outputs live under `client-sdk-rust/target/cpp-<feature-hash>/` to isolate
-Cargo feature configurations. Generated public build metadata lives under each
+Cargo feature configurations. Set `CARGO_TARGET_DIR` to override the root;
+feature-specific directories are appended. Windows CI uses a short root under
+`runner.temp` to keep nested WebRTC header paths below the Windows path limit.
+Generated public build metadata lives under each
 build directory's `generated/include/livekit/build.h`; do not generate it into
 the source tree. Track capture Rust sources and shaders in build dependencies.
 
