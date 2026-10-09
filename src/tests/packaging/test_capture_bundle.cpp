@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
     return 2;
   }
   const bool expect_capture = std::string_view(argv[1]) == "--expect-capture=ON";
-  if (livekit::kCaptureEnabled != expect_capture) {
+  if ((LIVEKIT_CAPTURE_ENABLED != 0) != expect_capture) {
     std::cerr << "Installed SDK capture metadata does not match the requested expectation\n";
     return 1;
   }
