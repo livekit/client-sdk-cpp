@@ -358,6 +358,9 @@ Standard `debug`, `release`, and `*-examples` builds disable capture. The
 ./build.sh release --capture --bundle --prefix sdk-out/livekit-sdk-capture
 ```
 
+The build scripts set `LIVEKIT_BUILD_CAPTURE`. The generated
+`LIVEKIT_CAPTURE_ENABLED` macro is 0 or 1 and supports `#if` checks in consumers.
+
 On Windows, use `build.cmd release --capture --bundle --prefix sdk-out\livekit-sdk-capture`.
 Capture builds enable GStreamer, GPU test patterns, and the GPU wall clock.
 They require GStreamer development libraries at build time and its runtime
