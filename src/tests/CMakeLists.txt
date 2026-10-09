@@ -89,6 +89,7 @@ if(UNIT_TEST_SOURCES)
   target_link_libraries(livekit_unit_tests
     PRIVATE
       livekit
+      livekit_ffi # Capture ownership tests verify Rust handle disposal directly.
       spdlog::spdlog
       ${LIVEKIT_PROTOBUF_TARGET}
       GTest::gtest_main
@@ -104,6 +105,7 @@ if(UNIT_TEST_SOURCES)
       ${LIVEKIT_TEST_PROTOBUF_DEP_INCLUDE_DIRS}
   )
   target_include_directories(livekit_unit_tests SYSTEM PRIVATE
+    ${LIVEKIT_ROOT_DIR}/client-sdk-rust/livekit-ffi/include
     ${LIVEKIT_TEST_SYSTEM_INCLUDE_DIRS}
   )
 

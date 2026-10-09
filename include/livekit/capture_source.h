@@ -178,6 +178,8 @@ public:
   /// for its first output to discover stream settings. Errors (invalid
   /// pipeline, missing capture feature, discovery timeout) are thrown from
   /// the future as @ref CaptureSourceError.
+  /// Destroying the future does not wait for creation. The source is released
+  /// when creation completes if the future was discarded.
   ///
   /// @param config GStreamer pipeline configuration.
   /// @return A future that resolves to the created capture source.
@@ -188,6 +190,8 @@ public:
   ///
   /// Completes asynchronously after Rust initializes the GPU renderer.
   /// Keep the future to overlap setup with other work, or await it immediately.
+  /// Destroying the future does not wait for creation; an abandoned result is
+  /// released when creation completes.
   ///
   /// @param config Pattern source configuration.
   /// @return A future that resolves to the created capture source.
@@ -198,6 +202,8 @@ public:
   ///
   /// Completes asynchronously after Rust initializes the GPU renderer.
   /// Keep the future to overlap setup with other work, or await it immediately.
+  /// Destroying the future does not wait for creation; an abandoned result is
+  /// released when creation completes.
   ///
   /// @param config Clock source configuration.
   /// @return A future that resolves to the created capture source.
@@ -234,10 +240,10 @@ public:
 
   /// @brief Returns publish options for this track, applying application options.
   ///
-  /// Fields the source dictates (e.g. codec, encoder backend, and simulcast
-  /// for encoded sources) are required for correct publication and override
-  /// the application values; all other fields are taken from @p options
-  /// unchanged.
+  /// Encoded sources override codec with the source codec, select the
+  /// PreEncoded encoder backend, and disable simulcast. All other fields are
+  /// taken from @p options unchanged. Pixel sources preserve every application
+  /// option; Rust supplies defaults for fields left unset.
   /// @param options Application publish options.
   /// @return Options with source-required fields applied.
   TrackPublishOptions publishOptions(TrackPublishOptions options = {}) const;
@@ -259,6 +265,8 @@ public:
   bool stop();
 
 private:
+  friend class FfiClient;
+
   CaptureSource();
 
   /// @brief Shared creation path: sends the request and maps the callback payload
