@@ -30,7 +30,8 @@
         "strategy": "set"
       },
       "cacheVariables": {
-       "VCPKG_TARGET_TRIPLET": "x64-windows-static-md"
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
+        "LIVEKIT_ENABLE_CAPTURE": "OFF"
       }
     },
     {
@@ -39,7 +40,8 @@
       "generator": "Ninja",
       "cacheVariables": {
         "LIVEKIT_USE_VCPKG": "OFF",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "OFF"
       },
       "condition": {
         "type": "equals",
@@ -53,7 +55,8 @@
       "generator": "Ninja",
       "cacheVariables": {
         "LIVEKIT_USE_VCPKG": "OFF",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "LIVEKIT_ENABLE_CAPTURE": "OFF"
       },
       "condition": {
         "type": "equals",

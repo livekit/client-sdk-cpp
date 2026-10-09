@@ -26,22 +26,12 @@ set(LIVEKIT_UNIFFI_CPP_SCAFFOLDING_HEADER
 # the selected CMake configuration.
 if(UNIX AND NOT APPLE)
   set(LIVEKIT_UNIFFI_METADATA_TARGET_DIR
-      "${RUST_ROOT}/target/uniffi-cpp-metadata")
+      "${LIVEKIT_CARGO_TARGET_DIR}/uniffi-cpp-metadata")
   set(LIVEKIT_UNIFFI_METADATA_LIBRARY
       "${LIVEKIT_UNIFFI_METADATA_TARGET_DIR}/debug/liblivekit_ffi.so")
 endif()
 
-file(GLOB_RECURSE LIVEKIT_UNIFFI_RUST_SOURCES CONFIGURE_DEPENDS
-  "${RUST_ROOT}/livekit-ffi/src/*.rs"
-  "${RUST_ROOT}/livekit-ffi/protocol/*.proto"
-  "${RUST_ROOT}/livekit-ffi/build.rs"
-  "${RUST_ROOT}/livekit-ffi/Cargo.toml"
-)
-list(APPEND LIVEKIT_UNIFFI_RUST_SOURCES
-  "${RUST_ROOT}/Cargo.toml"
-  "${RUST_ROOT}/Cargo.lock"
-  "${RUST_ROOT}/rust-toolchain.toml"
-)
+set(LIVEKIT_UNIFFI_RUST_SOURCES ${RUST_SOURCES})
 
 file(GLOB_RECURSE LIVEKIT_UNIFFI_BINDGEN_SOURCES CONFIGURE_DEPENDS
   "${RUST_ROOT}/tools/bindgens/src/*.rs"
@@ -58,9 +48,10 @@ if(UNIX AND NOT APPLE)
             -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
             -DGCC_LIB_DIR=${GCC_LIB_DIR}
             -DCARGO_TARGET_DIR=${LIVEKIT_UNIFFI_METADATA_TARGET_DIR}
+            -DCARGO_FEATURES=${LIVEKIT_CARGO_FEATURES}
             -P "${RUN_CARGO_SCRIPT}"
     WORKING_DIRECTORY "${RUST_ROOT}"
-    DEPENDS ${LIVEKIT_UNIFFI_RUST_SOURCES}
+    DEPENDS ${LIVEKIT_UNIFFI_RUST_SOURCES} "${RUN_CARGO_SCRIPT}"
     COMMENT "Building unstripped livekit-ffi metadata library"
     VERBATIM
   )
