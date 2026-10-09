@@ -26,6 +26,7 @@
 #include "data_track_proto_converter.h"
 #include "ffi.pb.h"
 #include "livekit/build.h"
+#include "livekit/capture_source.h"
 #include "livekit/data_track_error.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h"
@@ -463,12 +464,14 @@ bool FfiClient::cancelPendingByAsyncId(AsyncId async_id) {
 
 template <typename T>
 std::future<T> FfiClient::registerAsync(AsyncId async_id, std::function<bool(const proto::FfiEvent&)> match,
-                                        std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler) {
+                                        std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler,
+                                        std::exception_ptr cancellation_error) {
   auto pending = std::make_unique<Pending<T>>();
   pending->async_id = async_id;
   auto fut = pending->promise.get_future();
   pending->match = std::move(match);
   pending->handler = std::move(handler);
+  pending->cancellation_error = std::move(cancellation_error);
   {
     const std::scoped_lock<std::mutex> guard(lock_);
     pending_by_id_.emplace(async_id, std::move(pending));
@@ -715,38 +718,44 @@ std::future<proto::OwnedTrackPublication> FfiClient::publishTrackAsync(std::uint
   return fut;
 }
 
-std::future<proto::OwnedCaptureSource> FfiClient::newCaptureSourceAsync(proto::NewCaptureSourceRequest request) {
+std::future<std::shared_ptr<CaptureSource>> FfiClient::newCaptureSourceAsync(
+    proto::NewCaptureSourceRequest request, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
   // Register the async handler BEFORE sending the request
-  auto fut = registerAsync<proto::OwnedCaptureSource>(
+  auto fut = registerAsync<std::shared_ptr<CaptureSource>>(
       async_id,
       [async_id](const proto::FfiEvent& event) {
         return event.has_new_capture_source() && event.new_capture_source().async_id() == async_id;
       },
-      [](const proto::FfiEvent& event, std::promise<proto::OwnedCaptureSource>& pr) {
+      [](const proto::FfiEvent& event, std::promise<std::shared_ptr<CaptureSource>>& pr) {
         const auto& cb = event.new_capture_source();
-
-        // Oneof message { string error = 2; OwnedCaptureSource source = 3; }
-        if (cb.has_error() && !cb.error().empty()) {
-          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
-          return;
+        try {
+          if (cb.has_error()) {
+            throw CaptureSourceError(cb.error());
+          }
+          if (!cb.has_source()) {
+            throw CaptureSourceError("NewCaptureSourceCallback missing source");
+          }
+          // Adopt the handles before satisfying the promise. If the caller has
+          // discarded its future, destroying the pending promise releases the
+          // wrapper and both handles after this callback completes.
+          pr.set_value(CaptureSource::fromOwned(cb.source()));
+        } catch (const std::exception& error) {
+          pr.set_exception(std::make_exception_ptr(CaptureSourceError(error.what())));
+        } catch (...) {
+          pr.set_exception(std::make_exception_ptr(CaptureSourceError("Capture source construction failed")));
         }
-        if (!cb.has_source()) {
-          pr.set_exception(std::make_exception_ptr(std::runtime_error("NewCaptureSourceCallback missing source")));
-          return;
-        }
-
-        pr.set_value(cb.source());
-      });
+      },
+      std::make_exception_ptr(CaptureSourceError("Async operation cancelled")));
 
   request.set_request_async_id(async_id);
   proto::FfiRequest req;
   req.mutable_new_capture_source()->CopyFrom(request);
 
   try {
-    const proto::FfiResponse resp = sendRequest(req);
+    const proto::FfiResponse resp = send ? send(req) : sendRequest(req);
     if (!resp.has_new_capture_source()) {
       logAndThrow("FfiResponse missing new_capture_source");
     }

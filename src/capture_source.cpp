@@ -16,6 +16,7 @@
 
 #include "livekit/capture_source.h"
 
+#include <limits>
 #include <mutex>
 #include <stdexcept>
 
@@ -24,7 +25,6 @@
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "lk_log.h"
-#include "room_proto_converter.h"
 
 namespace livekit {
 
@@ -35,7 +35,6 @@ struct CaptureSource::Impl {
   int height = 0;
   std::optional<VideoCodec> codec;
   std::shared_ptr<VideoSource> video_source;
-  TrackPublishOptions source_publish_options;
   std::mutex callback_mutex;
   FinishedCallback on_finished;
   int listener_id = 0;
@@ -182,31 +181,27 @@ proto::NewCaptureSourceRequest toProto(const ClockVideoSourceConfig& config) {
 std::future<std::shared_ptr<CaptureSource>> CaptureSource::createFromRequest(proto::NewCaptureSourceRequest request) {
   // A synchronous send failure is delivered through the
   // future rather than thrown from the factory.
-  std::future<proto::OwnedCaptureSource> owned;
   try {
-    owned = FfiClient::instance().newCaptureSourceAsync(std::move(request));
+    return FfiClient::instance().newCaptureSourceAsync(std::move(request));
   } catch (const std::exception& e) {
     return readyCaptureError<std::shared_ptr<CaptureSource>>(e);
   }
-
-  // Map the FFI payload onto a wrapper once the callback resolves. A helper
-  // thread keeps the returned future's wait semantics standard.
-  return std::async(std::launch::async, [owned = std::move(owned)]() mutable {
-    try {
-      return fromOwned(owned.get());
-    } catch (const CaptureSourceError&) {
-      throw;
-    } catch (const std::exception& e) {
-      throw CaptureSourceError(e.what());
-    }
-  });
 }
 
 std::shared_ptr<CaptureSource> CaptureSource::fromOwned(const proto::OwnedCaptureSource& owned) {
   const proto::CaptureSourceInfo& info = owned.info();
+  // Guard both Rust-owned handles before validation or wrapper allocations.
+  FfiHandle capture_handle_owner(static_cast<uintptr_t>(owned.handle().id()));
+  FfiHandle video_handle_owner(static_cast<uintptr_t>(info.video_source().handle().id()));
+  if (!owned.IsInitialized() || info.resolution().width() == 0 || info.resolution().height() == 0 ||
+      info.resolution().width() > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
+      info.resolution().height() > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
+      (info.kind() == proto::CAPTURE_SOURCE_ENCODED && !info.has_codec())) {
+    throw CaptureSourceError("Invalid capture source info");
+  }
 
   std::shared_ptr<CaptureSource> source(new CaptureSource());
-  source->impl_->handle = FfiHandle(static_cast<uintptr_t>(owned.handle().id()));
+  source->impl_->handle = std::move(capture_handle_owner);
   source->impl_->kind = info.kind() == proto::CaptureSourceKind::CAPTURE_SOURCE_ENCODED ? CaptureSourceKind::Encoded
                                                                                         : CaptureSourceKind::Pixel;
   source->impl_->width = static_cast<int>(info.resolution().width());
@@ -214,10 +209,8 @@ std::shared_ptr<CaptureSource> CaptureSource::fromOwned(const proto::OwnedCaptur
   if (info.has_codec()) {
     source->impl_->codec = static_cast<VideoCodec>(info.codec());
   }
-  source->impl_->source_publish_options = fromProto(info.recommended_publish_options());
-  source->impl_->video_source =
-      std::shared_ptr<VideoSource>(new VideoSource(FfiHandle(static_cast<uintptr_t>(info.video_source().handle().id())),
-                                                   source->impl_->width, source->impl_->height));
+  source->impl_->video_source = std::shared_ptr<VideoSource>(
+      new VideoSource(std::move(video_handle_owner), source->impl_->width, source->impl_->height));
 
   // The terminal CaptureSourceEvent is unsolicited (not async-id
   // correlated); observe it with a listener filtered by our handle. The
@@ -244,23 +237,11 @@ std::shared_ptr<CaptureSource> CaptureSource::fromOwned(const proto::OwnedCaptur
 }
 
 TrackPublishOptions CaptureSource::publishOptions(TrackPublishOptions options) const {
-  const auto overlay = [](auto& target, const auto& source) {
-    if (source.has_value()) {
-      target = source;
-    }
-  };
-  overlay(options.video_encoding, impl_->source_publish_options.video_encoding);
-  overlay(options.audio_encoding, impl_->source_publish_options.audio_encoding);
-  overlay(options.video_codec, impl_->source_publish_options.video_codec);
-  overlay(options.dtx, impl_->source_publish_options.dtx);
-  overlay(options.red, impl_->source_publish_options.red);
-  overlay(options.simulcast, impl_->source_publish_options.simulcast);
-  overlay(options.source, impl_->source_publish_options.source);
-  overlay(options.stream, impl_->source_publish_options.stream);
-  overlay(options.preconnect_buffer, impl_->source_publish_options.preconnect_buffer);
-  overlay(options.frame_metadata_features, impl_->source_publish_options.frame_metadata_features);
-  overlay(options.degradation_preference, impl_->source_publish_options.degradation_preference);
-  overlay(options.video_encoder, impl_->source_publish_options.video_encoder);
+  if (impl_->kind == CaptureSourceKind::Encoded) {
+    options.video_codec = impl_->codec;
+    options.video_encoder = VideoEncoderBackend::PreEncoded;
+    options.simulcast = false;
+  }
   return options;
 }
 
