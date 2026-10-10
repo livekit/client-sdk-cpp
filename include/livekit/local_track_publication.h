@@ -31,6 +31,9 @@ public:
   /// Note, this LocalTrackPublication is constructed internally only;
   /// safe to accept proto::OwnedTrackPublication.
   explicit LocalTrackPublication(const proto::OwnedTrackPublication& owned);
+
+private:
+  friend class Room;
 };
 
 } // namespace livekit

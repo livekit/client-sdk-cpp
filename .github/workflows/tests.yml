@@ -357,7 +357,11 @@ jobs:
             --gtest_output="xml:${{ env.BUILD_DIR }}\unit-test-results.xml"
 
       - name: Start livekit-server
-        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        if: >-
+          matrix.e2e-testing &&
+          (inputs.integration_repeat > 0 ||
+           inputs.run_stress_tests ||
+           (matrix.name == 'ubuntu-24.04-x64' && inputs.build_type == 'release'))
         id: livekit_server
         uses: livekit/dev-server-action@5d4d5337a875e2d1afd37bed03c601d159dab002 # v1.1.1
         with:
@@ -368,7 +372,11 @@ jobs:
 
       # Needed by token helper script
       - name: Install livekit-cli
-        if: matrix.e2e-testing && (inputs.integration_repeat > 0 || inputs.run_stress_tests)
+        if: >-
+          matrix.e2e-testing &&
+          (inputs.integration_repeat > 0 ||
+           inputs.run_stress_tests ||
+           (matrix.name == 'ubuntu-24.04-x64' && inputs.build_type == 'release'))
         shell: bash
         env:
           # Windows installs lk via `gh api` / `gh release download`, which need this env var
@@ -424,6 +432,21 @@ jobs:
             --gtest_repeat=${{ inputs.integration_repeat }} \
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_output=xml:${{ env.BUILD_DIR }}/integration-test-results.xml
+
+      - name: Run memory regression tests
+        if: matrix.name == 'ubuntu-24.04-x64' && inputs.build_type == 'release'
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          source scripts/set-test-tokens.sh
+          scripts/memory-regression.sh \
+            --build-dir "${{ env.BUILD_DIR }}" \
+            --scenario all \
+            --iterations 100 \
+            --warmup 20 \
+            --max-rss-growth-mib 8 \
+            --max-thread-growth 0
 
       - name: Run stress tests
         if: matrix.e2e-testing && inputs.run_stress_tests

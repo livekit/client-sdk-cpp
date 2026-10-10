@@ -296,6 +296,7 @@ private:
   /// Publication SID → local track (@ref unpublishTrack clears the track’s
   /// cached publication). @c mutable so @ref trackPublications() const can
   /// prune expired @c weak_ptr entries.
+  mutable std::mutex published_tracks_mutex_;
   mutable TrackMap published_tracks_by_sid_;
 
   std::unordered_map<std::string, RpcHandler> rpc_handlers_;

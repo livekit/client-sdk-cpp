@@ -44,6 +44,7 @@ __Note:__ The tests require tokens and a running LiveKit server. See the section
 | `livekit_unit_tests` | Pure unit tests (no server required) |
 | `livekit_integration_tests` | Quick tests (~1-2 minutes) for SDK functionality |
 | `livekit_stress_tests` | Long-running tests (configurable, default 1 hour) |
+| `livekit_memory_lifecycle_tester` | Linux lifecycle RSS and thread regression scenarios |
 
 ## Running a local LiveKit server for tests
 
@@ -106,7 +107,64 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
 - **RPC**: round-trip calls, max payload (15 KB), timeouts, errors, concurrent calls.
 - **Stress**: high throughput, bidirectional RPC, memory pressure.
 
-## Memory checks (valgrind)
+## Memory lifecycle tester
+
+> Note: Linux only
+
+The memory lifecycle tester binary catches resource leak regressions in an
+automated fashion, and is invoked in CI. This single binary runs individual
+or groups of scenarios:
+
+- `audio-track` repeatedly initializes the SDK, connects, publishes an audio
+  track, captures synthetic PCM frames, unpublishes, disconnects, and shuts down.
+- `video-track` repeatedly initializes the SDK, connects, publishes a video
+  track, captures synthetic I420 frames, unpublishes, disconnects, and shuts down.
+- `data-track` repeatedly connects, publishes a data track, pushes synthetic
+  payloads, unpublishes it, and disconnects.
+- `room-reuse` repeatedly connects and disconnects the same room object.
+- `room-client-leave` repeatedly connects, disconnects, and destroys a room.
+- `room-server-delete` repeatedly connects and uses `lk` to delete the local
+  test room, then verifies the disconnect and end-of-stream callbacks.
+
+Each scenario reports process RSS and thread count at cycle 0, after warmup
+cycle 20, and after final cycle 100. The gate applies to warmup-to-final growth
+and fails on thread growth or more than the configured amount of RSS growth.
+
+The binary can be run directly, or via a helper script at  `scripts/memory-regression.sh`, 
+which invokes the binary but also has GitHub actions support for a results summary table. 
+The helper defaults `MALLOC_ARENA_MAX` to `1` when launching each tester process. 
+This limits glibc's allocator arenas, reducing Linux thread-churn RSS noise; it is a
+controlled CI signal, not evidence that the default allocator returns all
+freed pages to the OS.
+
+Start `livekit-server --dev`, install the `lk` CLI, and source the local test
+tokens before running any scenario:
+
+```bash
+./build.sh release-tests
+source scripts/set-test-tokens.sh
+scripts/memory-regression.sh --scenario audio-track \
+  --iterations 100 --warmup 20 \
+  --max-rss-growth-mib 8 --max-thread-growth 0
+scripts/memory-regression.sh --scenario video-track \
+  --iterations 100 --warmup 20 \
+  --max-rss-growth-mib 8 --max-thread-growth 0
+```
+
+Use `--scenario all` to run all six scenarios, each in a fresh tester process:
+
+```bash
+scripts/memory-regression.sh --scenario data-track
+scripts/memory-regression.sh --scenario room-reuse
+scripts/memory-regression.sh --scenario room-client-leave
+scripts/memory-regression.sh --scenario room-server-delete
+scripts/memory-regression.sh --scenario all
+```
+
+The limits are command-line options so a longer local run can use different
+budgets.
+
+## Additional memory checks (valgrind)
 
 Run `valgrind` against the test binaries to check for memory leaks and other
 issues. See [tools.md](tools.md) for the recipe.

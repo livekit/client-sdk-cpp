@@ -55,6 +55,7 @@ jobs:
               - client-sdk-rust
               - client-sdk-rust/**
               - cmake/**
+              - scripts/memory-regression.sh
               - scripts/set-test-tokens.sh
               - scripts/run-with-backtrace.sh
               - CMakeLists.txt
