@@ -201,7 +201,7 @@ cmake --build build
 | `LIVEKIT_USE_SYSTEM_PROTOBUF` | OFF | Use system Protobuf instead of vcpkg's |
 | `LIVEKIT_LOG_LEVEL` | `TRACE` | Compile-time log threshold (see [logging.md](logging.md)) |
 | `LIVEKIT_VERSION` | repo-derived | SDK version string baked into the binary |
-| `LIVEKIT_BUILD_CAPTURE` | preset-dependent | Enable GStreamer, pattern, and clock capture sources in the Rust FFI |
+| `LIVEKIT_BUILD_CAPTURE` | OFF | Enable GStreamer, pattern, and clock capture sources in the Rust FFI |
 
 ## Build output
 
@@ -362,14 +362,13 @@ separately when it is no longer needed.
 
 ## Capture sources
 
-Only the repository's `*-tests` and `*-all` presets enable capture by default.
-The `debug`, `release`, and `*-examples` presets disable it. Use `--capture`
+Capture is disabled by default for every repository preset. Use `--capture`
 with any build command to enable all three sources (GStreamer, GPU pattern, and
 GPU wall clock), or `--no-capture` to disable them explicitly:
 
 ```bash
 ./build.sh release --capture --bundle --prefix sdk-out/livekit-sdk-capture
-./build.sh debug-tests --no-capture
+./build.sh debug-tests
 ```
 
 On Windows, use `build.cmd release --capture --bundle --prefix sdk-out\livekit-sdk-capture`.
