@@ -124,13 +124,13 @@ std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(GstreamerVideo
   return createCaptureSource(std::move(config));
 }
 
-proto::NewCaptureSourceRequest toProto(GstreamerVideoSourceConfig config) {
+proto::NewCaptureSourceRequest toProto(const GstreamerVideoSourceConfig& config) {
   if (config.resolution) {
     validateResolution(*config.resolution);
   }
   proto::NewCaptureSourceRequest request;
   auto* gstreamer = request.mutable_gstreamer();
-  gstreamer->set_pipeline(std::move(config.pipeline));
+  gstreamer->set_pipeline(config.pipeline);
   if (config.codec) {
     gstreamer->set_codec(static_cast<proto::VideoCodec>(*config.codec));
   }
@@ -140,8 +140,8 @@ proto::NewCaptureSourceRequest toProto(GstreamerVideoSourceConfig config) {
   }
   if (config.rate_control) {
     auto* rate_control = gstreamer->mutable_rate_control();
-    rate_control->set_element(std::move(config.rate_control->element));
-    rate_control->set_property(std::move(config.rate_control->property));
+    rate_control->set_element(config.rate_control->element);
+    rate_control->set_property(config.rate_control->property);
     rate_control->set_unit(toProto(config.rate_control->unit));
   }
   return request;

@@ -27,7 +27,7 @@ class NewCaptureSourceRequest;
 
 /// Serialize capture configurations for the FFI request.
 /// Internal test seam; not part of the public SDK API.
-LIVEKIT_INTERNAL_API proto::NewCaptureSourceRequest toProto(GstreamerVideoSourceConfig config);
+LIVEKIT_INTERNAL_API proto::NewCaptureSourceRequest toProto(const GstreamerVideoSourceConfig& config);
 LIVEKIT_INTERNAL_API proto::NewCaptureSourceRequest toProto(const PatternVideoSourceConfig& config);
 LIVEKIT_INTERNAL_API proto::NewCaptureSourceRequest toProto(const ClockVideoSourceConfig& config);
 
