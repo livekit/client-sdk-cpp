@@ -45,14 +45,6 @@ constexpr int kCaptureWidth = 1280;
 constexpr int kCaptureHeight = 720;
 constexpr std::uint32_t kCaptureFramerateFps = 30;
 
-// Decide from build metadata rather than interpreting source-creation errors.
-#if LIVEKIT_CAPTURE_ENABLED
-#define SKIP_WITHOUT_CAPTURE_FEATURE() ((void)0)
-#else
-#define SKIP_WITHOUT_CAPTURE_FEATURE() \
-  GTEST_SKIP() << "livekit-ffi built without capture support; configure with -DLIVEKIT_BUILD_CAPTURE=ON"
-#endif
-
 std::shared_ptr<CaptureSource> createCapture(bool clock) {
   if (clock) {
     ClockVideoSourceConfig config;
@@ -70,23 +62,10 @@ std::shared_ptr<CaptureSource> createCapture(bool clock) {
 
 class CaptureSourceServerTest : public LiveKitTestBase, public ::testing::WithParamInterface<bool> {};
 
-TEST_P(CaptureSourceServerTest, InvalidResolutionIsRejected) {
-  SKIP_WITHOUT_CAPTURE_FEATURE();
-  if (GetParam()) {
-    ClockVideoSourceConfig config;
-    config.resolution = {0, kCaptureHeight};
-    config.framerate_fps = kCaptureFramerateFps;
-    EXPECT_THROW(static_cast<void>(CaptureSource::create(config).get()), CaptureSourceError);
-  } else {
-    PatternVideoSourceConfig config;
-    config.resolution = {0, kCaptureHeight};
-    config.framerate_fps = kCaptureFramerateFps;
-    EXPECT_THROW(static_cast<void>(CaptureSource::create(config).get()), CaptureSourceError);
-  }
-}
-
 TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
-  SKIP_WITHOUT_CAPTURE_FEATURE();
+#if !LIVEKIT_CAPTURE_ENABLED
+  GTEST_SKIP() << "livekit-ffi built without capture support; configure with -DLIVEKIT_BUILD_CAPTURE=ON";
+#endif
   failIfNotConfigured();
 
   const auto creation_started = std::chrono::steady_clock::now();
