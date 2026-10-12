@@ -21,6 +21,10 @@
 
 namespace livekit {
 
+namespace proto {
+class NewCaptureSourceRequest;
+} // namespace proto
+
 /// Serialize capture configurations for the FFI request.
 /// Internal test seam; not part of the public SDK API.
 LIVEKIT_INTERNAL_API proto::NewCaptureSourceRequest toProto(GstreamerVideoSourceConfig config);

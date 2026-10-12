@@ -32,7 +32,6 @@
 namespace livekit {
 
 namespace proto {
-class NewCaptureSourceRequest;
 class OwnedCaptureSource;
 } // namespace proto
 
@@ -268,10 +267,6 @@ private:
   friend class FfiClient;
 
   CaptureSource();
-
-  /// @brief Shared creation path: sends the request and maps the callback payload
-  /// onto a wrapper instance.
-  static std::future<std::shared_ptr<CaptureSource>> createFromRequest(proto::NewCaptureSourceRequest request);
 
   /// @brief Builds the wrapper from the callback payload, adopting its handles.
   static std::shared_ptr<CaptureSource> fromOwned(const proto::OwnedCaptureSource& owned);

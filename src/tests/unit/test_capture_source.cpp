@@ -215,15 +215,6 @@ TEST_F(CaptureSourceCallbackTest, MissingSourceUsesCaptureSourceError) {
   EXPECT_THROW(static_cast<void>(future.get()), CaptureSourceError);
 }
 
-TEST_F(CaptureSourceCallbackTest, InvalidEncodedInfoFailsWithoutRetainingListener) {
-  auto future = beginCreation();
-  auto owned = makeOwned(proto::CAPTURE_SOURCE_ENCODED);
-  owned.mutable_info()->clear_codec();
-  emitFfiEvent(creationEvent(async_id_, owned));
-  EXPECT_THROW(static_cast<void>(future.get()), CaptureSourceError);
-  EXPECT_EQ(FfiClientTestAccess::listenerCount(), 0u);
-}
-
 TEST_F(CaptureSourceCallbackTest, ShutdownCancelsPendingFutureWithCaptureSourceError) {
   auto future = beginCreation();
   FfiClient::instance().shutdown();

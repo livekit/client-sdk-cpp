@@ -105,6 +105,9 @@ CTest registers `InstalledSdk.Capture` with the `packaging` and `integration`
 labels and a 30-second timeout. It checks the bundle's capture metadata and
 creates a GStreamer VP8 source through the installed library. It needs no
 LiveKit server; capture-enabled runs require GStreamer and the pipeline's plugins.
+The consumer also checks `share/livekit/build-info.json`. Release jobs pass
+`LIVEKIT_EXPECT_VERSION` to check version metadata and the recorded Rust commit
+and FFI version through this same project.
 
 From the repository root:
 

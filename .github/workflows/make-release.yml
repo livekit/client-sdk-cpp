@@ -29,45 +29,33 @@ jobs:
         include:
           - os: ubuntu-22.04
             name: ubuntu-22.04-x64
-            generator: Ninja
           - os: ubuntu-22.04-arm
             name: ubuntu-22.04-arm64
-            generator: Ninja
           - os: ubuntu-24.04
             name: ubuntu-24.04-x64
-            generator: Ninja
           - os: ubuntu-24.04-arm
             name: ubuntu-24.04-arm64
-            generator: Ninja
           - os: macos-26-xlarge
             name: macos-arm64
-            generator: Ninja
           - os: macos-26-large
             name: macos-x64
-            generator: Ninja
+            macos_arch: x86_64
             # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
-            generator: "Visual Studio 17 2022"
 
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Set Cargo output root
-        shell: bash
-        run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            echo "CARGO_TARGET_DIR=$(cygpath -m "$RUNNER_TEMP")/lk-rust" >> "$GITHUB_ENV"
-          else
-            echo "CARGO_TARGET_DIR=$GITHUB_WORKSPACE/client-sdk-rust/target" >> "$GITHUB_ENV"
-          fi
-
       - name: Checkout (with submodules)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           fetch-depth: 0
+
+      - name: Set Cargo output root
+        uses: ./.github/actions/cargo-target-root
 
       # ---------- Extract version ----------
       - name: Extract version
@@ -100,6 +88,10 @@ jobs:
             exit 1
           fi
 
+          if [[ "$VERSION" == "0.0.0-dev" ]]; then
+            echo "ERROR: refusing to build release with fallback version: $VERSION"
+            exit 1
+          fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "SDK Version: $VERSION"
 
@@ -162,7 +154,7 @@ jobs:
           toolchain: stable
 
       - name: Install Rust cross-compilation target
-        if: startsWith(matrix.name, 'macos-x64')
+        if: matrix.name == 'macos-x64'
         run: rustup target add x86_64-apple-darwin
 
       # ---------- Cache Cargo ----------
@@ -216,82 +208,24 @@ jobs:
           test -f "${LLVM_ROOT}/lib/libclang.so"
           echo "LIBCLANG_PATH=${LLVM_ROOT}/lib" >> "$GITHUB_ENV"
 
-      # ---------- Build + Bundle (Unix) ----------
-      - name: Build and Bundle (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x build.sh
-          version="${{ steps.version.outputs.version }}"
-          bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}-${version}"
-          if [[ -z "$version" ]]; then
-            echo "ERROR: version is empty"
-            exit 1
-          fi
+      # ---------- Build both variants in the same CMake tree ----------
+      - name: Build standard SDK
+        uses: ./.github/actions/build-sdk
+        with:
+          preset: release-examples
+          capture: 'OFF'
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
+          version: ${{ steps.version.outputs.version }}
+          macos-arch: ${{ matrix.macos_arch || '' }}
 
-          if [[ "$version" == "0.0.0-dev" ]]; then
-            echo "ERROR: refusing to build release with fallback version: $version"
-            exit 1
-          fi
-
-          arch_args=()
-          if [[ "${{ matrix.name }}" == macos-x64 ]]; then arch_args+=(--macos-arch x86_64); fi
-          for variant in standard capture; do
-            if [[ "$variant" == standard ]]; then
-              capture_flag=--no-capture
-              suffix=""
-            else
-              capture_flag=--capture
-              suffix="-capture"
-            fi
-            bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}${suffix}-${version}"
-            ./build.sh release-examples "$capture_flag" --version "$version" --bundle --prefix "$bundleDir" "${arch_args[@]}"
-          done
-
-      - name: Validate bundle version metadata (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="${{ steps.version.outputs.version }}"
-          for suffix in "" "-capture"; do
-            bundleDir="sdk-out/livekit-sdk-${{ matrix.name }}${suffix}-${version}"
-            header="${bundleDir}/include/livekit/build.h"
-            buildInfo="${bundleDir}/share/livekit/build-info.json"
-
-            test -f "$header"
-            test -f "$buildInfo"
-            grep -F "#define LIVEKIT_BUILD_VERSION \"${version}\"" "$header"
-            if grep -F '#define LIVEKIT_BUILD_VERSION "0.0.0"' "$header"; then
-              echo "ERROR: bundle reports fallback SDK version"
-              exit 1
-            fi
-            grep -F "\"sdk_version\": \"${version}\"" "$buildInfo"
-            grep -Eq '"rust_submodule_commit": "[0-9a-f]{7,}"' "$buildInfo"
-            grep -Eq '"livekit_ffi_version": "[0-9]+\.[0-9]+\.[0-9]+' "$buildInfo"
-          done
-
-      # ---------- Build + Bundle (Windows) ----------
-      - name: Build and Bundle (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $version   = "${{ steps.version.outputs.version }}"
-          $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}-$version"
-
-          if ([string]::IsNullOrWhiteSpace($version)) { throw "version is empty" }
-          foreach ($variant in @("standard", "capture")) {
-            $captureFlag = "--no-capture"
-            $suffix = ""
-            if ($variant -eq "capture") {
-              $captureFlag = "--capture"
-              $suffix = "-capture"
-            }
-            $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}$suffix-$version"
-            .\build.cmd release-examples $captureFlag --version "$version" --bundle --prefix "$bundleDir"
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
+      - name: Rebuild with capture
+        uses: ./.github/actions/build-sdk
+        with:
+          preset: release-examples
+          capture: 'ON'
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
+          version: ${{ steps.version.outputs.version }}
+          macos-arch: ${{ matrix.macos_arch || '' }}
 
       # ---------- Verify exported ABI: no third-party symbol leaks ----------
       - name: Setup Python
@@ -299,116 +233,31 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Symbol leak check (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="${{ steps.version.outputs.version }}"
-          for suffix in "" "-capture"; do
-            libdir="sdk-out/livekit-sdk-${{ matrix.name }}${suffix}-${version}/lib"
-            lib="${libdir}/liblivekit.so"
-            if [[ "$RUNNER_OS" == "macOS" ]]; then lib="${libdir}/liblivekit.dylib"; fi
-            python3 .github/scripts/check_no_private_symbols.py "$lib"
-          done
+      - name: Symbol leak check (standard SDK)
+        uses: ./.github/actions/check-sdk-abi
+        with:
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
 
-      - name: Symbol leak check (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.version }}"
-          foreach ($suffix in @("", "-capture")) {
-            $lib = "sdk-out/livekit-sdk-${{ matrix.name }}$suffix-$version/bin/livekit.dll"
-            python .github/scripts/check_no_private_symbols.py "$lib"
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
+      - name: Symbol leak check (capture SDK)
+        uses: ./.github/actions/check-sdk-abi
+        with:
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
 
-      - name: Validate bundle version metadata (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $version = "${{ steps.version.outputs.version }}"
-          foreach ($suffix in @("", "-capture")) {
-            $bundleDir = "sdk-out/livekit-sdk-${{ matrix.name }}$suffix-$version"
-            $header = Join-Path $bundleDir "include/livekit/build.h"
-            $buildInfo = Join-Path $bundleDir "share/livekit/build-info.json"
+      - name: Test installed standard SDK
+        uses: ./.github/actions/test-sdk-bundle
+        with:
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
+          capture: 'OFF'
+          macos-arch: ${{ matrix.macos_arch || '' }}
+          version: ${{ steps.version.outputs.version }}
 
-            if (!(Test-Path $header)) { throw "Missing $header" }
-            if (!(Test-Path $buildInfo)) { throw "Missing $buildInfo" }
-
-            $headerText = Get-Content -Raw $header
-            $expectedHeaderVersion = "#define LIVEKIT_BUILD_VERSION `"$version`""
-            if (!$headerText.Contains($expectedHeaderVersion)) {
-              throw "Header does not report expected SDK version $version"
-            }
-            if ($headerText.Contains('#define LIVEKIT_BUILD_VERSION "0.0.0"')) {
-              throw "Bundle reports fallback SDK version"
-            }
-
-            $buildInfoText = Get-Content -Raw $buildInfo
-            $expectedBuildInfoVersion = "`"sdk_version`": `"$version`""
-            if (!$buildInfoText.Contains($expectedBuildInfoVersion)) {
-              throw "Build info does not report expected SDK version $version"
-            }
-            if ($buildInfoText -match '"rust_submodule_commit": "unknown"') {
-              throw "Build info is missing Rust submodule commit"
-            }
-            if ($buildInfoText -match '"livekit_ffi_version": "unknown"') {
-              throw "Build info is missing livekit-ffi version"
-            }
-          }
-
-      - name: Test installed standard SDK (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          bundle="$GITHUB_WORKSPACE/sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
-          arch_args=()
-          if [[ "${{ matrix.name }}" == macos-x64* ]]; then arch_args+=(-DCMAKE_OSX_ARCHITECTURES=x86_64); fi
-          cmake -S src/tests/packaging -B build-packaging-standard -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$bundle" \
-            -DLIVEKIT_EXPECT_CAPTURE=OFF "${arch_args[@]}"
-          cmake --build build-packaging-standard
-          ctest --test-dir build-packaging-standard -C Release --output-on-failure -L packaging
-
-      - name: Test installed standard SDK (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $bundle = Join-Path $env:GITHUB_WORKSPACE "sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}"
-          cmake -S src/tests/packaging -B build-packaging-standard -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_EXPECT_CAPTURE=OFF
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cmake --build build-packaging-standard --config Release
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:PATH = "$bundle\bin;$env:PATH"
-          ctest --test-dir build-packaging-standard -C Release --output-on-failure -L packaging
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-      - name: Test installed capture SDK (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          bundle="$GITHUB_WORKSPACE/sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}"
-          arch_args=()
-          if [[ "${{ matrix.name }}" == macos-x64 ]]; then arch_args+=(-DCMAKE_OSX_ARCHITECTURES=x86_64); fi
-          cmake -S src/tests/packaging -B build-packaging-capture -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$bundle" \
-            -DLIVEKIT_EXPECT_CAPTURE=ON "${arch_args[@]}"
-          cmake --build build-packaging-capture
-          ctest --test-dir build-packaging-capture -C Release --output-on-failure -L packaging
-
-      - name: Test installed capture SDK (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $bundle = Join-Path $env:GITHUB_WORKSPACE "sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}"
-          cmake -S src/tests/packaging -B build-packaging-capture -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_EXPECT_CAPTURE=ON
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cmake --build build-packaging-capture --config Release
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:PATH = "$bundle\bin;$env:PATH"
-          ctest --test-dir build-packaging-capture -C Release --output-on-failure -L packaging
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test installed capture SDK
+        uses: ./.github/actions/test-sdk-bundle
+        with:
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
+          capture: 'ON'
+          macos-arch: ${{ matrix.macos_arch || '' }}
+          version: ${{ steps.version.outputs.version }}
 
       # ---------- Upload artifact (raw directory, no pre-compression) ----------
       - name: Upload build artifact
