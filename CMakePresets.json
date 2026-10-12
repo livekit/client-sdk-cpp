@@ -7,6 +7,21 @@
   },
   "configurePresets": [
     {
+      "name": "sdk-defaults",
+      "hidden": true,
+      "cacheVariables": {
+        "LIVEKIT_BUILD_CAPTURE": "OFF"
+      }
+    },
+    {
+      "name": "capture-tests",
+      "hidden": true,
+      "cacheVariables": {
+        "LIVEKIT_BUILD_CAPTURE": "ON",
+        "LIVEKIT_BUILD_TESTS": "ON"
+      }
+    },
+    {
       "name": "vcpkg",
       "hidden": true,
       "cacheVariables": {
@@ -23,15 +38,17 @@
     {
       "name": "windows-base",
       "hidden": true,
-      "inherits": "vcpkg",
+      "inherits": [
+        "sdk-defaults",
+        "vcpkg"
+      ],
       "generator": "Visual Studio 17 2022",
       "architecture": {
         "value": "x64",
         "strategy": "set"
       },
       "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md",
-        "LIVEKIT_BUILD_CAPTURE": "OFF"
+        "VCPKG_TARGET_TRIPLET": "x64-windows-static-md"
       }
     },
     {
@@ -40,14 +57,16 @@
       "generator": "Ninja",
       "cacheVariables": {
         "LIVEKIT_USE_VCPKG": "OFF",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "OFF"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
-      }
+      },
+      "inherits": [
+        "sdk-defaults"
+      ]
     },
     {
       "name": "macos-base",
@@ -55,14 +74,16 @@
       "generator": "Ninja",
       "cacheVariables": {
         "LIVEKIT_USE_VCPKG": "OFF",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "OFF"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       },
       "condition": {
         "type": "equals",
         "lhs": "${hostSystemName}",
         "rhs": "Darwin"
-      }
+      },
+      "inherits": [
+        "sdk-defaults"
+      ]
     },
     {
       "name": "windows-release",
@@ -212,156 +233,168 @@
       "name": "windows-release-all",
       "displayName": "Windows x64 Release with Tests + Examples",
       "description": "Build for Windows x64 Release with tests and examples",
-      "inherits": "windows-base",
+      "inherits": [
+        "capture-tests",
+        "windows-base"
+      ],
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
       }
     },
     {
       "name": "windows-debug-all",
       "displayName": "Windows x64 Debug with Tests + Examples",
       "description": "Build for Windows x64 Debug with tests and examples",
-      "inherits": "windows-base",
+      "inherits": [
+        "capture-tests",
+        "windows-base"
+      ],
       "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
       }
     },
     {
       "name": "windows-release-tests",
       "displayName": "Windows x64 Release with Tests",
       "description": "Build for Windows x64 Release with test suite",
-      "inherits": "windows-base",
+      "inherits": [
+        "capture-tests",
+        "windows-base"
+      ],
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "OFF"
       }
     },
     {
       "name": "windows-debug-tests",
       "displayName": "Windows x64 Debug with Tests",
       "description": "Build for Windows x64 Debug with test suite",
-      "inherits": "windows-base",
+      "inherits": [
+        "capture-tests",
+        "windows-base"
+      ],
       "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "OFF"
       }
     },
     {
       "name": "linux-release-all",
       "displayName": "Linux Release with Tests + Examples",
       "description": "Build for Linux Release with tests and examples",
-      "inherits": "linux-base",
+      "inherits": [
+        "capture-tests",
+        "linux-base"
+      ],
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
       }
     },
     {
       "name": "linux-debug-all",
       "displayName": "Linux Debug with Tests + Examples",
       "description": "Build for Linux Debug with tests and examples",
-      "inherits": "linux-base",
+      "inherits": [
+        "capture-tests",
+        "linux-base"
+      ],
       "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
       }
     },
     {
       "name": "linux-release-tests",
       "displayName": "Linux Release with Tests",
       "description": "Build for Linux Release with test suite",
-      "inherits": "linux-base",
+      "inherits": [
+        "capture-tests",
+        "linux-base"
+      ],
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "OFF"
       }
     },
     {
       "name": "linux-debug-tests",
       "displayName": "Linux Debug with Tests",
       "description": "Build for Linux Debug with test suite",
-      "inherits": "linux-base",
+      "inherits": [
+        "capture-tests",
+        "linux-base"
+      ],
       "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "OFF"
       }
     },
     {
       "name": "macos-release-all",
       "displayName": "macOS Release with Tests + Examples",
       "description": "Build for macOS Release with tests and examples",
-      "inherits": "macos-base",
+      "inherits": [
+        "capture-tests",
+        "macos-base"
+      ],
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
       }
     },
     {
       "name": "macos-debug-all",
       "displayName": "macOS Debug with Tests + Examples",
       "description": "Build for macOS Debug with tests and examples",
-      "inherits": "macos-base",
+      "inherits": [
+        "capture-tests",
+        "macos-base"
+      ],
       "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "LIVEKIT_BUILD_EXAMPLES": "ON",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "ON"
       }
     },
     {
       "name": "macos-release-tests",
       "displayName": "macOS Release with Tests",
       "description": "Build for macOS Release with test suite",
-      "inherits": "macos-base",
+      "inherits": [
+        "capture-tests",
+        "macos-base"
+      ],
       "binaryDir": "${sourceDir}/build-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "OFF"
       }
     },
     {
       "name": "macos-debug-tests",
       "displayName": "macOS Debug with Tests",
       "description": "Build for macOS Debug with test suite",
-      "inherits": "macos-base",
+      "inherits": [
+        "capture-tests",
+        "macos-base"
+      ],
       "binaryDir": "${sourceDir}/build-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "LIVEKIT_BUILD_EXAMPLES": "OFF",
-        "LIVEKIT_BUILD_TESTS": "ON",
-        "LIVEKIT_BUILD_CAPTURE": "ON"
+        "LIVEKIT_BUILD_EXAMPLES": "OFF"
       }
     }
   ],

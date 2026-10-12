@@ -32,59 +32,35 @@ jobs:
         include:
           - os: ubuntu-22.04
             name: ubuntu-22.04-x64
-            build_cmd: ./build.sh release-examples --no-capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-22.04-x64
-            capture_build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-22.04-x64-capture
-            build_dir: build-release
           - os: ubuntu-22.04-arm
             name: ubuntu-22.04-arm64
-            build_cmd: ./build.sh release-examples --no-capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-22.04-arm64
-            capture_build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-22.04-arm64-capture
-            build_dir: build-release
           - os: ubuntu-24.04
             name: ubuntu-24.04-x64
-            build_cmd: ./build.sh release-examples --no-capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-24.04-x64
-            capture_build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-24.04-x64-capture
-            build_dir: build-release
           - os: ubuntu-24.04-arm
             name: ubuntu-24.04-arm64
-            build_cmd: ./build.sh release-examples --no-capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-24.04-arm64
-            capture_build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-ubuntu-24.04-arm64-capture
-            build_dir: build-release
           - os: macos-26-xlarge
             name: macos-arm64
-            build_cmd: ./build.sh release-examples --no-capture --bundle --prefix sdk-out/livekit-sdk-macos-arm64
-            capture_build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-macos-arm64-capture
-            build_dir: build-release
           - os: macos-26-large
             name: macos-x64
-            build_cmd: ./build.sh release-examples --no-capture --bundle --prefix sdk-out/livekit-sdk-macos-x64 --macos-arch x86_64
-            capture_build_cmd: ./build.sh release-examples --capture --bundle --prefix sdk-out/livekit-sdk-macos-x64-capture --macos-arch x86_64
-            build_dir: build-release
+            macos_arch: x86_64
             # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
-            build_cmd: .\build.cmd release-examples --no-capture --bundle --prefix sdk-out\livekit-sdk-windows-x64
-            capture_build_cmd: .\build.cmd release-examples --capture --bundle --prefix sdk-out\livekit-sdk-windows-x64-capture
-            build_dir: build-release
 
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    env:
+      BUILD_DIR: build-release
 
     steps:
-      - name: Set Cargo output root
-        shell: bash
-        run: |
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
-            echo "CARGO_TARGET_DIR=$(cygpath -m "$RUNNER_TEMP")/lk-rust" >> "$GITHUB_ENV"
-          else
-            echo "CARGO_TARGET_DIR=$GITHUB_WORKSPACE/client-sdk-rust/target" >> "$GITHUB_ENV"
-          fi
-
       - name: Checkout (with submodules)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
           fetch-depth: 1
+
+      - name: Set Cargo output root
+        uses: ./.github/actions/cargo-target-root
 
       - name: Pull LFS files
         run: git lfs pull
@@ -161,7 +137,7 @@ jobs:
           toolchain: stable
 
       - name: Install Rust cross-compilation target
-        if: startsWith(matrix.name, 'macos-x64')
+        if: matrix.name == 'macos-x64'
         run: rustup target add x86_64-apple-darwin
 
       # ---------- Cache Cargo ----------
@@ -220,155 +196,28 @@ jobs:
           echo "LIBCLANG_PATH=${LLVM_ROOT}/lib" >> "$GITHUB_ENV"
 
       # ---------- Build ----------
-      - name: Build (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          chmod +x build.sh
-          ${{ matrix.build_cmd }}
-
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ${{ matrix.build_cmd }}
+      - name: Build standard SDK
+        uses: ./.github/actions/build-sdk
+        with:
+          preset: release-examples
+          capture: 'OFF'
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}
+          macos-arch: ${{ matrix.macos_arch || '' }}
 
       # ---------- Smoke test cpp-example-collection binaries ----------
       # Built under cpp-example-collection-build/ (not build-dir/bin). Visual Studio
       # multi-config places executables in per-target Release/ (or Debug/) subdirs.
-      - name: Smoke test examples (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -x
-          failed=false
-          examples_base="${{ matrix.build_dir }}/cpp-example-collection-build"
-          resolve_exe() {
-            local dir="$1" name="$2"
-            local p="${examples_base}/${dir}/${name}"
-            if [[ -x "${p}" ]]; then
-              printf '%s' "${p}"
-              return 0
-            fi
-            p="${examples_base}/${dir}/Release/${name}"
-            if [[ -x "${p}" ]]; then
-              printf '%s' "${p}"
-              return 0
-            fi
-            return 1
-          }
-          for pair in "SimpleRoom:simple_room" "SimpleRpc:simple_rpc" "SimpleDataStream:simple_data_stream"; do
-            exe="${pair%%:*}"
-            dir="${pair#*:}"
-            if ! exe_path="$(resolve_exe "${dir}" "${exe}")"; then
-              echo "ERROR: ${exe} not found under ${examples_base}/${dir}/"
-              failed=true
-              continue
-            fi
-            echo "Testing ${exe}..."
-            output=$("${exe_path}" --help 2>&1) || true
-            if [[ -z "${output}" ]]; then
-              echo "ERROR: ${exe} produced no output"
-              failed=true
-            else
-              echo "${output}"
-              echo "${exe} ran successfully"
-            fi
-          done
-          if [[ "$failed" == "true" ]]; then exit 1; fi
+      - name: Smoke test examples
+        uses: ./.github/actions/smoke-examples
+        with:
+          build-dir: ${{ env.BUILD_DIR }}
 
-      - name: Smoke test examples (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $examplesBase = "${{ matrix.build_dir }}/cpp-example-collection-build"
-          $examples = @(
-            @{ Name = 'SimpleRoom'; Dir = 'simple_room' },
-            @{ Name = 'SimpleRpc'; Dir = 'simple_rpc' },
-            @{ Name = 'SimpleDataStream'; Dir = 'simple_data_stream' }
-          )
-          $failed = $false
-          foreach ($ex in $examples) {
-            $name = $ex.Name
-            $dir = $ex.Dir
-            $inDir = Join-Path $examplesBase $dir
-            $candidates = @(
-              (Join-Path $inDir "$name.exe"),
-              (Join-Path (Join-Path $inDir 'Release') "$name.exe")
-            )
-            $exePath = $null
-            foreach ($p in $candidates) {
-              if (Test-Path -LiteralPath $p) {
-                $exePath = $p
-                break
-              }
-            }
-            if ($null -ne $exePath) {
-              Write-Host "Testing ${name}..."
-              $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-              $pinfo.FileName = $exePath
-              $pinfo.Arguments = "--help"
-              $pinfo.RedirectStandardOutput = $true
-              $pinfo.RedirectStandardError = $true
-              $pinfo.UseShellExecute = $false
-              $p = New-Object System.Diagnostics.Process
-              $p.StartInfo = $pinfo
-              $p.Start() | Out-Null
-              $stdout = $p.StandardOutput.ReadToEnd()
-              $stderr = $p.StandardError.ReadToEnd()
-              $p.WaitForExit()
-              $output = $stdout + $stderr
-              if ([string]::IsNullOrWhiteSpace($output)) {
-                Write-Host "ERROR: ${name} produced no output"
-                $failed = $true
-              } else {
-                Write-Host $output
-                Write-Host "${name} ran successfully"
-              }
-            } else {
-              Write-Host "ERROR: ${name} not found under ${examplesBase}/${dir}/"
-              $failed = $true
-            }
-          }
-          if ($failed) { exit 1 } else { exit 0 }
-
-      - name: Verify SDK bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          bundle="sdk-out/livekit-sdk-${{ matrix.name }}"
-          grep -F "#define LIVEKIT_CAPTURE_ENABLED 0" "${bundle}/include/livekit/build.h"
-          test -f "${bundle}/include/livekit/livekit.h"
-          test -f "${bundle}/share/livekit/build-info.json"
-          test -f "${bundle}/lib/cmake/LiveKit/LiveKitConfig.cmake"
-          test -f "${bundle}/lib/cmake/LiveKit/LiveKitConfigVersion.cmake"
-          test -f "${bundle}/lib/cmake/LiveKit/LiveKitTargets.cmake"
-
-      - name: Test installed standard SDK (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          bundle="$GITHUB_WORKSPACE/sdk-out/livekit-sdk-${{ matrix.name }}"
-          arch_args=()
-          if [[ "${{ matrix.name }}" == macos-x64* ]]; then arch_args+=(-DCMAKE_OSX_ARCHITECTURES=x86_64); fi
-          cmake -S src/tests/packaging -B build-packaging-standard -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$bundle" \
-            -DLIVEKIT_EXPECT_CAPTURE=OFF "${arch_args[@]}"
-          cmake --build build-packaging-standard
-          ctest --test-dir build-packaging-standard -C Release --output-on-failure -L packaging
-
-      - name: Test installed standard SDK (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $bundle = Join-Path $env:GITHUB_WORKSPACE "sdk-out/livekit-sdk-${{ matrix.name }}"
-          cmake -S src/tests/packaging -B build-packaging-standard -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_EXPECT_CAPTURE=OFF
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cmake --build build-packaging-standard --config Release
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:PATH = "$bundle\bin;$env:PATH"
-          ctest --test-dir build-packaging-standard -C Release --output-on-failure -L packaging
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test installed standard SDK
+        uses: ./.github/actions/test-sdk-bundle
+        with:
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}
+          capture: 'OFF'
+          macos-arch: ${{ matrix.macos_arch || '' }}
 
       # ---------- Upload artifacts ----------
       - name: Upload SDK bundle
@@ -384,9 +233,9 @@ jobs:
         with:
           name: livekit-sdk-linux-x64
           path: |
-            ${{ matrix.build_dir }}/lib/
-            ${{ matrix.build_dir }}/include/
-            ${{ matrix.build_dir }}/bin/
+            ${{ env.BUILD_DIR }}/lib/
+            ${{ env.BUILD_DIR }}/include/
+            ${{ env.BUILD_DIR }}/bin/
           retention-days: 7
 
       - name: Upload deprecated linux-arm64 alias artifact
@@ -395,9 +244,9 @@ jobs:
         with:
           name: livekit-sdk-linux-arm64
           path: |
-            ${{ matrix.build_dir }}/lib/
-            ${{ matrix.build_dir }}/include/
-            ${{ matrix.build_dir }}/bin/
+            ${{ env.BUILD_DIR }}/lib/
+            ${{ env.BUILD_DIR }}/include/
+            ${{ env.BUILD_DIR }}/bin/
           retention-days: 7
 
       # Reconfigure the same CMake tree after the standard bundle and aliases
@@ -405,152 +254,25 @@ jobs:
       - name: Set up capture dependencies
         uses: ./.github/actions/setup-capture
 
-      - name: Rebuild with capture (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          chmod +x build.sh
-          ${{ matrix.capture_build_cmd }}
+      - name: Build capture SDK
+        uses: ./.github/actions/build-sdk
+        with:
+          preset: release-examples
+          capture: 'ON'
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture
+          macos-arch: ${{ matrix.macos_arch || '' }}
 
-      - name: Rebuild with capture (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ${{ matrix.capture_build_cmd }}
+      - name: Smoke test capture examples
+        uses: ./.github/actions/smoke-examples
+        with:
+          build-dir: ${{ env.BUILD_DIR }}
 
-      - name: Smoke test capture examples (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -x
-          failed=false
-          examples_base="${{ matrix.build_dir }}/cpp-example-collection-build"
-          resolve_exe() {
-            local dir="$1" name="$2"
-            local p="${examples_base}/${dir}/${name}"
-            if [[ -x "${p}" ]]; then
-              printf '%s' "${p}"
-              return 0
-            fi
-            p="${examples_base}/${dir}/Release/${name}"
-            if [[ -x "${p}" ]]; then
-              printf '%s' "${p}"
-              return 0
-            fi
-            return 1
-          }
-          for pair in "SimpleRoom:simple_room" "SimpleRpc:simple_rpc" "SimpleDataStream:simple_data_stream"; do
-            exe="${pair%%:*}"
-            dir="${pair#*:}"
-            if ! exe_path="$(resolve_exe "${dir}" "${exe}")"; then
-              echo "ERROR: ${exe} not found under ${examples_base}/${dir}/"
-              failed=true
-              continue
-            fi
-            echo "Testing ${exe}..."
-            output=$("${exe_path}" --help 2>&1) || true
-            if [[ -z "${output}" ]]; then
-              echo "ERROR: ${exe} produced no output"
-              failed=true
-            else
-              echo "${output}"
-              echo "${exe} ran successfully"
-            fi
-          done
-          if [[ "$failed" == "true" ]]; then exit 1; fi
-
-      - name: Smoke test capture examples (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $examplesBase = "${{ matrix.build_dir }}/cpp-example-collection-build"
-          $examples = @(
-            @{ Name = 'SimpleRoom'; Dir = 'simple_room' },
-            @{ Name = 'SimpleRpc'; Dir = 'simple_rpc' },
-            @{ Name = 'SimpleDataStream'; Dir = 'simple_data_stream' }
-          )
-          $failed = $false
-          foreach ($ex in $examples) {
-            $name = $ex.Name
-            $dir = $ex.Dir
-            $inDir = Join-Path $examplesBase $dir
-            $candidates = @(
-              (Join-Path $inDir "$name.exe"),
-              (Join-Path (Join-Path $inDir 'Release') "$name.exe")
-            )
-            $exePath = $null
-            foreach ($p in $candidates) {
-              if (Test-Path -LiteralPath $p) {
-                $exePath = $p
-                break
-              }
-            }
-            if ($null -ne $exePath) {
-              Write-Host "Testing ${name}..."
-              $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-              $pinfo.FileName = $exePath
-              $pinfo.Arguments = "--help"
-              $pinfo.RedirectStandardOutput = $true
-              $pinfo.RedirectStandardError = $true
-              $pinfo.UseShellExecute = $false
-              $p = New-Object System.Diagnostics.Process
-              $p.StartInfo = $pinfo
-              $p.Start() | Out-Null
-              $stdout = $p.StandardOutput.ReadToEnd()
-              $stderr = $p.StandardError.ReadToEnd()
-              $p.WaitForExit()
-              $output = $stdout + $stderr
-              if ([string]::IsNullOrWhiteSpace($output)) {
-                Write-Host "ERROR: ${name} produced no output"
-                $failed = $true
-              } else {
-                Write-Host $output
-                Write-Host "${name} ran successfully"
-              }
-            } else {
-              Write-Host "ERROR: ${name} not found under ${examplesBase}/${dir}/"
-              $failed = $true
-            }
-          }
-          if ($failed) { exit 1 } else { exit 0 }
-
-      - name: Verify capture SDK bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          bundle="sdk-out/livekit-sdk-${{ matrix.name }}-capture"
-          grep -F "#define LIVEKIT_CAPTURE_ENABLED 1" "${bundle}/include/livekit/build.h"
-          test -f "${bundle}/include/livekit/livekit.h"
-          test -f "${bundle}/share/livekit/build-info.json"
-          test -f "${bundle}/lib/cmake/LiveKit/LiveKitConfig.cmake"
-          test -f "${bundle}/lib/cmake/LiveKit/LiveKitConfigVersion.cmake"
-          test -f "${bundle}/lib/cmake/LiveKit/LiveKitTargets.cmake"
-
-      - name: Test installed capture SDK (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          bundle="$GITHUB_WORKSPACE/sdk-out/livekit-sdk-${{ matrix.name }}-capture"
-          arch_args=()
-          if [[ "${{ matrix.name }}" == macos-x64 ]]; then arch_args+=(-DCMAKE_OSX_ARCHITECTURES=x86_64); fi
-          cmake -S src/tests/packaging -B build-packaging-capture -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$bundle" \
-            -DLIVEKIT_EXPECT_CAPTURE=ON "${arch_args[@]}"
-          cmake --build build-packaging-capture
-          ctest --test-dir build-packaging-capture -C Release --output-on-failure -L packaging
-
-      - name: Test installed capture SDK (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $bundle = Join-Path $env:GITHUB_WORKSPACE "sdk-out/livekit-sdk-${{ matrix.name }}-capture"
-          cmake -S src/tests/packaging -B build-packaging-capture -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_EXPECT_CAPTURE=ON
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          cmake --build build-packaging-capture --config Release
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $env:PATH = "$bundle\bin;$env:PATH"
-          ctest --test-dir build-packaging-capture -C Release --output-on-failure -L packaging
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test installed capture SDK
+        uses: ./.github/actions/test-sdk-bundle
+        with:
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture
+          capture: 'ON'
+          macos-arch: ${{ matrix.macos_arch || '' }}
 
       - name: Upload capture SDK bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -578,7 +300,6 @@ jobs:
         with:
           path: ${{ env.VCPKG_BINARY_CACHE_DIR }}
           key: ${{ runner.os }}-${{ matrix.name }}-vcpkg-binary-${{ env.VCPKG_TARGET_TRIPLET }}-${{ env.VCPKG_GIT_COMMIT }}-${{ hashFiles('vcpkg.json') }}
-
 
       # ---------- Cleanup ----------
       - name: Clean after build (best-effort)
