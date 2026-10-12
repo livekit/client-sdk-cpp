@@ -118,10 +118,8 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  # Disable Cargo incremental artifacts. The Rust FFI is built once per
-  # submodule SHA and cached whole (see the cargo target cache below), so
-  # incremental dirs add nothing but bloat the cached target/ directory and
-  # slow the cache upload/download.
+  # Restore the cache containing both feature-specific Rust builds. Cargo
+  # incremental codegen directories add cache size without helping CMake reuse.
   CARGO_INCREMENTAL: "0"
   # vcpkg binary caching for Windows (mirrors builds.yml). The x-gha backend
   # was removed from vcpkg, so use vcpkg's files provider and persist that
@@ -331,9 +329,9 @@ jobs:
           path: |
             client-sdk-rust/target/
             ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v2-${{ steps.rust_sha.outputs.sha }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v3-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
-            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v2-
+            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v3-
 
       # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
       # artifacts in webrtc-sys are not compatible across those bumps.
@@ -365,23 +363,67 @@ jobs:
             sudo sysctl -w "kern.corefile=${RUNNER_TEMP}/livekit-core.%P"
           fi
 
-      # ---------- Build (tests on, examples off) ----------
-      - name: Build tests (Unix)
+      # Validate the standard installed SDK, then enable capture in the same
+      # CMake tree. Compile and run the complete test suite once, with capture.
+      - name: Build standard SDK (Unix)
         if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
           chmod +x build.sh
-          build_cmd=(./build.sh "${{ inputs.build_type }}-tests")
+          build_cmd=(./build.sh "${{ inputs.build_type }}" --no-capture --bundle --prefix sdk-out/test-sdk-standard)
           if [[ -n "${{ matrix.macos_arch || '' }}" ]]; then
             build_cmd+=(--macos-arch "${{ matrix.macos_arch }}")
           fi
           "${build_cmd[@]}"
 
-      - name: Build tests (Windows)
+      - name: Build standard SDK (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: .\build.cmd ${{ inputs.build_type }}-tests
+        run: .\build.cmd ${{ inputs.build_type }} --no-capture --bundle --prefix sdk-out/test-sdk-standard
+
+      - name: Test installed standard SDK (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          bundle="$GITHUB_WORKSPACE/sdk-out/test-sdk-standard"
+          arch_args=()
+          if [[ "${{ matrix.name }}" == macos-x64* ]]; then arch_args+=(-DCMAKE_OSX_ARCHITECTURES=x86_64); fi
+          cmake -S src/tests/packaging -B build-packaging-standard -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }} -DCMAKE_PREFIX_PATH="$bundle" \
+            -DLIVEKIT_EXPECT_CAPTURE=OFF "${arch_args[@]}"
+          cmake --build build-packaging-standard
+          ctest --test-dir build-packaging-standard -C ${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }} --output-on-failure -L packaging
+
+      - name: Test installed standard SDK (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bundle = Join-Path $env:GITHUB_WORKSPACE "sdk-out/test-sdk-standard"
+          cmake -S src/tests/packaging -B build-packaging-standard -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_EXPECT_CAPTURE=OFF
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cmake --build build-packaging-standard --config ${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:PATH = "$bundle\bin;$env:PATH"
+          ctest --test-dir build-packaging-standard -C ${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }} --output-on-failure -L packaging
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Rebuild tests with capture (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x build.sh
+          build_cmd=(./build.sh "${{ inputs.build_type }}-tests" --capture)
+          if [[ -n "${{ matrix.macos_arch || '' }}" ]]; then
+            build_cmd+=(--macos-arch "${{ matrix.macos_arch }}")
+          fi
+          "${build_cmd[@]}"
+
+      - name: Rebuild tests with capture (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\build.cmd ${{ inputs.build_type }}-tests --capture
 
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
