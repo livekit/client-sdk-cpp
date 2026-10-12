@@ -336,6 +336,7 @@ file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS
   "${RUST_ROOT}/livekit-capture/Cargo.toml"
   "${RUST_ROOT}/livekit-capture/src/*"
   "${RUST_ROOT}/livekit-capture/shaders/*"
+  "${RUST_ROOT}/livekit-capture/build.rs"
 )
 list(APPEND RUST_SOURCES
   "${RUST_ROOT}/Cargo.toml"
