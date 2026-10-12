@@ -378,6 +378,18 @@ They require GStreamer development libraries at build time and its runtime
 libraries when the SDK is loaded. Release artifacts with `-capture` in their
 names include capture; standard artifacts disable it.
 
+CI builds both variants in one job per platform. It first builds and bundles
+the standard SDK, then runs the build script with `--capture` in the same CMake
+build directory. Unchanged C++ dependencies and generated protobuf outputs are
+reused. Both bundles have separate install directories and artifact names, and
+both are checked through the installed-SDK packaging tests. Release jobs also
+check version metadata and exported symbols in both bundles.
+
+Test jobs validate the standard installed SDK first, then enable capture and
+run the full unit, integration, and optional stress suites once. Rust outputs
+remain separate for each feature configuration; the shared Cargo cache stores
+both configurations.
+
 Rust artifacts are stored under `client-sdk-rust/target/cpp-<feature-hash>/`,
 with separate directories for capture-enabled and disabled builds. Generated
 `build.h` files live in each CMake build directory, so feature metadata follows
