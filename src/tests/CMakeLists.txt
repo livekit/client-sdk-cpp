@@ -97,7 +97,6 @@ if(UNIT_TEST_SOURCES)
 
   target_include_directories(livekit_unit_tests
     PRIVATE
-      ${LIVEKIT_GENERATED_INCLUDE_DIR}
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
       ${LIVEKIT_ROOT_DIR}/src/trace
@@ -105,7 +104,6 @@ if(UNIT_TEST_SOURCES)
       ${LIVEKIT_TEST_PROTOBUF_DEP_INCLUDE_DIRS}
   )
   target_include_directories(livekit_unit_tests SYSTEM PRIVATE
-    ${LIVEKIT_ROOT_DIR}/client-sdk-rust/livekit-ffi/include
     ${LIVEKIT_TEST_SYSTEM_INCLUDE_DIRS}
   )
 
@@ -192,7 +190,6 @@ if(INTEGRATION_TEST_SOURCES)
 
   target_include_directories(livekit_integration_tests
     PRIVATE
-      ${LIVEKIT_GENERATED_INCLUDE_DIR}
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
@@ -275,7 +272,6 @@ if(STRESS_TEST_SOURCES)
 
   target_include_directories(livekit_stress_tests
     PRIVATE
-      ${LIVEKIT_GENERATED_INCLUDE_DIR}
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
       ${LIVEKIT_TEST_PROTOBUF_DEP_INCLUDE_DIRS}

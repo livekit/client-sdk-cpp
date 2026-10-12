@@ -336,7 +336,6 @@ file(GLOB_RECURSE RUST_SOURCES CONFIGURE_DEPENDS
   "${RUST_ROOT}/livekit-capture/Cargo.toml"
   "${RUST_ROOT}/livekit-capture/src/*"
   "${RUST_ROOT}/livekit-capture/shaders/*"
-  "${RUST_ROOT}/livekit-capture/build.rs"
 )
 list(APPEND RUST_SOURCES
   "${RUST_ROOT}/Cargo.toml"
@@ -383,7 +382,6 @@ add_library(livekit SHARED
   src/audio_frame.cpp
   src/audio_processing_module.cpp
   src/capture_source.cpp
-  src/capture_source_internal.h
   src/audio_source.cpp
   src/audio_stream.cpp
   src/data_track_frame.cpp
@@ -523,16 +521,12 @@ if(LIVEKIT_IS_TOPLEVEL)
   # Copy livekit_ffi library to output directory alongside livekit library
   if(WIN32)
     # Copy both DLL and import library
-    set(FFI_DLL_DEBUG     "${RUST_TARGET_DIR}/debug/livekit_ffi.dll")
-    set(FFI_DLL_RELEASE   "${RUST_TARGET_DIR}/release/livekit_ffi.dll")
-    set(FFI_IMPLIB_DEBUG  "${RUST_TARGET_DIR}/debug/livekit_ffi.dll.lib")
-    set(FFI_IMPLIB_RELEASE "${RUST_TARGET_DIR}/release/livekit_ffi.dll.lib")
     
     # Copy DLL file
     add_custom_command(
       TARGET livekit POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy
-              "$<IF:$<CONFIG:Debug>,${FFI_DLL_DEBUG},${FFI_DLL_RELEASE}>"
+              "$<TARGET_FILE:livekit_ffi>"
               "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll"
       COMMENT "Copying livekit_ffi.dll to output directory"
     )
@@ -540,18 +534,16 @@ if(LIVEKIT_IS_TOPLEVEL)
     add_custom_command(
       TARGET livekit POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy
-              "$<IF:$<CONFIG:Debug>,${FFI_IMPLIB_DEBUG},${FFI_IMPLIB_RELEASE}>"
+              "$<TARGET_LINKER_FILE:livekit_ffi>"
               "$<TARGET_FILE_DIR:livekit>/livekit_ffi.dll.lib"
       COMMENT "Copying livekit_ffi.dll.lib to output directory"
     )
   elseif(APPLE)
     # macOS: copy .dylib
-    set(FFI_LIB_DEBUG   "${RUST_TARGET_DIR}/debug/liblivekit_ffi.dylib")
-    set(FFI_LIB_RELEASE "${RUST_TARGET_DIR}/release/liblivekit_ffi.dylib")
     add_custom_command(
       TARGET livekit POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy
-              "$<IF:$<CONFIG:Debug>,${FFI_LIB_DEBUG},${FFI_LIB_RELEASE}>"
+              "$<TARGET_FILE:livekit_ffi>"
               "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.dylib"
       COMMENT "Copying liblivekit_ffi.dylib to output directory"
     )
@@ -579,12 +571,10 @@ if(LIVEKIT_IS_TOPLEVEL)
     )
   else()
     # Linux: copy .so
-    set(FFI_LIB_DEBUG   "${RUST_TARGET_DIR}/debug/liblivekit_ffi.so")
-    set(FFI_LIB_RELEASE "${RUST_TARGET_DIR}/release/liblivekit_ffi.so")
     add_custom_command(
       TARGET livekit POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy
-              "$<IF:$<CONFIG:Debug>,${FFI_LIB_DEBUG},${FFI_LIB_RELEASE}>"
+              "$<TARGET_FILE:livekit_ffi>"
               "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
       COMMENT "Copying liblivekit_ffi.so to output directory"
     )
