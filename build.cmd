@@ -8,7 +8,7 @@ set "BUILD_TYPE=Release"
 set "PRESET=windows-release"
 set "LIVEKIT_VERSION="
 set "CMAKE_EXTRA_ARGS="
-set "CAPTURE_OVERRIDE="
+set "CAPTURE_OVERRIDE=OFF"
 set "BUILD_PARALLEL_JOBS="
 set "DO_BUNDLE="
 set "PREFIX="
@@ -144,7 +144,7 @@ if defined LIVEKIT_VERSION (
     set "CMAKE_EXTRA_ARGS=-DLIVEKIT_VERSION=%LIVEKIT_VERSION%"
     echo ==^> Injecting LIVEKIT_VERSION=%LIVEKIT_VERSION%
 )
-if defined CAPTURE_OVERRIDE set "CMAKE_EXTRA_ARGS=%CMAKE_EXTRA_ARGS% -DLIVEKIT_BUILD_CAPTURE=%CAPTURE_OVERRIDE%"
+set "CMAKE_EXTRA_ARGS=%CMAKE_EXTRA_ARGS% -DLIVEKIT_BUILD_CAPTURE=%CAPTURE_OVERRIDE%"
 goto dispatch
 
 :dispatch
@@ -229,7 +229,7 @@ echo   help              Show this help
 echo.
 echo Options (for debug / release):
 echo   --capture         Enable all capture sources ^(requires GStreamer^)
-echo   --no-capture      Disable capture sources, overriding the preset
+echo   --no-capture      Explicitly disable capture sources ^(the default^)
 echo   --bundle          Install the SDK bundle using cmake --install
 echo   --prefix ^<dir^>    Install prefix for --bundle ^(default: .\sdk-out\livekit-sdk^)
 echo.

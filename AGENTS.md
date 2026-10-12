@@ -132,9 +132,9 @@ The build scripts set `LIVEKIT_BUILD_CAPTURE`. The generated
 `LIVEKIT_CAPTURE_ENABLED` macro is 0 or 1 and supports `#if` checks in consumers.
 
 Both build scripts accept `--capture` to enable GStreamer, pattern, and clock
-sources, and `--no-capture` to disable them. Test/all presets enable capture by
-default; normal and example presets disable it. Capture-enabled builds need
-GStreamer development and runtime libraries. Release workflows publish separate
+sources, and `--no-capture` to disable them explicitly. Capture is disabled by
+default for every preset. Capture-enabled builds need GStreamer development and
+runtime libraries. Release workflows publish separate
 `-capture` bundles and validate creation through the installed SDK using the standalone CTest project in
 `src/tests/packaging/`.
 

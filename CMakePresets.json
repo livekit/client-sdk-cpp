@@ -14,10 +14,9 @@
       }
     },
     {
-      "name": "capture-tests",
+      "name": "tests",
       "hidden": true,
       "cacheVariables": {
-        "LIVEKIT_BUILD_CAPTURE": "ON",
         "LIVEKIT_BUILD_TESTS": "ON"
       }
     },
@@ -234,7 +233,7 @@
       "displayName": "Windows x64 Release with Tests + Examples",
       "description": "Build for Windows x64 Release with tests and examples",
       "inherits": [
-        "capture-tests",
+        "tests",
         "windows-base"
       ],
       "binaryDir": "${sourceDir}/build-release",
@@ -248,7 +247,7 @@
       "displayName": "Windows x64 Debug with Tests + Examples",
       "description": "Build for Windows x64 Debug with tests and examples",
       "inherits": [
-        "capture-tests",
+        "tests",
         "windows-base"
       ],
       "binaryDir": "${sourceDir}/build-debug",
@@ -262,7 +261,7 @@
       "displayName": "Windows x64 Release with Tests",
       "description": "Build for Windows x64 Release with test suite",
       "inherits": [
-        "capture-tests",
+        "tests",
         "windows-base"
       ],
       "binaryDir": "${sourceDir}/build-release",
@@ -276,7 +275,7 @@
       "displayName": "Windows x64 Debug with Tests",
       "description": "Build for Windows x64 Debug with test suite",
       "inherits": [
-        "capture-tests",
+        "tests",
         "windows-base"
       ],
       "binaryDir": "${sourceDir}/build-debug",
@@ -290,7 +289,7 @@
       "displayName": "Linux Release with Tests + Examples",
       "description": "Build for Linux Release with tests and examples",
       "inherits": [
-        "capture-tests",
+        "tests",
         "linux-base"
       ],
       "binaryDir": "${sourceDir}/build-release",
@@ -304,7 +303,7 @@
       "displayName": "Linux Debug with Tests + Examples",
       "description": "Build for Linux Debug with tests and examples",
       "inherits": [
-        "capture-tests",
+        "tests",
         "linux-base"
       ],
       "binaryDir": "${sourceDir}/build-debug",
@@ -318,7 +317,7 @@
       "displayName": "Linux Release with Tests",
       "description": "Build for Linux Release with test suite",
       "inherits": [
-        "capture-tests",
+        "tests",
         "linux-base"
       ],
       "binaryDir": "${sourceDir}/build-release",
@@ -332,7 +331,7 @@
       "displayName": "Linux Debug with Tests",
       "description": "Build for Linux Debug with test suite",
       "inherits": [
-        "capture-tests",
+        "tests",
         "linux-base"
       ],
       "binaryDir": "${sourceDir}/build-debug",
@@ -346,7 +345,7 @@
       "displayName": "macOS Release with Tests + Examples",
       "description": "Build for macOS Release with tests and examples",
       "inherits": [
-        "capture-tests",
+        "tests",
         "macos-base"
       ],
       "binaryDir": "${sourceDir}/build-release",
@@ -360,7 +359,7 @@
       "displayName": "macOS Debug with Tests + Examples",
       "description": "Build for macOS Debug with tests and examples",
       "inherits": [
-        "capture-tests",
+        "tests",
         "macos-base"
       ],
       "binaryDir": "${sourceDir}/build-debug",
@@ -374,7 +373,7 @@
       "displayName": "macOS Release with Tests",
       "description": "Build for macOS Release with test suite",
       "inherits": [
-        "capture-tests",
+        "tests",
         "macos-base"
       ],
       "binaryDir": "${sourceDir}/build-release",
@@ -388,7 +387,7 @@
       "displayName": "macOS Debug with Tests",
       "description": "Build for macOS Debug with test suite",
       "inherits": [
-        "capture-tests",
+        "tests",
         "macos-base"
       ],
       "binaryDir": "${sourceDir}/build-debug",
