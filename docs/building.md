@@ -201,6 +201,7 @@ cmake --build build
 | `LIVEKIT_USE_SYSTEM_PROTOBUF` | OFF | Use system Protobuf instead of vcpkg's |
 | `LIVEKIT_LOG_LEVEL` | `TRACE` | Compile-time log threshold (see [logging.md](logging.md)) |
 | `LIVEKIT_VERSION` | repo-derived | SDK version string baked into the binary |
+| `LIVEKIT_BUILD_CAPTURE` | preset-dependent | Enable GStreamer, pattern, and clock capture sources in the Rust FFI |
 
 ## Build output
 
@@ -361,22 +362,42 @@ separately when it is no longer needed.
 
 ## Capture sources
 
-Standard `debug`, `release`, and `*-examples` builds disable capture. The
-`*-tests` and `*-all` presets enable it by default. Both build scripts accept
-`--capture` and `--no-capture` to override the preset:
+Only the repository's `*-tests` and `*-all` presets enable capture by default.
+The `debug`, `release`, and `*-examples` presets disable it. Use `--capture`
+with any build command to enable all three sources (GStreamer, GPU pattern, and
+GPU wall clock), or `--no-capture` to disable them explicitly:
 
 ```bash
 ./build.sh release --capture --bundle --prefix sdk-out/livekit-sdk-capture
+./build.sh debug-tests --no-capture
 ```
 
-The build scripts set `LIVEKIT_BUILD_CAPTURE`. The generated
-`LIVEKIT_CAPTURE_ENABLED` macro is 0 or 1 and supports `#if` checks in consumers.
-
 On Windows, use `build.cmd release --capture --bundle --prefix sdk-out\livekit-sdk-capture`.
-Capture builds enable GStreamer, GPU test patterns, and the GPU wall clock.
-They require GStreamer development libraries at build time and its runtime
-libraries when the SDK is loaded. Release artifacts with `-capture` in their
-names include capture; standard artifacts disable it.
+Custom CMake configurations can set `LIVEKIT_BUILD_CAPTURE=ON`. The build
+enables `capture-gstreamer`, `capture-pattern`, and `capture-clock` in the
+Rust FFI.
+
+The build scripts set `LIVEKIT_BUILD_CAPTURE`. The generated numeric
+`LIVEKIT_CAPTURE_ENABLED` macro (0 or 1) supports `#if` checks in consumers.
+`share/livekit/build-info.json` in an installed bundle describes the same build
+features; neither value tests whether a GPU or a requested GStreamer plugin is
+available at runtime.
+
+Release downloads with `-capture` in their names include these features, for
+example `livekit-sdk-macos-arm64-capture-<version>.tar.gz`. Standard release
+bundles have capture disabled.
+
+Building a capture-enabled SDK requires GStreamer development libraries
+accessible to `pkg-config`. On macOS, install `gstreamer` with Homebrew. On
+Ubuntu, install `libgstreamer1.0-dev` and
+`libgstreamer-plugins-base1.0-dev`, plus the runtime plugins your pipeline
+uses. On Windows, install the MSVC runtime and development packages from the
+[GStreamer downloads page](https://gstreamer.freedesktop.org/download/) and put
+the installation's `bin` directory on `PATH` and `lib/pkgconfig` directory on
+`PKG_CONFIG_PATH`.
+
+Capture bundles require GStreamer at runtime, including when using pattern or
+clock sources. The SDK does not redistribute GStreamer libraries or plugins.
 
 CI builds both variants in one job per platform. It first builds and bundles
 the standard SDK, then runs the build script with `--capture` in the same CMake
