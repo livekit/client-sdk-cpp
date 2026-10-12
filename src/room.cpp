@@ -629,18 +629,18 @@ void Room::onEvent(const FfiEvent& event) {
             LK_LOG_ERROR("kLocalTrackRepublished: local_participant_ is nullptr");
             break;
           }
-          const auto& ltr = re.local_track_republished();
-          const std::string& previous_sid = ltr.previous_sid();
+          const auto& local_track_repub = re.local_track_republished();
+          const std::string& previous_sid = local_track_repub.previous_sid();
 
-          auto& published = local_participant_->published_tracks_by_sid_;
-          auto it = published.find(previous_sid);
-          if (it == published.end()) {
+          auto& published_tracks = local_participant_->published_tracks_by_sid_;
+          auto it = published_tracks.find(previous_sid);
+          if (it == published_tracks.end()) {
             LK_LOG_WARN("local_track_republished for unknown previous sid: {}", previous_sid);
             break;
           }
           auto track = it->second.lock();
           if (!track) {
-            published.erase(it);
+            published_tracks.erase(it);
             LK_LOG_WARN("local_track_republished for expired previous sid: {}", previous_sid);
             break;
           }
@@ -649,9 +649,9 @@ void Room::onEvent(const FfiEvent& event) {
             LK_LOG_WARN("local_track_republished missing publication for sid: {}", previous_sid);
             break;
           }
-          updateLocalTrackPublicationInfo(*publication, ltr.info());
-          published.erase(it);
-          published[publication->sid()] = track;
+          updateLocalTrackPublicationInfo(*publication, local_track_repub.info());
+          published_tracks.erase(it);
+          published_tracks[publication->sid()] = track;
           track->setPublication(publication);
           break;
         }
