@@ -67,6 +67,12 @@ extern "C" void livekit_ffi_dispose();
 
 extern "C" LIVEKIT_INTERNAL_API void ffiEventCallback(const uint8_t* buf, size_t len);
 
+/// @brief Release a Rust FFI handle and report whether it existed.
+/// Internal ownership test seam; not part of the public SDK API.
+/// @param handle Rust resource handle to release.
+/// @return True if the handle was released; false if it did not exist.
+[[nodiscard]] LIVEKIT_INTERNAL_API bool dropFfiHandle(std::uint64_t handle) noexcept;
+
 // The FfiClient is used to communicate with the FFI interface of the Rust SDK
 // We use the generated protocol messages to facilitate the communication.
 class LIVEKIT_INTERNAL_API FfiClient {

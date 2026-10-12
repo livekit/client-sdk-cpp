@@ -25,7 +25,6 @@
 #include "capture.pb.h"
 #include "capture_source_internal.h"
 #include "ffi_client.h"
-#include "livekit_ffi.h"
 
 namespace livekit {
 
@@ -169,8 +168,8 @@ TEST_F(CaptureSourceCallbackTest, AbandonedAndInvalidResultsReleaseBothRustHandl
       EXPECT_THROW(static_cast<void>(future.get()), CaptureSourceError);
     }
     // A second drop must fail. If ownership leaked, this also cleans it up.
-    EXPECT_FALSE(livekit_ffi_drop_handle(capture.handle().id()));
-    EXPECT_FALSE(livekit_ffi_drop_handle(video.handle().id()));
+    EXPECT_FALSE(dropFfiHandle(capture.handle().id()));
+    EXPECT_FALSE(dropFfiHandle(video.handle().id()));
     EXPECT_EQ(FfiClientTestAccess::listenerCount(), 0u);
   }
 }
