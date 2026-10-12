@@ -95,7 +95,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
 | `src/tests/packaging/` | Standalone CTest integration tests consuming installed SDK bundles |
-| `.github/actions/setup-capture/` | Shared CI setup for capture runtime and development dependencies |
+| `.github/actions/` | Shared CI actions for SDK builds, Cargo paths, capture dependencies, example smoke checks, packaging tests, and exported ABI checks |
 | `.github/workflows/` | GitHub Actions CI workflows |
 
 ### Key Types
@@ -414,6 +414,8 @@ all filtered stages; normal pull requests and pushes use the path filters.
 - `.github/workflows/tests.yml` — Reusable unit/integration test matrix.
   Each platform job first validates an installed standard SDK, then rebuilds
   with capture enabled and runs the complete test suite once.
+  The build, test, and release jobs use the shared actions under
+  `.github/actions/`; keep platform-specific build and bundle checks there.
 - `.github/workflows/cpp-tools.yml` — Reusable SDK-specific `clang-format` and
   `clang-tidy` workflow. It prepares the build environment and invokes the
   project wrappers backed by the shared `cpp-tools` scripts.

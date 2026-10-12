@@ -31,8 +31,6 @@ if(UNIX AND NOT APPLE)
       "${LIVEKIT_UNIFFI_METADATA_TARGET_DIR}/debug/liblivekit_ffi.so")
 endif()
 
-set(LIVEKIT_UNIFFI_RUST_SOURCES ${RUST_SOURCES})
-
 file(GLOB_RECURSE LIVEKIT_UNIFFI_BINDGEN_SOURCES CONFIGURE_DEPENDS
   "${RUST_ROOT}/tools/bindgens/src/*.rs"
   "${RUST_ROOT}/tools/bindgens/Cargo.toml"
@@ -51,7 +49,7 @@ if(UNIX AND NOT APPLE)
             -DCARGO_FEATURES=${LIVEKIT_CARGO_FEATURES}
             -P "${RUN_CARGO_SCRIPT}"
     WORKING_DIRECTORY "${RUST_ROOT}"
-    DEPENDS ${LIVEKIT_UNIFFI_RUST_SOURCES} "${RUN_CARGO_SCRIPT}"
+    DEPENDS ${RUST_SOURCES} "${RUN_CARGO_SCRIPT}"
     COMMENT "Building unstripped livekit-ffi metadata library"
     VERBATIM
   )
@@ -86,7 +84,7 @@ add_custom_command(
   WORKING_DIRECTORY "${RUST_ROOT}"
   DEPENDS
     build_livekit_ffi_metadata
-    ${LIVEKIT_UNIFFI_RUST_SOURCES}
+    ${RUST_SOURCES}
     ${LIVEKIT_UNIFFI_BINDGEN_SOURCES}
   COMMENT "Generating UniFFI C++ bindings"
   VERBATIM
