@@ -53,7 +53,7 @@ namespace {
 // Report validation and synchronous send failures through the same future as
 // asynchronous creation errors. All public factories share this path.
 template <typename Config>
-std::future<std::shared_ptr<CaptureSource>> createCaptureSource(Config config) {
+std::future<std::shared_ptr<CaptureSource>> createCaptureSource(const Config& config) {
   try {
     return FfiClient::instance().newCaptureSourceAsync(toProto(std::move(config)));
   } catch (const std::exception& error) {
