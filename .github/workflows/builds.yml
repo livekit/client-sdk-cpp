@@ -353,28 +353,6 @@ jobs:
           path: sdk-out/livekit-sdk-${{ matrix.name }}
           retention-days: 7
 
-      - name: Upload deprecated linux-x64 alias artifact
-        if: matrix.name == 'ubuntu-24.04-x64'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: livekit-sdk-linux-x64
-          path: |
-            ${{ matrix.build_dir }}/lib/
-            ${{ matrix.build_dir }}/include/
-            ${{ matrix.build_dir }}/bin/
-          retention-days: 7
-
-      - name: Upload deprecated linux-arm64 alias artifact
-        if: matrix.name == 'ubuntu-24.04-arm64'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: livekit-sdk-linux-arm64
-          path: |
-            ${{ matrix.build_dir }}/lib/
-            ${{ matrix.build_dir }}/include/
-            ${{ matrix.build_dir }}/bin/
-          retention-days: 7
-
       # ---------- Cleanup ----------
       - name: Clean after build (best-effort)
         if: always()
