@@ -420,7 +420,7 @@ See [Capture sources](capture-sources.md) for dependencies and usage.
 ## Build in a Linux container
 
 You can test a clean Linux build and its dependency tree from a macOS or Linux
-host with `docker/linux-build.Dockerfile`. The container is a build check, not
+host with `docker/linux.Dockerfile`. The container is a build check, not
 a development environment. The image uses Ubuntu 24.04 with the same packages
 as the Linux CI jobs. It also includes GStreamer for `--capture` builds and
 the stable Rust toolchain.
@@ -435,18 +435,18 @@ directories and `.git` data are not mounted.
    must be checked out, because the image copies its clang install script.
 
    ```bash
-   docker build -f docker/linux-build.Dockerfile -t livekit-cpp-build .
+   docker build -f docker/linux.Dockerfile -t livekit-cpp-build .
    ```
 
    To install gstreamer:
    ```bash
-   docker build -f docker/linux-build.Dockerfile \
+   docker build -f docker/linux.Dockerfile \
      --build-arg INSTALL_GSTREAMER=1 \
      -t livekit-cpp-build .
    ```
 
    The build context is the repository root. The file
-   `docker/linux-build.Dockerfile.dockerignore` limits the context to the
+   `docker/linux.Dockerfile.dockerignore` limits the context to the
    clang install script, so Docker does not send build outputs or `.git`.
 
 2. From the repository root, start the container:
