@@ -18,7 +18,12 @@ include(warnings)
 
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 option(LIVEKIT_BUILD_TESTS "Build LiveKit tests" OFF)
-option(LIVEKIT_BUILD_CAPTURE "Build the Rust FFI with the capture feature (livekit-capture sources; links system GStreamer)" OFF)
+# Capture sources for the Rust FFI. Comma-separated subset of gstreamer,
+# pattern, clock; or all / none / ON / OFF (aliases). Empty means none.
+set(LIVEKIT_CAPTURE "" CACHE STRING
+  "Capture sources: none, all, or comma-separated gstreamer,pattern,clock")
+set_property(CACHE LIVEKIT_CAPTURE PROPERTY STRINGS
+  "" none all gstreamer pattern clock ON OFF)
 
 # vcpkg is only used on Windows; Linux/macOS use system package managers
 if(WIN32)
@@ -169,13 +174,44 @@ set(GENERATED_BUILD_H "${LIVEKIT_GENERATED_INCLUDE_DIR}/livekit/build.h")
 set(GENERATED_BUILD_INFO_JSON "${LIVEKIT_BINARY_DIR}/build-info.json")
 set(RUST_ROOT ${LIVEKIT_ROOT_DIR}/client-sdk-rust)
 
-# Cargo features for the Rust FFI build.
+# Map LIVEKIT_CAPTURE to livekit-ffi Cargo features (sorted for stable hashing).
 set(LIVEKIT_CARGO_FEATURES "")
 set(LIVEKIT_CAPTURE_ENABLED 0)
-if(LIVEKIT_BUILD_CAPTURE)
-  set(LIVEKIT_CARGO_FEATURES "capture-gstreamer,capture-pattern,capture-clock")
+string(STRIP "${LIVEKIT_CAPTURE}" _lk_capture)
+string(TOLOWER "${_lk_capture}" _lk_capture_lower)
+set(_lk_capture_tokens "")
+if(_lk_capture_lower STREQUAL "" OR _lk_capture_lower STREQUAL "none" OR _lk_capture_lower STREQUAL "off")
+  # Capture disabled.
+elseif(_lk_capture_lower STREQUAL "all" OR _lk_capture_lower STREQUAL "on")
+  set(_lk_capture_tokens "clock;gstreamer;pattern")
+else()
+  string(REPLACE "," ";" _lk_capture_tokens "${_lk_capture_lower}")
+endif()
+set(_lk_capture_features "")
+foreach(_token IN LISTS _lk_capture_tokens)
+  string(STRIP "${_token}" _token)
+  if(_token STREQUAL "")
+    continue()
+  endif()
+  if(_token STREQUAL "gstreamer")
+    list(APPEND _lk_capture_features "capture-gstreamer")
+  elseif(_token STREQUAL "pattern")
+    list(APPEND _lk_capture_features "capture-pattern")
+  elseif(_token STREQUAL "clock")
+    list(APPEND _lk_capture_features "capture-clock")
+  else()
+    message(FATAL_ERROR
+      "Unknown LIVEKIT_CAPTURE source '${_token}'. "
+      "Expected: gstreamer, pattern, clock, all, none, ON, or OFF.")
+  endif()
+endforeach()
+if(_lk_capture_features)
+  list(REMOVE_DUPLICATES _lk_capture_features)
+  list(SORT _lk_capture_features)
+  list(JOIN _lk_capture_features "," LIVEKIT_CARGO_FEATURES)
   set(LIVEKIT_CAPTURE_ENABLED 1)
 endif()
+message(STATUS "LIVEKIT_CAPTURE='${LIVEKIT_CAPTURE}' -> cargo features: '${LIVEKIT_CARGO_FEATURES}'")
 
 set(GIT_COMMIT "unknown")
 set(RUST_GIT_COMMIT "unknown")

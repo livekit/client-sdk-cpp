@@ -244,7 +244,7 @@ cmake --build build
 | `LIVEKIT_USE_SYSTEM_PROTOBUF` | OFF | Use system Protobuf instead of vcpkg's |
 | `LIVEKIT_LOG_LEVEL` | `TRACE` | Compile-time log threshold (see [logging.md](logging.md)) |
 | `LIVEKIT_VERSION` | repo-derived | SDK version string baked into the binary |
-| `LIVEKIT_BUILD_CAPTURE` | OFF | Enable GStreamer, pattern, and clock capture sources in the Rust FFI |
+| `LIVEKIT_CAPTURE` | empty (`none`) | Capture sources for the Rust FFI (`all`, `none`, or a comma-separated list; see [Capture sources](#capture-sources)) |
 
 ## Build output
 
@@ -405,13 +405,23 @@ separately when it is no longer needed.
 
 ## Capture sources
 
-Capture is disabled by default for every repository preset. Use `--capture`
-with any build command to enable all three sources (GStreamer, GPU pattern, and
-GPU wall clock), or `--no-capture` to disable them explicitly:
+Capture is disabled by default. Select sources with `-DLIVEKIT_CAPTURE=<value>`
+or `--capture[=list]` / `--no-capture`.
+
+Available sources (comma-separated; each maps to `capture-*` on `livekit-ffi`):
+
+| Source | Description |
+|--------|-------------|
+| `gstreamer` | GStreamer pipelines (needs GStreamer at build and runtime) |
+| `pattern` | GPU test pattern |
+| `clock` | GPU wall clock |
+
+Special values: `none` / `OFF` / empty (disabled), `all` / `ON` (every source).
+`LIVEKIT_CAPTURE_ENABLED` is 1 when any source is selected; installed
+`share/livekit/build-info.json` also records `cargo_features`.
 
 ```bash
 ./build.sh release --capture --bundle --prefix sdk-out/livekit-sdk-capture
-./build.sh debug-tests
 ```
 
 On Windows, use `build.cmd release --capture --bundle --prefix sdk-out\livekit-sdk-capture`.
