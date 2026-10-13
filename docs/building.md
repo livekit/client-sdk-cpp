@@ -417,6 +417,66 @@ the installed SDK instead of another configuration's most recent build.
 
 See [Capture sources](capture-sources.md) for dependencies and usage.
 
+## Build in a Linux container
+
+You can test a clean Linux build and its dependency tree from a macOS or Linux
+host with `docker/linux-build.Dockerfile`. The container is a build check, not
+a development environment. The image uses Ubuntu 24.04 with the same packages
+as the Linux CI jobs. It also includes GStreamer for `--capture` builds and
+the stable Rust toolchain.
+
+The container bind-mounts the source paths that the build reads from the host
+into `/work`. Changes on the host show up in the container immediately. The
+`/work` directory itself is the `lk-cpp-work` volume, so build outputs such as
+`build-*`, `local-install`, and `sdk-out` stay in the container. Host build
+directories and `.git` data are not mounted.
+
+1. From the repository root, build the image. The `client-sdk-rust` submodule
+   must be checked out, because the image copies its clang install script.
+
+   ```bash
+   docker build -f docker/linux-build.Dockerfile -t livekit-cpp-build .
+   ```
+
+   To install gstreamer:
+   ```bash
+   docker build -f docker/linux-build.Dockerfile \
+     --build-arg INSTALL_GSTREAMER=1 \
+     -t livekit-cpp-build .
+   ```
+
+   The build context is the repository root. The file
+   `docker/linux-build.Dockerfile.dockerignore` limits the context to the
+   clang install script, so Docker does not send build outputs or `.git`.
+
+2. From the repository root, start the container:
+
+   ```bash
+   docker run -d --name lk-cpp --network host \
+     -v lk-cpp-work:/work \
+     -v lk-cargo-target:/cargo-target \
+     -v lk-cargo-registry:/opt/cargo/registry \
+     -v "$(pwd)/build.sh:/work/build.sh" \
+     -v "$(pwd)/CMakeLists.txt:/work/CMakeLists.txt" \
+     -v "$(pwd)/CMakePresets.json:/work/CMakePresets.json" \
+     -v "$(pwd)/build.h.in:/work/build.h.in" \
+     -v "$(pwd)/.build-info.json.in:/work/.build-info.json.in" \
+     -v "$(pwd)/cmake:/work/cmake" \
+     -v "$(pwd)/include:/work/include" \
+     -v "$(pwd)/src:/work/src" \
+     -v "$(pwd)/scripts:/work/scripts" \
+     -v "$(pwd)/client-sdk-rust:/work/client-sdk-rust" \
+     -v lk-rust-source-target:/work/client-sdk-rust/target \
+     -v "$(pwd)/cpp-example-collection:/work/cpp-example-collection" \
+     livekit-cpp-build sleep infinity
+   ```
+
+3. Open a shell in the container:
+
+   ```bash
+   docker exec -it lk-cpp bash
+   ```
+For a fully clean build, run `./build.sh clean-all` in the container, or remove the volumes.
 
 ## Support
 
