@@ -347,7 +347,7 @@ jobs:
 
       # ---------- Upload artifacts ----------
       - name: Upload SDK bundle
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: livekit-sdk-${{ matrix.name }}
           path: sdk-out/livekit-sdk-${{ matrix.name }}
@@ -355,7 +355,7 @@ jobs:
 
       - name: Upload deprecated linux-x64 alias artifact
         if: matrix.name == 'ubuntu-24.04-x64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: livekit-sdk-linux-x64
           path: |
@@ -366,7 +366,7 @@ jobs:
 
       - name: Upload deprecated linux-arm64 alias artifact
         if: matrix.name == 'ubuntu-24.04-arm64'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: livekit-sdk-linux-arm64
           path: |
