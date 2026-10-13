@@ -183,7 +183,7 @@ public:
   /// @param config GStreamer pipeline configuration.
   /// @return A future that resolves to the created capture source.
   /// @throws CaptureSourceError When awaiting the future if creation fails.
-  static std::future<std::shared_ptr<CaptureSource>> create(GstreamerVideoSourceConfig config);
+  static std::future<std::shared_ptr<CaptureSource>> create(const GstreamerVideoSourceConfig& config);
 
   /// @brief Create the built-in test pattern capture source.
   ///
