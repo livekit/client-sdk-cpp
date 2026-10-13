@@ -92,7 +92,6 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `nlohmann_json.cmake`, `LiveKitConfig.cmake.in`) |
 | `scripts/` | Local helper scripts for SDK-specific development tasks |
-| `docker/` | Dockerfiles for local Linux build environments (`linux-build.Dockerfile`); not used by CI |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
 | `src/tests/packaging/` | Standalone CTest integration tests consuming installed SDK bundles |
@@ -123,10 +122,6 @@ Updates to ./build.sh and ./build.cmd should be accompanied by updates to this f
 ./build.sh clean              # Clean build artifacts + local-install
 ./build.sh clean-all          # Full clean (C++ + local-install + Rust targets)
 ```
-
-To build for Linux from another host, use the container in
-`docker/linux-build.Dockerfile`. See "Build in a Linux container" in
-`docs/building.md` for the image and `docker run` commands.
 
 To create an installable SDK bundle, use the same build command with
 `--bundle --prefix <install-dir>` (for example,

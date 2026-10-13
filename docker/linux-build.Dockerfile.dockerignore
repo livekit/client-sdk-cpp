@@ -1,4 +1,4 @@
-# Build context allowlist for linux-build.Dockerfile. The context is the
+# Build context allowlist for linux.Dockerfile. The context is the
 # repository root, but the image needs only the clang install script.
 *
 !client-sdk-rust/.github/scripts/install-clang.sh
