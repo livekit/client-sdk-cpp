@@ -120,8 +120,8 @@ CaptureResult resultFromEvent(const proto::CaptureSourceEvent& event) {
 
 } // namespace
 
-std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(GstreamerVideoSourceConfig config) {
-  return createCaptureSource(std::move(config));
+std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(const GstreamerVideoSourceConfig& config) {
+  return createCaptureSource(config);
 }
 
 proto::NewCaptureSourceRequest toProto(const GstreamerVideoSourceConfig& config) {
