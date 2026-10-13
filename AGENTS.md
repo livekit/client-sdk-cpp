@@ -27,8 +27,10 @@ The SDK must be supported on the following platforms:
 - windows x64
 - linux x86_64
 - linux arm64
-- macOS x86_64
 - macOS arm64
+
+macOS x86_64 (Intel) is deprecated. CI no longer builds or tests on Intel macOS
+runners, and new releases no longer include `macos-x64` SDK bundles.
 
 ### FFI Patterns
 SDK features follow one of two FFI patterns:

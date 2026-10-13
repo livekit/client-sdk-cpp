@@ -23,6 +23,10 @@ CMake/vcpkg flows.
 | Linux    | GCC 9+ or Clang 10+ | `apt` / `dnf` (or vcpkg) |
 | macOS    | Xcode 12+ (macOS 12.3+ for ScreenCaptureKit) | Homebrew (or vcpkg) |
 
+macOS CI and release bundles target arm64 (Apple Silicon). macOS x86_64 (Intel)
+is deprecated: CI no longer builds or tests it, and new releases no longer
+include `macos-x64` SDK bundles.
+
 ## Clone the repository
 
 The SDK depends on the [`client-sdk-rust`](https://github.com/livekit/rust-sdks)
