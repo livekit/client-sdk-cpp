@@ -8,7 +8,7 @@ set "BUILD_TYPE=Release"
 set "PRESET=windows-release"
 set "LIVEKIT_VERSION="
 set "CMAKE_EXTRA_ARGS="
-set "CAPTURE_OVERRIDE=OFF"
+set "CAPTURE_OVERRIDE=none"
 set "BUILD_PARALLEL_JOBS="
 set "DO_BUNDLE="
 set "PREFIX="
@@ -90,13 +90,23 @@ if /I "%~1"=="--version" (
     goto :get_version_value
 )
 
+set "ARG=%~1"
+if /I "!ARG:~0,10!"=="--capture=" (
+    set "CAPTURE_OVERRIDE=!ARG:~10!"
+    if "!CAPTURE_OVERRIDE!"=="" (
+        echo ERROR: --capture= requires a value ^(gstreamer, pattern, clock, or all^)
+        exit /b 1
+    )
+    shift
+    goto parse_all
+)
 if /I "%~1"=="--capture" (
-    set "CAPTURE_OVERRIDE=ON"
+    set "CAPTURE_OVERRIDE=all"
     shift
     goto parse_all
 )
 if /I "%~1"=="--no-capture" (
-    set "CAPTURE_OVERRIDE=OFF"
+    set "CAPTURE_OVERRIDE=none"
     shift
     goto parse_all
 )
@@ -144,7 +154,7 @@ if defined LIVEKIT_VERSION (
     set "CMAKE_EXTRA_ARGS=-DLIVEKIT_VERSION=%LIVEKIT_VERSION%"
     echo ==^> Injecting LIVEKIT_VERSION=%LIVEKIT_VERSION%
 )
-set "CMAKE_EXTRA_ARGS=%CMAKE_EXTRA_ARGS% -DLIVEKIT_BUILD_CAPTURE=%CAPTURE_OVERRIDE%"
+set "CMAKE_EXTRA_ARGS=%CMAKE_EXTRA_ARGS% -DLIVEKIT_CAPTURE=%CAPTURE_OVERRIDE%"
 goto dispatch
 
 :dispatch
@@ -228,7 +238,8 @@ echo   clean-all         Full clean (build dirs + local-install + Rust targets)
 echo   help              Show this help
 echo.
 echo Options (for debug / release):
-echo   --capture         Enable all capture sources ^(requires GStreamer^)
+echo   --capture[=list]  Enable capture sources ^(default: all^).
+echo                     list: gstreamer, pattern, clock ^(comma-separated^)
 echo   --no-capture      Explicitly disable capture sources ^(the default^)
 echo   --bundle          Install the SDK bundle using cmake --install
 echo   --prefix ^<dir^>    Install prefix for --bundle ^(default: .\sdk-out\livekit-sdk^)

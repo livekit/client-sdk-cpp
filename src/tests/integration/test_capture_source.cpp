@@ -20,7 +20,7 @@
 /// participant receives video through the SFU without per-frame FFI traffic.
 ///
 /// All of them require the Rust FFI built with capture-source support
-/// (-DLIVEKIT_BUILD_CAPTURE=ON); otherwise they skip.
+/// (-DLIVEKIT_CAPTURE=all); otherwise they skip.
 
 #include <livekit/capture_source.h>
 
@@ -64,7 +64,7 @@ class CaptureSourceServerTest : public LiveKitTestBase, public ::testing::WithPa
 
 TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
 #if !LIVEKIT_CAPTURE_ENABLED
-  GTEST_SKIP() << "livekit-ffi built without capture support; configure with -DLIVEKIT_BUILD_CAPTURE=ON";
+  GTEST_SKIP() << "livekit-ffi built without capture support; configure with -DLIVEKIT_CAPTURE=all";
 #endif
   failIfNotConfigured();
 
