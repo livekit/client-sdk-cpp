@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # webrtc-sys needs a recent clang for the hermetic libc++ in libwebrtc. Use the
 # same script as CI. The build context is the repository root, and
-# linux-build.Dockerfile.dockerignore limits it to this one file.
+# linux.Dockerfile.dockerignore limits it to this one file.
 COPY client-sdk-rust/.github/scripts/install-clang.sh /tmp/install-clang.sh
 RUN LLVM_ROOT=/opt/llvm /tmp/install-clang.sh \
     && rm /tmp/install-clang.sh
