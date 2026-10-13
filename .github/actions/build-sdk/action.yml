@@ -19,7 +19,7 @@ inputs:
     description: Build script command, such as release-examples or debug-tests.
     required: true
   capture:
-    description: Whether to enable capture (ON or OFF).
+    description: Capture sources (ON/all, OFF/none, or gstreamer,pattern,clock).
     default: 'OFF'
   bundle-dir:
     description: Optional installation directory for an SDK bundle.
@@ -45,9 +45,9 @@ runs:
       run: |
         args=(./build.sh "$SDK_PRESET")
         case "$SDK_CAPTURE" in
-          ON) args+=(--capture) ;;
-          OFF) args+=(--no-capture) ;;
-          *) echo "Invalid capture setting: $SDK_CAPTURE" >&2; exit 1 ;;
+          ON|all) args+=(--capture) ;;
+          OFF|none|"") args+=(--no-capture) ;;
+          *) args+=(--capture="$SDK_CAPTURE") ;;
         esac
         if [[ -n "$SDK_BUNDLE_DIR" ]]; then args+=(--bundle --prefix "$SDK_BUNDLE_DIR"); fi
         if [[ -n "$SDK_VERSION" ]]; then args+=(--version "$SDK_VERSION"); fi
@@ -64,9 +64,9 @@ runs:
       run: |
         $buildArgs = @($env:SDK_PRESET)
         switch ($env:SDK_CAPTURE) {
-          'ON' { $buildArgs += '--capture' }
-          'OFF' { $buildArgs += '--no-capture' }
-          default { throw "Invalid capture setting: $env:SDK_CAPTURE" }
+          'ON'; 'all' { $buildArgs += '--capture' }
+          'OFF'; 'none'; '' { $buildArgs += '--no-capture' }
+          default { $buildArgs += "--capture=$($env:SDK_CAPTURE)" }
         }
         if ($env:SDK_BUNDLE_DIR) { $buildArgs += @('--bundle', '--prefix', $env:SDK_BUNDLE_DIR) }
         if ($env:SDK_VERSION) { $buildArgs += @('--version', $env:SDK_VERSION) }
