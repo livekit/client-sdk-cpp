@@ -128,15 +128,10 @@ To create an installable SDK bundle, use the same build command with
 `./build.sh release --bundle --prefix sdk-out/livekit-sdk`). On Windows, use
 `build.cmd release --bundle --prefix C:\path\to\livekit-sdk`.
 
-The build scripts set `LIVEKIT_BUILD_CAPTURE`. The generated
-`LIVEKIT_CAPTURE_ENABLED` macro is 0 or 1 and supports `#if` checks in consumers.
-
-Both build scripts accept `--capture` to enable GStreamer, pattern, and clock
-sources, and `--no-capture` to disable them explicitly. Capture is disabled by
-default for every preset. Capture-enabled builds need GStreamer development and
-runtime libraries. Release workflows publish separate
-`-capture` bundles and validate creation through the installed SDK using the standalone CTest project in
-`src/tests/packaging/`.
+Capture sources are selected with `LIVEKIT_CAPTURE` / `--capture[=list]`:
+`none`, `all`, or a comma-separated subset of `gstreamer`, `pattern`, `clock`.
+`LIVEKIT_CAPTURE_ENABLED` is 0 or 1. Release workflows publish separate
+`-capture` bundles (all sources) and validate them via `src/tests/packaging/`.
 
 Rust FFI outputs live under `client-sdk-rust/target/cpp-<feature-hash>/` to isolate
 Cargo feature configurations. Set `CARGO_TARGET_DIR` to override the root;

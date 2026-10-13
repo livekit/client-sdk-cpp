@@ -159,9 +159,8 @@ struct CaptureResult {
 /// a track from @ref CaptureSource::videoSource(), merge application options
 /// through @ref CaptureSource::publishOptions(), then call @ref CaptureSource::start().
 ///
-/// Requires a capture-enabled SDK build (`LIVEKIT_BUILD_CAPTURE`), with
-/// `capture-gstreamer`, `capture-pattern`, and `capture-clock` Rust features.
-/// Otherwise creation fails.
+/// Requires a capture-enabled SDK build (`LIVEKIT_CAPTURE`). Creation fails
+/// when the requested source was not compiled into the Rust FFI.
 ///
 /// @note Keep this object alive while the track is published. Destroying it
 /// stops a running capture.

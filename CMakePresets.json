@@ -10,7 +10,7 @@
       "name": "sdk-defaults",
       "hidden": true,
       "cacheVariables": {
-        "LIVEKIT_BUILD_CAPTURE": "OFF"
+        "LIVEKIT_CAPTURE": ""
       }
     },
     {
