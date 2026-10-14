@@ -84,6 +84,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 | Path | Description |
 |------|-------------|
 | `include/livekit/` | Public API headers (what SDK consumers include) |
+| `include/livekit/capture/` | Capture API headers; installed only for capture-enabled SDKs |
 | `src/` | Implementation files and internal-only headers (`ffi_client.h`, `lk_log.h`, etc.) |
 | `src/tests/` | Google Test integration and stress tests |
 | `examples/` | In-tree example applications |

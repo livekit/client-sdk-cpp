@@ -26,7 +26,7 @@
 #include "data_track_proto_converter.h"
 #include "ffi.pb.h"
 #include "livekit/build.h"
-#include "livekit/capture_source.h"
+#include "livekit/capture/capture_source.h"
 #include "livekit/data_track_error.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h"
