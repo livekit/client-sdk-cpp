@@ -387,8 +387,14 @@ example `livekit-sdk-macos-arm64-capture-<version>.tar.gz`. Standard release
 bundles have capture disabled.
 
 Building a capture-enabled SDK requires GStreamer development libraries
-accessible to `pkg-config`. On macOS, install `gstreamer` with Homebrew. On
-Ubuntu, install `libgstreamer1.0-dev` and
+accessible to `pkg-config`. On macOS, install both the official universal
+runtime and development packages from the
+[GStreamer downloads page](https://gstreamer.freedesktop.org/download/#macos).
+Add `/Library/Frameworks/GStreamer.framework/Versions/1.0/bin` to the front of
+`PATH` and `/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/pkgconfig`
+to the front of `PKG_CONFIG_PATH`. These packages support both x86_64 and arm64.
+Use one GStreamer installation method per machine to keep its libraries and
+plugins consistent. On Ubuntu, install `libgstreamer1.0-dev` and
 `libgstreamer-plugins-base1.0-dev`, plus the runtime plugins your pipeline
 uses. On Windows, install the MSVC runtime and development packages from the
 [GStreamer downloads page](https://gstreamer.freedesktop.org/download/) and put
