@@ -4,6 +4,11 @@ name: Tests
 on:
   workflow_call:
     inputs:
+      extended_capture_sources:
+        description: Test pair combinations and selective bundles on macOS/Windows as well as Linux.
+        required: false
+        type: boolean
+        default: false
       build_type:
         description: Debug or release test build.
         required: false
@@ -56,6 +61,11 @@ on:
         default: true
   workflow_dispatch:
     inputs:
+      extended_capture_sources:
+        description: Test pair combinations and selective bundles on macOS/Windows as well as Linux.
+        required: false
+        type: boolean
+        default: false
       build_type:
         description: Debug or release test build.
         required: false
@@ -145,12 +155,14 @@ jobs:
             e2e-testing: true
           - os: ubuntu-24.04
             name: ubuntu-24.04-x64
+            selective_capture: true
             e2e-testing: true
           - os: ubuntu-24.04-arm
             name: ubuntu-24.04-arm64
             e2e-testing: true
           - os: macos-26-xlarge
             name: macos-arm64
+            extended_capture: true
             e2e-testing: true
           - os: macos-26-large
             name: macos-x64
@@ -159,6 +171,7 @@ jobs:
           # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
+            extended_capture: true
             e2e-testing: true
 
     name: Test (${{ matrix.name }})
@@ -208,7 +221,21 @@ jobs:
         uses: ./.github/actions/setup-sdk-deps
         with:
           vcpkg-commit: ${{ env.VCPKG_GIT_COMMIT }}
-          linux-extra-packages: libunwind-dev libjpeg-dev gdb jq
+          linux-extra-packages: libunwind-dev libjpeg-dev gdb jq ${{ matrix.selective_capture && 'mesa-vulkan-drivers libvulkan1' || '' }}
+
+      - name: Configure software Vulkan for capture source checks
+        if: matrix.selective_capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          icds=(/usr/share/vulkan/icd.d/lvp_icd*.json)
+          test -f "${icds[0]}"
+          runtime_dir="$RUNNER_TEMP/capture-runtime"
+          mkdir -p "$runtime_dir"
+          chmod 700 "$runtime_dir"
+          echo "VK_ICD_FILENAMES=${icds[0]}" >> "$GITHUB_ENV"
+          echo "WGPU_BACKEND=vulkan" >> "$GITHUB_ENV"
+          echo "XDG_RUNTIME_DIR=$runtime_dir" >> "$GITHUB_ENV"
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
@@ -252,12 +279,11 @@ jobs:
           path: |
             client-sdk-rust/target/
             ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ runner.os == 'macOS' && hashFiles('.github/actions/setup-capture/action.yml') || 'v3' }}-${{ steps.rust_sha.outputs.sha }}
-          restore-keys: |
-            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ runner.os == 'macOS' && hashFiles('.github/actions/setup-capture/action.yml') || 'v3' }}-
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ inputs.build_type }}-standard-${{ hashFiles('CMakeLists.txt', 'build.sh', 'build.cmd', '.github/actions/setup-capture/action.yml', '.github/actions/test-capture-variants/action.yml') }}-${{ steps.rust_sha.outputs.sha }}
 
-      # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
-      # artifacts in webrtc-sys are not compatible across those bumps.
+      # Restore exact keys only: webrtc-sys cxxbridge artifacts are not
+      # compatible across Rust submodule bumps. Avoid downloading a fallback
+      # cache that this cleanup would immediately discard.
       - name: Drop stale cargo target on submodule SHA cache miss
         if: steps.cache-cargo-target.outputs.cache-hit != 'true'
         shell: bash
@@ -304,7 +330,17 @@ jobs:
           macos-arch: ${{ matrix.macos_arch || '' }}
           build-type: ${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }}
 
+      - name: Test selective capture bundles
+        if: matrix.selective_capture || (inputs.extended_capture_sources && matrix.extended_capture)
+        uses: ./.github/actions/test-capture-variants
+        with:
+          preset: ${{ inputs.build_type }}
+          combinations: ${{ inputs.extended_capture_sources }}
+          verify-pixel-sources: ${{ matrix.selective_capture || runner.os == 'macOS' }}
+          macos-arch: ${{ matrix.macos_arch || '' }}
+
       - name: Set up capture dependencies
+        if: ${{ !(matrix.selective_capture || (inputs.extended_capture_sources && matrix.extended_capture)) }}
         uses: ./.github/actions/setup-capture
 
       - name: Rebuild tests with capture
@@ -312,7 +348,17 @@ jobs:
         with:
           preset: ${{ inputs.build_type }}-tests
           capture: 'ON'
+          bundle-dir: sdk-out/test-sdk-all
           macos-arch: ${{ matrix.macos_arch || '' }}
+
+      - name: Test installed all-sources SDK
+        uses: ./.github/actions/test-sdk-bundle
+        with:
+          bundle-dir: sdk-out/test-sdk-all
+          expected-sources: all
+          verify-pixel-sources: ${{ matrix.selective_capture || (inputs.extended_capture_sources && runner.os == 'macOS' && matrix.extended_capture) }}
+          macos-arch: ${{ matrix.macos_arch || '' }}
+          build-type: ${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }}
 
       # ---------- Run unit tests ----------
       - name: Run unit tests (Unix)
@@ -429,6 +475,17 @@ jobs:
         if: failure() && matrix.e2e-testing && steps.token_server.outputs.log-path != ''
         shell: bash
         run: tail -n 200 "${{ steps.token_server.outputs.log-path }}" || true
+
+      # Cache the completed source set, not just the first variant. Keep PRs
+      # restore-only so their large Rust outputs do not evict shared main caches.
+      - name: Save cargo target after source and full-suite checks
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.cache-cargo-target.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            client-sdk-rust/target/
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ inputs.build_type }}-standard-${{ hashFiles('CMakeLists.txt', 'build.sh', 'build.cmd', '.github/actions/setup-capture/action.yml', '.github/actions/test-capture-variants/action.yml') }}-${{ steps.rust_sha.outputs.sha }}
 
       # ---------- Upload results ----------
       - name: Upload test results
