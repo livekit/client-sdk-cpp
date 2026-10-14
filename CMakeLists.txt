@@ -799,7 +799,16 @@ endif()
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/"
   DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
   FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp" PATTERN "build.h" EXCLUDE
+  PATTERN "capture" EXCLUDE
 )
+# Capture headers are a separate public API group, installed only when at least
+# one capture backend is enabled in this SDK variant.
+if(LIVEKIT_CAPTURE_ENABLED)
+  install(DIRECTORY "${CMAKE_SOURCE_DIR}/include/livekit/capture"
+    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/livekit"
+    FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+  )
+endif()
 install(FILES "${GENERATED_BUILD_H}" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/livekit")
 
 # ---- Create Config + Version + Targets for find_package(LiveKit CONFIG) ----

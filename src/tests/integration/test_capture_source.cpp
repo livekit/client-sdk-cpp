@@ -22,7 +22,7 @@
 /// All of them require the Rust FFI built with capture-source support
 /// (-DLIVEKIT_CAPTURE=all); otherwise they skip.
 
-#include <livekit/capture_source.h>
+#include <livekit/capture/capture_source.h>
 
 #include <chrono>
 #include <condition_variable>

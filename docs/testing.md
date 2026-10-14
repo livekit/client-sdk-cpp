@@ -108,8 +108,9 @@ If that setting is empty, `LIVEKIT_EXPECT_CAPTURE=ON` means all sources and `OFF
 means none. Explicit source selections determine the expected capture flag.
 The test creates a GStreamer VP8 source when that source is selected. It also
 requires each omitted backend to report the feature-disabled error. Configuration
-checks that direct inclusion of `livekit/capture_source.h`
-succeeds for capture bundles and fails for standard bundles. Both variants must
+checks that `include/livekit/capture/` is present only in capture bundles and
+that direct inclusion of `livekit/capture/capture_source.h` succeeds only in
+those bundles. The obsolete flat capture header must be absent. Both variants must
 still compile with `livekit/livekit.h`. It needs no LiveKit server.
 GStreamer-enabled runs require the pipeline's plugins. Set
 `LIVEKIT_VERIFY_PIXEL_SOURCES=ON` to also require successful pattern and clock

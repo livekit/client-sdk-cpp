@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "livekit/capture_source.h"
+#include "livekit/capture/capture_source.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
