@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "livekit/capture_source.h"
+#include "livekit/capture/capture_source.h"
 
 #include <limits>
 #include <mutex>

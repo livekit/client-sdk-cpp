@@ -24,6 +24,16 @@ Native camera device capture and device enumeration are not part of this API.
 For build flags, release bundle naming, GStreamer prerequisites, and runtime
 requirements, see [Building — Capture sources](building.md#capture-sources).
 
+Capture-enabled bundles install the capture API in `include/livekit/capture/`:
+
+```cpp
+#include <livekit/capture/capture_source.h>
+```
+
+You can also include `<livekit/livekit.h>`, which includes capture declarations
+when capture is enabled. Standard SDK bundles do not contain the `capture/`
+header directory.
+
 ## Create and publish a source
 
 Dimensions must be positive. Pattern and clock frame rates must also be positive.
