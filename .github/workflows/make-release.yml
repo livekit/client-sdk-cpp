@@ -187,7 +187,7 @@ jobs:
           python-version: '3.x'
 
       - name: Symbol leak check (standard SDK)
-        uses: ./.github/actions/check-sdk-abi
+        uses: ./.github/actions/check-sdk-symbols
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
 
@@ -212,7 +212,7 @@ jobs:
           macos-arch: ${{ matrix.macos_arch || '' }}
 
       - name: Symbol leak check (capture SDK)
-        uses: ./.github/actions/check-sdk-abi
+        uses: ./.github/actions/check-sdk-symbols
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
 

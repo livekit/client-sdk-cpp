@@ -12,6 +12,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(livekit_packaging_tests LANGUAGES CXX)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # This is a standalone consumer of an installed SDK, not the in-tree target.
 find_package(LiveKit CONFIG REQUIRED)
@@ -64,6 +66,22 @@ if(NOT LIVEKIT_EXPECT_VERSION STREQUAL "")
   if(NOT _ffi_version MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+")
     message(FATAL_ERROR "Installed SDK is missing its livekit-ffi version")
   endif()
+endif()
+
+# Direct capture includes must fail in standard bundles and work in capture bundles.
+include(CheckCXXSourceCompiles)
+set(CMAKE_REQUIRED_INCLUDES "${_sdk_include_dir}")
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+unset(_capture_header_compiles CACHE)
+check_cxx_source_compiles("#include <livekit/capture_source.h>
+int main() { return 0; }"
+  _capture_header_compiles)
+unset(CMAKE_REQUIRED_INCLUDES)
+unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
+if(LIVEKIT_EXPECT_CAPTURE STREQUAL "ON" AND NOT _capture_header_compiles)
+  message(FATAL_ERROR "Capture SDK must allow including livekit/capture_source.h")
+elseif(LIVEKIT_EXPECT_CAPTURE STREQUAL "OFF" AND _capture_header_compiles)
+  message(FATAL_ERROR "Standard SDK must reject including livekit/capture_source.h")
 endif()
 
 add_executable(livekit_capture_package_test test_capture_bundle.cpp)
