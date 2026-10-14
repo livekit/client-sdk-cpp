@@ -32,6 +32,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+#if LIVEKIT_CAPTURE_ENABLED
   livekit::initialize(livekit::LogLevel::Warn);
   int status = 0;
   try {
@@ -56,4 +57,7 @@ int main(int argc, char** argv) {
   }
   livekit::shutdown();
   return status;
+#else
+  return 0;
+#endif
 }

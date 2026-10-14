@@ -16,6 +16,13 @@
 
 #pragma once
 
+#include "livekit/build.h"
+
+// Internal SDK wrappers are built for both variants; consumers require capture.
+#if !LIVEKIT_CAPTURE_ENABLED && !defined(LIVEKIT_BUILDING_SDK)
+#error "Capture sources require a capture-enabled LiveKit SDK; rebuild with --capture."
+#endif
+
 #include <cstdint>
 #include <functional>
 #include <future>
@@ -24,7 +31,6 @@
 #include <stdexcept>
 #include <string>
 
-#include "livekit/build.h"
 #include "livekit/room_event_types.h"
 #include "livekit/video_source.h"
 #include "livekit/visibility.h"
