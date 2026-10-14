@@ -21,7 +21,9 @@
 #include "livekit/audio_source.h"
 #include "livekit/audio_stream.h"
 #include "livekit/build.h"
+#if LIVEKIT_CAPTURE_ENABLED
 #include "livekit/capture_source.h"
+#endif
 #include "livekit/e2ee.h"
 #include "livekit/encoded_video_source.h"
 #include "livekit/local_audio_track.h"

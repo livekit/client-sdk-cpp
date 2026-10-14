@@ -56,7 +56,7 @@ jobs:
               - .github/actions/cargo-target-root/**
               - .github/actions/smoke-examples/**
               - .github/actions/test-sdk-bundle/**
-              - .github/actions/check-sdk-abi/**
+              - .github/actions/check-sdk-symbols/**
               - .github/scripts/check_no_private_symbols.py
             tests:
               - src/**
