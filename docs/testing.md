@@ -102,14 +102,21 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
 
 `src/tests/packaging/` is a standalone CMake consumer of an installed SDK.
 CTest registers `InstalledSdk.Capture` with the `packaging` and `integration`
-labels and a 30-second timeout. It checks the bundle's capture metadata and
-creates a GStreamer VP8 source through the installed library when capture is
-enabled. Configuration checks that direct inclusion of `livekit/capture_source.h`
+labels and a 60-second timeout. It checks the bundle's exact `cargo_features`
+against `LIVEKIT_EXPECT_SOURCES` (`all`, `none`, or a comma-separated source list).
+If that setting is empty, `LIVEKIT_EXPECT_CAPTURE=ON` means all sources and `OFF`
+means none. Explicit source selections determine the expected capture flag.
+The test creates a GStreamer VP8 source when that source is selected. It also
+requires each omitted backend to report the feature-disabled error. Configuration
+checks that direct inclusion of `livekit/capture_source.h`
 succeeds for capture bundles and fails for standard bundles. Both variants must
-still compile with `livekit/livekit.h`. It needs no LiveKit server. The current
-capture-enabled packaging test exercises GStreamer, so it requires that backend
-and the pipeline's plugins; it does not validate pattern/clock-only bundles or
-prove that unselected sources were excluded.
+still compile with `livekit/livekit.h`. It needs no LiveKit server.
+GStreamer-enabled runs require the pipeline's plugins. Set
+`LIVEKIT_VERIFY_PIXEL_SOURCES=ON` to also require successful pattern and clock
+creation when selected. This needs a compatible GPU or software adapter;
+creation failures fail the test. Without that option, an explicit missing-GPU-adapter error verifies that the
+backend is available but reports that creation was not exercised. Other errors
+still fail. Omitted pixel sources are always tested for rejection.
 The consumer also checks `share/livekit/build-info.json`. Release jobs pass
 `LIVEKIT_EXPECT_VERSION` to check version metadata and the recorded Rust commit
 and FFI version through this same project.
@@ -131,6 +138,32 @@ between the expected capability and the installed header fails the test. In
 capture-enabled CI release jobs, the expectation is explicitly `ON`; a disabled
 bundle cannot pass by rejecting source creation. On Windows, add the installed
 SDK's `bin` directory and GStreamer's `bin` directory to `PATH` before running CTest.
+
+### Selective capture in CI
+
+The Ubuntu 24.04 x64 test job checks `none`, each singleton source, and `all`.
+Singleton builds reuse the C++ build tree and do not compile the unit/integration
+suites. Pattern and clock builds run before GStreamer installation. This runner
+uses Mesa software Vulkan, and pixel-source creation must succeed. The full test
+suite runs once after rebuilding with all sources.
+
+The reusable `test-capture-variants` action uses `build-sdk` and
+`test-sdk-bundle`. The latter accepts `expected-sources` and
+`verify-pixel-sources`, so build, test, and release workflows share one installed
+consumer test. Nightly runs enable `extended_capture_sources`, adding the three
+two-source combinations on Linux and selective bundles on macOS arm64 and
+Windows x64. Windows validates exact metadata and source availability, allowing
+an explicit missing-adapter error for enabled pixel sources. Successful pixel
+creation is required on Linux and macOS. Manual test-workflow runs can enable
+the same coverage.
+
+Cargo caches include the build configuration, build type, and source selection.
+Each variant reports elapsed time and cache hits in the job summary.
+Each selective variant has its own cache, saved after its installed-bundle check
+passes on trusted main runs. The variant's temporary Cargo directory is then
+removed to bound disk usage. Standard/all outputs use the existing shared cache,
+saved after the full suite passes. Rust variants still compile separately on
+cold runs even though C++ dependencies are reused.
 
 ## Test coverage
 
