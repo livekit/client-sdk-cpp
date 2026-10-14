@@ -95,7 +95,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
 | `src/tests/packaging/` | Standalone CTest integration tests consuming installed SDK bundles |
-| `.github/actions/` | Shared CI actions for SDK builds, Cargo paths, capture dependencies, example smoke checks, packaging tests, and exported ABI checks |
+| `.github/actions/` | Shared CI actions for base and capture dependencies, SDK builds, Cargo paths, example smoke checks, packaging tests, and exported ABI checks |
 | `.github/workflows/` | GitHub Actions CI workflows |
 
 ### Key Types
@@ -404,6 +404,7 @@ When adding new client facing functionality, add benchmarking to understand the 
 `dorny/paths-filter` and conditionally calls reusable workflows for the
 expensive stages. Manual `workflow_dispatch` runs intentionally opt back into
 all filtered stages; normal pull requests and pushes use the path filters.
+
 
 - `.github/workflows/ci.yml` — Top-level PR/push/manual aggregator and path
   filter owner.
