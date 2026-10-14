@@ -23,7 +23,8 @@ namespace livekit {
 
 namespace proto {
 class OwnedTrackPublication;
-}
+class TrackPublicationInfo;
+} // namespace proto
 
 /// @brief A track published by a local participant.
 class LIVEKIT_API LocalTrackPublication : public TrackPublication {
@@ -31,6 +32,12 @@ public:
   /// Note, this LocalTrackPublication is constructed internally only;
   /// safe to accept proto::OwnedTrackPublication.
   explicit LocalTrackPublication(const proto::OwnedTrackPublication& owned);
+
+private:
+  friend class Room;
+
+  /// Refresh publication metadata after a full reconnect republish.
+  void updateInfo(const proto::TrackPublicationInfo& info);
 };
 
 } // namespace livekit

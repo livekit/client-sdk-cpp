@@ -16,6 +16,7 @@
 
 #include "livekit/local_track_publication.h"
 
+#include "track.pb.h"
 #include "track_proto_converter.h"
 
 namespace livekit {
@@ -26,5 +27,19 @@ LocalTrackPublication::LocalTrackPublication(const proto::OwnedTrackPublication&
                        owned.info().width(), owned.info().height(), owned.info().mime_type(), owned.info().muted(),
                        static_cast<EncryptionType>(owned.info().encryption_type()),
                        convertAudioFeatures(owned.info().audio_features())) {}
+
+void LocalTrackPublication::updateInfo(const proto::TrackPublicationInfo& info) {
+  sid_ = info.sid();
+  name_ = info.name();
+  kind_ = fromProto(info.kind());
+  source_ = fromProto(info.source());
+  simulcasted_ = info.simulcasted();
+  width_ = info.width();
+  height_ = info.height();
+  mime_type_ = info.mime_type();
+  muted_ = info.muted();
+  encryption_type_ = static_cast<EncryptionType>(info.encryption_type());
+  audio_features_ = convertAudioFeatures(info.audio_features());
+}
 
 } // namespace livekit

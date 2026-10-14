@@ -29,20 +29,10 @@
 #include <thread>
 #include <vector>
 
+#include "../common/room_test_access.h"
 #include "../common/test_common.h"
 
 using namespace std::chrono_literals;
-
-namespace livekit {
-
-struct RoomTestAccess {
-  static int listenerId(const Room& room) {
-    const std::scoped_lock<std::mutex> guard(room.lock_);
-    return room.listener_id_;
-  }
-};
-
-} // namespace livekit
 
 namespace livekit::test {
 

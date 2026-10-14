@@ -20,7 +20,10 @@
 #include "ffi_client.h"
 #include "livekit/audio_stream.h"
 #include "livekit/e2ee.h"
+#include "livekit/local_audio_track.h"
 #include "livekit/local_participant.h"
+#include "livekit/local_track_publication.h"
+#include "livekit/local_video_track.h"
 #include "livekit/remote_audio_track.h"
 #include "livekit/remote_data_track.h"
 #include "livekit/remote_participant.h"
@@ -46,6 +49,19 @@ using proto::FfiRequest;
 using proto::FfiResponse;
 
 namespace {
+
+std::shared_ptr<LocalTrackPublication> localTrackPublication(const std::shared_ptr<Track>& track) {
+  if (!track) {
+    return nullptr;
+  }
+  if (auto video = std::dynamic_pointer_cast<LocalVideoTrack>(track)) {
+    return video->publication();
+  }
+  if (auto audio = std::dynamic_pointer_cast<LocalAudioTrack>(track)) {
+    return audio->publication();
+  }
+  return nullptr;
+}
 
 std::shared_ptr<livekit::RemoteParticipant> createRemoteParticipant(const proto::OwnedParticipant& owned) {
   const auto& pinfo = owned.info();
@@ -591,6 +607,39 @@ void Room::onEvent(const FfiEvent& event) {
           if (delegate_snapshot) {
             delegate_snapshot->onLocalTrackUnpublished(*this, ev);
           }
+          break;
+        }
+        case proto::RoomEvent::kLocalTrackRepublished: {
+          const std::scoped_lock<std::mutex> guard(lock_);
+          if (!local_participant_) {
+            LK_LOG_ERROR("kLocalTrackRepublished: local_participant_ is nullptr");
+            break;
+          }
+          const auto& local_track_repub = re.local_track_republished();
+          const std::string& previous_sid = local_track_repub.previous_sid();
+
+          const std::scoped_lock<std::mutex> tracks_guard(local_participant_->published_tracks_mutex_);
+          auto& published_tracks = local_participant_->published_tracks_by_sid_;
+          auto it = published_tracks.find(previous_sid);
+          if (it == published_tracks.end()) {
+            LK_LOG_WARN("local_track_republished for unknown previous sid: {}", previous_sid);
+            break;
+          }
+          auto track = it->second.lock();
+          if (!track) {
+            published_tracks.erase(it);
+            LK_LOG_WARN("local_track_republished for expired previous sid: {}", previous_sid);
+            break;
+          }
+          auto publication = localTrackPublication(track);
+          if (!publication) {
+            LK_LOG_WARN("local_track_republished missing publication for sid: {}", previous_sid);
+            break;
+          }
+          publication->updateInfo(local_track_repub.info());
+          published_tracks.erase(it);
+          published_tracks[publication->sid()] = track;
+          track->setPublication(publication);
           break;
         }
         case proto::RoomEvent::kLocalTrackSubscribed: {

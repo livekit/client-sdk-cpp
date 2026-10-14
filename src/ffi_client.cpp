@@ -103,6 +103,8 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
       return event.get_stats().async_id();
     case E::kGetSessionStats:
       return event.get_session_stats().async_id();
+    case E::kSimulateScenario:
+      return event.simulate_scenario().async_id();
     case E::kPublishSipDtmf:
       return event.publish_sip_dtmf().async_id();
     case E::kChatMessage:
@@ -646,6 +648,42 @@ std::future<SessionStats> FfiClient::getSessionStatsAsync(uintptr_t room_handle)
     const proto::FfiResponse resp = sendRequest(req);
     if (!resp.has_get_session_stats()) {
       logAndThrow("FfiResponse missing get_session_stats");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+std::future<void> FfiClient::simulateScenarioAsync(uintptr_t room_handle, int scenario) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<void>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_simulate_scenario() && event.simulate_scenario().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<void>& pr) {
+        const auto& cb = event.simulate_scenario();
+        if (cb.has_error() && !cb.error().empty()) {
+          pr.set_exception(std::make_exception_ptr(std::runtime_error(cb.error())));
+          return;
+        }
+        pr.set_value();
+      });
+
+  proto::FfiRequest req;
+  auto* msg = req.mutable_simulate_scenario();
+  msg->set_room_handle(room_handle);
+  msg->set_scenario(static_cast<proto::SimulateScenarioKind>(scenario));
+  msg->set_request_async_id(async_id);
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_simulate_scenario()) {
+      logAndThrow("FfiResponse missing simulate_scenario");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);

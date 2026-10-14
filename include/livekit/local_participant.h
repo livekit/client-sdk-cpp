@@ -293,6 +293,10 @@ protected:
   friend class Room;
 
 private:
+  /// Guards published_tracks_by_sid_ and coordinated publication/track updates.
+  /// Never held across blocking FFI requests. When both this and Room::lock_
+  /// are needed, acquire Room::lock_ first.
+  mutable std::mutex published_tracks_mutex_;
   /// Publication SID → local track (@ref unpublishTrack clears the track’s
   /// cached publication). @c mutable so @ref trackPublications() const can
   /// prune expired @c weak_ptr entries.

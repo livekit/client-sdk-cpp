@@ -18,6 +18,7 @@
 
 #include <chrono>
 #include <memory>
+#include <mutex>
 #include <stdexcept>
 
 #include "data_track.pb.h"
@@ -200,9 +201,11 @@ void LocalParticipant::publishTrack(const std::shared_ptr<Track>& track, const T
   auto publication = std::make_shared<LocalTrackPublication>(owned_pub);
 
   const std::string sid = publication->sid();
-  published_tracks_by_sid_[sid] = std::weak_ptr<Track>(track);
-
-  track->setPublication(publication);
+  {
+    const std::scoped_lock<std::mutex> guard(published_tracks_mutex_);
+    published_tracks_by_sid_[sid] = std::weak_ptr<Track>(track);
+    track->setPublication(publication);
+  }
 }
 
 std::shared_ptr<LocalVideoTrack> LocalParticipant::publishVideoTrack(const std::string& name,
@@ -248,16 +251,20 @@ void LocalParticipant::unpublishTrack(const std::string& track_sid) {
 
   fut.get();
 
-  if (auto it = published_tracks_by_sid_.find(track_sid); it != published_tracks_by_sid_.end()) {
-    if (auto t = it->second.lock()) {
-      t->setPublication(nullptr);
+  {
+    const std::scoped_lock<std::mutex> guard(published_tracks_mutex_);
+    if (auto it = published_tracks_by_sid_.find(track_sid); it != published_tracks_by_sid_.end()) {
+      if (auto t = it->second.lock()) {
+        t->setPublication(nullptr);
+      }
+      published_tracks_by_sid_.erase(it);
     }
-    published_tracks_by_sid_.erase(it);
   }
 }
 
 LocalParticipant::PublicationMap LocalParticipant::trackPublications() const {
   PublicationMap out;
+  const std::scoped_lock<std::mutex> guard(published_tracks_mutex_);
   for (auto it = published_tracks_by_sid_.begin(); it != published_tracks_by_sid_.end();) {
     auto t = it->second.lock();
     if (!t) {
@@ -494,6 +501,7 @@ void LocalParticipant::handleRpcMethodInvocation(uint64_t invocation_id, const s
 }
 
 std::shared_ptr<TrackPublication> LocalParticipant::findTrackPublication(const std::string& sid) const {
+  const std::scoped_lock<std::mutex> guard(published_tracks_mutex_);
   auto it = published_tracks_by_sid_.find(sid);
   if (it == published_tracks_by_sid_.end()) {
     return nullptr;
