@@ -15,8 +15,45 @@ runs:
           gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
     - name: Install GStreamer (macOS)
       if: runner.os == 'macOS'
+      env:
+        GSTREAMER_MACOS_VERSION: "1.28.5"
+        GSTREAMER_MACOS_RUNTIME_SHA256: "0a8fc7a1cf8d7bac833ca0ebe2fd196a199c2465e810cd5b1e4b4f720c258f43"
+        GSTREAMER_MACOS_DEVEL_SHA256: "6f7b55e8fb86dcc615c9cae46b79b7785851e5c77f79a938648a81dfa2603729"
       shell: bash
-      run: brew install gstreamer
+      run: |
+        set -euo pipefail
+        # Official universal packages cover both x86_64 and arm64. Homebrew
+        # no longer produces Intel bottles and may compile its dependency tree.
+        base_url="https://gstreamer.freedesktop.org/data/pkg/osx/$GSTREAMER_MACOS_VERSION"
+        installer_dir="$RUNNER_TEMP/gstreamer-installers"
+        runtime_pkg="gstreamer-1.0-$GSTREAMER_MACOS_VERSION-universal.pkg"
+        devel_pkg="gstreamer-1.0-devel-$GSTREAMER_MACOS_VERSION-universal.pkg"
+        mkdir -p "$installer_dir"
+
+        for package in "$runtime_pkg" "$devel_pkg"; do
+          expected_hash="$GSTREAMER_MACOS_RUNTIME_SHA256"
+          if [[ "$package" == "$devel_pkg" ]]; then
+            expected_hash="$GSTREAMER_MACOS_DEVEL_SHA256"
+          fi
+          curl --fail --location --retry 3 --connect-timeout 30 --max-time 600 \
+            "$base_url/$package" --output "$installer_dir/$package"
+          printf '%s  %s\n' "$expected_hash" "$installer_dir/$package" | shasum -a 256 -c -
+        done
+
+        # Verify both downloads before installing either package.
+        sudo installer -pkg "$installer_dir/$runtime_pkg" -target /
+        sudo installer -pkg "$installer_dir/$devel_pkg" -target /
+
+        framework="/Library/Frameworks/GStreamer.framework/Versions/1.0"
+        echo "$framework/bin" >> "$GITHUB_PATH"
+        export PATH="$framework/bin:$PATH"
+        export PKG_CONFIG_PATH="$framework/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+        echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+        # The framework dylibs use @rpath. Rust sys-crate linker arguments do
+        # not propagate to the final FFI dylib, so set its runtime search path.
+        echo "RUSTFLAGS=${RUSTFLAGS:+$RUSTFLAGS }-C link-arg=-Wl,-rpath,$framework/lib" >> "$GITHUB_ENV"
+        pkg-config --modversion gstreamer-1.0 gstreamer-app-1.0
+        gst-inspect-1.0 --version
     - name: Install GStreamer (Windows)
       if: runner.os == 'Windows'
       env:
