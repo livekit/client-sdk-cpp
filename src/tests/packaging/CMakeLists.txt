@@ -110,20 +110,32 @@ if(NOT LIVEKIT_EXPECT_VERSION STREQUAL "")
   endif()
 endif()
 
+# Validate the public header layout as well as compile-time availability.
+if(EXISTS "${_sdk_include_dir}/livekit/capture_source.h")
+  message(FATAL_ERROR "Installed SDK contains the obsolete flat capture header")
+endif()
+if(LIVEKIT_EXPECT_CAPTURE STREQUAL "ON")
+  if(NOT EXISTS "${_sdk_include_dir}/livekit/capture/capture_source.h")
+    message(FATAL_ERROR "Capture SDK is missing the capture public API directory")
+  endif()
+elseif(EXISTS "${_sdk_include_dir}/livekit/capture")
+  message(FATAL_ERROR "Standard SDK must not install the capture public API directory")
+endif()
+
 # Direct capture includes must fail in standard bundles and work in capture bundles.
 include(CheckCXXSourceCompiles)
 set(CMAKE_REQUIRED_INCLUDES "${_sdk_include_dir}")
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 unset(_capture_header_compiles CACHE)
-check_cxx_source_compiles("#include <livekit/capture_source.h>
+check_cxx_source_compiles("#include <livekit/capture/capture_source.h>
 int main() { return 0; }"
   _capture_header_compiles)
 unset(CMAKE_REQUIRED_INCLUDES)
 unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
 if(LIVEKIT_EXPECT_CAPTURE STREQUAL "ON" AND NOT _capture_header_compiles)
-  message(FATAL_ERROR "Capture SDK must allow including livekit/capture_source.h")
+  message(FATAL_ERROR "Capture SDK must allow including livekit/capture/capture_source.h")
 elseif(LIVEKIT_EXPECT_CAPTURE STREQUAL "OFF" AND _capture_header_compiles)
-  message(FATAL_ERROR "Standard SDK must reject including livekit/capture_source.h")
+  message(FATAL_ERROR "Standard SDK must reject including livekit/capture/capture_source.h")
 endif()
 
 add_executable(livekit_capture_package_test test_capture_bundle.cpp)

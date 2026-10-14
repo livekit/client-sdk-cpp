@@ -444,8 +444,10 @@ It indicates whether any source was compiled in; it does not identify which
 sources are available. Check `cargo_features` in `share/livekit/build-info.json`
 for the selected backends. Creating a source omitted from the SDK build fails
 through the returned future with `CaptureSourceError`.
-Direct inclusion of `livekit/capture_source.h` fails at compile time in standard
-SDK builds. `livekit/livekit.h` includes capture declarations only when enabled.
+Capture-enabled bundles install the public API under `include/livekit/capture/`;
+standard bundles omit that directory. Use `<livekit/capture/capture_source.h>`
+for direct inclusion. The source-tree header also rejects use in a standard
+build. `livekit/livekit.h` includes capture declarations only when enabled.
 `share/livekit/build-info.json` in an installed bundle describes the same build
 features; neither value tests whether a GPU or a requested GStreamer plugin is
 available at runtime.
