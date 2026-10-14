@@ -127,6 +127,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-registry-
 
+      # macOS FFI libraries retain GStreamer link paths. Include capture setup
+      # in the key so changes to the framework installation invalidate them.
       # Restore-only here; the matching save runs after a successful build (see
       # "Save cargo target" below). A combined actions/cache saves in a post-job
       # step that runs AFTER the "Clean after build" cleanup wipes target/debug
@@ -139,9 +141,9 @@ jobs:
           path: |
             client-sdk-rust/target/
             ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v3-${{ steps.rust_sha.outputs.sha }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ runner.os == 'macOS' && hashFiles('.github/actions/setup-capture/action.yml') || 'v3' }}-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
-            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v3-
+            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ runner.os == 'macOS' && hashFiles('.github/actions/setup-capture/action.yml') || 'v3' }}-
 
       # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
       # artifacts in webrtc-sys are not compatible across those bumps.
@@ -235,7 +237,7 @@ jobs:
           path: |
             client-sdk-rust/target/
             ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v3-${{ steps.rust_sha.outputs.sha }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ runner.os == 'macOS' && hashFiles('.github/actions/setup-capture/action.yml') || 'v3' }}-${{ steps.rust_sha.outputs.sha }}
 
       - name: Save vcpkg binary cache
         if: runner.os == 'Windows' && steps.cache-vcpkg-binary.outputs.cache-hit != 'true'
