@@ -241,6 +241,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-registry-
 
+      # macOS FFI libraries retain GStreamer link paths. Include capture setup
+      # in the key so changes to the framework installation invalidate them.
       # Compiled target/ artifacts are glibc-bound and must not restore across
       # Ubuntu major versions (e.g. 24.04 → 22.04 → GLIBC_2.39 not found).
       - name: Restore cargo target
@@ -250,9 +252,9 @@ jobs:
           path: |
             client-sdk-rust/target/
             ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v3-${{ steps.rust_sha.outputs.sha }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ runner.os == 'macOS' && hashFiles('.github/actions/setup-capture/action.yml') || 'v3' }}-${{ steps.rust_sha.outputs.sha }}
           restore-keys: |
-            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-v3-
+            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ runner.os == 'macOS' && hashFiles('.github/actions/setup-capture/action.yml') || 'v3' }}-
 
       # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
       # artifacts in webrtc-sys are not compatible across those bumps.
