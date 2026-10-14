@@ -104,48 +104,8 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Setup vcpkg (Windows only)
-        if: runner.os == 'Windows'
-        uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11.6
-        with:
-          vcpkgGitCommitId: 'fb87e2bb3fe69e16c224989acb5a61349166c782'
-
-      # ---------- OS-specific deps ----------
-      - name: Install deps (Ubuntu)
-        if: runner.os == 'Linux'
-        run: |
-          set -eux
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake ninja-build pkg-config \
-            llvm-dev libclang-dev clang \
-            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
-            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
-            libxrandr-dev libxi-dev libxkbcommon-dev \
-            libasound2-dev libpulse-dev \
-            libssl-dev \
-            libprotobuf-dev protobuf-compiler \
-            libabsl-dev \
-            libcurl4-openssl-dev \
-            libwayland-dev libdecor-0-dev
-
-      # The libwebrtc artifact ships a hermetic libc++ built from LLVM trunk.
-      # Distro clang cannot compile its headers; install the same LLVM version
-      # used by the Linux build and test workflows.
-      - name: Install clang for libwebrtc
-        if: runner.os == 'Linux'
-        shell: bash
-        run: client-sdk-rust/.github/scripts/install-clang.sh
-
-      - name: Install deps (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          set -eux
-          brew update
-          brew install cmake ninja protobuf abseil
-
-      - name: Set up capture dependencies
-        uses: ./.github/actions/setup-capture
+      - name: Set up base SDK dependencies
+        uses: ./.github/actions/setup-sdk-deps
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
@@ -218,15 +178,6 @@ jobs:
           version: ${{ steps.version.outputs.version }}
           macos-arch: ${{ matrix.macos_arch || '' }}
 
-      - name: Rebuild with capture
-        uses: ./.github/actions/build-sdk
-        with:
-          preset: release-examples
-          capture: 'ON'
-          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
-          version: ${{ steps.version.outputs.version }}
-          macos-arch: ${{ matrix.macos_arch || '' }}
-
       # ---------- Verify exported ABI: no third-party symbol leaks ----------
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -238,11 +189,6 @@ jobs:
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
 
-      - name: Symbol leak check (capture SDK)
-        uses: ./.github/actions/check-sdk-abi
-        with:
-          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
-
       - name: Test installed standard SDK
         uses: ./.github/actions/test-sdk-bundle
         with:
@@ -250,6 +196,23 @@ jobs:
           capture: 'OFF'
           macos-arch: ${{ matrix.macos_arch || '' }}
           version: ${{ steps.version.outputs.version }}
+
+      - name: Set up capture dependencies
+        uses: ./.github/actions/setup-capture
+
+      - name: Rebuild with capture
+        uses: ./.github/actions/build-sdk
+        with:
+          preset: release-examples
+          capture: 'ON'
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
+          version: ${{ steps.version.outputs.version }}
+          macos-arch: ${{ matrix.macos_arch || '' }}
+
+      - name: Symbol leak check (capture SDK)
+        uses: ./.github/actions/check-sdk-abi
+        with:
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
 
       - name: Test installed capture SDK
         uses: ./.github/actions/test-sdk-bundle

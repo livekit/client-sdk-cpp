@@ -50,6 +50,7 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
               - .github/workflows/make-release.yml
+              - .github/actions/setup-sdk-deps/**
               - .github/actions/setup-capture/**
               - .github/actions/build-sdk/**
               - .github/actions/cargo-target-root/**
@@ -73,6 +74,7 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/tests.yml
               - .github/workflows/nightly.yml
+              - .github/actions/setup-sdk-deps/**
               - .github/actions/setup-capture/**
               - .github/actions/build-sdk/**
               - .github/actions/cargo-target-root/**

@@ -398,17 +398,22 @@ the installation's `bin` directory on `PATH` and `lib/pkgconfig` directory on
 Capture bundles require GStreamer at runtime, including when using pattern or
 clock sources. The SDK does not redistribute GStreamer libraries or plugins.
 
-CI builds both variants in one job per platform. It first builds and bundles
-the standard SDK, then runs the build script with `--capture` in the same CMake
-build directory. Unchanged C++ dependencies and generated protobuf outputs are
-reused. Both bundles have separate install directories and artifact names, and
-both are checked through the installed-SDK packaging tests. Release jobs also
-check version metadata and exported symbols in both bundles.
+CI and release jobs build both variants in one job per platform. The shared
+`setup-sdk-deps` action installs base dependencies first. Each job builds and
+validates the standard SDK before the `setup-capture` action installs GStreamer.
+It then runs the build script with `--capture` in the same CMake build directory.
+Unchanged C++ dependencies and generated protobuf outputs are reused. Both
+bundles have separate install directories and artifact names, and both are
+checked through the installed-SDK packaging tests. Release jobs also check
+version metadata and exported symbols in both bundles.
 
 Test jobs validate the standard installed SDK first, then enable capture and
 run the full unit, integration, and optional stress suites once. Rust outputs
 remain separate for each feature configuration; the shared Cargo cache stores
 both configurations.
+
+Coverage shares the dependency setup actions and builds only the instrumented
+capture variant.
 
 Rust artifacts are stored under `client-sdk-rust/target/cpp-<feature-hash>/`,
 with separate directories for capture-enabled and disabled builds. Generated
