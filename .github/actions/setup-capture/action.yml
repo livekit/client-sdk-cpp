@@ -1,5 +1,5 @@
 name: Set up capture dependencies
-description: Install GStreamer development files and runtime plugins for capture bundles.
+description: Install additional build and runtime dependencies for capture-enabled SDK builds.
 runs:
   using: composite
   steps:

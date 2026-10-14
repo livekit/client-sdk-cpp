@@ -72,6 +72,11 @@ file(GLOB UNIT_TEST_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/unit/*.cpp"
 )
 
+if(NOT LIVEKIT_CAPTURE_ENABLED)
+  list(REMOVE_ITEM UNIT_TEST_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/test_capture_source.cpp")
+endif()
+
 if(UNIT_TEST_SOURCES)
   add_executable(livekit_unit_tests
     ${UNIT_TEST_SOURCES}
@@ -96,6 +101,7 @@ if(UNIT_TEST_SOURCES)
 
   target_include_directories(livekit_unit_tests
     PRIVATE
+      ${LIVEKIT_GENERATED_INCLUDE_DIR}
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
       ${LIVEKIT_ROOT_DIR}/src/trace
@@ -165,6 +171,11 @@ file(GLOB INTEGRATION_TEST_SOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/integration/*.cpp"
 )
 
+if(NOT LIVEKIT_CAPTURE_ENABLED)
+  list(REMOVE_ITEM INTEGRATION_TEST_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/integration/test_capture_source.cpp")
+endif()
+
 if(INTEGRATION_TEST_SOURCES)
   add_executable(livekit_integration_tests
     ${INTEGRATION_TEST_SOURCES}
@@ -189,6 +200,7 @@ if(INTEGRATION_TEST_SOURCES)
 
   target_include_directories(livekit_integration_tests
     PRIVATE
+      ${LIVEKIT_GENERATED_INCLUDE_DIR}
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
       ${CMAKE_CURRENT_SOURCE_DIR}/benchmark
@@ -271,6 +283,7 @@ if(STRESS_TEST_SOURCES)
 
   target_include_directories(livekit_stress_tests
     PRIVATE
+      ${LIVEKIT_GENERATED_INCLUDE_DIR}
       ${LIVEKIT_ROOT_DIR}/include
       ${LIVEKIT_ROOT_DIR}/src
       ${LIVEKIT_TEST_PROTOBUF_DEP_INCLUDE_DIRS}

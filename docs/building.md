@@ -23,6 +23,49 @@ CMake/vcpkg flows.
 | Linux    | GCC 9+ or Clang 10+ | `apt` / `dnf` (or vcpkg) |
 | macOS    | Xcode 12+ (macOS 12.3+ for ScreenCaptureKit) | Homebrew (or vcpkg) |
 
+<a id="additional-capture-dependencies"></a>
+
+### Additional capture dependencies
+
+Standard SDK builds do not require GStreamer. Capture-enabled builds
+(`--capture`) require GStreamer development libraries at build time and
+GStreamer libraries at runtime, including when using pattern or clock sources.
+The SDK does not redistribute these libraries or plugins. Install the runtime
+plugins required by your GStreamer pipeline too.
+
+**macOS:** Install both the official universal runtime and development packages
+from the [GStreamer downloads page](https://gstreamer.freedesktop.org/download/#macos).
+These packages support both x86_64 and arm64. Configure the framework paths:
+
+```bash
+export PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/bin:$PATH"
+export PKG_CONFIG_PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+```
+
+Use one GStreamer installation method per machine to keep libraries and plugins
+consistent.
+
+**Ubuntu / Debian:** Install the development packages and runtime plugins:
+
+```bash
+sudo apt install -y pkg-config libunwind-dev \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
+```
+
+**Windows:** Install the MSVC x86_64 runtime and development components from the
+[GStreamer downloads page](https://gstreamer.freedesktop.org/download/#windows).
+Add the installation's `bin` directory to `PATH` and its `lib/pkgconfig`
+directory to `PKG_CONFIG_PATH`.
+
+Development files must be discoverable through `pkg-config`. You can verify
+that they are available with:
+
+```bash
+pkg-config --modversion gstreamer-1.0 gstreamer-app-1.0
+```
+
 ## Clone the repository
 
 The SDK depends on the [`client-sdk-rust`](https://github.com/livekit/rust-sdks)
@@ -378,6 +421,8 @@ Rust FFI.
 
 The build scripts set `LIVEKIT_BUILD_CAPTURE`. The generated numeric
 `LIVEKIT_CAPTURE_ENABLED` macro (0 or 1) supports `#if` checks in consumers.
+Direct inclusion of `livekit/capture_source.h` fails at compile time in standard
+SDK builds. `livekit/livekit.h` includes capture declarations only when enabled.
 `share/livekit/build-info.json` in an installed bundle describes the same build
 features; neither value tests whether a GPU or a requested GStreamer plugin is
 available at runtime.
@@ -386,23 +431,8 @@ Release downloads with `-capture` in their names include these features, for
 example `livekit-sdk-macos-arm64-capture-<version>.tar.gz`. Standard release
 bundles have capture disabled.
 
-Building a capture-enabled SDK requires GStreamer development libraries
-accessible to `pkg-config`. On macOS, install both the official universal
-runtime and development packages from the
-[GStreamer downloads page](https://gstreamer.freedesktop.org/download/#macos).
-Add `/Library/Frameworks/GStreamer.framework/Versions/1.0/bin` to the front of
-`PATH` and `/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/pkgconfig`
-to the front of `PKG_CONFIG_PATH`. These packages support both x86_64 and arm64.
-Use one GStreamer installation method per machine to keep its libraries and
-plugins consistent. On Ubuntu, install `libgstreamer1.0-dev` and
-`libgstreamer-plugins-base1.0-dev`, plus the runtime plugins your pipeline
-uses. On Windows, install the MSVC runtime and development packages from the
-[GStreamer downloads page](https://gstreamer.freedesktop.org/download/) and put
-the installation's `bin` directory on `PATH` and `lib/pkgconfig` directory on
-`PKG_CONFIG_PATH`.
-
-Capture bundles require GStreamer at runtime, including when using pattern or
-clock sources. The SDK does not redistribute GStreamer libraries or plugins.
+See [Additional capture dependencies](#additional-capture-dependencies) before
+building or running a capture-enabled SDK.
 
 Rust artifacts are stored under `client-sdk-rust/target/cpp-<feature-hash>/`,
 with separate directories for capture-enabled and disabled builds. Generated
@@ -410,67 +440,6 @@ with separate directories for capture-enabled and disabled builds. Generated
 the installed SDK instead of another configuration's most recent build.
 
 See [Capture sources](capture-sources.md) for dependencies and usage.
-
-## Build in a Linux container
-
-You can test a clean Linux build and its dependency tree from a macOS or Linux
-host with `docker/linux.Dockerfile`. The container is a build check, not
-a development environment. The image uses Ubuntu 24.04 with the same packages
-as the Linux CI jobs. It also includes GStreamer for `--capture` builds and
-the stable Rust toolchain.
-
-The container bind-mounts the source paths that the build reads from the host
-into `/work`. Changes on the host show up in the container immediately. The
-`/work` directory itself is the `lk-cpp-work` volume, so build outputs such as
-`build-*`, `local-install`, and `sdk-out` stay in the container. Host build
-directories and `.git` data are not mounted.
-
-1. From the repository root, build the image. The `client-sdk-rust` submodule
-   must be checked out, because the image copies its clang install script.
-
-   ```bash
-   docker build -f docker/linux.Dockerfile -t livekit-cpp-build .
-   ```
-
-   To install gstreamer:
-   ```bash
-   docker build -f docker/linux.Dockerfile \
-     --build-arg INSTALL_GSTREAMER=1 \
-     -t livekit-cpp-build .
-   ```
-
-   The build context is the repository root. The file
-   `docker/linux.Dockerfile.dockerignore` limits the context to the
-   clang install script, so Docker does not send build outputs or `.git`.
-
-2. From the repository root, start the container:
-
-   ```bash
-   docker run -d --name lk-cpp --network host \
-     -v lk-cpp-work:/work \
-     -v lk-cargo-target:/cargo-target \
-     -v lk-cargo-registry:/opt/cargo/registry \
-     -v "$(pwd)/build.sh:/work/build.sh" \
-     -v "$(pwd)/CMakeLists.txt:/work/CMakeLists.txt" \
-     -v "$(pwd)/CMakePresets.json:/work/CMakePresets.json" \
-     -v "$(pwd)/build.h.in:/work/build.h.in" \
-     -v "$(pwd)/.build-info.json.in:/work/.build-info.json.in" \
-     -v "$(pwd)/cmake:/work/cmake" \
-     -v "$(pwd)/include:/work/include" \
-     -v "$(pwd)/src:/work/src" \
-     -v "$(pwd)/scripts:/work/scripts" \
-     -v "$(pwd)/client-sdk-rust:/work/client-sdk-rust" \
-     -v lk-rust-source-target:/work/client-sdk-rust/target \
-     -v "$(pwd)/cpp-example-collection:/work/cpp-example-collection" \
-     livekit-cpp-build sleep infinity
-   ```
-
-3. Open a shell in the container:
-
-   ```bash
-   docker exec -it lk-cpp bash
-   ```
-For a fully clean build, run `./build.sh clean-all` in the container, or remove the volumes.
 
 ## Support
 
