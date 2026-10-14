@@ -106,8 +106,10 @@ labels and a 30-second timeout. It checks the bundle's capture metadata and
 creates a GStreamer VP8 source through the installed library when capture is
 enabled. Configuration checks that direct inclusion of `livekit/capture_source.h`
 succeeds for capture bundles and fails for standard bundles. Both variants must
-still compile with `livekit/livekit.h`. It needs no LiveKit server; capture-enabled
-runs require GStreamer and the pipeline's plugins.
+still compile with `livekit/livekit.h`. It needs no LiveKit server. The current
+capture-enabled packaging test exercises GStreamer, so it requires that backend
+and the pipeline's plugins; it does not validate pattern/clock-only bundles or
+prove that unselected sources were excluded.
 The consumer also checks `share/livekit/build-info.json`. Release jobs pass
 `LIVEKIT_EXPECT_VERSION` to check version metadata and the recorded Rust commit
 and FFI version through this same project.
