@@ -141,12 +141,11 @@ jobs:
           path: |
             client-sdk-rust/target/
             ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ runner.os == 'macOS' && hashFiles('.github/actions/setup-capture/action.yml') || 'v3' }}-${{ steps.rust_sha.outputs.sha }}
-          restore-keys: |
-            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ runner.os == 'macOS' && hashFiles('.github/actions/setup-capture/action.yml') || 'v3' }}-
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-release-standard-${{ hashFiles('CMakeLists.txt', 'build.sh', 'build.cmd', '.github/actions/setup-capture/action.yml', '.github/actions/test-capture-variants/action.yml') }}-${{ steps.rust_sha.outputs.sha }}
 
-      # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
-      # artifacts in webrtc-sys are not compatible across those bumps.
+      # Restore exact keys only: webrtc-sys cxxbridge artifacts are not
+      # compatible across Rust submodule bumps. Avoid downloading a fallback
+      # cache that this cleanup would immediately discard.
       - name: Drop stale cargo target on submodule SHA cache miss
         if: steps.cache-cargo-target.outputs.cache-hit != 'true'
         shell: bash
@@ -237,7 +236,7 @@ jobs:
           path: |
             client-sdk-rust/target/
             ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ runner.os == 'macOS' && hashFiles('.github/actions/setup-capture/action.yml') || 'v3' }}-${{ steps.rust_sha.outputs.sha }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-release-standard-${{ hashFiles('CMakeLists.txt', 'build.sh', 'build.cmd', '.github/actions/setup-capture/action.yml', '.github/actions/test-capture-variants/action.yml') }}-${{ steps.rust_sha.outputs.sha }}
 
       - name: Save vcpkg binary cache
         if: runner.os == 'Windows' && steps.cache-vcpkg-binary.outputs.cache-hit != 'true'
