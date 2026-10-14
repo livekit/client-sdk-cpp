@@ -10,6 +10,13 @@ The SDK supports three source configurations:
 | `ClockVideoSourceConfig` | GPU-rendered local time with millisecond precision | Compatible GPU adapter |
 | `GstreamerVideoSourceConfig` | Pre-encoded video from a GStreamer pipeline | GStreamer runtime and the pipeline's plugins |
 
+A custom SDK build can include all sources or a subset selected with
+`--capture=pattern,clock` or `--capture=gstreamer`. Release `-capture` bundles
+include all sources. `LIVEKIT_CAPTURE_ENABLED` indicates that at least one
+source is enabled; creating a source omitted from the build reports
+`CaptureSourceError` through the returned future. Pattern/clock-only builds do
+not require GStreamer.
+
 Native camera device capture and device enumeration are not part of this API.
 
 ## Build and release bundles

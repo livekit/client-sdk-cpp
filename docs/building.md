@@ -27,11 +27,15 @@ CMake/vcpkg flows.
 
 ### Additional capture dependencies
 
-Standard SDK builds do not require GStreamer. Capture-enabled builds
-(`--capture`) require GStreamer development libraries at build time and
-GStreamer libraries at runtime, including when using pattern or clock sources.
-The SDK does not redistribute these libraries or plugins. Install the runtime
-plugins required by your GStreamer pipeline too.
+GStreamer is required only when the selected sources include `gstreamer`.
+This includes `--capture` / `--capture=all` and release `-capture` bundles,
+which enable all three sources. Standard SDK builds and builds selecting only
+`pattern`, `clock`, or both do not require GStreamer.
+
+For builds that include `gstreamer`, install GStreamer development libraries
+at build time and GStreamer libraries at runtime. The SDK does not redistribute
+these libraries or plugins. Install the runtime plugins required by your
+pipeline too. Pattern and clock sources need a compatible GPU adapter at runtime.
 
 **macOS:** Install both the official universal runtime and development packages
 from the [GStreamer downloads page](https://gstreamer.freedesktop.org/download/#macos).
@@ -59,7 +63,8 @@ sudo apt install -y pkg-config libunwind-dev \
 Add the installation's `bin` directory to `PATH` and its `lib/pkgconfig`
 directory to `PKG_CONFIG_PATH`.
 
-Development files must be discoverable through `pkg-config`. You can verify
+For GStreamer builds, development files must be discoverable through
+`pkg-config`. You can verify
 that they are available with:
 
 ```bash
@@ -398,10 +403,12 @@ The SDK places Rust FFI outputs in `client-sdk-rust/target/cpp-<feature-hash>/`.
 Deep checkout paths can make WebRTC header paths exceed the Windows path limit.
 Set `CARGO_TARGET_DIR` to a short absolute path before building, for example
 `set CARGO_TARGET_DIR=C:\lk-rust` in Command Prompt. The SDK appends the
-feature directory so capture-enabled and disabled outputs remain separate.
+feature directory so different source selections have separate outputs.
 Windows CI uses this setting for builds, tests, and release bundles.
 `clean-all` removes the default Rust target directory; remove a custom root
 separately when it is no longer needed.
+
+<a id="capture-sources"></a>
 
 ## Capture sources
 
@@ -422,15 +429,21 @@ Special values: `none` / `OFF` / empty (disabled), `all` / `ON` (every source).
 
 ```bash
 ./build.sh release --capture --bundle --prefix sdk-out/livekit-sdk-capture
+./build.sh release --capture=pattern,clock --bundle --prefix sdk-out/livekit-sdk-pixel
+./build.sh release --capture=gstreamer --bundle --prefix sdk-out/livekit-sdk-gstreamer
 ```
 
 On Windows, use `build.cmd release --capture --bundle --prefix sdk-out\livekit-sdk-capture`.
-Custom CMake configurations can set `LIVEKIT_BUILD_CAPTURE=ON`. The build
-enables `capture-gstreamer`, `capture-pattern`, and `capture-clock` in the
-Rust FFI.
+Windows also accepts source lists, for example `build.cmd release --capture=pattern,clock`.
+Custom CMake configurations use `LIVEKIT_CAPTURE=all` or a source list such as
+`LIVEKIT_CAPTURE=pattern,clock`.
 
-The build scripts set `LIVEKIT_BUILD_CAPTURE`. The generated numeric
+The build scripts set `LIVEKIT_CAPTURE`. The generated numeric
 `LIVEKIT_CAPTURE_ENABLED` macro (0 or 1) supports `#if` checks in consumers.
+It indicates whether any source was compiled in; it does not identify which
+sources are available. Check `cargo_features` in `share/livekit/build-info.json`
+for the selected backends. Creating a source omitted from the SDK build fails
+through the returned future with `CaptureSourceError`.
 Direct inclusion of `livekit/capture_source.h` fails at compile time in standard
 SDK builds. `livekit/livekit.h` includes capture declarations only when enabled.
 `share/livekit/build-info.json` in an installed bundle describes the same build
@@ -445,7 +458,7 @@ See [Additional capture dependencies](#additional-capture-dependencies) before
 building or running a capture-enabled SDK.
 
 Rust artifacts are stored under `client-sdk-rust/target/cpp-<feature-hash>/`,
-with separate directories for capture-enabled and disabled builds. Generated
+with separate directories for each normalized source selection. Generated
 `build.h` files live in each CMake build directory, so feature metadata follows
 the installed SDK instead of another configuration's most recent build.
 
