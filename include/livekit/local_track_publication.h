@@ -24,7 +24,7 @@ namespace livekit {
 namespace proto {
 class OwnedTrackPublication;
 class TrackPublicationInfo;
-}
+} // namespace proto
 
 /// @brief A track published by a local participant.
 class LIVEKIT_API LocalTrackPublication : public TrackPublication {
