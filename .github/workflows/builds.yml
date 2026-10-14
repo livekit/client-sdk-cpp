@@ -90,45 +90,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-vcpkg-binary-${{ env.VCPKG_TARGET_TRIPLET }}-${{ env.VCPKG_GIT_COMMIT }}-
 
-      - name: Setup vcpkg (Windows only)
-        if: runner.os == 'Windows'
-        uses: lukka/run-vcpkg@5e0cab206a5ea620130caf672fce3e4a6b5666a1 # v11.5
+      - name: Set up base SDK dependencies
+        uses: ./.github/actions/setup-sdk-deps
         with:
-          vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT }}
-
-      # ---------- OS-specific deps ----------
-      - name: Install deps (Ubuntu)
-        if: runner.os == 'Linux'
-        run: |
-          set -eux
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake ninja-build pkg-config \
-            llvm-dev libclang-dev clang \
-            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
-            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
-            libxrandr-dev libxi-dev libxkbcommon-dev \
-            libasound2-dev libpulse-dev \
-            libssl-dev \
-            libprotobuf-dev protobuf-compiler \
-            libabsl-dev \
-            libcurl4-openssl-dev \
-            libwayland-dev libdecor-0-dev
-
-      # The libwebrtc artifact ships a hermetic libc++ built from LLVM trunk.
-      # Distro clang (14 on Ubuntu 22.04, 18 on 24.04) cannot compile its
-      # headers; the submodule script installs LLVM 21 and exports CC/CXX.
-      - name: Install clang for libwebrtc
-        if: runner.os == 'Linux'
-        shell: bash
-        run: client-sdk-rust/.github/scripts/install-clang.sh
-
-      - name: Install deps (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          set -eux
-          brew update
-          brew install cmake ninja protobuf abseil
+          vcpkg-commit: ${{ env.VCPKG_GIT_COMMIT }}
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
