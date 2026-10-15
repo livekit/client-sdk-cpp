@@ -20,7 +20,7 @@ jobs:
   # below explicitly opt manual runs back into running everything.
   changes:
     name: Detect Changes
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     outputs:
       builds: ${{ steps.filter.outputs.builds }}
       tests:  ${{ steps.filter.outputs.tests }}
@@ -145,7 +145,7 @@ jobs:
   # This job is an aggregate job
   ci:
     name: CI
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # List all the jobs that need to succeed for the CI to pass
     needs:
       - changes

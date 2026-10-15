@@ -472,7 +472,7 @@ jobs:
   coverage:
     name: Code Coverage
     if: inputs.run_coverage
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # A debug build instrumented with --coverage is far heavier (RAM + disk)
     # than the release builds. Cap the wall-clock so a stuck/OOM build fails
     # fast and visibly instead of hanging toward the 6h default.
