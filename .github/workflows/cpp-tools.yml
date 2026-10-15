@@ -11,7 +11,7 @@ permissions:
 jobs:
   clang-format:
     name: clang-format
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: false
     timeout-minutes: 15
 
@@ -52,7 +52,7 @@ jobs:
 
   clang-tidy:
     name: clang-tidy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     continue-on-error: false
     timeout-minutes: 45
 
