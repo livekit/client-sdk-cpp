@@ -351,7 +351,7 @@ endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable(livekit_memory_lifecycle_tester
-    "${CMAKE_CURRENT_SOURCE_DIR}/memory/lifecycle_tester.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/memory/memory_tester.cpp"
   )
   target_link_libraries(livekit_memory_lifecycle_tester PRIVATE livekit)
   target_include_directories(livekit_memory_lifecycle_tester PRIVATE
