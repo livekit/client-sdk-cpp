@@ -19,6 +19,7 @@
 #include <cassert>
 #include <csignal>
 #include <cstdio>
+#include <exception>
 #include <string>
 #include <type_traits>
 
@@ -694,9 +695,9 @@ std::future<void> FfiClient::simulateScenarioAsync(uintptr_t room_handle, int sc
 }
 
 // Participant APIs Implementation
-std::future<proto::OwnedTrackPublication> FfiClient::publishTrackAsync(std::uint64_t local_participant_handle,
-                                                                       std::uint64_t track_handle,
-                                                                       const TrackPublishOptions& options) {
+std::future<proto::OwnedTrackPublication> FfiClient::publishTrackAsync(
+    std::uint64_t local_participant_handle, std::uint64_t track_handle, const TrackPublishOptions& options,
+    std::function<void(const proto::OwnedTrackPublication&)> on_success) {
   // Generate client-side async_id first
   const AsyncId async_id = generateAsyncId();
 
@@ -708,7 +709,8 @@ std::future<proto::OwnedTrackPublication> FfiClient::publishTrackAsync(std::uint
         return event.has_publish_track() && event.publish_track().async_id() == async_id;
       },
       // Handler: resolve with publication or throw error
-      [](const proto::FfiEvent& event, std::promise<proto::OwnedTrackPublication>& pr) {
+      [on_success = std::move(on_success)](const proto::FfiEvent& event,
+                                           std::promise<proto::OwnedTrackPublication>& pr) {
         const auto& cb = event.publish_track();
 
         // Oneof message { string error = 2; OwnedTrackPublication publication =
@@ -723,7 +725,14 @@ std::future<proto::OwnedTrackPublication> FfiClient::publishTrackAsync(std::uint
         }
 
         const proto::OwnedTrackPublication& pub = cb.publication();
-        pr.set_value(pub);
+        try {
+          if (on_success) {
+            on_success(pub);
+          }
+          pr.set_value(pub);
+        } catch (...) {
+          pr.set_exception(std::current_exception());
+        }
       });
 
   // Build and send the request

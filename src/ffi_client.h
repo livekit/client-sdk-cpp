@@ -109,9 +109,9 @@ public:
   std::future<void> simulateScenarioAsync(uintptr_t room_handle, int scenario);
 
   // Participant APIs
-  std::future<proto::OwnedTrackPublication> publishTrackAsync(std::uint64_t local_participant_handle,
-                                                              std::uint64_t track_handle,
-                                                              const TrackPublishOptions& options);
+  std::future<proto::OwnedTrackPublication> publishTrackAsync(
+      std::uint64_t local_participant_handle, std::uint64_t track_handle, const TrackPublishOptions& options,
+      std::function<void(const proto::OwnedTrackPublication&)> on_success = {});
   std::future<void> unpublishTrackAsync(std::uint64_t local_participant_handle, const std::string& track_sid,
                                         bool stop_on_unpublish);
   std::future<void> publishDataAsync(std::uint64_t local_participant_handle, const std::uint8_t* data_ptr,
