@@ -494,7 +494,7 @@ int main(int argc, char* argv[]) {
         static_cast<std::int64_t>(final.threads) - static_cast<std::int64_t>(warmup.threads);
     const bool passed = kibToMib(final_rss_growth) <= static_cast<double>(options.max_rss_growth_mib) &&
                         final_thread_growth <= static_cast<std::int64_t>(options.max_thread_growth);
-    std::cout << std::fixed << std::setprecision(2) << "memory lifecycle: scenario=" << scenarioName(options.scenario)
+    std::cout << std::fixed << std::setprecision(2) << "memory tester: scenario=" << scenarioName(options.scenario)
               << ", RSS 0 " << kibToMib(initial.rss_kib) << " -> warmup " << kibToMib(warmup.rss_kib) << " MiB ("
               << kibToMib(warmup_rss_growth) << " MiB) -> final " << kibToMib(final.rss_kib) << " MiB ("
               << kibToMib(final_rss_growth) << " MiB), threads 0 " << initial.threads << " -> warmup " << warmup.threads
@@ -502,7 +502,7 @@ int main(int argc, char* argv[]) {
               << "), verdict=" << (passed ? "PASS" : "FAIL") << '\n';
     return passed ? 0 : 1;
   } catch (const std::exception& error) {
-    std::cerr << "memory lifecycle tester failed: " << error.what() << '\n';
+    std::cerr << "memory tester failed: " << error.what() << '\n';
     return 1;
   }
 }

@@ -433,14 +433,14 @@ jobs:
             --gtest_recreate_environments_when_repeating=1 \
             --gtest_output=xml:${{ env.BUILD_DIR }}/integration-test-results.xml
 
-      - name: Run memory regression tests
+      - name: Run memory tester
         if: matrix.name == 'ubuntu-24.04-x64' && inputs.build_type == 'release'
         timeout-minutes: 10
         shell: bash
         run: |
           set -euo pipefail
           source scripts/set-test-tokens.sh
-          scripts/memory-regression.sh \
+          scripts/memory-tester.sh \
             --build-dir "${{ env.BUILD_DIR }}" \
             --scenario all \
             --iterations 100 \

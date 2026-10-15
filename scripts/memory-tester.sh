@@ -18,9 +18,9 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: memory-regression.sh [OPTIONS]
+Usage: memory-tester.sh [OPTIONS]
 
-Run the Linux memory lifecycle regression tester and append a table to the
+Run the Linux memory tester and append a table to the
 GitHub step summary when GITHUB_STEP_SUMMARY is set.
 
 Options:
@@ -35,21 +35,21 @@ Options:
   -h, --help                  Show this help
 
 Environment:
-  MEMORY_REGRESSION_BUILD_DIR, MEMORY_REGRESSION_SCENARIO,
-  MEMORY_REGRESSION_ITERATIONS,
-  MEMORY_REGRESSION_WARMUP, MEMORY_REGRESSION_MAX_RSS_GROWTH_MIB,
-  MEMORY_REGRESSION_MAX_THREAD_GROWTH, MALLOC_ARENA_MAX.
+  MEMORY_TESTER_BUILD_DIR, MEMORY_TESTER_SCENARIO,
+  MEMORY_TESTER_ITERATIONS,
+  MEMORY_TESTER_WARMUP, MEMORY_TESTER_MAX_RSS_GROWTH_MIB,
+  MEMORY_TESTER_MAX_THREAD_GROWTH, MALLOC_ARENA_MAX.
   All scenarios require LIVEKIT_URL and LIVEKIT_TOKEN_A.
 EOF
 }
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-build_dir="${MEMORY_REGRESSION_BUILD_DIR:-build-release}"
-scenario="${MEMORY_REGRESSION_SCENARIO:-audio-track}"
-iterations="${MEMORY_REGRESSION_ITERATIONS:-100}"
-warmup="${MEMORY_REGRESSION_WARMUP:-20}"
-max_rss_growth_mib="${MEMORY_REGRESSION_MAX_RSS_GROWTH_MIB:-8}"
-max_thread_growth="${MEMORY_REGRESSION_MAX_THREAD_GROWTH:-0}"
+build_dir="${MEMORY_TESTER_BUILD_DIR:-build-release}"
+scenario="${MEMORY_TESTER_SCENARIO:-audio-track}"
+iterations="${MEMORY_TESTER_ITERATIONS:-100}"
+warmup="${MEMORY_TESTER_WARMUP:-20}"
+max_rss_growth_mib="${MEMORY_TESTER_MAX_RSS_GROWTH_MIB:-8}"
+max_thread_growth="${MEMORY_TESTER_MAX_THREAD_GROWTH:-0}"
 
 while (($#)); do
   case "$1" in
@@ -67,7 +67,7 @@ done
 if [[ "${build_dir}" != /* ]]; then
   build_dir="${repo_root}/${build_dir}"
 fi
-tester="${build_dir}/bin/livekit_memory_lifecycle_tester"
+tester="${build_dir}/bin/livekit_memory_tester"
 if [[ ! -x "${tester}" ]]; then
   echo "ERROR: ${tester} not found. Run ./build.sh release-tests first." >&2
   exit 1
@@ -97,7 +97,7 @@ done
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {
-    echo "## Memory regression results"
+    echo "## Memory tester results"
     echo
     echo "Iterations: ${iterations}"
     echo "Warmup: ${warmup}"
@@ -108,7 +108,7 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   } >> "${GITHUB_STEP_SUMMARY}"
 fi
 
-report_regex='memory lifecycle: scenario=([a-z-]+), RSS 0 ([0-9]+\.[0-9]+) -> warmup ([0-9]+\.[0-9]+) MiB \((-?[0-9]+\.[0-9]+) MiB\) -> final ([0-9]+\.[0-9]+) MiB \((-?[0-9]+\.[0-9]+) MiB\), threads 0 ([0-9]+) -> warmup ([0-9]+) \((-?[0-9]+)\) -> final ([0-9]+) \((-?[0-9]+)\), verdict=(PASS|FAIL)'
+report_regex='memory tester: scenario=([a-z-]+), RSS 0 ([0-9]+\.[0-9]+) -> warmup ([0-9]+\.[0-9]+) MiB \((-?[0-9]+\.[0-9]+) MiB\) -> final ([0-9]+\.[0-9]+) MiB \((-?[0-9]+\.[0-9]+) MiB\), threads 0 ([0-9]+) -> warmup ([0-9]+) \((-?[0-9]+)\) -> final ([0-9]+) \((-?[0-9]+)\), verdict=(PASS|FAIL)'
 
 format_growth() {
   if [[ "$1" == "0" || "$1" == "0.00" || "$1" == -* ]]; then

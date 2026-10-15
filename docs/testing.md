@@ -15,7 +15,7 @@ length.
 | `livekit_unit_tests` | Unit tests (no server required) |
 | `livekit_integration_tests` | Integration tests (server required) |
 | `livekit_stress_tests` | Long-running stress tests (server required) |
-| `livekit_memory_lifecycle_tester` | Resource leak tester |
+| `livekit_memory_tester` | Resource leak tester |
 
 ## Building the test binaries
 
@@ -123,11 +123,11 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
 - **RPC**: round-trip calls, max payload (15 KB), timeouts, errors, concurrent calls.
 - **Stress**: high throughput, bidirectional RPC, memory pressure.
 
-## Memory lifecycle tester
+## Memory tester
 
 > Note: Linux only
 
-The memory lifecycle tester binary catches resource leak regressions in an
+The memory tester binary catches resource leak regressions in an
 automated fashion, and is invoked in CI. This single binary runs individual
 or groups of scenarios:
 
@@ -146,7 +146,7 @@ Each scenario reports process RSS and thread count at cycle 0, after warmup
 cycle 20, and after final cycle 100. The gate applies to warmup-to-final growth
 and fails on thread growth or more than the configured amount of RSS growth.
 
-The binary can be run directly, or via a helper script at `scripts/memory-regression.sh`,
+The binary can be run directly, or via a helper script at `scripts/memory-tester.sh`,
 which invokes the binary but also has GitHub actions support for a results summary table.
 The helper defaults `MALLOC_ARENA_MAX` to `1` when launching each tester process.
 This limits `glibc`'s allocator arenas, reducing Linux thread-churn RSS noise, but it is
@@ -158,10 +158,10 @@ tokens before running any scenario:
 ```bash
 ./build.sh release-tests
 source scripts/set-test-tokens.sh
-scripts/memory-regression.sh --scenario audio-track \
+scripts/memory-tester.sh --scenario audio-track \
   --iterations 100 --warmup 20 \
   --max-rss-growth-mib 8 --max-thread-growth 0
-scripts/memory-regression.sh --scenario video-track \
+scripts/memory-tester.sh --scenario video-track \
   --iterations 100 --warmup 20 \
   --max-rss-growth-mib 8 --max-thread-growth 0
 ```
@@ -169,11 +169,11 @@ scripts/memory-regression.sh --scenario video-track \
 Use `--scenario all` to run all six scenarios, each in a fresh tester process:
 
 ```bash
-scripts/memory-regression.sh --scenario data-track
-scripts/memory-regression.sh --scenario room-reuse
-scripts/memory-regression.sh --scenario room-client-leave
-scripts/memory-regression.sh --scenario room-server-delete
-scripts/memory-regression.sh --scenario all
+scripts/memory-tester.sh --scenario data-track
+scripts/memory-tester.sh --scenario room-reuse
+scripts/memory-tester.sh --scenario room-client-leave
+scripts/memory-tester.sh --scenario room-server-delete
+scripts/memory-tester.sh --scenario all
 ```
 
 The limits are command-line options so a longer local run can use different
