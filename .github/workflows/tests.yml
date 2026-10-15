@@ -466,8 +466,9 @@ jobs:
 
   # ============================================================================
   # Code Coverage (Linux only)
-  # Runs a debug build through gcov/lcov and generates an inline action summary
-  # alongside an HTML report of unit test coverage.
+  # Runs a debug build through gcov and generates an inline action summary
+  # alongside an HTML report. Unit and integration tests both execute against
+  # that build so their .gcda data is included in the same report.
   # ============================================================================
   coverage:
     name: Code Coverage
@@ -475,8 +476,9 @@ jobs:
     runs-on: ubuntu-latest
     # A debug build instrumented with --coverage is far heavier (RAM + disk)
     # than the release builds. Cap the wall-clock so a stuck/OOM build fails
-    # fast and visibly instead of hanging toward the 6h default.
-    timeout-minutes: 45
+    # fast and visibly instead of hanging toward the 6h default. The extra
+    # time beyond the build covers the integration server and test run.
+    timeout-minutes: 60
 
     steps:
       - name: Checkout (with submodules)
@@ -583,12 +585,59 @@ jobs:
       - name: Build
         run: cmake --build build-debug --parallel 2
 
-      # ---------- Run unit tests ----------
+      # ---------- Run unit and integration tests ----------
+      # Both binaries write .gcda for the instrumented liblivekit, so running
+      # them in sequence produces one combined coverage report.
       - name: Run unit tests
         timeout-minutes: 5
         run: |
           build-debug/bin/livekit_unit_tests \
             --gtest_output=xml:build-debug/unit-test-results.xml
+
+      - name: Start livekit-server
+        id: livekit_server
+        uses: livekit/dev-server-action@5d4d5337a875e2d1afd37bed03c601d159dab002 # v1.1.1
+        with:
+          github-token: ${{ github.token }}
+          version: v1.13.3
+          config: |
+            enable_participant_data_blob: true
+
+      - name: Install livekit-cli
+        run: |
+          set -euxo pipefail
+          curl -sSL https://get.livekit.io/cli | bash
+          lk --version
+
+      - name: Start token server
+        id: token_server
+        uses: livekit/token-server-action@a1e42c649a1998d5b224f5102f252c07762024f0 # v0.0.1
+        with:
+          livekit-url: ws://localhost:7880
+          api-key: devkey
+          api-secret: secret
+
+      - name: Run integration tests
+        timeout-minutes: ${{ inputs.integration_timeout_minutes }}
+        env:
+          RUST_LOG: "metrics=debug"
+          LIVEKIT_CREATE_TOKEN_URL: ${{ steps.token_server.outputs.token-url }}
+        run: |
+          set -euo pipefail
+          source scripts/set-test-tokens.sh
+          # TODO(BOT-477) Temporarily disable platform audio integration tests in CI until instability is resolved
+          bash scripts/run-with-backtrace.sh \
+            build-debug/bin/livekit_integration_tests \
+            --gtest_filter='-PlatformAudioIntegrationTest.*' \
+            --gtest_output=xml:build-debug/integration-test-results.xml
+
+      - name: Dump livekit-server log on failure
+        if: failure() && steps.livekit_server.outputs.log-path != ''
+        run: tail -n 500 "${{ steps.livekit_server.outputs.log-path }}" || true
+
+      - name: Dump token server log on failure
+        if: failure() && steps.token_server.outputs.log-path != ''
+        run: tail -n 200 "${{ steps.token_server.outputs.log-path }}" || true
 
       # Make resource-exhaustion failures visible instead of silent. Runs only
       # if an earlier step failed (e.g. OOM during Build).
