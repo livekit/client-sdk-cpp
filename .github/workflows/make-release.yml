@@ -199,9 +199,11 @@ jobs:
           version: ${{ steps.version.outputs.version }}
 
       - name: Set up capture dependencies
+        if: matrix.name != 'macos-x64'
         uses: ./.github/actions/setup-capture
 
       - name: Rebuild with capture
+        if: matrix.name != 'macos-x64'
         uses: ./.github/actions/build-sdk
         with:
           preset: release-examples
@@ -211,11 +213,13 @@ jobs:
           macos-arch: ${{ matrix.macos_arch || '' }}
 
       - name: Symbol leak check (capture SDK)
+        if: matrix.name != 'macos-x64'
         uses: ./.github/actions/check-sdk-symbols
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
 
       - name: Test installed capture SDK
+        if: matrix.name != 'macos-x64'
         uses: ./.github/actions/test-sdk-bundle
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
@@ -231,6 +235,7 @@ jobs:
           path: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
 
       - name: Upload capture build artifact
+        if: matrix.name != 'macos-x64'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
@@ -306,6 +311,8 @@ jobs:
           # Standard and capture-enabled Ubuntu and macOS bundles.
           for platform in ubuntu-22.04-x64 ubuntu-22.04-arm64 ubuntu-24.04-x64 ubuntu-24.04-arm64 macos-arm64 macos-x64; do
             for suffix in "" "-capture"; do
+              # Intel macOS ships only the standard SDK.
+              if [[ "$platform" == macos-x64 && "$suffix" == -capture ]]; then continue; fi
               dirName="livekit-sdk-${platform}${suffix}-${VERSION}"
               test -d "${dirName}"
               tar -czf "${{ github.workspace }}/release-assets/${dirName}.tar.gz" "${dirName}"

@@ -1,5 +1,7 @@
 # Capture sources
 
+> **NOTE:** LiveKit Capture is not officially supported on Intel-based Macs.
+
 `CaptureSource` connects a Rust video producer to a regular C++ `VideoSource`.
 The capture pump runs in Rust, so C++ does not send one FFI request per frame.
 The SDK supports three source configurations:
