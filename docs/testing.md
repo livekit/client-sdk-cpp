@@ -1,7 +1,21 @@
 # Testing
 
-The SDK includes integration and stress tests using
-[Google Test](https://github.com/google/googletest).
+The SDK includes unit, integration and stress tests using
+[Google Test](https://github.com/google/googletest). It also
+includes a memory-leak/resource checking tester.
+
+Unit, integration, and memory tests are run on every PR in CI.
+Stress tests are reserved for nightly tests in CI due to their
+length.
+
+## Test binaries
+
+| Executable | Description |
+|------------|-------------|
+| `livekit_unit_tests` | Unit tests (no server required) |
+| `livekit_integration_tests` | Integration tests (server required) |
+| `livekit_stress_tests` | Long-running stress tests (server required) |
+| `livekit_memory_tester` | Resource leak tester |
 
 ## Building the test binaries
 
@@ -17,33 +31,35 @@ The SDK includes integration and stress tests using
 .\build.cmd release-tests
 ```
 
-## Running tests
-
-After building, run tests using `ctest` or invoke the binaries directly:
+After building, test binaries are available at:
 
 ```bash
-# Run all tests via ctest
+# Linux/macOS
+<build-folder>/bin/<test binaries>
+
+# Windows
+<build-folder>\bin\<test binaries>
+```
+
+## Running tests
+
+```bash
+# Run all tests via ctest (warning, runs all GTest-based tests including stress)
 cd build-debug
 ctest --output-on-failure
 
 # Or run test executables directly
+./build-debug/bin/livekit_unit_tests
 ./build-debug/bin/livekit_integration_tests
 ./build-debug/bin/livekit_stress_tests
 
 # Run specific test suites
+./build-debug/bin/livekit_unit_tests --gtest_filter="*Room*"
 ./build-debug/bin/livekit_integration_tests --gtest_filter="*Rpc*"
 ./build-debug/bin/livekit_stress_tests --gtest_filter="*MaxPayloadStress*"
 ```
 
-__Note:__ The tests require tokens and a running LiveKit server. See the section below for details.
-
-## Test binaries
-
-| Executable | Description |
-|------------|-------------|
-| `livekit_unit_tests` | Pure unit tests (no server required) |
-| `livekit_integration_tests` | Quick tests (~1-2 minutes) for SDK functionality |
-| `livekit_stress_tests` | Long-running tests (configurable, default 1 hour) |
+__Note:__ The integration and stress tests require tokens and a running LiveKit server. See the section below for details.
 
 ## Running a local LiveKit server for tests
 
@@ -52,9 +68,10 @@ path is `livekit-server --dev`, which uses the well-known dev API
 key/secret (`devkey` / `secret`).
 
 Install [`livekit-server`](https://docs.livekit.io/home/self-hosting/local/)
-and start it with data tracks enabled:
+and start it with data blobs enabled:
 
 ```bash
+LIVEKIT_CONFIG="enable_participant_data_blob: true"
 livekit-server --dev
 ```
 
@@ -106,7 +123,69 @@ export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -
 - **RPC**: round-trip calls, max payload (15 KB), timeouts, errors, concurrent calls.
 - **Stress**: high throughput, bidirectional RPC, memory pressure.
 
-## Memory checks (valgrind)
+## Memory tester
+
+> Note: Linux only
+
+The memory tester binary catches resource leak regressions in an
+automated fashion, and is invoked in CI. This single binary runs individual
+or groups of scenarios:
+
+- `audio-track` repeatedly initializes the SDK, connects, publishes an audio
+  track, captures synthetic PCM frames, unpublishes, disconnects, and shuts down.
+- `video-track` repeatedly initializes the SDK, connects, publishes a video
+  track, captures synthetic I420 frames, unpublishes, disconnects, and shuts down.
+- `data-track` repeatedly connects, publishes a data track, pushes synthetic
+  payloads, unpublishes it, and disconnects.
+- `room-reuse` repeatedly connects and disconnects the same room object.
+- `room-client-leave` repeatedly connects, disconnects, and destroys a room.
+- `room-server-delete` repeatedly connects, publishes one synthetic video
+  track, captures I420 frames without unpublishing, and uses `lk` to delete
+  the local test room. It then verifies the disconnect and end-of-stream
+  callbacks.
+
+Each scenario reports process RSS and thread count at cycle 0, after warmup
+cycle 20, and after final cycle 100. Checkpoint sampling waits for the thread
+count to remain stable for 500 ms so short-lived teardown work does not cause a
+false failure. The gate applies to warmup-to-final growth and fails on thread
+growth or more than the configured amount of RSS growth. If threads grow, the
+tester also reports when the final sustained growth began and groups the warmup
+and final threads by their Linux thread names.
+
+The binary can be run directly, or via a helper script at `scripts/memory-tester.sh`,
+which invokes the binary but also has GitHub actions support for a results summary table.
+The helper defaults `MALLOC_ARENA_MAX` to `1` when launching each tester process.
+This limits `glibc`'s allocator arenas, reducing Linux thread-churn RSS noise, but it is
+not evidence that the default allocator returns all freed pages to the OS.
+
+Start `livekit-server --dev`, install the `lk` CLI, and source the local test
+tokens before running any scenario:
+
+```bash
+./build.sh release-tests
+source scripts/set-test-tokens.sh
+scripts/memory-tester.sh --scenario audio-track \
+  --iterations 100 --warmup 20 \
+  --max-rss-growth-mib 8 --max-thread-growth 0
+scripts/memory-tester.sh --scenario video-track \
+  --iterations 100 --warmup 20 \
+  --max-rss-growth-mib 8 --max-thread-growth 0
+```
+
+Use `--scenario all` to run all six scenarios, each in a fresh tester process:
+
+```bash
+scripts/memory-tester.sh --scenario data-track
+scripts/memory-tester.sh --scenario room-reuse
+scripts/memory-tester.sh --scenario room-client-leave
+scripts/memory-tester.sh --scenario room-server-delete
+scripts/memory-tester.sh --scenario all
+```
+
+The limits are command-line options so a longer local run can use different
+budgets.
+
+## Additional memory checks (valgrind)
 
 Run `valgrind` against the test binaries to check for memory leaks and other
 issues. See [tools.md](tools.md) for the recipe.
