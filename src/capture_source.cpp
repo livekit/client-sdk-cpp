@@ -26,7 +26,7 @@
 #include "ffi_client.h"
 #include "lk_log.h"
 
-namespace livekit {
+namespace livekit::capture {
 
 struct CaptureSource::Impl {
   FfiHandle handle;
@@ -271,4 +271,4 @@ bool controlCapture(std::uint64_t handle, bool start) {
 bool CaptureSource::start() { return controlCapture(impl_->handle.get(), true); }
 bool CaptureSource::stop() { return controlCapture(impl_->handle.get(), false); }
 
-} // namespace livekit
+} // namespace livekit::capture

@@ -27,9 +27,9 @@ namespace {
 // Strict GPU checks require successful creation of enabled sources. Omitted
 // backends must reject a valid configuration with the feature-disabled error.
 template <typename Config>
-bool checkSource(std::string_view name, const Config& config, bool expected, livekit::CaptureSourceKind kind) {
+bool checkSource(std::string_view name, const Config& config, bool expected, livekit::capture::CaptureSourceKind kind) {
   try {
-    auto future = livekit::CaptureSource::create(config);
+    auto future = livekit::capture::CaptureSource::create(config);
     if (future.wait_for(std::chrono::seconds(15)) != std::future_status::ready) {
       std::cerr << name << ": source creation timed out\n";
       return false;
@@ -37,12 +37,12 @@ bool checkSource(std::string_view name, const Config& config, bool expected, liv
     auto source = future.get();
     if (!expected || !source || source->kind() != kind || source->width() != 320 || source->height() != 240 ||
         !source->videoSource() ||
-        (kind == livekit::CaptureSourceKind::Encoded && source->codec() != livekit::VideoCodec::VP8)) {
+        (kind == livekit::capture::CaptureSourceKind::Encoded && source->codec() != livekit::VideoCodec::VP8)) {
       std::cerr << name << ": unexpected source availability or metadata\n";
       return false;
     }
     return true;
-  } catch (const livekit::CaptureSourceError& error) {
+  } catch (const livekit::capture::CaptureSourceError& error) {
     constexpr std::string_view disabled = "capture source is not enabled in this build";
     const std::string_view message(error.what());
     if (!expected && message.find(disabled) != std::string_view::npos) {
@@ -51,7 +51,7 @@ bool checkSource(std::string_view name, const Config& config, bool expected, liv
     // Runners without an adapter can still prove that the selected backend
     // reached its renderer. All other errors fail; strict GPU jobs also fail
     // on a missing adapter.
-    if (expected && kind == livekit::CaptureSourceKind::Pixel && !LIVEKIT_VERIFY_PIXEL_SOURCES &&
+    if (expected && kind == livekit::capture::CaptureSourceKind::Pixel && !LIVEKIT_VERIFY_PIXEL_SOURCES &&
         message.find("no compatible GPU adapter") != std::string_view::npos) {
       std::cout << name << ": creation not exercised (no GPU adapter); backend availability verified\n";
       return true;
@@ -65,22 +65,24 @@ bool checkSource(std::string_view name, const Config& config, bool expected, liv
 }
 
 bool checkSources() {
-  livekit::GstreamerVideoSourceConfig gstreamer;
+  livekit::capture::GstreamerVideoSourceConfig gstreamer;
   gstreamer.pipeline =
       "videotestsrc num-buffers=4 ! video/x-raw,width=320,height=240,framerate=30/1 ! "
       "vp8enc deadline=1 ! appsink name=lk_appsink";
   bool success =
-      checkSource("gstreamer", gstreamer, LIVEKIT_EXPECT_GSTREAMER != 0, livekit::CaptureSourceKind::Encoded);
+      checkSource("gstreamer", gstreamer, LIVEKIT_EXPECT_GSTREAMER != 0, livekit::capture::CaptureSourceKind::Encoded);
 
-  livekit::PatternVideoSourceConfig pattern;
+  livekit::capture::PatternVideoSourceConfig pattern;
   pattern.resolution = {320, 240};
   pattern.framerate_fps = 30;
-  success = checkSource("pattern", pattern, LIVEKIT_EXPECT_PATTERN != 0, livekit::CaptureSourceKind::Pixel) && success;
+  success = checkSource("pattern", pattern, LIVEKIT_EXPECT_PATTERN != 0, livekit::capture::CaptureSourceKind::Pixel) &&
+            success;
 
-  livekit::ClockVideoSourceConfig clock;
+  livekit::capture::ClockVideoSourceConfig clock;
   clock.resolution = {320, 240};
   clock.framerate_fps = 30;
-  success = checkSource("clock", clock, LIVEKIT_EXPECT_CLOCK != 0, livekit::CaptureSourceKind::Pixel) && success;
+  success =
+      checkSource("clock", clock, LIVEKIT_EXPECT_CLOCK != 0, livekit::capture::CaptureSourceKind::Pixel) && success;
   return success;
 }
 

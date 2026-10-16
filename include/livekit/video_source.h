@@ -25,6 +25,10 @@
 
 namespace livekit {
 
+namespace capture {
+class CaptureSource;
+} // namespace capture
+
 class VideoFrame;
 class EncodedVideoSource;
 
@@ -97,12 +101,15 @@ public:
 
 private:
   friend class EncodedVideoSource;
-  friend class CaptureSource;
+  friend class capture::CaptureSource;
 
   enum class SourceType { Native, Encoded };
   VideoSource(int width, int height, SourceType source_type);
 
-  /// Adopt an existing FFI video source handle (used by CaptureSource).
+  /// @brief Adopt an existing FFI video source handle for capture sources.
+  /// @param handle Rust-owned video source handle.
+  /// @param width Frame width in pixels.
+  /// @param height Frame height in pixels.
   VideoSource(FfiHandle&& handle, int width, int height) noexcept
       : handle_(std::move(handle)), width_(width), height_(height) {}
 

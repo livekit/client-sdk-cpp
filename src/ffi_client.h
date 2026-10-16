@@ -58,7 +58,9 @@ class DataStream;
 
 struct RoomOptions;
 struct TrackPublishOptions;
+namespace capture {
 class CaptureSource;
+} // namespace capture
 
 using FfiCallbackFn = void (*)(const uint8_t*, size_t);
 extern "C" void livekit_ffi_initialize(FfiCallbackFn cb, bool capture_logs, const char* sdk, const char* sdk_version);
@@ -132,7 +134,7 @@ public:
   // Capture APIs
   // Optional request transport permits deterministic callback tests without
   // starting a GPU renderer or GStreamer pipeline.
-  std::future<std::shared_ptr<CaptureSource>> newCaptureSourceAsync(
+  std::future<std::shared_ptr<capture::CaptureSource>> newCaptureSourceAsync(
       proto::NewCaptureSourceRequest request,
       const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
   std::future<void> setLocalMetadataAsync(std::uint64_t local_participant_handle, const std::string& metadata);
