@@ -595,6 +595,7 @@ jobs:
             --gtest_output=xml:build-debug/unit-test-results.xml
 
       - name: Start livekit-server
+        if: inputs.integration_repeat > 0
         id: livekit_server
         uses: livekit/dev-server-action@5d4d5337a875e2d1afd37bed03c601d159dab002 # v1.1.1
         with:
@@ -604,12 +605,14 @@ jobs:
             enable_participant_data_blob: true
 
       - name: Install livekit-cli
+        if: inputs.integration_repeat > 0
         run: |
           set -euxo pipefail
           curl -sSL https://get.livekit.io/cli | bash
           lk --version
 
       - name: Start token server
+        if: inputs.integration_repeat > 0
         id: token_server
         uses: livekit/token-server-action@a1e42c649a1998d5b224f5102f252c07762024f0 # v0.0.1
         with:
@@ -618,6 +621,7 @@ jobs:
           api-secret: secret
 
       - name: Run integration tests
+        if: inputs.integration_repeat > 0
         timeout-minutes: ${{ inputs.integration_timeout_minutes }}
         env:
           RUST_LOG: "metrics=debug"
@@ -651,6 +655,7 @@ jobs:
 
       # ---------- Generate coverage reports ----------
       - name: Generate coverage reports
+        if: (success() || failure()) && hashFiles('build-debug/**/*.gcda') != ''
         run: |
           mkdir -p coverage-html
           gcovr build-debug \
@@ -668,6 +673,7 @@ jobs:
             --txt coverage-summary.txt
 
       - name: Add coverage summary to job
+        if: (success() || failure()) && hashFiles('coverage-summary.txt') != ''
         run: |
           {
             echo '## Code Coverage Summary'
