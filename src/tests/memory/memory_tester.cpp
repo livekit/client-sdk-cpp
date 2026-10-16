@@ -70,10 +70,11 @@ struct ProcessSample {
 };
 
 using ThreadNameCounts = std::map<std::string, std::uint64_t>;
+using ThreadIdentities = std::map<std::string, std::string>;
 
 struct ProcessSnapshot {
   ProcessSample process;
-  ThreadNameCounts thread_names;
+  ThreadIdentities threads;
 };
 
 struct RoomCredentials {
@@ -248,8 +249,8 @@ ProcessSample sampleProcess() {
   return sample;
 }
 
-ThreadNameCounts sampleThreadNames() {
-  ThreadNameCounts counts;
+ThreadIdentities sampleThreads() {
+  ThreadIdentities threads;
   std::error_code error;
   std::filesystem::directory_iterator iterator("/proc/self/task", error);
   const std::filesystem::directory_iterator end;
@@ -257,14 +258,14 @@ ThreadNameCounts sampleThreadNames() {
     std::ifstream comm(iterator->path() / "comm");
     std::string name;
     if (std::getline(comm, name) && !name.empty()) {
-      ++counts[name];
+      threads.emplace(iterator->path().filename().string(), std::move(name));
     }
     iterator.increment(error);
   }
-  return counts;
+  return threads;
 }
 
-ProcessSnapshot sampleProcessSnapshot() { return {sampleProcess(), sampleThreadNames()}; }
+ProcessSnapshot sampleProcessSnapshot() { return {sampleProcess(), sampleThreads()}; }
 
 ProcessSnapshot sampleQuiescentProcess() {
   auto snapshot = sampleProcessSnapshot();
@@ -273,7 +274,7 @@ ProcessSnapshot sampleQuiescentProcess() {
   while (std::chrono::steady_clock::now() < deadline) {
     std::this_thread::sleep_for(kThreadQuiescencePollInterval);
     auto next = sampleProcessSnapshot();
-    if (next.process.threads != snapshot.process.threads) {
+    if (next.threads != snapshot.threads) {
       stable_since = std::chrono::steady_clock::now();
     } else if (std::chrono::steady_clock::now() - stable_since >= kThreadQuiescencePeriod) {
       return next;
@@ -286,10 +287,19 @@ ProcessSnapshot sampleQuiescentProcess() {
   return snapshot;
 }
 
-std::string formatThreadNames(const ThreadNameCounts& counts) {
+ThreadNameCounts countThreadNames(const ThreadIdentities& threads) {
+  ThreadNameCounts counts;
+  for (const auto& [id, name] : threads) {
+    static_cast<void>(id);
+    ++counts[name];
+  }
+  return counts;
+}
+
+std::string formatThreadNames(const ThreadIdentities& threads) {
   std::ostringstream output;
   bool first = true;
-  for (const auto& [name, count] : counts) {
+  for (const auto& [name, count] : countThreadNames(threads)) {
     if (!first) {
       output << ", ";
     }
@@ -299,7 +309,9 @@ std::string formatThreadNames(const ThreadNameCounts& counts) {
   return output.str();
 }
 
-std::string formatThreadNameDelta(const ThreadNameCounts& before, const ThreadNameCounts& after) {
+std::string formatThreadNameDelta(const ThreadIdentities& before_threads, const ThreadIdentities& after_threads) {
+  const auto before = countThreadNames(before_threads);
+  const auto after = countThreadNames(after_threads);
   ThreadNameCounts names = before;
   names.insert(after.begin(), after.end());
 
@@ -591,8 +603,8 @@ int main(int argc, char* argv[]) {
     const ProcessSnapshot initial = sampleProcessSnapshot();
     ProcessSnapshot warmup;
     ProcessSnapshot final;
-    std::uint64_t first_thread_growth_iteration = 0;
-    ProcessSnapshot first_thread_growth;
+    std::uint64_t sustained_thread_growth_iteration = 0;
+    ProcessSnapshot sustained_thread_growth;
     for (std::uint64_t iteration = 1; iteration <= options.iterations; ++iteration) {
       runCycle(options.scenario, credentials, reusable_room.get());
       std::this_thread::sleep_for(100ms);
@@ -600,11 +612,14 @@ int main(int argc, char* argv[]) {
         warmup = sampleQuiescentProcess();
       } else if (iteration == options.iterations) {
         final = sampleQuiescentProcess();
-      } else if (iteration > options.warmup && first_thread_growth_iteration == 0) {
+      } else if (iteration > options.warmup) {
         auto current = sampleProcessSnapshot();
-        if (current.process.threads > warmup.process.threads) {
-          first_thread_growth_iteration = iteration;
-          first_thread_growth = std::move(current);
+        if (current.process.threads <= warmup.process.threads) {
+          sustained_thread_growth_iteration = 0;
+          sustained_thread_growth = {};
+        } else if (sustained_thread_growth_iteration == 0) {
+          sustained_thread_growth_iteration = iteration;
+          sustained_thread_growth = std::move(current);
         }
       }
     }
@@ -620,15 +635,15 @@ int main(int argc, char* argv[]) {
     const bool passed = kibToMib(final_rss_growth) <= static_cast<double>(options.max_rss_growth_mib) &&
                         final_thread_growth <= static_cast<std::int64_t>(options.max_thread_growth);
     if (final_thread_growth > 0) {
-      if (first_thread_growth_iteration == 0) {
-        first_thread_growth_iteration = options.iterations;
-        first_thread_growth = final;
+      if (sustained_thread_growth_iteration == 0) {
+        sustained_thread_growth_iteration = options.iterations;
+        sustained_thread_growth = final;
       }
-      std::cerr << "memory tester: thread growth first observed after cycle " << first_thread_growth_iteration
-                << "; warmup={" << formatThreadNames(warmup.thread_names) << "}; first-growth={"
-                << formatThreadNames(first_thread_growth.thread_names) << "}; final={"
-                << formatThreadNames(final.thread_names) << "}; warmup-to-final delta={"
-                << formatThreadNameDelta(warmup.thread_names, final.thread_names) << "}\n";
+      std::cerr << "memory tester: final thread growth sustained since cycle " << sustained_thread_growth_iteration
+                << "; warmup={" << formatThreadNames(warmup.threads) << "}; growth-start={"
+                << formatThreadNames(sustained_thread_growth.threads) << "}; final={"
+                << formatThreadNames(final.threads) << "}; warmup-to-final delta={"
+                << formatThreadNameDelta(warmup.threads, final.threads) << "}\n";
     }
     std::cout << std::fixed << std::setprecision(2) << "memory tester: scenario=" << scenarioName(options.scenario)
               << ", RSS 0 " << kibToMib(initial.process.rss_kib) << " -> warmup " << kibToMib(warmup.process.rss_kib)
