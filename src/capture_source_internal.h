@@ -19,11 +19,11 @@
 #include "livekit/capture/capture_source.h"
 #include "livekit/visibility.h"
 
-namespace livekit {
-
-namespace proto {
+namespace livekit::proto {
 class NewCaptureSourceRequest;
-} // namespace proto
+} // namespace livekit::proto
+
+namespace livekit::capture {
 
 /// Serialize capture configurations for the FFI request.
 /// Internal test seam; not part of the public SDK API.
@@ -31,4 +31,4 @@ LIVEKIT_INTERNAL_API proto::NewCaptureSourceRequest toProto(const GstreamerVideo
 LIVEKIT_INTERNAL_API proto::NewCaptureSourceRequest toProto(const PatternVideoSourceConfig& config);
 LIVEKIT_INTERNAL_API proto::NewCaptureSourceRequest toProto(const ClockVideoSourceConfig& config);
 
-} // namespace livekit
+} // namespace livekit::capture

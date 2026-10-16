@@ -93,7 +93,7 @@ protected:
   void SetUp() override { ASSERT_TRUE(FfiClient::instance().initialize(false)); }
   void TearDown() override { FfiClient::instance().shutdown(); }
 
-  std::future<std::shared_ptr<CaptureSource>> beginCreation() {
+  std::future<std::shared_ptr<capture::CaptureSource>> beginCreation() {
     return FfiClient::instance().newCaptureSourceAsync({}, [this](const proto::FfiRequest& request) {
       async_id_ = request.new_capture_source().request_async_id();
       proto::FfiResponse response;
@@ -102,7 +102,7 @@ protected:
     });
   }
 
-  std::shared_ptr<CaptureSource> completeCreation(const proto::OwnedCaptureSource& owned) {
+  std::shared_ptr<capture::CaptureSource> completeCreation(const proto::OwnedCaptureSource& owned) {
     auto future = beginCreation();
     emitFfiEvent(creationEvent(async_id_, owned));
     return future.get();
@@ -131,11 +131,11 @@ TEST_F(CaptureSourceCallbackTest, AbandonedFutureDoesNotWaitForCallbackAndReleas
 TEST_F(CaptureSourceCallbackTest, CallbackReturnsWrapperAndOwnsVideoSource) {
   auto source = completeCreation(makeOwned());
   ASSERT_NE(source, nullptr);
-  EXPECT_EQ(source->kind(), CaptureSourceKind::Pixel);
+  EXPECT_EQ(source->kind(), capture::CaptureSourceKind::Pixel);
   EXPECT_EQ(source->width(), 1280);
   EXPECT_EQ(source->height(), 720);
   EXPECT_EQ(FfiClientTestAccess::listenerCount(), 1u);
-  std::weak_ptr<CaptureSource> weak_source = source;
+  std::weak_ptr<capture::CaptureSource> weak_source = source;
   std::weak_ptr<VideoSource> weak_video = source->videoSource();
   source.reset();
   EXPECT_TRUE(weak_source.expired());
@@ -165,7 +165,7 @@ TEST_F(CaptureSourceCallbackTest, AbandonedAndInvalidResultsReleaseBothRustHandl
     static_cast<void>(video_guard.release());
     emitFfiEvent(creationEvent(async_id_, owned));
     if (invalid) {
-      EXPECT_THROW(static_cast<void>(future.get()), CaptureSourceError);
+      EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
     }
     // A second drop must fail. If ownership leaked, this also cleans it up.
     EXPECT_FALSE(dropFfiHandle(capture.handle().id()));
@@ -192,7 +192,7 @@ TEST_F(CaptureSourceCallbackTest, CreationErrorUsesCaptureSourceError) {
   event.mutable_new_capture_source()->set_async_id(async_id_);
   event.mutable_new_capture_source()->set_error("discovery failed");
   emitFfiEvent(event);
-  EXPECT_THROW(static_cast<void>(future.get()), CaptureSourceError);
+  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
 }
 
 TEST_F(CaptureSourceCallbackTest, UnrelatedCallbackDoesNotCompleteFuture) {
@@ -211,14 +211,14 @@ TEST_F(CaptureSourceCallbackTest, MissingSourceUsesCaptureSourceError) {
   proto::FfiEvent event;
   event.mutable_new_capture_source()->set_async_id(async_id_);
   emitFfiEvent(event);
-  EXPECT_THROW(static_cast<void>(future.get()), CaptureSourceError);
+  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
 }
 
 TEST_F(CaptureSourceCallbackTest, ShutdownCancelsPendingFutureWithCaptureSourceError) {
   auto future = beginCreation();
   FfiClient::instance().shutdown();
   EXPECT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
-  EXPECT_THROW(static_cast<void>(future.get()), CaptureSourceError);
+  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
 }
 
 TEST_F(CaptureSourceCallbackTest, SendFailureRemovesPendingOperation) {
@@ -300,7 +300,7 @@ TEST_F(CaptureSourceCallbackTest, RecommendationsCannotReplaceOtherApplicationOp
 }
 
 TEST(CaptureSourceProtoTest, ClockConfigurationUsesMainlineWireContract) {
-  ClockVideoSourceConfig config;
+  capture::ClockVideoSourceConfig config;
   config.resolution = {1920, 1080};
   config.framerate_fps = 30;
 
@@ -315,52 +315,53 @@ TEST(CaptureSourceProtoTest, ClockConfigurationUsesMainlineWireContract) {
 }
 
 TEST(CaptureSourceProtoTest, RejectsNonPositiveDimensionsBeforeUnsignedConversion) {
-  for (const CaptureResolution resolution : {CaptureResolution{0, 720}, CaptureResolution{-1, 720},
-                                             CaptureResolution{1280, 0}, CaptureResolution{1280, -1}}) {
-    PatternVideoSourceConfig pattern;
+  for (const capture::CaptureResolution resolution :
+       {capture::CaptureResolution{0, 720}, capture::CaptureResolution{-1, 720}, capture::CaptureResolution{1280, 0},
+        capture::CaptureResolution{1280, -1}}) {
+    capture::PatternVideoSourceConfig pattern;
     pattern.resolution = resolution;
     pattern.framerate_fps = 30;
-    EXPECT_THROW(toProto(pattern), CaptureSourceError);
-    ClockVideoSourceConfig clock;
+    EXPECT_THROW(toProto(pattern), capture::CaptureSourceError);
+    capture::ClockVideoSourceConfig clock;
     clock.resolution = resolution;
     clock.framerate_fps = 30;
-    EXPECT_THROW(toProto(clock), CaptureSourceError);
-    GstreamerVideoSourceConfig gstreamer;
+    EXPECT_THROW(toProto(clock), capture::CaptureSourceError);
+    capture::GstreamerVideoSourceConfig gstreamer;
     gstreamer.resolution = resolution;
-    EXPECT_THROW(toProto(gstreamer), CaptureSourceError);
+    EXPECT_THROW(toProto(gstreamer), capture::CaptureSourceError);
   }
 }
 
 TEST(CaptureSourceProtoTest, RejectsZeroFrameRate) {
-  PatternVideoSourceConfig pattern;
+  capture::PatternVideoSourceConfig pattern;
   pattern.resolution = {1280, 720};
-  EXPECT_THROW(toProto(pattern), CaptureSourceError);
-  ClockVideoSourceConfig clock;
+  EXPECT_THROW(toProto(pattern), capture::CaptureSourceError);
+  capture::ClockVideoSourceConfig clock;
   clock.resolution = {1280, 720};
-  EXPECT_THROW(toProto(clock), CaptureSourceError);
+  EXPECT_THROW(toProto(clock), capture::CaptureSourceError);
 }
 
 TEST(CaptureSourceProtoTest, ValidationErrorsAreDeliveredThroughFuture) {
-  std::future<std::shared_ptr<CaptureSource>> future;
-  EXPECT_NO_THROW(future = CaptureSource::create(ClockVideoSourceConfig{}));
+  std::future<std::shared_ptr<capture::CaptureSource>> future;
+  EXPECT_NO_THROW(future = capture::CaptureSource::create(capture::ClockVideoSourceConfig{}));
   ASSERT_TRUE(future.valid());
-  EXPECT_THROW(static_cast<void>(future.get()), CaptureSourceError);
+  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
 }
 
 TEST(CaptureSourceProtoTest, SendErrorsAreDeliveredThroughFuture) {
   FfiClient::instance().shutdown();
-  ClockVideoSourceConfig config;
+  capture::ClockVideoSourceConfig config;
   config.resolution = {1280, 720};
   config.framerate_fps = 30;
-  std::future<std::shared_ptr<CaptureSource>> future;
-  EXPECT_NO_THROW(future = CaptureSource::create(config));
+  std::future<std::shared_ptr<capture::CaptureSource>> future;
+  EXPECT_NO_THROW(future = capture::CaptureSource::create(config));
   ASSERT_TRUE(future.valid());
-  EXPECT_THROW(static_cast<void>(future.get()), CaptureSourceError);
+  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
 TEST(CaptureSourceProtoTest, GstreamerCanDiscoverResolution) {
-  GstreamerVideoSourceConfig config;
+  capture::GstreamerVideoSourceConfig config;
   config.pipeline = "videotestsrc ! vp8enc ! appsink name=lk_appsink";
   const auto request = toProto(config);
   EXPECT_TRUE(request.IsInitialized());
