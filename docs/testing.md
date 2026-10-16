@@ -44,7 +44,7 @@ After building, test binaries are available at:
 ## Running tests
 
 ```bash
-# Run all tests via ctest (warning, runs unit, )
+# Run all tests via ctest (warning, runs all GTest-based tests including stress)
 cd build-debug
 ctest --output-on-failure
 
