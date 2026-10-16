@@ -8,8 +8,7 @@ cmake_install.cmake
 out
 build.log
 build/
-build-debug/
-build-release/
+build-*/
 local-install/
 release/
 vcpkg_installed/
