@@ -84,6 +84,7 @@ Be sure to update the directory layout in this file if the directory layout chan
 | Path | Description |
 |------|-------------|
 | `include/livekit/` | Public API headers (what SDK consumers include) |
+| `include/livekit/capture/` | Capture API headers; installed only for capture-enabled SDKs |
 | `src/` | Implementation files and internal-only headers (`ffi_client.h`, `lk_log.h`, etc.) |
 | `src/tests/` | Google Test integration and stress tests |
 | `examples/` | In-tree example applications |
@@ -94,6 +95,8 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `scripts/` | Local helper scripts for SDK-specific development tasks |
 | `docs/` | Documentation root. `docs/` holds hand-written long-form Markdown intended to also read well on GitHub. |
 | `docs/doxygen/` | Doxygen tool config, theme assets, and Doxygen-only content (`Doxyfile`, `index.md` mainpage, `customization/*.css`, `customization/header.html`, `customization/favicon.ico`). Files here use Doxygen-only syntax (`@ref`, `@brief`, …) and are not intended for human reading on their own. |
+| `src/tests/packaging/` | Standalone CTest integration tests consuming installed SDK bundles |
+| `.github/actions/` | Shared CI actions for base and capture dependencies, SDK builds, Cargo paths, example smoke checks, packaging tests, and exported ABI checks |
 | `.github/workflows/` | GitHub Actions CI workflows |
 
 ### Key Types
@@ -125,6 +128,19 @@ To create an installable SDK bundle, use the same build command with
 `--bundle --prefix <install-dir>` (for example,
 `./build.sh release --bundle --prefix sdk-out/livekit-sdk`). On Windows, use
 `build.cmd release --bundle --prefix C:\path\to\livekit-sdk`.
+
+Capture sources are selected with `LIVEKIT_CAPTURE` / `--capture[=list]`:
+`none`, `all`, or a comma-separated subset of `gstreamer`, `pattern`, `clock`.
+`LIVEKIT_CAPTURE_ENABLED` is 0 or 1. Release workflows publish separate
+`-capture` bundles (all sources) and validate them via `src/tests/packaging/`.
+
+Rust FFI outputs live under `client-sdk-rust/target/cpp-<feature-hash>/` to isolate
+Cargo feature configurations. Set `CARGO_TARGET_DIR` to override the root;
+feature-specific directories are appended. Windows CI uses a short root under
+`runner.temp` to keep nested WebRTC header paths below the Windows path limit.
+Generated public build metadata lives under each
+build directory's `generated/include/livekit/build.h`; do not generate it into
+the source tree. Track capture Rust sources and shaders in build dependencies.
 
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
@@ -338,6 +354,7 @@ malformed table, missing `@param` on a documented function, …) fails the build
 | nlohmann/json | **Private** | Header-only; vendored via FetchContent (Unix) or vcpkg (Windows); must NOT leak into public API |
 | client-sdk-rust | Build-time | Git submodule, built via cargo during CMake build |
 | cpp-tools | Developer / CI | Git submodule containing shared LiveKit C++ formatting and static-analysis tooling |
+| GStreamer | Capture builds / runtime | System libraries and plugins; accessed through Rust; not redistributed in SDK bundles |
 | Google Test | Test only | FetchContent in `src/tests/CMakeLists.txt` |
 
 When adding a new private/vendored dependency to this table, also add a
@@ -384,11 +401,18 @@ When adding new client facing functionality, add benchmarking to understand the 
 expensive stages. Manual `workflow_dispatch` runs intentionally opt back into
 all filtered stages; normal pull requests and pushes use the path filters.
 
+
 - `.github/workflows/ci.yml` — Top-level PR/push/manual aggregator and path
   filter owner.
 - `.github/workflows/builds.yml` — Reusable SDK and example-collection build
-  matrix.
+  matrix. Each platform job builds, validates, and uploads the standard SDK,
+  then enables capture in the same CMake tree and produces a separate capture
+  bundle. Save the Cargo target cache only after both builds complete.
 - `.github/workflows/tests.yml` — Reusable unit/integration test matrix.
+  Each platform job first validates an installed standard SDK, then rebuilds
+  with capture enabled and runs the complete test suite once.
+  The build, test, and release jobs use the shared actions under
+  `.github/actions/`; keep platform-specific build and bundle checks there.
 - `.github/workflows/cpp-tools.yml` — Reusable SDK-specific `clang-format` and
   `clang-tidy` workflow. It prepares the build environment and invokes the
   project wrappers backed by the shared `cpp-tools` scripts.

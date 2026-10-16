@@ -12,10 +12,8 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  # Disable Cargo incremental artifacts. The Rust FFI is built once per
-  # submodule SHA and cached whole (see the cargo target cache below), so
-  # incremental dirs add nothing but bloat the cached target/ directory and
-  # slow the cache upload/download.
+  # Cache both feature-specific Rust builds per submodule SHA. Cargo
+  # incremental codegen directories add cache size without helping CMake reuse.
   CARGO_INCREMENTAL: "0"
   # vcpkg binary caching for Windows. The x-gha backend was removed from vcpkg,
   # so use vcpkg's files provider and persist that directory with actions/cache.
@@ -34,36 +32,25 @@ jobs:
         include:
           - os: ubuntu-22.04
             name: ubuntu-22.04-x64
-            build_cmd: ./build.sh release-examples --bundle --prefix sdk-out/livekit-sdk-ubuntu-22.04-x64
-            build_dir: build-release
           - os: ubuntu-22.04-arm
             name: ubuntu-22.04-arm64
-            build_cmd: ./build.sh release-examples --bundle --prefix sdk-out/livekit-sdk-ubuntu-22.04-arm64
-            build_dir: build-release
           - os: ubuntu-24.04
             name: ubuntu-24.04-x64
-            build_cmd: ./build.sh release-examples --bundle --prefix sdk-out/livekit-sdk-ubuntu-24.04-x64
-            build_dir: build-release
           - os: ubuntu-24.04-arm
             name: ubuntu-24.04-arm64
-            build_cmd: ./build.sh release-examples --bundle --prefix sdk-out/livekit-sdk-ubuntu-24.04-arm64
-            build_dir: build-release
           - os: macos-26-xlarge
             name: macos-arm64
-            build_cmd: ./build.sh release-examples --bundle --prefix sdk-out/livekit-sdk-macos-arm64
-            build_dir: build-release
           - os: macos-26-large
             name: macos-x64
-            build_cmd: ./build.sh release-examples --bundle --prefix sdk-out/livekit-sdk-macos-x64 --macos-arch x86_64
-            build_dir: build-release
+            macos_arch: x86_64
             # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
-            build_cmd: .\build.cmd release-examples --bundle --prefix sdk-out\livekit-sdk-windows-x64
-            build_dir: build-release
 
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    env:
+      BUILD_DIR: build-release
 
     steps:
       - name: Checkout (with submodules)
@@ -71,6 +58,9 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 1
+
+      - name: Set Cargo output root
+        uses: ./.github/actions/cargo-target-root
 
       - name: Pull LFS files
         run: git lfs pull
@@ -100,45 +90,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-vcpkg-binary-${{ env.VCPKG_TARGET_TRIPLET }}-${{ env.VCPKG_GIT_COMMIT }}-
 
-      - name: Setup vcpkg (Windows only)
-        if: runner.os == 'Windows'
-        uses: lukka/run-vcpkg@5e0cab206a5ea620130caf672fce3e4a6b5666a1 # v11.5
+      - name: Set up base SDK dependencies
+        uses: ./.github/actions/setup-sdk-deps
         with:
-          vcpkgGitCommitId: ${{ env.VCPKG_GIT_COMMIT }}
-
-      # ---------- OS-specific deps ----------
-      - name: Install deps (Ubuntu)
-        if: runner.os == 'Linux'
-        run: |
-          set -eux
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake ninja-build pkg-config \
-            llvm-dev libclang-dev clang \
-            libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
-            libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
-            libxrandr-dev libxi-dev libxkbcommon-dev \
-            libasound2-dev libpulse-dev \
-            libssl-dev \
-            libprotobuf-dev protobuf-compiler \
-            libabsl-dev \
-            libcurl4-openssl-dev \
-            libwayland-dev libdecor-0-dev
-
-      # The libwebrtc artifact ships a hermetic libc++ built from LLVM trunk.
-      # Distro clang (14 on Ubuntu 22.04, 18 on 24.04) cannot compile its
-      # headers; the submodule script installs LLVM 21 and exports CC/CXX.
-      - name: Install clang for libwebrtc
-        if: runner.os == 'Linux'
-        shell: bash
-        run: client-sdk-rust/.github/scripts/install-clang.sh
-
-      - name: Install deps (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          set -eux
-          brew update
-          brew install cmake ninja protobuf abseil
+          vcpkg-commit: ${{ env.VCPKG_GIT_COMMIT }}
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
@@ -172,6 +127,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.name }}-cargo-registry-
 
+      # macOS FFI libraries retain GStreamer link paths. Include capture setup
+      # in the key so changes to the framework installation invalidate them.
       # Restore-only here; the matching save runs after a successful build (see
       # "Save cargo target" below). A combined actions/cache saves in a post-job
       # step that runs AFTER the "Clean after build" cleanup wipes target/debug
@@ -181,17 +138,18 @@ jobs:
         id: cache-cargo-target
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: client-sdk-rust/target/
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
-          restore-keys: |
-            ${{ matrix.os }}-${{ matrix.name }}-cargo-target-
+          path: |
+            client-sdk-rust/target/
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-release-standard-${{ hashFiles('CMakeLists.txt', 'build.sh', 'build.cmd', '.github/actions/setup-capture/action.yml', '.github/actions/test-capture-variants/action.yml') }}-${{ steps.rust_sha.outputs.sha }}
 
-      # restore-keys can hydrate target/ from a prior submodule SHA. cxxbridge
-      # artifacts in webrtc-sys are not compatible across those bumps.
+      # Restore exact keys only: webrtc-sys cxxbridge artifacts are not
+      # compatible across Rust submodule bumps. Avoid downloading a fallback
+      # cache that this cleanup would immediately discard.
       - name: Drop stale cargo target on submodule SHA cache miss
         if: steps.cache-cargo-target.outputs.cache-hit != 'true'
         shell: bash
-        run: rm -rf client-sdk-rust/target/
+        run: rm -rf client-sdk-rust/target/ "$CARGO_TARGET_DIR"
 
       # ---------- Build environment setup ----------
       - name: Set Linux build environment
@@ -204,17 +162,73 @@ jobs:
           echo "LIBCLANG_PATH=${LLVM_ROOT}/lib" >> "$GITHUB_ENV"
 
       # ---------- Build ----------
-      - name: Build (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          chmod +x build.sh
-          ${{ matrix.build_cmd }}
+      - name: Build standard SDK
+        uses: ./.github/actions/build-sdk
+        with:
+          preset: release-examples
+          capture: 'OFF'
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}
+          macos-arch: ${{ matrix.macos_arch || '' }}
 
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: ${{ matrix.build_cmd }}
+      # ---------- Smoke test cpp-example-collection binaries ----------
+      # Built under cpp-example-collection-build/ (not build-dir/bin). Visual Studio
+      # multi-config places executables in per-target Release/ (or Debug/) subdirs.
+      - name: Smoke test examples
+        uses: ./.github/actions/smoke-examples
+        with:
+          build-dir: ${{ env.BUILD_DIR }}
+
+      - name: Test installed standard SDK
+        uses: ./.github/actions/test-sdk-bundle
+        with:
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}
+          capture: 'OFF'
+          macos-arch: ${{ matrix.macos_arch || '' }}
+
+      # ---------- Upload artifacts ----------
+      - name: Upload SDK bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: livekit-sdk-${{ matrix.name }}
+          path: sdk-out/livekit-sdk-${{ matrix.name }}
+          retention-days: 7
+
+      # Reconfigure the same CMake tree after the standard bundle and aliases
+      # have been validated and uploaded. Keep both install prefixes separate.
+      - name: Set up capture dependencies
+        if: matrix.name != 'macos-x64'
+        uses: ./.github/actions/setup-capture
+
+      - name: Build capture SDK
+        if: matrix.name != 'macos-x64'
+        uses: ./.github/actions/build-sdk
+        with:
+          preset: release-examples
+          capture: 'ON'
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture
+          macos-arch: ${{ matrix.macos_arch || '' }}
+
+      - name: Smoke test capture examples
+        if: matrix.name != 'macos-x64'
+        uses: ./.github/actions/smoke-examples
+        with:
+          build-dir: ${{ env.BUILD_DIR }}
+
+      - name: Test installed capture SDK
+        if: matrix.name != 'macos-x64'
+        uses: ./.github/actions/test-sdk-bundle
+        with:
+          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture
+          capture: 'ON'
+          macos-arch: ${{ matrix.macos_arch || '' }}
+
+      - name: Upload capture SDK bundle
+        if: matrix.name != 'macos-x64'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: livekit-sdk-${{ matrix.name }}-capture
+          path: sdk-out/livekit-sdk-${{ matrix.name }}-capture
+          retention-days: 7
 
       # Save the populated target/ now, while the build output still exists and
       # before the "Clean after build" step runs clean-all. Save only from main
@@ -224,8 +238,10 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.cache-cargo-target.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: client-sdk-rust/target/
-          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-${{ steps.rust_sha.outputs.sha }}
+          path: |
+            client-sdk-rust/target/
+            ${{ env.CARGO_TARGET_DIR }}
+          key: ${{ matrix.os }}-${{ matrix.name }}-cargo-target-release-standard-${{ hashFiles('CMakeLists.txt', 'build.sh', 'build.cmd', '.github/actions/setup-capture/action.yml', '.github/actions/test-capture-variants/action.yml') }}-${{ steps.rust_sha.outputs.sha }}
 
       - name: Save vcpkg binary cache
         if: runner.os == 'Windows' && steps.cache-vcpkg-binary.outputs.cache-hit != 'true'
@@ -233,125 +249,6 @@ jobs:
         with:
           path: ${{ env.VCPKG_BINARY_CACHE_DIR }}
           key: ${{ runner.os }}-${{ matrix.name }}-vcpkg-binary-${{ env.VCPKG_TARGET_TRIPLET }}-${{ env.VCPKG_GIT_COMMIT }}-${{ hashFiles('vcpkg.json') }}
-
-      # ---------- Smoke test cpp-example-collection binaries ----------
-      # Built under cpp-example-collection-build/ (not build-dir/bin). Visual Studio
-      # multi-config places executables in per-target Release/ (or Debug/) subdirs.
-      - name: Smoke test examples (Unix)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: |
-          set -x
-          failed=false
-          examples_base="${{ matrix.build_dir }}/cpp-example-collection-build"
-          resolve_exe() {
-            local dir="$1" name="$2"
-            local p="${examples_base}/${dir}/${name}"
-            if [[ -x "${p}" ]]; then
-              printf '%s' "${p}"
-              return 0
-            fi
-            p="${examples_base}/${dir}/Release/${name}"
-            if [[ -x "${p}" ]]; then
-              printf '%s' "${p}"
-              return 0
-            fi
-            return 1
-          }
-          for pair in "SimpleRoom:simple_room" "SimpleRpc:simple_rpc" "SimpleDataStream:simple_data_stream"; do
-            exe="${pair%%:*}"
-            dir="${pair#*:}"
-            if ! exe_path="$(resolve_exe "${dir}" "${exe}")"; then
-              echo "ERROR: ${exe} not found under ${examples_base}/${dir}/"
-              failed=true
-              continue
-            fi
-            echo "Testing ${exe}..."
-            output=$("${exe_path}" --help 2>&1) || true
-            if [[ -z "${output}" ]]; then
-              echo "ERROR: ${exe} produced no output"
-              failed=true
-            else
-              echo "${output}"
-              echo "${exe} ran successfully"
-            fi
-          done
-          if [[ "$failed" == "true" ]]; then exit 1; fi
-
-      - name: Smoke test examples (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $examplesBase = "${{ matrix.build_dir }}/cpp-example-collection-build"
-          $examples = @(
-            @{ Name = 'SimpleRoom'; Dir = 'simple_room' },
-            @{ Name = 'SimpleRpc'; Dir = 'simple_rpc' },
-            @{ Name = 'SimpleDataStream'; Dir = 'simple_data_stream' }
-          )
-          $failed = $false
-          foreach ($ex in $examples) {
-            $name = $ex.Name
-            $dir = $ex.Dir
-            $inDir = Join-Path $examplesBase $dir
-            $candidates = @(
-              (Join-Path $inDir "$name.exe"),
-              (Join-Path (Join-Path $inDir 'Release') "$name.exe")
-            )
-            $exePath = $null
-            foreach ($p in $candidates) {
-              if (Test-Path -LiteralPath $p) {
-                $exePath = $p
-                break
-              }
-            }
-            if ($null -ne $exePath) {
-              Write-Host "Testing ${name}..."
-              $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-              $pinfo.FileName = $exePath
-              $pinfo.Arguments = "--help"
-              $pinfo.RedirectStandardOutput = $true
-              $pinfo.RedirectStandardError = $true
-              $pinfo.UseShellExecute = $false
-              $p = New-Object System.Diagnostics.Process
-              $p.StartInfo = $pinfo
-              $p.Start() | Out-Null
-              $stdout = $p.StandardOutput.ReadToEnd()
-              $stderr = $p.StandardError.ReadToEnd()
-              $p.WaitForExit()
-              $output = $stdout + $stderr
-              if ([string]::IsNullOrWhiteSpace($output)) {
-                Write-Host "ERROR: ${name} produced no output"
-                $failed = $true
-              } else {
-                Write-Host $output
-                Write-Host "${name} ran successfully"
-              }
-            } else {
-              Write-Host "ERROR: ${name} not found under ${examplesBase}/${dir}/"
-              $failed = $true
-            }
-          }
-          if ($failed) { exit 1 } else { exit 0 }
-
-      - name: Verify SDK bundle
-        shell: bash
-        run: |
-          set -euo pipefail
-          bundle="sdk-out/livekit-sdk-${{ matrix.name }}"
-          test -f "${bundle}/include/livekit/livekit.h"
-          test -f "${bundle}/share/livekit/build-info.json"
-          test -f "${bundle}/lib/cmake/LiveKit/LiveKitConfig.cmake"
-          test -f "${bundle}/lib/cmake/LiveKit/LiveKitConfigVersion.cmake"
-          test -f "${bundle}/lib/cmake/LiveKit/LiveKitTargets.cmake"
-
-      # ---------- Upload artifacts ----------
-      - name: Upload SDK bundle
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: livekit-sdk-${{ matrix.name }}
-          path: sdk-out/livekit-sdk-${{ matrix.name }}
-          retention-days: 7
 
       # ---------- Cleanup ----------
       - name: Clean after build (best-effort)
