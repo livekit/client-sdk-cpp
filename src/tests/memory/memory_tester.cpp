@@ -404,8 +404,11 @@ void runRoomClientLeaveCycle(const RoomCredentials& credentials) {
   delegate.requireDisconnect(livekit::DisconnectReason::ClientInitiated);
 }
 
-// Exercises server-initiated room deletion and validates disconnect, event-stream
-// completion, local-participant cleanup, and destruction of the torn-down Room.
+// Exercises server-initiated room deletion while one published video track is
+// still attached. Teardown must release that publication after the peer
+// connection has already closed; unpublishing first avoids the leak this
+// scenario targets. The synthetic track uses the default software-capable
+// encoder so the scenario can run in CI.
 void runRoomServerDeleteCycle(const RoomCredentials& credentials) {
   if (std::string_view(credentials.url) != kLocalTestLiveKitUrl) {
     throw std::runtime_error("room-server-delete requires LIVEKIT_URL=ws://localhost:7880");
@@ -415,6 +418,30 @@ void runRoomServerDeleteCycle(const RoomCredentials& credentials) {
   livekit::Room room;
   room.setDelegate(&delegate);
   connectRoom(room, credentials);
+
+  auto participant = room.localParticipant().lock();
+  if (!participant) {
+    throw std::runtime_error("local participant expired before publishing video track");
+  }
+
+  auto video_source = std::make_shared<livekit::VideoSource>(640, 360);
+  auto video_track = livekit::LocalVideoTrack::createLocalVideoTrack("memory-video", video_source);
+  if (!video_track) {
+    throw std::runtime_error("failed to create local video track");
+  }
+  livekit::TrackPublishOptions publish_options;
+  publish_options.source = livekit::TrackSource::SOURCE_CAMERA;
+  publish_options.simulcast = false;
+  participant->publishTrack(video_track, publish_options);
+  if (!video_track->publication()) {
+    throw std::runtime_error("failed to publish local video track");
+  }
+
+  auto frame = livekit::VideoFrame::create(640, 360, livekit::VideoBufferType::I420);
+  std::fill(frame.data(), frame.data() + frame.dataSize(), 0x7f);
+  for (int frame_index = 0; frame_index < kFramesPerCycle; ++frame_index) {
+    video_source->captureFrame(frame);
+  }
 
   // The room name is fixed rather than interpolating untrusted environment data into the command.
   if (std::system("lk --dev room delete --yes cpp_data_track_test") != 0) {

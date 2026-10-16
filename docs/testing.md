@@ -139,8 +139,10 @@ or groups of scenarios:
   payloads, unpublishes it, and disconnects.
 - `room-reuse` repeatedly connects and disconnects the same room object.
 - `room-client-leave` repeatedly connects, disconnects, and destroys a room.
-- `room-server-delete` repeatedly connects and uses `lk` to delete the local
-  test room, then verifies the disconnect and end-of-stream callbacks.
+- `room-server-delete` repeatedly connects, publishes one synthetic video
+  track, captures I420 frames without unpublishing, and uses `lk` to delete
+  the local test room. It then verifies the disconnect and end-of-stream
+  callbacks.
 
 Each scenario reports process RSS and thread count at cycle 0, after warmup
 cycle 20, and after final cycle 100. The gate applies to warmup-to-final growth
