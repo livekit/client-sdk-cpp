@@ -37,9 +37,16 @@
 
 namespace livekit {
 
+class FfiClient;
+
 namespace proto {
 class OwnedCaptureSource;
 } // namespace proto
+
+} // namespace livekit
+
+/// @brief Capture sources and their configuration types.
+namespace livekit::capture {
 
 /// @brief Error raised when capture source creation or control fails.
 class LIVEKIT_API CaptureSourceError : public std::runtime_error {
@@ -269,7 +276,7 @@ public:
   bool stop();
 
 private:
-  friend class FfiClient;
+  friend class livekit::FfiClient;
 
   CaptureSource();
 
@@ -280,4 +287,4 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-} // namespace livekit
+} // namespace livekit::capture

@@ -45,17 +45,17 @@ constexpr int kCaptureWidth = 1280;
 constexpr int kCaptureHeight = 720;
 constexpr std::uint32_t kCaptureFramerateFps = 30;
 
-std::shared_ptr<CaptureSource> createCapture(bool clock) {
+std::shared_ptr<capture::CaptureSource> createCapture(bool clock) {
   if (clock) {
-    ClockVideoSourceConfig config;
+    capture::ClockVideoSourceConfig config;
     config.resolution = {kCaptureWidth, kCaptureHeight};
     config.framerate_fps = kCaptureFramerateFps;
-    return CaptureSource::create(config).get();
+    return capture::CaptureSource::create(config).get();
   }
-  PatternVideoSourceConfig config;
+  capture::PatternVideoSourceConfig config;
   config.resolution = {kCaptureWidth, kCaptureHeight};
   config.framerate_fps = kCaptureFramerateFps;
-  return CaptureSource::create(config).get();
+  return capture::CaptureSource::create(config).get();
 }
 
 } // namespace
@@ -77,7 +77,7 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
   ASSERT_NE(capture, nullptr);
 
   // The pixel source reports back the resolution it was configured with.
-  ASSERT_EQ(capture->kind(), CaptureSourceKind::Pixel);
+  ASSERT_EQ(capture->kind(), capture::CaptureSourceKind::Pixel);
   ASSERT_EQ(capture->width(), kCaptureWidth);
   ASSERT_EQ(capture->height(), kCaptureHeight);
   ASSERT_FALSE(capture->codec().has_value());
@@ -121,8 +121,8 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
   ASSERT_NO_THROW(lockLocalParticipant(sender_room)->publishTrack(track, capture->publishOptions(app_options)));
 
   // Observe the capture's terminal event.
-  std::optional<CaptureResult> finished;
-  capture->setOnFinishedCallback([&mutex, &cv, &finished](const CaptureResult& result) {
+  std::optional<capture::CaptureResult> finished;
+  capture->setOnFinishedCallback([&mutex, &cv, &finished](const capture::CaptureResult& result) {
     std::lock_guard<std::mutex> lock(mutex);
     finished = result;
     cv.notify_all();
@@ -148,7 +148,7 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
   }
 
   ASSERT_FALSE(finished->error.has_value()) << *finished->error;
-  EXPECT_EQ(finished->exit, CaptureExit::Stopped);
+  EXPECT_EQ(finished->exit, capture::CaptureExit::Stopped);
   EXPECT_GT(finished->frames_captured, 0u);
   const auto capture_seconds =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - capture_started).count();
@@ -162,6 +162,8 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
 }
 
 INSTANTIATE_TEST_SUITE_P(PixelSources, CaptureSourceServerTest, ::testing::Bool(),
-                         [](const ::testing::TestParamInfo<bool>& info) { return info.param ? "Clock" : "Pattern"; });
+                         [](const ::testing::TestParamInfo<bool>& info) {
+                           return info.param ? "Clock" : "capture::Pattern";
+                         });
 
 } // namespace livekit::test

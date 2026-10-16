@@ -2,7 +2,7 @@
 
 > **NOTE:** LiveKit Capture is not officially supported on Intel-based Macs.
 
-`CaptureSource` connects a Rust video producer to a regular C++ `VideoSource`.
+`livekit::capture::CaptureSource` connects a Rust video producer to a regular C++ `VideoSource`.
 The capture pump runs in Rust, so C++ does not send one FFI request per frame.
 The SDK supports three source configurations:
 
@@ -26,7 +26,8 @@ Native camera device capture and device enumeration are not part of this API.
 For build flags, release bundle naming, GStreamer prerequisites, and runtime
 requirements, see [Building — Capture sources](building.md#capture-sources).
 
-Capture-enabled bundles install the capture API in `include/livekit/capture/`:
+Capture types live in the `livekit::capture` namespace. Capture-enabled bundles
+install the API in `include/livekit/capture/`:
 
 ```cpp
 #include <livekit/capture/capture_source.h>
@@ -50,8 +51,8 @@ continues, and the source is released when the callback arrives.
 #include <livekit/livekit.h>
 
 // The SDK is initialized, and room is connected.
-auto pending = livekit::CaptureSource::create(
-    livekit::PatternVideoSourceConfig{{1280, 720}, 30, livekit::Pattern::Gradient});
+auto pending = livekit::capture::CaptureSource::create(
+    livekit::capture::PatternVideoSourceConfig{{1280, 720}, 30, livekit::capture::Pattern::Gradient});
 // Other application setup can run while the producer is being constructed.
 auto capture = pending.get();
 // For a wall clock, use ClockVideoSourceConfig{{1280, 720}, 30} instead.
@@ -63,7 +64,7 @@ if (!participant) {
 }
 participant->publishTrack(track, capture->publishOptions());
 
-capture->setOnFinishedCallback([](const livekit::CaptureResult& result) {
+capture->setOnFinishedCallback([](const livekit::capture::CaptureResult& result) {
   // Runs on the FFI callback thread. Offload work that would block.
 });
 if (!capture->start()) {
@@ -81,12 +82,12 @@ Provide `appsink name=lk_appsink`, or leave exactly one encoded video source pad
 unlinked so the source can attach its own sink:
 
 ```cpp
-livekit::GstreamerVideoSourceConfig config;
+livekit::capture::GstreamerVideoSourceConfig config;
 config.pipeline = "videotestsrc ! video/x-raw,width=1280,height=720,framerate=30/1 ! "
                   "vp8enc name=lk_encoder deadline=1 ! appsink name=lk_appsink";
-config.rate_control = livekit::GstreamerRateControl{
-    "lk_encoder", "target-bitrate", livekit::GstreamerBitrateUnit::Bps};
-auto capture = livekit::CaptureSource::create(config).get();
+config.rate_control = livekit::capture::GstreamerRateControl{
+    "lk_encoder", "target-bitrate", livekit::capture::GstreamerBitrateUnit::Bps};
+auto capture = livekit::capture::CaptureSource::create(config).get();
 ```
 
 The optional rate-control binding forwards WebRTC bitrate targets to the named
