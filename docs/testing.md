@@ -145,8 +145,12 @@ or groups of scenarios:
   callbacks.
 
 Each scenario reports process RSS and thread count at cycle 0, after warmup
-cycle 20, and after final cycle 100. The gate applies to warmup-to-final growth
-and fails on thread growth or more than the configured amount of RSS growth.
+cycle 20, and after final cycle 100. Checkpoint sampling waits for the thread
+count to remain stable for 500 ms so short-lived teardown work does not cause a
+false failure. The gate applies to warmup-to-final growth and fails on thread
+growth or more than the configured amount of RSS growth. If threads grow, the
+tester also reports when growth was first observed and groups the warmup and
+final threads by their Linux thread names.
 
 The binary can be run directly, or via a helper script at `scripts/memory-tester.sh`,
 which invokes the binary but also has GitHub actions support for a results summary table.

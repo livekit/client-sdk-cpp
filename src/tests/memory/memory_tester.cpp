@@ -24,11 +24,14 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -40,6 +43,9 @@ using namespace std::chrono_literals;
 
 constexpr std::string_view kLocalTestLiveKitUrl = "ws://localhost:7880";
 constexpr int kFramesPerCycle = 3;
+constexpr auto kThreadQuiescencePeriod = 500ms;
+constexpr auto kThreadQuiescencePollInterval = 50ms;
+constexpr auto kThreadQuiescenceTimeout = 2s;
 
 enum class Scenario {
   AudioTrack,
@@ -61,6 +67,13 @@ struct Options {
 struct ProcessSample {
   std::uint64_t rss_kib{};
   std::uint64_t threads{};
+};
+
+using ThreadNameCounts = std::map<std::string, std::uint64_t>;
+
+struct ProcessSnapshot {
+  ProcessSample process;
+  ThreadNameCounts thread_names;
 };
 
 struct RoomCredentials {
@@ -233,6 +246,82 @@ ProcessSample sampleProcess() {
     throw std::runtime_error("failed to read RSS or thread count from /proc/self/status");
   }
   return sample;
+}
+
+ThreadNameCounts sampleThreadNames() {
+  ThreadNameCounts counts;
+  std::error_code error;
+  std::filesystem::directory_iterator iterator("/proc/self/task", error);
+  const std::filesystem::directory_iterator end;
+  while (!error && iterator != end) {
+    std::ifstream comm(iterator->path() / "comm");
+    std::string name;
+    if (std::getline(comm, name) && !name.empty()) {
+      ++counts[name];
+    }
+    iterator.increment(error);
+  }
+  return counts;
+}
+
+ProcessSnapshot sampleProcessSnapshot() { return {sampleProcess(), sampleThreadNames()}; }
+
+ProcessSnapshot sampleQuiescentProcess() {
+  auto snapshot = sampleProcessSnapshot();
+  auto stable_since = std::chrono::steady_clock::now();
+  const auto deadline = stable_since + kThreadQuiescenceTimeout;
+  while (std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::sleep_for(kThreadQuiescencePollInterval);
+    auto next = sampleProcessSnapshot();
+    if (next.process.threads != snapshot.process.threads) {
+      stable_since = std::chrono::steady_clock::now();
+    } else if (std::chrono::steady_clock::now() - stable_since >= kThreadQuiescencePeriod) {
+      return next;
+    }
+    snapshot = std::move(next);
+  }
+  std::cerr << "memory tester: thread count did not quiesce within "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(kThreadQuiescenceTimeout).count()
+            << " ms; using the latest sample\n";
+  return snapshot;
+}
+
+std::string formatThreadNames(const ThreadNameCounts& counts) {
+  std::ostringstream output;
+  bool first = true;
+  for (const auto& [name, count] : counts) {
+    if (!first) {
+      output << ", ";
+    }
+    output << name << '=' << count;
+    first = false;
+  }
+  return output.str();
+}
+
+std::string formatThreadNameDelta(const ThreadNameCounts& before, const ThreadNameCounts& after) {
+  ThreadNameCounts names = before;
+  names.insert(after.begin(), after.end());
+
+  std::ostringstream output;
+  bool first = true;
+  for (const auto& [name, unused] : names) {
+    static_cast<void>(unused);
+    const auto before_entry = before.find(name);
+    const auto after_entry = after.find(name);
+    const auto before_count = before_entry == before.end() ? 0 : before_entry->second;
+    const auto after_count = after_entry == after.end() ? 0 : after_entry->second;
+    const auto delta = static_cast<std::int64_t>(after_count) - static_cast<std::int64_t>(before_count);
+    if (delta == 0) {
+      continue;
+    }
+    if (!first) {
+      output << ", ";
+    }
+    output << name << '=' << (delta > 0 ? "+" : "") << delta;
+    first = false;
+  }
+  return output.str();
 }
 
 double kibToMib(std::uint64_t kib) { return static_cast<double>(kib) / 1024.0; }
@@ -499,34 +588,55 @@ int main(int argc, char* argv[]) {
       reusable_room = std::make_unique<livekit::Room>();
     }
 
-    const ProcessSample initial = sampleProcess();
-    ProcessSample warmup;
-    ProcessSample final;
+    const ProcessSnapshot initial = sampleProcessSnapshot();
+    ProcessSnapshot warmup;
+    ProcessSnapshot final;
+    std::uint64_t first_thread_growth_iteration = 0;
+    ProcessSnapshot first_thread_growth;
     for (std::uint64_t iteration = 1; iteration <= options.iterations; ++iteration) {
       runCycle(options.scenario, credentials, reusable_room.get());
       std::this_thread::sleep_for(100ms);
       if (iteration == options.warmup) {
-        warmup = sampleProcess();
+        warmup = sampleQuiescentProcess();
       } else if (iteration == options.iterations) {
-        final = sampleProcess();
+        final = sampleQuiescentProcess();
+      } else if (iteration > options.warmup && first_thread_growth_iteration == 0) {
+        auto current = sampleProcessSnapshot();
+        if (current.process.threads > warmup.process.threads) {
+          first_thread_growth_iteration = iteration;
+          first_thread_growth = std::move(current);
+        }
       }
     }
 
     const auto warmup_rss_growth =
-        static_cast<std::int64_t>(warmup.rss_kib) - static_cast<std::int64_t>(initial.rss_kib);
-    const auto final_rss_growth = static_cast<std::int64_t>(final.rss_kib) - static_cast<std::int64_t>(warmup.rss_kib);
+        static_cast<std::int64_t>(warmup.process.rss_kib) - static_cast<std::int64_t>(initial.process.rss_kib);
+    const auto final_rss_growth =
+        static_cast<std::int64_t>(final.process.rss_kib) - static_cast<std::int64_t>(warmup.process.rss_kib);
     const auto warmup_thread_growth =
-        static_cast<std::int64_t>(warmup.threads) - static_cast<std::int64_t>(initial.threads);
+        static_cast<std::int64_t>(warmup.process.threads) - static_cast<std::int64_t>(initial.process.threads);
     const auto final_thread_growth =
-        static_cast<std::int64_t>(final.threads) - static_cast<std::int64_t>(warmup.threads);
+        static_cast<std::int64_t>(final.process.threads) - static_cast<std::int64_t>(warmup.process.threads);
     const bool passed = kibToMib(final_rss_growth) <= static_cast<double>(options.max_rss_growth_mib) &&
                         final_thread_growth <= static_cast<std::int64_t>(options.max_thread_growth);
+    if (final_thread_growth > 0) {
+      if (first_thread_growth_iteration == 0) {
+        first_thread_growth_iteration = options.iterations;
+        first_thread_growth = final;
+      }
+      std::cerr << "memory tester: thread growth first observed after cycle " << first_thread_growth_iteration
+                << "; warmup={" << formatThreadNames(warmup.thread_names) << "}; first-growth={"
+                << formatThreadNames(first_thread_growth.thread_names) << "}; final={"
+                << formatThreadNames(final.thread_names) << "}; warmup-to-final delta={"
+                << formatThreadNameDelta(warmup.thread_names, final.thread_names) << "}\n";
+    }
     std::cout << std::fixed << std::setprecision(2) << "memory tester: scenario=" << scenarioName(options.scenario)
-              << ", RSS 0 " << kibToMib(initial.rss_kib) << " -> warmup " << kibToMib(warmup.rss_kib) << " MiB ("
-              << kibToMib(warmup_rss_growth) << " MiB) -> final " << kibToMib(final.rss_kib) << " MiB ("
-              << kibToMib(final_rss_growth) << " MiB), threads 0 " << initial.threads << " -> warmup " << warmup.threads
-              << " (" << warmup_thread_growth << ") -> final " << final.threads << " (" << final_thread_growth
-              << "), verdict=" << (passed ? "PASS" : "FAIL") << '\n';
+              << ", RSS 0 " << kibToMib(initial.process.rss_kib) << " -> warmup " << kibToMib(warmup.process.rss_kib)
+              << " MiB (" << kibToMib(warmup_rss_growth) << " MiB) -> final " << kibToMib(final.process.rss_kib)
+              << " MiB (" << kibToMib(final_rss_growth) << " MiB), threads 0 " << initial.process.threads
+              << " -> warmup " << warmup.process.threads << " (" << warmup_thread_growth << ") -> final "
+              << final.process.threads << " (" << final_thread_growth << "), verdict=" << (passed ? "PASS" : "FAIL")
+              << '\n';
     return passed ? 0 : 1;
   } catch (const std::exception& error) {
     std::cerr << "memory tester failed: " << error.what() << '\n';
