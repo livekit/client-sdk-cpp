@@ -162,8 +162,6 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
 }
 
 INSTANTIATE_TEST_SUITE_P(PixelSources, CaptureSourceServerTest, ::testing::Bool(),
-                         [](const ::testing::TestParamInfo<bool>& info) {
-                           return info.param ? "Clock" : "capture::Pattern";
-                         });
+                         [](const ::testing::TestParamInfo<bool>& info) { return info.param ? "Clock" : "Pattern"; });
 
 } // namespace livekit::test
