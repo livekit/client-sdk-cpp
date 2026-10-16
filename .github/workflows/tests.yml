@@ -312,8 +312,8 @@ jobs:
             sudo sysctl -w "kern.corefile=${RUNNER_TEMP}/livekit-core.%P"
           fi
 
-      # Validate the standard installed SDK, then enable capture in the same
-      # CMake tree. Compile and run the complete test suite once, with capture.
+      # Validate the standard SDK, then compile and run the suite once.
+      # Enable capture for supported platforms; Intel macOS stays standard.
       - name: Build standard SDK
         uses: ./.github/actions/build-sdk
         with:
@@ -331,7 +331,7 @@ jobs:
           build-type: ${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }}
 
       - name: Test selective capture bundles
-        if: matrix.selective_capture || (inputs.extended_capture_sources && matrix.extended_capture)
+        if: matrix.name != 'macos-x64' && (matrix.selective_capture || (inputs.extended_capture_sources && matrix.extended_capture))
         uses: ./.github/actions/test-capture-variants
         with:
           preset: ${{ inputs.build_type }}
@@ -340,22 +340,22 @@ jobs:
           macos-arch: ${{ matrix.macos_arch || '' }}
 
       - name: Set up capture dependencies
-        if: ${{ !(matrix.selective_capture || (inputs.extended_capture_sources && matrix.extended_capture)) }}
+        if: ${{ matrix.name != 'macos-x64' && !(matrix.selective_capture || (inputs.extended_capture_sources && matrix.extended_capture)) }}
         uses: ./.github/actions/setup-capture
 
-      - name: Rebuild tests with capture
+      - name: Build SDK with tests
         uses: ./.github/actions/build-sdk
         with:
           preset: ${{ inputs.build_type }}-tests
-          capture: 'ON'
-          bundle-dir: sdk-out/test-sdk-all
+          capture: ${{ matrix.name == 'macos-x64' && 'OFF' || 'ON' }}
+          bundle-dir: sdk-out/test-sdk-tests
           macos-arch: ${{ matrix.macos_arch || '' }}
 
-      - name: Test installed all-sources SDK
+      - name: Test installed SDK used by tests
         uses: ./.github/actions/test-sdk-bundle
         with:
-          bundle-dir: sdk-out/test-sdk-all
-          expected-sources: all
+          bundle-dir: sdk-out/test-sdk-tests
+          expected-sources: ${{ matrix.name == 'macos-x64' && 'none' || 'all' }}
           verify-pixel-sources: ${{ matrix.selective_capture || (inputs.extended_capture_sources && runner.os == 'macOS' && matrix.extended_capture) }}
           macos-arch: ${{ matrix.macos_arch || '' }}
           build-type: ${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }}
