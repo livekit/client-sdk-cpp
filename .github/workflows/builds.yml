@@ -196,9 +196,11 @@ jobs:
       # Reconfigure the same CMake tree after the standard bundle and aliases
       # have been validated and uploaded. Keep both install prefixes separate.
       - name: Set up capture dependencies
+        if: matrix.name != 'macos-x64'
         uses: ./.github/actions/setup-capture
 
       - name: Build capture SDK
+        if: matrix.name != 'macos-x64'
         uses: ./.github/actions/build-sdk
         with:
           preset: release-examples
@@ -207,11 +209,13 @@ jobs:
           macos-arch: ${{ matrix.macos_arch || '' }}
 
       - name: Smoke test capture examples
+        if: matrix.name != 'macos-x64'
         uses: ./.github/actions/smoke-examples
         with:
           build-dir: ${{ env.BUILD_DIR }}
 
       - name: Test installed capture SDK
+        if: matrix.name != 'macos-x64'
         uses: ./.github/actions/test-sdk-bundle
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture
@@ -219,6 +223,7 @@ jobs:
           macos-arch: ${{ matrix.macos_arch || '' }}
 
       - name: Upload capture SDK bundle
+        if: matrix.name != 'macos-x64'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: livekit-sdk-${{ matrix.name }}-capture

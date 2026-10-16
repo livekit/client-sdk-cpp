@@ -142,6 +142,9 @@ SDK's `bin` directory and GStreamer's `bin` directory to `PATH` before running C
 
 ### Selective capture in CI
 
+Intel macOS CI runs the standard SDK tests only; capture builds and checks are
+not supported on that platform.
+
 The Ubuntu 24.04 x64 test job checks `none`, each singleton source, and `all`.
 Singleton builds reuse the C++ build tree and do not compile the unit/integration
 suites. Pattern and clock builds run before GStreamer installation. This runner
