@@ -30,7 +30,7 @@ Options:
                               room-server-delete, or all (default: audio-track)
   --iterations N              Lifecycle cycles (default: 100)
   --warmup N                  Baseline cycle (default: 20)
-  --max-rss-growth-mib N      Allowed RSS growth (default: 8)
+  --max-rss-growth-mib MIB    Allowed RSS growth; may be fractional (default: 8)
   --max-thread-growth N       Allowed thread growth (default: 0)
   -h, --help                  Show this help
 

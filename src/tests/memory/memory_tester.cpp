@@ -21,6 +21,7 @@
 #include <cctype>
 #include <charconv>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
@@ -60,7 +61,7 @@ struct Options {
   Scenario scenario{Scenario::AudioTrack};
   std::uint64_t iterations{100};
   std::uint64_t warmup{20};
-  std::uint64_t max_rss_growth_mib{8};
+  double max_rss_growth_mib{8.0};
   std::uint64_t max_thread_growth{0};
 };
 
@@ -191,6 +192,15 @@ std::uint64_t parseUnsigned(std::string_view value, std::string_view option) {
   return parsed;
 }
 
+double parseNonnegativeDouble(std::string_view value, std::string_view option) {
+  double parsed = 0.0;
+  const auto result = std::from_chars(value.data(), value.data() + value.size(), parsed);
+  if (result.ec != std::errc{} || result.ptr != value.data() + value.size() || !std::isfinite(parsed) || parsed < 0.0) {
+    throw std::runtime_error("invalid value for " + std::string(option));
+  }
+  return parsed;
+}
+
 Options parseOptions(int argc, char* argv[]) {
   Options options;
   for (int index = 1; index < argc; ++index) {
@@ -206,7 +216,7 @@ Options parseOptions(int argc, char* argv[]) {
     } else if (option == "--warmup") {
       options.warmup = parseUnsigned(value, option);
     } else if (option == "--max-rss-growth-mib") {
-      options.max_rss_growth_mib = parseUnsigned(value, option);
+      options.max_rss_growth_mib = parseNonnegativeDouble(value, option);
     } else if (option == "--max-thread-growth") {
       options.max_thread_growth = parseUnsigned(value, option);
     } else {
@@ -632,7 +642,7 @@ int main(int argc, char* argv[]) {
         static_cast<std::int64_t>(warmup.process.threads) - static_cast<std::int64_t>(initial.process.threads);
     const auto final_thread_growth =
         static_cast<std::int64_t>(final.process.threads) - static_cast<std::int64_t>(warmup.process.threads);
-    const bool passed = kibToMib(final_rss_growth) <= static_cast<double>(options.max_rss_growth_mib) &&
+    const bool passed = kibToMib(final_rss_growth) <= options.max_rss_growth_mib &&
                         final_thread_growth <= static_cast<std::int64_t>(options.max_thread_growth);
     if (final_thread_growth > 0) {
       if (sustained_thread_growth_iteration == 0) {

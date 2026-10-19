@@ -31,21 +31,11 @@ length.
 .\build.cmd release-tests
 ```
 
-After building, test binaries are available at:
-
-```bash
-# Linux/macOS
-<build-folder>/bin/<test binaries>
-
-# Windows
-<build-folder>\bin\<test binaries>
-```
-
 ## Running tests
 
 ```bash
 # Run all tests via ctest (warning, runs all GTest-based tests including stress)
-cd build-debug
+cd build-debug # or build-release
 ctest --output-on-failure
 
 # Or run test executables directly
@@ -183,7 +173,8 @@ scripts/memory-tester.sh --scenario all
 ```
 
 The limits are command-line options so a longer local run can use different
-budgets.
+budgets. RSS growth thresholds are expressed in MiB and may be fractional, such
+as `--max-rss-growth-mib 0.5`.
 
 ## Additional memory checks (valgrind)
 
