@@ -20,8 +20,8 @@ CMake/vcpkg flows.
 | Platform | Compiler | Package manager |
 |----------|----------|-----------------|
 | Windows  | Visual Studio 2019+ (MSBuild or Ninja) | vcpkg (see below) |
-| Linux    | GCC 9+ or Clang 10+ | `apt` / `dnf` (or vcpkg) |
-| macOS    | Xcode 12+ (macOS 12.3+ for ScreenCaptureKit) | Homebrew (or vcpkg) |
+| Linux    | Clang 21+ with libclang | `apt` (or vcpkg) |
+| macOS    | Xcode 12+ Apple Clang (macOS 12.3+ for ScreenCaptureKit) | Homebrew (or vcpkg) |
 
 <a id="additional-capture-dependencies"></a>
 
@@ -104,13 +104,31 @@ brew install cmake ninja protobuf abseil rust
 ```bash
 sudo apt update && sudo apt install -y \
   build-essential cmake ninja-build pkg-config \
-  llvm-dev libclang-dev clang \
   libprotobuf-dev protobuf-compiler libabsl-dev \
-  libssl-dev
+  libssl-dev wget ca-certificates gnupg lsb-release
+
+# Ubuntu 22.04 ships clang 14 and Ubuntu 24.04 ships clang 18. The Rust
+# WebRTC bridge requires clang 21 or later, so install the minimal versioned
+# compiler package from apt.llvm.org.
+sudo install -m 0755 -d /etc/apt/keyrings
+wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+  | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
+sudo chmod a+r /etc/apt/keyrings/llvm.asc
+codename=$(lsb_release -cs)
+echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-21 main" \
+  | sudo tee /etc/apt/sources.list.d/llvm-21.list >/dev/null
+sudo apt update
+sudo apt install -y clang-21
 
 # Install Rust if you don't already have it
 curl https://sh.rustup.rs -sSf | sh
 ```
+
+`clang-21` pulls in the matching libclang runtime without installing the full
+LLVM tool suite. `build.sh` discovers versioned compiler installations and
+exports `CC`, `CXX`, and `LIBCLANG_PATH` for CMake and Cargo. To use a custom
+LLVM installation instead, set `LLVM_ROOT` to its prefix (for example,
+`/opt/llvm-21.1.8`).
 
 If you plan to build the [example collection](https://github.com/livekit-examples/cpp-example-collection)
 (SDL-based renderer + camera/mic capture), also install:
@@ -224,6 +242,14 @@ cmake -B build -S . `
   -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake `
   -DLIVEKIT_BUILD_EXAMPLES=ON
 cmake --build build --config Release
+```
+
+**Linux (compiler environment):**
+```bash
+# Direct CMake use bypasses build.sh's compiler validation.
+export CC=clang-21
+export CXX=clang++-21
+export LIBCLANG_PATH=/usr/lib/llvm-21/lib
 ```
 
 **Linux/macOS:**
@@ -348,9 +374,8 @@ git submodule update --init --recursive
 
 ### Deprecated-declaration errors on Linux
 
-Newer GCC versions (12+) are stricter with the WebRTC legacy code in the
-Rust submodule. If `./build.sh release` errors with `-Werror=deprecated-declarations`,
-relax it for the build:
+Some WebRTC sources use deprecated declarations. If `./build.sh release`
+errors with `-Werror=deprecated-declarations`, relax it for the build:
 
 ```bash
 export CXXFLAGS="-Wno-deprecated-declarations"
@@ -359,10 +384,11 @@ export CFLAGS="-Wno-deprecated-declarations"
 
 ### Rust bindgen fails with "unable to find libclang"
 
-Install `libclang-dev` (Ubuntu) or `llvm` (macOS Homebrew). bindgen normally
-discovers libclang from the system paths once `libclang-dev` is installed; if
-not, point `LIBCLANG_PATH` at your LLVM's `lib` directory (e.g.
-`/usr/lib/llvm-18/lib` on Ubuntu 24.04).
+On Linux, install `clang-21` as shown above. `build.sh` accepts both versioned
+libraries such as `libclang-21.so.1` and an unversioned `libclang.so`. For a
+custom installation, set `LLVM_ROOT` or point `LIBCLANG_PATH` at its library
+directory. On macOS, install the Xcode Command Line Tools; `build.sh` selects
+Xcode Apple Clang with `xcrun`.
 
 ### Rust code recompiles after C++ edits
 

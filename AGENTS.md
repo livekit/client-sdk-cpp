@@ -145,7 +145,14 @@ the source tree. Track capture Rust sources and shaders in build dependencies.
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
 
-**Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. On macOS: `brew install cmake ninja protobuf abseil`. On Linux: see the CI workflow for apt packages. spdlog is vendored automatically via FetchContent (or vcpkg on Windows) to avoid system conflicts.
+**Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. Linux
+source builds require clang/clang++ 21+ and a matching libclang runtime;
+`build.sh` discovers versioned installations, validates the toolchain, and
+rejects stale build directories configured with another compiler. macOS builds
+use Xcode Apple Clang selected through `xcrun`. On macOS:
+`brew install cmake ninja protobuf abseil`. On Linux: see `docs/building.md`
+and the CI workflow for apt packages. spdlog is vendored automatically via
+FetchContent (or vcpkg on Windows) to avoid system conflicts.
 
 ### SDK Packaging
 
