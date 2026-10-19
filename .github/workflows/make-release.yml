@@ -114,7 +114,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
-            llvm-dev libclang-dev clang \
             libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
             libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
             libxrandr-dev libxi-dev libxkbcommon-dev \
@@ -123,15 +122,26 @@ jobs:
             libprotobuf-dev protobuf-compiler \
             libabsl-dev \
             libcurl4-openssl-dev \
-            libwayland-dev libdecor-0-dev
+            libwayland-dev libdecor-0-dev \
+            wget ca-certificates gnupg
 
       # The libwebrtc artifact ships a hermetic libc++ built from LLVM trunk.
-      # Distro clang cannot compile its headers; install the same LLVM version
-      # used by the Linux build and test workflows.
-      - name: Install clang for libwebrtc
+      # Distro clang cannot compile its headers. Install the same minimal
+      # versioned compiler package used by the Linux build and test workflows.
+      - name: Install clang 21
         if: runner.os == 'Linux'
         shell: bash
-        run: client-sdk-rust/.github/scripts/install-clang.sh
+        run: |
+          set -eux
+          sudo install -m 0755 -d /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
+          sudo chmod a+r /etc/apt/keyrings/llvm.asc
+          codename=$(lsb_release -cs)
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-21 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-21.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y clang-21
 
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
@@ -190,14 +200,11 @@ jobs:
         run: rm -rf client-sdk-rust/target/
 
       # ---------- Build environment setup ----------
-      - name: Set Linux build environment
+      - name: Set Linux warning flags
         if: runner.os == 'Linux'
         run: |
           echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
           echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
-          LLVM_ROOT="$(dirname "${CXX}")/.."
-          test -f "${LLVM_ROOT}/lib/libclang.so"
-          echo "LIBCLANG_PATH=${LLVM_ROOT}/lib" >> "$GITHUB_ENV"
 
       # ---------- Build + Bundle (Unix) ----------
       - name: Build and Bundle (Unix)

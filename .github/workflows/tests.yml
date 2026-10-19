@@ -217,7 +217,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
-            llvm-dev libclang-dev clang \
             libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
             libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
             libxrandr-dev libxi-dev libxkbcommon-dev \
@@ -227,15 +226,26 @@ jobs:
             libabsl-dev \
             libcurl4-openssl-dev \
             libwayland-dev libdecor-0-dev \
-            gdb jq
+            gdb jq wget ca-certificates gnupg
 
       # The libwebrtc artifact ships a hermetic libc++ built from LLVM trunk.
       # Distro clang (14 on Ubuntu 22.04, 18 on 24.04) cannot compile its
-      # headers; the submodule script installs LLVM 21 and exports CC/CXX.
-      - name: Install clang for libwebrtc
+      # headers. Install the minimal versioned compiler package; build.sh
+      # discovers it and validates clang and libclang before configuring.
+      - name: Install clang 21
         if: runner.os == 'Linux'
         shell: bash
-        run: client-sdk-rust/.github/scripts/install-clang.sh
+        run: |
+          set -eux
+          sudo install -m 0755 -d /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
+          sudo chmod a+r /etc/apt/keyrings/llvm.asc
+          codename=$(lsb_release -cs)
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-21 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-21.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y clang-21
 
       - name: Install deps (macOS)
         if: runner.os == 'macOS'
@@ -294,14 +304,11 @@ jobs:
         run: rm -rf client-sdk-rust/target/
 
       # ---------- Build environment setup ----------
-      - name: Set Linux build environment
+      - name: Set Linux warning flags
         if: runner.os == 'Linux'
         run: |
           echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
           echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
-          LLVM_ROOT="$(dirname "${CXX}")/.."
-          test -f "${LLVM_ROOT}/lib/libclang.so"
-          echo "LIBCLANG_PATH=${LLVM_ROOT}/lib" >> "$GITHUB_ENV"
 
       - name: Configure Unix crash diagnostics
         if: runner.os != 'Windows'
@@ -510,7 +517,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ninja-build pkg-config \
-            llvm-dev libclang-dev clang \
             libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
             libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
             libxrandr-dev libxi-dev libxkbcommon-dev \
@@ -519,14 +525,25 @@ jobs:
             libprotobuf-dev protobuf-compiler \
             libabsl-dev \
             libcurl4-openssl-dev \
-            libwayland-dev libdecor-0-dev
+            libwayland-dev libdecor-0-dev \
+            wget ca-certificates gnupg
           pip install --break-system-packages gcovr
 
       # The coverage build compiles the Rust FFI too, so it needs the same
       # compiler floor as the normal Linux build/test matrices.
-      - name: Install clang for libwebrtc
+      - name: Install clang 21 and coverage tools
         shell: bash
-        run: client-sdk-rust/.github/scripts/install-clang.sh
+        run: |
+          set -eux
+          sudo install -m 0755 -d /etc/apt/keyrings
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
+          sudo chmod a+r /etc/apt/keyrings/llvm.asc
+          codename=$(lsb_release -cs)
+          echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-21 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-21.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y clang-21 llvm-21
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
@@ -561,11 +578,14 @@ jobs:
       # ---------- Build environment setup ----------
       - name: Set build environment
         run: |
-          LLVM_ROOT="$(dirname "${CXX}")/.."
-          test -f "${LLVM_ROOT}/lib/libclang.so"
-          LLVM_COV="${LLVM_ROOT}/bin/llvm-cov"
+          test -x /usr/bin/clang-21
+          test -x /usr/bin/clang++-21
+          compgen -G '/usr/lib/llvm-21/lib/libclang*.so*' >/dev/null
+          LLVM_COV=/usr/bin/llvm-cov-21
           test -x "${LLVM_COV}"
-          echo "LIBCLANG_PATH=${LLVM_ROOT}/lib" >> "$GITHUB_ENV"
+          echo "CC=/usr/bin/clang-21" >> "$GITHUB_ENV"
+          echo "CXX=/usr/bin/clang++-21" >> "$GITHUB_ENV"
+          echo "LIBCLANG_PATH=/usr/lib/llvm-21/lib" >> "$GITHUB_ENV"
           echo "GCOV_EXECUTABLE=${LLVM_COV} gcov" >> "$GITHUB_ENV"
 
       # ---------- Configure with upstream preset + coverage flag overrides ----------
