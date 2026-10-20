@@ -60,6 +60,7 @@ struct RoomOptions;
 struct TrackPublishOptions;
 namespace capture {
 class CaptureSource;
+struct CaptureResult;
 } // namespace capture
 
 using FfiCallbackFn = void (*)(const uint8_t*, size_t);
@@ -137,6 +138,8 @@ public:
   std::future<std::shared_ptr<capture::CaptureSource>> newCaptureSourceAsync(
       proto::NewCaptureSourceRequest request,
       const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+  std::future<capture::CaptureResult> joinCaptureAsync(
+      std::uint64_t capture_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
   std::future<void> setLocalMetadataAsync(std::uint64_t local_participant_handle, const std::string& metadata);
   std::future<void> captureAudioFrameAsync(std::uint64_t source_handle, const proto::AudioFrameBufferInfo& buffer);
   std::future<std::string> performRpcAsync(std::uint64_t local_participant_handle,

@@ -28,7 +28,6 @@
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -120,14 +119,6 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
   app_options.source = TrackSource::SOURCE_CAMERA;
   ASSERT_NO_THROW(lockLocalParticipant(sender_room)->publishTrack(track, capture->publishOptions(app_options)));
 
-  // Observe the capture's terminal event.
-  std::optional<capture::CaptureResult> finished;
-  capture->setOnFinishedCallback([&mutex, &cv, &finished](const capture::CaptureResult& result) {
-    std::lock_guard<std::mutex> lock(mutex);
-    finished = result;
-    cv.notify_all();
-  });
-
   const auto capture_started = std::chrono::steady_clock::now();
   ASSERT_TRUE(capture->start());
   EXPECT_FALSE(capture->start()) << "double start must be rejected";
@@ -139,21 +130,19 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
     ASSERT_TRUE(got_frames) << "Timed out waiting for capture frames; received " << frames_received;
   }
 
-  // Stop is a signal; the terminal callback delivers the stats.
+  // Stop is a signal; join synchronizes with shutdown and returns the stats.
   ASSERT_TRUE(capture->stop());
-  {
-    std::unique_lock<std::mutex> lock(mutex);
-    const bool got_finished = cv.wait_for(lock, 10s, [&finished] { return finished.has_value(); });
-    ASSERT_TRUE(got_finished) << "Timed out waiting for the capture finished callback";
-  }
+  auto joined = capture->join();
+  ASSERT_EQ(joined.wait_for(10s), std::future_status::ready) << "Timed out waiting for capture join";
+  const auto finished = joined.get();
 
-  ASSERT_FALSE(finished->error.has_value()) << *finished->error;
-  EXPECT_EQ(finished->exit, capture::CaptureExit::Stopped);
-  EXPECT_GT(finished->frames_captured, 0u);
+  ASSERT_FALSE(finished.error.has_value()) << *finished.error;
+  EXPECT_EQ(finished.exit, capture::CaptureExit::Stopped);
+  EXPECT_GT(finished.frames_captured, 0u);
   const auto capture_seconds =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - capture_started).count();
   RecordProperty("capture_frames_per_second",
-                 std::to_string(static_cast<double>(finished->frames_captured) / capture_seconds));
+                 std::to_string(static_cast<double>(finished.frames_captured) / capture_seconds));
 
   receiver_room.clearOnVideoFrameCallback(sender_identity, track_name);
   if (track->publication()) {

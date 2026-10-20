@@ -24,7 +24,6 @@
 #endif
 
 #include <cstdint>
-#include <functional>
 #include <future>
 #include <memory>
 #include <optional>
@@ -179,10 +178,6 @@ struct CaptureResult {
 /// stops a running capture.
 class LIVEKIT_API CaptureSource {
 public:
-  /// @brief Terminal notification for a started capture, invoked exactly once on
-  /// the FFI event thread (like room delegate callbacks).
-  using FinishedCallback = std::function<void(const CaptureResult&)>;
-
   /// @brief Create a capture source from a GStreamer pipeline configuration.
   ///
   /// Completes asynchronously: construction starts the pipeline and may wait
@@ -259,21 +254,30 @@ public:
   /// @return Options with source-required fields applied.
   TrackPublishOptions publishOptions(TrackPublishOptions options = {}) const;
 
-  /// @brief Set the terminal notification. Set this before @ref start().
-  /// @param callback Terminal notification, called on the FFI callback thread.
-  void setOnFinishedCallback(FinishedCallback callback);
-
   /// @brief Start pumping frames into the RTC video source.
   ///
   /// @return @c true if the start request succeeds; otherwise @c false.
   bool start();
 
-  /// @brief Signal a running capture to stop after the frame in flight. The
-  /// finished callback fires shortly after. Stopping an already-finished
-  /// capture is a no-op.
+  /// @brief Signal a running capture to stop after the frame in flight.
+  ///
+  /// This method does not wait for the pump thread to exit. Call @ref join()
+  /// to synchronize and retrieve the terminal result. Stopping an
+  /// already-finished capture is a no-op.
   ///
   /// @return @c true if the stop request succeeds; otherwise @c false.
   bool stop();
+
+  /// @brief Consume the running pump and wait asynchronously for it to exit.
+  ///
+  /// This method does not signal the pump to stop. Call @ref stop() first when
+  /// ending an unbounded source. Join may be called only once after a
+  /// successful @ref start().
+  ///
+  /// @return A future containing the terminal result and captured frame count.
+  /// @throws CaptureSourceError When awaiting the future if the FFI request is
+  /// cancelled.
+  std::future<CaptureResult> join();
 
 private:
   friend class livekit::FfiClient;
