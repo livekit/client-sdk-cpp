@@ -27,7 +27,6 @@ The SDK must be supported on the following platforms:
 - windows x64
 - linux x86_64
 - linux arm64
-- macOS x86_64
 - macOS arm64
 
 ### FFI Patterns
