@@ -16,8 +16,8 @@
 
 #include "livekit/capture/capture_source.h"
 
+#include <exception>
 #include <limits>
-#include <stdexcept>
 
 #include "capture.pb.h"
 #include "capture_source_internal.h"
@@ -221,6 +221,18 @@ bool controlCapture(std::uint64_t handle, bool start) {
 
 bool CaptureSource::start() { return controlCapture(impl_->handle.get(), true); }
 bool CaptureSource::stop() { return controlCapture(impl_->handle.get(), false); }
-std::future<CaptureResult> CaptureSource::join() { return FfiClient::instance().joinCaptureAsync(impl_->handle.get()); }
+std::future<CaptureResult> CaptureSource::join() {
+  try {
+    return FfiClient::instance().joinCaptureAsync(impl_->handle.get());
+  } catch (const std::exception& error) {
+    std::promise<CaptureResult> promise;
+    promise.set_exception(std::make_exception_ptr(CaptureSourceError(error.what())));
+    return promise.get_future();
+  } catch (...) {
+    std::promise<CaptureResult> promise;
+    promise.set_exception(std::make_exception_ptr(CaptureSourceError("Capture join failed")));
+    return promise.get_future();
+  }
+}
 
 } // namespace livekit::capture

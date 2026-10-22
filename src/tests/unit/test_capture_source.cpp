@@ -288,6 +288,24 @@ TEST_F(CaptureSourceCallbackTest, JoinSendFailureRemovesPendingOperation) {
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
+TEST_F(CaptureSourceCallbackTest, JoinMissingAcknowledgementRemovesPendingOperation) {
+  EXPECT_THROW(
+      FfiClient::instance().joinCaptureAsync(42, [](const proto::FfiRequest&) { return proto::FfiResponse{}; }),
+      std::runtime_error);
+  EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
+TEST_F(CaptureSourceCallbackTest, JoinApiReportsSynchronousSendFailureThroughFuture) {
+  auto source = completeCreation(makeOwned());
+  FfiClient::instance().shutdown();
+
+  std::future<capture::CaptureResult> future;
+  EXPECT_NO_THROW(future = source->join());
+  EXPECT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
+  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
+  EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
 TEST_F(CaptureSourceCallbackTest, PixelPreservesCodecEncoderAndDisabledSimulcast) {
   auto source = completeCreation(makeOwned());
   TrackPublishOptions application;
