@@ -136,7 +136,7 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
   ASSERT_EQ(joined.wait_for(10s), std::future_status::ready) << "Timed out waiting for capture join";
   const auto finished = joined.get();
 
-  ASSERT_FALSE(finished.error.has_value()) << *finished.error;
+  ASSERT_FALSE(finished.error.has_value()) << finished.error->message;
   EXPECT_EQ(finished.exit, capture::CaptureExit::Stopped);
   EXPECT_GT(finished.frames_captured, 0u);
   const auto capture_seconds =

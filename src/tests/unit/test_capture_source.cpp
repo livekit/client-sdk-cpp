@@ -261,16 +261,24 @@ TEST_F(CaptureSourceCallbackTest, JoinCallbackMapsFinishedResult) {
 }
 
 TEST_F(CaptureSourceCallbackTest, JoinCallbackMapsPumpError) {
-  auto future = beginJoin();
-  proto::FfiEvent event;
-  auto* callback = event.mutable_join_capture();
-  callback->set_async_id(async_id_);
-  callback->mutable_error()->set_error("capture failed");
-  emitFfiEvent(event);
+  const auto verify_kind = [this](proto::CaptureErrorKind proto_kind, capture::CaptureErrorKind expected_kind) {
+    auto future = beginJoin();
+    proto::FfiEvent event;
+    auto* callback = event.mutable_join_capture();
+    callback->set_async_id(async_id_);
+    callback->mutable_error()->set_error("capture failed");
+    callback->mutable_error()->set_kind(proto_kind);
+    emitFfiEvent(event);
 
-  const auto result = future.get();
-  ASSERT_TRUE(result.error.has_value());
-  EXPECT_EQ(*result.error, "capture failed");
+    const auto result = future.get();
+    ASSERT_TRUE(result.error.has_value());
+    EXPECT_EQ(result.error->message, "capture failed");
+    EXPECT_EQ(result.error->kind, expected_kind);
+  };
+
+  verify_kind(proto::CAPTURE_ERROR_KIND_SOURCE, capture::CaptureErrorKind::Source);
+  verify_kind(proto::CAPTURE_ERROR_KIND_RTC, capture::CaptureErrorKind::Rtc);
+  verify_kind(proto::CAPTURE_ERROR_KIND_PANICKED, capture::CaptureErrorKind::Panicked);
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
