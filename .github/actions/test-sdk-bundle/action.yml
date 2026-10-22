@@ -19,11 +19,8 @@ inputs:
     description: SDK installation directory relative to the workspace.
     required: true
   capture:
-    description: Expected capture support (ON or OFF).
-    default: 'ON'
-  expected-sources:
-    description: Expected source set (all, none, or comma-separated sources); empty derives from capture.
-    default: ''
+    description: Expected capture sources (all, none, or a comma-separated source list).
+    default: 'all'
   verify-pixel-sources:
     description: Require successful pattern/clock creation using a GPU or software adapter.
     default: 'false'
@@ -45,19 +42,18 @@ runs:
       env:
         SDK_BUNDLE_DIR: ${{ inputs.bundle-dir }}
         SDK_CAPTURE: ${{ inputs.capture }}
-        SDK_EXPECTED_SOURCES: ${{ inputs.expected-sources }}
         SDK_VERIFY_PIXEL_SOURCES: ${{ inputs.verify-pixel-sources }}
         SDK_BUILD_TYPE: ${{ inputs.build-type }}
         SDK_VERSION: ${{ inputs.version }}
         SDK_MACOS_ARCH: ${{ inputs.macos-arch }}
       run: |
         bundle="$GITHUB_WORKSPACE/$SDK_BUNDLE_DIR"
-        build_dir="${RUNNER_TEMP}/livekit-packaging-${SDK_EXPECTED_SOURCES:-$SDK_CAPTURE}"
+        build_dir="${RUNNER_TEMP}/livekit-packaging-${SDK_CAPTURE//,/-}"
         arch_args=()
         if [[ -n "$SDK_MACOS_ARCH" ]]; then arch_args+=(-DCMAKE_OSX_ARCHITECTURES="$SDK_MACOS_ARCH"); fi
         cmake -S src/tests/packaging -B "$build_dir" -G Ninja \
           -DCMAKE_BUILD_TYPE="$SDK_BUILD_TYPE" -DCMAKE_PREFIX_PATH="$bundle" \
-          -DLIVEKIT_EXPECT_CAPTURE="$SDK_CAPTURE" -DLIVEKIT_EXPECT_SOURCES="$SDK_EXPECTED_SOURCES" \
+          -DLIVEKIT_EXPECT_SOURCES="$SDK_CAPTURE" \
           -DLIVEKIT_VERIFY_PIXEL_SOURCES="$SDK_VERIFY_PIXEL_SOURCES" -DLIVEKIT_EXPECT_VERSION="$SDK_VERSION" "${arch_args[@]}"
         cmake --build "$build_dir" --config "$SDK_BUILD_TYPE"
         ctest --test-dir "$build_dir" -C "$SDK_BUILD_TYPE" --output-on-failure -L packaging
@@ -67,15 +63,14 @@ runs:
       env:
         SDK_BUNDLE_DIR: ${{ inputs.bundle-dir }}
         SDK_CAPTURE: ${{ inputs.capture }}
-        SDK_EXPECTED_SOURCES: ${{ inputs.expected-sources }}
         SDK_VERIFY_PIXEL_SOURCES: ${{ inputs.verify-pixel-sources }}
         SDK_BUILD_TYPE: ${{ inputs.build-type }}
         SDK_VERSION: ${{ inputs.version }}
       run: |
         $bundle = Join-Path $env:GITHUB_WORKSPACE $env:SDK_BUNDLE_DIR
-        $selection = if ($env:SDK_EXPECTED_SOURCES) { $env:SDK_EXPECTED_SOURCES } else { $env:SDK_CAPTURE }
+        $selection = $env:SDK_CAPTURE -replace ',', '-'
         $buildDir = Join-Path $env:RUNNER_TEMP "livekit-packaging-$selection"
-        cmake -S src/tests/packaging -B "$buildDir" -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_EXPECT_CAPTURE="$env:SDK_CAPTURE" -DLIVEKIT_EXPECT_SOURCES="$env:SDK_EXPECTED_SOURCES" -DLIVEKIT_VERIFY_PIXEL_SOURCES="$env:SDK_VERIFY_PIXEL_SOURCES" -DLIVEKIT_EXPECT_VERSION="$env:SDK_VERSION"
+        cmake -S src/tests/packaging -B "$buildDir" -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_EXPECT_SOURCES="$env:SDK_CAPTURE" -DLIVEKIT_VERIFY_PIXEL_SOURCES="$env:SDK_VERIFY_PIXEL_SOURCES" -DLIVEKIT_EXPECT_VERSION="$env:SDK_VERSION"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         cmake --build "$buildDir" --config "$env:SDK_BUILD_TYPE"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

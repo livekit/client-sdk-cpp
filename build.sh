@@ -75,6 +75,25 @@ EOF
 }
 
 
+# Capture is none, all, or a comma-separated list of gstreamer, pattern, and clock.
+validate_capture_value() {
+  local lower token
+  lower="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]')"
+  case "${lower}" in
+    ""|none|all) return 0 ;;
+  esac
+  local IFS=','
+  for token in ${lower}; do
+    case "${token}" in
+      ""|gstreamer|pattern|clock) ;;
+      *)
+        echo "ERROR: Unknown capture source '${token}'. Expected: gstreamer, pattern, clock, all, or none."
+        exit 1
+        ;;
+    esac
+  done
+}
+
 parse_opts() {
   shift || true
   while [[ $# -gt 0 ]]; do
@@ -151,6 +170,7 @@ parse_opts() {
         ;;
     esac
   done
+  validate_capture_value "${CAPTURE_OVERRIDE}"
 }
 
 configure() {

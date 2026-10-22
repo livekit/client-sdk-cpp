@@ -15,6 +15,9 @@
  */
 
 #include <livekit/livekit.h>
+#if LIVEKIT_CAPTURE_ENABLED
+#include <livekit/capture/capture_source.h>
+#endif
 
 #include <chrono>
 #include <exception>

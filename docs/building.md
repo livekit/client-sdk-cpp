@@ -423,7 +423,7 @@ Available sources (comma-separated; each maps to `capture-*` on `livekit-ffi`):
 | `pattern` | GPU test pattern |
 | `clock` | GPU wall clock |
 
-Special values: `none` / `OFF` / empty (disabled), `all` / `ON` (every source).
+Special values: `none` or empty (disabled), `all` (every source).
 `LIVEKIT_CAPTURE_ENABLED` is 1 when any source is selected; installed
 `share/livekit/build-info.json` also records `cargo_features`.
 
@@ -447,10 +447,9 @@ through the returned future with `CaptureSourceError`.
 Capture-enabled bundles install the public API under `include/livekit/capture/`;
 standard bundles omit that directory. Use `<livekit/capture/capture_source.h>`
 for direct inclusion. The source-tree header also rejects use in a standard
-build. `livekit/livekit.h` includes capture declarations only when enabled.
-`share/livekit/build-info.json` in an installed bundle describes the same build
-features; neither value tests whether a GPU or a requested GStreamer plugin is
-available at runtime.
+build. `share/livekit/build-info.json` in an installed bundle describes the same
+build features; neither value tests whether a GPU or a requested GStreamer plugin
+is available at runtime.
 
 Release downloads with `-capture` in their names include these features, for
 example `livekit-sdk-macos-arm64-capture-<version>.tar.gz`. Standard release

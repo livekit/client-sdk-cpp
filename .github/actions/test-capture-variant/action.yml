@@ -82,7 +82,7 @@ runs:
       uses: ./.github/actions/test-sdk-bundle
       with:
         bundle-dir: ${{ steps.variant.outputs.bundle-dir }}
-        expected-sources: ${{ inputs.sources }}
+        capture: ${{ inputs.sources }}
         verify-pixel-sources: ${{ inputs.verify-pixel-sources }}
         build-type: ${{ inputs.preset == 'debug' && 'Debug' || 'Release' }}
         macos-arch: ${{ inputs.macos-arch }}

@@ -33,9 +33,8 @@ install the API in `include/livekit/capture/`:
 #include <livekit/capture/capture_source.h>
 ```
 
-You can also include `<livekit/livekit.h>`, which includes capture declarations
-when capture is enabled. Standard SDK bundles do not contain the `capture/`
-header directory.
+Standard SDK bundles omit the `capture/` directory, and their other installed
+headers do not name it.
 
 ## Create and publish a source
 
@@ -49,6 +48,7 @@ continues, and the source is released when the callback arrives.
 
 ```cpp
 #include <livekit/livekit.h>
+#include <livekit/capture/capture_source.h>
 
 // The SDK is initialized, and room is connected.
 auto pending = livekit::capture::CaptureSource::create(
