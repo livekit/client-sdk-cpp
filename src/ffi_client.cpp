@@ -1339,6 +1339,22 @@ std::future<Result<std::string, std::string>> FfiClient::getSchemaAsync(std::uin
 
 #if LIVEKIT_CAPTURE_ENABLED
 
+namespace {
+
+std::optional<capture::CaptureErrorKind> captureErrorKindFromProto(proto::CaptureErrorKind kind) {
+  switch (kind) {
+    case proto::CAPTURE_ERROR_KIND_SOURCE:
+      return capture::CaptureErrorKind::Source;
+    case proto::CAPTURE_ERROR_KIND_RTC:
+      return capture::CaptureErrorKind::Rtc;
+    case proto::CAPTURE_ERROR_KIND_PANICKED:
+      return capture::CaptureErrorKind::Panicked;
+  }
+  return std::nullopt;
+}
+
+} // namespace
+
 std::future<std::shared_ptr<capture::CaptureSource>> FfiClient::newCaptureSourceAsync(
     proto::NewCaptureSourceRequest request, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
   // Generate client-side async_id first
@@ -1401,7 +1417,12 @@ std::future<capture::CaptureResult> FfiClient::joinCaptureAsync(
         const auto& callback = event.join_capture();
         capture::CaptureResult result;
         if (callback.has_error()) {
-          result.error = callback.error().error();
+          const auto kind = captureErrorKindFromProto(callback.error().kind());
+          if (!kind) {
+            pr.set_exception(std::make_exception_ptr(capture::CaptureSourceError("Unknown capture error kind")));
+            return;
+          }
+          result.error = capture::CaptureError{callback.error().error(), *kind};
         } else if (callback.has_finished()) {
           result.frames_captured = callback.finished().frames_captured();
           result.exit = callback.finished().exit() == proto::CaptureExit::CAPTURE_EXIT_END_OF_STREAM

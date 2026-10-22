@@ -151,10 +151,29 @@ enum class CaptureExit {
   EndOfStream = 1,
 };
 
+/// @brief Why a capture ended with an error.
+enum class CaptureErrorKind {
+  /// @brief The capture source failed or violated its contract.
+  Source = 0,
+  /// @brief The RTC video source rejected a frame.
+  Rtc = 1,
+  /// @brief The pump thread panicked.
+  Panicked = 2,
+};
+
+/// @brief Terminal capture failure.
+struct CaptureError {
+  /// @brief Human-readable error message.
+  std::string message;
+
+  /// @brief Error category.
+  CaptureErrorKind kind = CaptureErrorKind::Source;
+};
+
 /// @brief Terminal result of a started capture.
 struct CaptureResult {
-  /// @brief Error message when the capture failed; empty on success.
-  std::optional<std::string> error;
+  /// @brief Failure details when the capture failed; empty on success.
+  std::optional<CaptureError> error;
 
   /// @brief Number of frames or access units captured.
   std::uint64_t frames_captured = 0;
