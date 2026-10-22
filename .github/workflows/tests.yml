@@ -318,7 +318,7 @@ jobs:
         uses: ./.github/actions/build-sdk
         with:
           preset: ${{ inputs.build_type }}
-          capture: 'OFF'
+          capture: 'none'
           bundle-dir: sdk-out/test-sdk-standard
           macos-arch: ${{ matrix.macos_arch || '' }}
 
@@ -326,7 +326,7 @@ jobs:
         uses: ./.github/actions/test-sdk-bundle
         with:
           bundle-dir: sdk-out/test-sdk-standard
-          capture: 'OFF'
+          capture: 'none'
           macos-arch: ${{ matrix.macos_arch || '' }}
           build-type: ${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }}
 
@@ -347,7 +347,7 @@ jobs:
         uses: ./.github/actions/build-sdk
         with:
           preset: ${{ inputs.build_type }}-tests
-          capture: ${{ matrix.name == 'macos-x64' && 'OFF' || 'ON' }}
+          capture: ${{ matrix.name == 'macos-x64' && 'none' || 'all' }}
           bundle-dir: sdk-out/test-sdk-tests
           macos-arch: ${{ matrix.macos_arch || '' }}
 
@@ -355,7 +355,7 @@ jobs:
         uses: ./.github/actions/test-sdk-bundle
         with:
           bundle-dir: sdk-out/test-sdk-tests
-          expected-sources: ${{ matrix.name == 'macos-x64' && 'none' || 'all' }}
+          capture: ${{ matrix.name == 'macos-x64' && 'none' || 'all' }}
           verify-pixel-sources: ${{ matrix.selective_capture || (inputs.extended_capture_sources && runner.os == 'macOS' && matrix.extended_capture) }}
           macos-arch: ${{ matrix.macos_arch || '' }}
           build-type: ${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }}

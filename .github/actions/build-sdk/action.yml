@@ -19,8 +19,8 @@ inputs:
     description: Build script command, such as release-examples or debug-tests.
     required: true
   capture:
-    description: Capture sources (ON/all, OFF/none, or gstreamer,pattern,clock).
-    default: 'OFF'
+    description: Capture sources (all, none, or gstreamer,pattern,clock).
+    default: 'none'
   bundle-dir:
     description: Optional installation directory for an SDK bundle.
     default: ''
@@ -45,8 +45,8 @@ runs:
       run: |
         args=(./build.sh "$SDK_PRESET")
         case "$SDK_CAPTURE" in
-          ON|all) args+=(--capture) ;;
-          OFF|none|"") args+=(--no-capture) ;;
+          all) args+=(--capture) ;;
+          none|"") args+=(--no-capture) ;;
           *) args+=(--capture="$SDK_CAPTURE") ;;
         esac
         if [[ -n "$SDK_BUNDLE_DIR" ]]; then args+=(--bundle --prefix "$SDK_BUNDLE_DIR"); fi
@@ -64,8 +64,8 @@ runs:
       run: |
         $buildArgs = @($env:SDK_PRESET)
         switch ([string]$env:SDK_CAPTURE) {
-          { $_ -in @('ON', 'all') } { $buildArgs += '--capture'; break }
-          { $_ -in @('OFF', 'none', '') } { $buildArgs += '--no-capture'; break }
+          'all' { $buildArgs += '--capture'; break }
+          { $_ -in @('none', '') } { $buildArgs += '--no-capture'; break }
           default { $buildArgs += "--capture=$($env:SDK_CAPTURE)" }
         }
         if ($env:SDK_BUNDLE_DIR) { $buildArgs += @('--bundle', '--prefix', $env:SDK_BUNDLE_DIR) }

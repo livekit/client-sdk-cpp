@@ -15,6 +15,9 @@
  */
 
 #include <livekit/livekit.h>
+#if LIVEKIT_CAPTURE_ENABLED
+#include <livekit/capture/capture_source.h>
+#endif
 
 #include <chrono>
 #include <exception>
@@ -89,17 +92,7 @@ bool checkSources() {
 } // namespace
 #endif
 
-int main(int argc, char** argv) {
-  if (argc != 2 ||
-      (std::string_view(argv[1]) != "--expect-capture=ON" && std::string_view(argv[1]) != "--expect-capture=OFF")) {
-    std::cerr << "Usage: livekit_capture_package_test --expect-capture=ON|OFF\n";
-    return 2;
-  }
-  const bool expect_capture = std::string_view(argv[1]) == "--expect-capture=ON";
-  if ((LIVEKIT_CAPTURE_ENABLED != 0) != expect_capture) {
-    std::cerr << "Installed SDK capture metadata does not match the requested expectation\n";
-    return 1;
-  }
+int main() {
 #if LIVEKIT_CAPTURE_ENABLED
   livekit::initialize(livekit::LogLevel::Warn);
   const bool success = checkSources();

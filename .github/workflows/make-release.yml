@@ -174,7 +174,7 @@ jobs:
         uses: ./.github/actions/build-sdk
         with:
           preset: release-examples
-          capture: 'OFF'
+          capture: 'none'
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
           version: ${{ steps.version.outputs.version }}
           macos-arch: ${{ matrix.macos_arch || '' }}
@@ -194,7 +194,7 @@ jobs:
         uses: ./.github/actions/test-sdk-bundle
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-${{ steps.version.outputs.version }}
-          capture: 'OFF'
+          capture: 'none'
           macos-arch: ${{ matrix.macos_arch || '' }}
           version: ${{ steps.version.outputs.version }}
 
@@ -207,7 +207,7 @@ jobs:
         uses: ./.github/actions/build-sdk
         with:
           preset: release-examples
-          capture: 'ON'
+          capture: 'all'
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
           version: ${{ steps.version.outputs.version }}
           macos-arch: ${{ matrix.macos_arch || '' }}
@@ -223,7 +223,7 @@ jobs:
         uses: ./.github/actions/test-sdk-bundle
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
-          capture: 'ON'
+          capture: 'all'
           macos-arch: ${{ matrix.macos_arch || '' }}
           version: ${{ steps.version.outputs.version }}
 

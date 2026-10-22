@@ -166,7 +166,7 @@ jobs:
         uses: ./.github/actions/build-sdk
         with:
           preset: release-examples
-          capture: 'OFF'
+          capture: 'none'
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}
           macos-arch: ${{ matrix.macos_arch || '' }}
 
@@ -182,7 +182,7 @@ jobs:
         uses: ./.github/actions/test-sdk-bundle
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}
-          capture: 'OFF'
+          capture: 'none'
           macos-arch: ${{ matrix.macos_arch || '' }}
 
       # ---------- Upload artifacts ----------
@@ -204,7 +204,7 @@ jobs:
         uses: ./.github/actions/build-sdk
         with:
           preset: release-examples
-          capture: 'ON'
+          capture: 'all'
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture
           macos-arch: ${{ matrix.macos_arch || '' }}
 
@@ -219,7 +219,7 @@ jobs:
         uses: ./.github/actions/test-sdk-bundle
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture
-          capture: 'ON'
+          capture: 'all'
           macos-arch: ${{ matrix.macos_arch || '' }}
 
       - name: Upload capture SDK bundle

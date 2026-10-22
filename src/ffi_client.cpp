@@ -115,6 +115,8 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
       return event.perform_rpc().async_id();
     case E::kNewCaptureSource:
       return event.new_capture_source().async_id();
+    case E::kJoinCapture:
+      return event.join_capture().async_id();
 
     // low-level data stream callbacks
     case E::kSendStreamHeader:
@@ -168,9 +170,6 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
     case E::kTextStreamReaderEvent:
     case E::kDataTrackStreamEvent:
     case E::kRpcMethodInvocation:
-    // Delivered to the owning capture::CaptureSource's listener, not to a pending
-    // request; see capture::CaptureSource's capture-event handler.
-    case E::kCaptureSourceEvent:
     case E::kLogs:
     case E::kPanic:
     case E::MESSAGE_NOT_SET:
@@ -805,6 +804,48 @@ std::future<std::shared_ptr<capture::CaptureSource>> FfiClient::newCaptureSource
     const proto::FfiResponse resp = send ? send(req) : sendRequest(req);
     if (!resp.has_new_capture_source()) {
       logAndThrow("FfiResponse missing new_capture_source");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+std::future<capture::CaptureResult> FfiClient::joinCaptureAsync(
+    std::uint64_t capture_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<capture::CaptureResult>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_join_capture() && event.join_capture().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<capture::CaptureResult>& pr) {
+        const auto& callback = event.join_capture();
+        capture::CaptureResult result;
+        if (callback.has_error()) {
+          result.error = callback.error().error();
+        } else if (callback.has_finished()) {
+          result.frames_captured = callback.finished().frames_captured();
+          result.exit = callback.finished().exit() == proto::CaptureExit::CAPTURE_EXIT_END_OF_STREAM
+                            ? capture::CaptureExit::EndOfStream
+                            : capture::CaptureExit::Stopped;
+        }
+        pr.set_value(std::move(result));
+      },
+      std::make_exception_ptr(capture::CaptureSourceError("Capture join cancelled")));
+
+  proto::FfiRequest request;
+  auto* message = request.mutable_join_capture();
+  message->set_capture_handle(capture_handle);
+  message->set_request_async_id(async_id);
+
+  try {
+    const proto::FfiResponse response = send ? send(request) : sendRequest(request);
+    if (!response.has_join_capture()) {
+      logAndThrow("FfiResponse missing join_capture");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);
