@@ -16,9 +16,8 @@
 
 #include "livekit/capture/capture_source.h"
 
+#include <exception>
 #include <limits>
-#include <mutex>
-#include <stdexcept>
 
 #include "capture.pb.h"
 #include "capture_source_internal.h"
@@ -35,9 +34,6 @@ struct CaptureSource::Impl {
   int height = 0;
   std::optional<VideoCodec> codec;
   std::shared_ptr<VideoSource> video_source;
-  std::mutex callback_mutex;
-  FinishedCallback on_finished;
-  int listener_id = 0;
 };
 
 CaptureSource::CaptureSource() : impl_(std::make_unique<Impl>()) {}
@@ -102,20 +98,6 @@ proto::Pattern toProto(Pattern pattern) {
       return proto::Pattern::PATTERN_LOGO;
   }
   return proto::Pattern::PATTERN_GRADIENT;
-}
-
-CaptureResult resultFromEvent(const proto::CaptureSourceEvent& event) {
-  CaptureResult result;
-  if (event.has_error()) {
-    result.error = event.error().error();
-    return result;
-  }
-  if (event.has_finished()) {
-    result.frames_captured = event.finished().frames_captured();
-    result.exit = event.finished().exit() == proto::CaptureExit::CAPTURE_EXIT_END_OF_STREAM ? CaptureExit::EndOfStream
-                                                                                            : CaptureExit::Stopped;
-  }
-  return result;
 }
 
 } // namespace
@@ -193,27 +175,6 @@ std::shared_ptr<CaptureSource> CaptureSource::fromOwned(const proto::OwnedCaptur
   source->impl_->video_source = std::shared_ptr<VideoSource>(
       new VideoSource(std::move(video_handle_owner), source->impl_->width, source->impl_->height));
 
-  // The terminal CaptureSourceEvent is unsolicited (not async-id
-  // correlated); observe it with a listener filtered by our handle. The
-  // destructor removes the listener before releasing the handle, so no
-  // callback can outlive the wrapper.
-  CaptureSource* raw = source.get();
-  const std::uint64_t capture_handle = source->impl_->handle.get();
-  source->impl_->listener_id = FfiClient::instance().addListener([raw, capture_handle](const proto::FfiEvent& event) {
-    if (!event.has_capture_source_event() || event.capture_source_event().capture_handle() != capture_handle) {
-      return;
-    }
-    const CaptureResult result = resultFromEvent(event.capture_source_event());
-    FinishedCallback callback;
-    {
-      const std::scoped_lock lock(raw->impl_->callback_mutex);
-      callback = raw->impl_->on_finished;
-    }
-    if (callback) {
-      callback(result);
-    }
-  });
-
   return source;
 }
 
@@ -226,17 +187,7 @@ TrackPublishOptions CaptureSource::publishOptions(TrackPublishOptions options) c
   return options;
 }
 
-CaptureSource::~CaptureSource() {
-  if (impl_->listener_id != 0) {
-    FfiClient::instance().removeListener(impl_->listener_id);
-  }
-  // Dropping the handle stops a running capture.
-}
-
-void CaptureSource::setOnFinishedCallback(FinishedCallback callback) {
-  const std::scoped_lock lock(impl_->callback_mutex);
-  impl_->on_finished = std::move(callback);
-}
+CaptureSource::~CaptureSource() = default;
 
 namespace {
 
@@ -270,5 +221,18 @@ bool controlCapture(std::uint64_t handle, bool start) {
 
 bool CaptureSource::start() { return controlCapture(impl_->handle.get(), true); }
 bool CaptureSource::stop() { return controlCapture(impl_->handle.get(), false); }
+std::future<CaptureResult> CaptureSource::join() {
+  try {
+    return FfiClient::instance().joinCaptureAsync(impl_->handle.get());
+  } catch (const std::exception& error) {
+    std::promise<CaptureResult> promise;
+    promise.set_exception(std::make_exception_ptr(CaptureSourceError(error.what())));
+    return promise.get_future();
+  } catch (...) {
+    std::promise<CaptureResult> promise;
+    promise.set_exception(std::make_exception_ptr(CaptureSourceError("Capture join failed")));
+    return promise.get_future();
+  }
+}
 
 } // namespace livekit::capture

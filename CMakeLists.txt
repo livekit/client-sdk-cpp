@@ -19,11 +19,11 @@ include(warnings)
 option(LIVEKIT_BUILD_EXAMPLES "Build LiveKit examples" OFF)
 option(LIVEKIT_BUILD_TESTS "Build LiveKit tests" OFF)
 # Capture sources for the Rust FFI. Comma-separated subset of gstreamer,
-# pattern, clock; or all / none / ON / OFF (aliases). Empty means none.
+# pattern, and clock, or all / none. Empty means none.
 set(LIVEKIT_CAPTURE "" CACHE STRING
   "Capture sources: none, all, or comma-separated gstreamer,pattern,clock")
 set_property(CACHE LIVEKIT_CAPTURE PROPERTY STRINGS
-  "" none all gstreamer pattern clock ON OFF)
+  "" none all gstreamer pattern clock)
 
 # vcpkg is only used on Windows; Linux/macOS use system package managers
 if(WIN32)
@@ -180,9 +180,9 @@ set(LIVEKIT_CAPTURE_ENABLED 0)
 string(STRIP "${LIVEKIT_CAPTURE}" _lk_capture)
 string(TOLOWER "${_lk_capture}" _lk_capture_lower)
 set(_lk_capture_tokens "")
-if(_lk_capture_lower STREQUAL "" OR _lk_capture_lower STREQUAL "none" OR _lk_capture_lower STREQUAL "off")
+if(_lk_capture_lower STREQUAL "" OR _lk_capture_lower STREQUAL "none")
   # Capture disabled.
-elseif(_lk_capture_lower STREQUAL "all" OR _lk_capture_lower STREQUAL "on")
+elseif(_lk_capture_lower STREQUAL "all")
   set(_lk_capture_tokens "clock;gstreamer;pattern")
 else()
   string(REPLACE "," ";" _lk_capture_tokens "${_lk_capture_lower}")
@@ -202,7 +202,7 @@ foreach(_token IN LISTS _lk_capture_tokens)
   else()
     message(FATAL_ERROR
       "Unknown LIVEKIT_CAPTURE source '${_token}'. "
-      "Expected: gstreamer, pattern, clock, all, none, ON, or OFF.")
+      "Expected: gstreamer, pattern, clock, all, or none.")
   endif()
 endforeach()
 if(_lk_capture_features)

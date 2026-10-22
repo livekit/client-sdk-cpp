@@ -98,12 +98,12 @@ if /I "!ARG:~0,10!"=="--capture=" (
         exit /b 1
     )
     shift
-    goto parse_all
+    goto :collect_capture_tokens
 )
 if /I "%~1"=="--capture" (
-    set "CAPTURE_OVERRIDE=all"
+    set "CAPTURE_OVERRIDE="
     shift
-    goto parse_all
+    goto :collect_capture_tokens
 )
 if /I "%~1"=="--no-capture" (
     set "CAPTURE_OVERRIDE=none"
@@ -143,7 +143,51 @@ set "PREFIX=%~1"
 shift
 goto parse_all
 
+REM cmd.exe splits unquoted commas and equals signs. Rejoin source names that
+REM followed --capture so --capture=pattern,clock reaches CMake intact.
+:collect_capture_tokens
+if "%~1"=="" goto :finish_capture_tokens
+set "NEXT=%~1"
+if /I "!NEXT!"=="gstreamer" goto :append_capture_token
+if /I "!NEXT!"=="pattern" goto :append_capture_token
+if /I "!NEXT!"=="clock" goto :append_capture_token
+if /I "!NEXT!"=="all" goto :append_capture_token
+if /I "!NEXT!"=="none" goto :append_capture_token
+goto :finish_capture_tokens
+
+:append_capture_token
+if defined CAPTURE_OVERRIDE (
+    set "CAPTURE_OVERRIDE=!CAPTURE_OVERRIDE!,!NEXT!"
+) else (
+    set "CAPTURE_OVERRIDE=!NEXT!"
+)
+shift
+goto :collect_capture_tokens
+
+:finish_capture_tokens
+if not defined CAPTURE_OVERRIDE set "CAPTURE_OVERRIDE=all"
+goto parse_all
+
+:validate_capture
+set "CAPTURE_CHECK=!CAPTURE_OVERRIDE!"
+set "CAPTURE_CHECK=!CAPTURE_CHECK: =!"
+if /I "!CAPTURE_CHECK!"=="" exit /b 0
+if /I "!CAPTURE_CHECK!"=="none" exit /b 0
+if /I "!CAPTURE_CHECK!"=="all" exit /b 0
+set "CAPTURE_CHECK=!CAPTURE_CHECK:,= !"
+set "CAPTURE_INVALID="
+for %%T in (!CAPTURE_CHECK!) do (
+    if /I not "%%T"=="gstreamer" if /I not "%%T"=="pattern" if /I not "%%T"=="clock" (
+        echo ERROR: Unknown capture source '%%T'. Expected: gstreamer, pattern, clock, all, or none.
+        set "CAPTURE_INVALID=1"
+    )
+)
+if defined CAPTURE_INVALID exit /b 1
+exit /b 0
+
 :after_parse
+call :validate_capture
+if errorlevel 1 exit /b 1
 if not defined CMD (
     echo ERROR: No command specified
     call :usage

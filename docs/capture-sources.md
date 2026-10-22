@@ -33,9 +33,8 @@ install the API in `include/livekit/capture/`:
 #include <livekit/capture/capture_source.h>
 ```
 
-You can also include `<livekit/livekit.h>`, which includes capture declarations
-when capture is enabled. Standard SDK bundles do not contain the `capture/`
-header directory.
+Standard SDK bundles omit the `capture/` directory, and their other installed
+headers do not name it.
 
 ## Create and publish a source
 
@@ -49,6 +48,7 @@ continues, and the source is released when the callback arrives.
 
 ```cpp
 #include <livekit/livekit.h>
+#include <livekit/capture/capture_source.h>
 
 // The SDK is initialized, and room is connected.
 auto pending = livekit::capture::CaptureSource::create(
@@ -64,17 +64,20 @@ if (!participant) {
 }
 participant->publishTrack(track, capture->publishOptions());
 
-capture->setOnFinishedCallback([](const livekit::capture::CaptureResult& result) {
-  // Runs on the FFI callback thread. Offload work that would block.
-});
 if (!capture->start()) {
   // Handle the start failure.
 }
+
+// Later, when shutting down:
+capture->stop(); // Signals without waiting.
+auto result = capture->join().get(); // Waits for cleanup and returns statistics.
 ```
 
 Keep `capture` alive while its track is published. `stop()` signals the pump to
-finish. The callback reports the exit reason and frame count. Destroying the
-source also stops capture.
+finish without waiting. `join()` consumes the running pump, waits for its
+thread to exit, and reports the exit reason and frame count. For unbounded
+sources, call `stop()` before `join()`. Destroying the source also stops
+capture.
 
 ## GStreamer encoded pipelines
 
