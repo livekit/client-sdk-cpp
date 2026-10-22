@@ -172,8 +172,8 @@ std::shared_ptr<CaptureSource> CaptureSource::fromOwned(const proto::OwnedCaptur
   if (info.has_codec()) {
     source->impl_->codec = static_cast<VideoCodec>(info.codec());
   }
-  source->impl_->video_source = std::shared_ptr<VideoSource>(
-      new VideoSource(std::move(video_handle_owner), source->impl_->width, source->impl_->height));
+  source->impl_->video_source =
+      VideoSourceAccess::adopt(std::move(video_handle_owner), source->impl_->width, source->impl_->height);
 
   return source;
 }

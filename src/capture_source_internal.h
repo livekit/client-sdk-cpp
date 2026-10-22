@@ -16,8 +16,23 @@
 
 #pragma once
 
+#include <memory>
+#include <utility>
+
 #include "livekit/capture/capture_source.h"
 #include "livekit/visibility.h"
+
+namespace livekit {
+
+/// Internal adapter for adopting capture-owned video source handles without
+/// exposing capture types in the public VideoSource header.
+struct VideoSourceAccess {
+  static std::shared_ptr<VideoSource> adopt(FfiHandle&& handle, int width, int height) {
+    return std::shared_ptr<VideoSource>(new VideoSource(std::move(handle), width, height));
+  }
+};
+
+} // namespace livekit
 
 namespace livekit::proto {
 class NewCaptureSourceRequest;
