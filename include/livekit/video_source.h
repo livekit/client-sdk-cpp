@@ -25,12 +25,9 @@
 
 namespace livekit {
 
-namespace capture {
-class CaptureSource;
-} // namespace capture
-
 class VideoFrame;
 class EncodedVideoSource;
+struct VideoSourceAccess;
 
 /// Rotation of a video frame.
 ///
@@ -101,12 +98,12 @@ public:
 
 private:
   friend class EncodedVideoSource;
-  friend class capture::CaptureSource;
+  friend struct VideoSourceAccess;
 
   enum class SourceType { Native, Encoded };
   VideoSource(int width, int height, SourceType source_type);
 
-  /// @brief Adopt an existing FFI video source handle for capture sources.
+  /// @brief Adopt an existing FFI video source handle.
   /// @param handle Rust-owned video source handle.
   /// @param width Frame width in pixels.
   /// @param height Frame height in pixels.
