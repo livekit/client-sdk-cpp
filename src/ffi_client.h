@@ -31,6 +31,7 @@
 
 #include "capture.pb.h"
 #include "data_track.pb.h"
+#include "livekit/build.h"
 #include "livekit/data_track_error.h"
 #include "livekit/data_track_options.h"
 #include "livekit/data_track_schema.h"
@@ -58,10 +59,12 @@ class DataStream;
 
 struct RoomOptions;
 struct TrackPublishOptions;
+#if LIVEKIT_CAPTURE_ENABLED
 namespace capture {
 class CaptureSource;
 struct CaptureResult;
 } // namespace capture
+#endif
 
 using FfiCallbackFn = void (*)(const uint8_t*, size_t);
 extern "C" void livekit_ffi_initialize(FfiCallbackFn cb, bool capture_logs, const char* sdk, const char* sdk_version);
@@ -132,14 +135,6 @@ public:
                                         const std::string& digit,
                                         const std::vector<std::string>& destination_identities);
 
-  // Capture APIs
-  // Optional request transport permits deterministic callback tests without
-  // starting a GPU renderer or GStreamer pipeline.
-  std::future<std::shared_ptr<capture::CaptureSource>> newCaptureSourceAsync(
-      proto::NewCaptureSourceRequest request,
-      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
-  std::future<capture::CaptureResult> joinCaptureAsync(
-      std::uint64_t capture_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
   std::future<void> setLocalMetadataAsync(std::uint64_t local_participant_handle, const std::string& metadata);
   std::future<void> captureAudioFrameAsync(std::uint64_t source_handle, const proto::AudioFrameBufferInfo& buffer);
   std::future<std::string> performRpcAsync(std::uint64_t local_participant_handle,
@@ -178,6 +173,17 @@ public:
   // Note: For asynchronous requests, use the dedicated async functions instead
   // of sendRequest.
   proto::FfiResponse sendRequest(const proto::FfiRequest& request) const;
+
+#if LIVEKIT_CAPTURE_ENABLED
+  // Capture APIs
+  // Optional request transport permits deterministic callback tests without
+  // starting a GPU renderer or GStreamer pipeline.
+  std::future<std::shared_ptr<capture::CaptureSource>> newCaptureSourceAsync(
+      proto::NewCaptureSourceRequest request,
+      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+  std::future<capture::CaptureResult> joinCaptureAsync(
+      std::uint64_t capture_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+#endif
 
 private:
   friend struct FfiClientTestAccess;
