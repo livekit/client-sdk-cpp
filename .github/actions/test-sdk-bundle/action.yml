@@ -53,7 +53,7 @@ runs:
         if [[ -n "$SDK_MACOS_ARCH" ]]; then arch_args+=(-DCMAKE_OSX_ARCHITECTURES="$SDK_MACOS_ARCH"); fi
         cmake -S src/tests/packaging -B "$build_dir" -G Ninja \
           -DCMAKE_BUILD_TYPE="$SDK_BUILD_TYPE" -DCMAKE_PREFIX_PATH="$bundle" \
-          -DLIVEKIT_EXPECT_SOURCES="$SDK_CAPTURE" \
+          -DLIVEKIT_CAPTURE="$SDK_CAPTURE" \
           -DLIVEKIT_VERIFY_PIXEL_SOURCES="$SDK_VERIFY_PIXEL_SOURCES" -DLIVEKIT_EXPECT_VERSION="$SDK_VERSION" "${arch_args[@]}"
         cmake --build "$build_dir" --config "$SDK_BUILD_TYPE"
         ctest --test-dir "$build_dir" -C "$SDK_BUILD_TYPE" --output-on-failure -L packaging
@@ -70,7 +70,7 @@ runs:
         $bundle = Join-Path $env:GITHUB_WORKSPACE $env:SDK_BUNDLE_DIR
         $selection = $env:SDK_CAPTURE -replace ',', '-'
         $buildDir = Join-Path $env:RUNNER_TEMP "livekit-packaging-$selection"
-        cmake -S src/tests/packaging -B "$buildDir" -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_EXPECT_SOURCES="$env:SDK_CAPTURE" -DLIVEKIT_VERIFY_PIXEL_SOURCES="$env:SDK_VERIFY_PIXEL_SOURCES" -DLIVEKIT_EXPECT_VERSION="$env:SDK_VERSION"
+        cmake -S src/tests/packaging -B "$buildDir" -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_CAPTURE="$env:SDK_CAPTURE" -DLIVEKIT_VERIFY_PIXEL_SOURCES="$env:SDK_VERIFY_PIXEL_SOURCES" -DLIVEKIT_EXPECT_VERSION="$env:SDK_VERSION"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         cmake --build "$buildDir" --config "$env:SDK_BUILD_TYPE"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
