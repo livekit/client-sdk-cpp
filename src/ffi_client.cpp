@@ -27,7 +27,6 @@
 #include "data_track_proto_converter.h"
 #include "ffi.pb.h"
 #include "livekit/build.h"
-#include "livekit/capture/capture_source.h"
 #include "livekit/data_track_error.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h"
@@ -36,6 +35,10 @@
 #include "lk_log.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
+
+#if LIVEKIT_CAPTURE_ENABLED
+#include "livekit/capture/capture_source.h"
+#endif
 
 namespace livekit {
 
@@ -764,97 +767,6 @@ std::future<proto::OwnedTrackPublication> FfiClient::publishTrackAsync(
   return fut;
 }
 
-std::future<std::shared_ptr<capture::CaptureSource>> FfiClient::newCaptureSourceAsync(
-    proto::NewCaptureSourceRequest request, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
-  // Generate client-side async_id first
-  const AsyncId async_id = generateAsyncId();
-
-  // Register the async handler BEFORE sending the request
-  auto fut = registerAsync<std::shared_ptr<capture::CaptureSource>>(
-      async_id,
-      [async_id](const proto::FfiEvent& event) {
-        return event.has_new_capture_source() && event.new_capture_source().async_id() == async_id;
-      },
-      [](const proto::FfiEvent& event, std::promise<std::shared_ptr<capture::CaptureSource>>& pr) {
-        const auto& cb = event.new_capture_source();
-        try {
-          if (cb.has_error()) {
-            throw capture::CaptureSourceError(cb.error());
-          }
-          if (!cb.has_source()) {
-            throw capture::CaptureSourceError("NewCaptureSourceCallback missing source");
-          }
-          // Adopt the handles before satisfying the promise. If the caller has
-          // discarded its future, destroying the pending promise releases the
-          // wrapper and both handles after this callback completes.
-          pr.set_value(capture::CaptureSource::fromOwned(cb.source()));
-        } catch (const std::exception& error) {
-          pr.set_exception(std::make_exception_ptr(capture::CaptureSourceError(error.what())));
-        } catch (...) {
-          pr.set_exception(std::make_exception_ptr(capture::CaptureSourceError("Capture source construction failed")));
-        }
-      },
-      std::make_exception_ptr(capture::CaptureSourceError("Async operation cancelled")));
-
-  request.set_request_async_id(async_id);
-  proto::FfiRequest req;
-  req.mutable_new_capture_source()->CopyFrom(request);
-
-  try {
-    const proto::FfiResponse resp = send ? send(req) : sendRequest(req);
-    if (!resp.has_new_capture_source()) {
-      logAndThrow("FfiResponse missing new_capture_source");
-    }
-  } catch (...) {
-    cancelPendingByAsyncId(async_id);
-    throw;
-  }
-
-  return fut;
-}
-
-std::future<capture::CaptureResult> FfiClient::joinCaptureAsync(
-    std::uint64_t capture_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
-  const AsyncId async_id = generateAsyncId();
-
-  auto fut = registerAsync<capture::CaptureResult>(
-      async_id,
-      [async_id](const proto::FfiEvent& event) {
-        return event.has_join_capture() && event.join_capture().async_id() == async_id;
-      },
-      [](const proto::FfiEvent& event, std::promise<capture::CaptureResult>& pr) {
-        const auto& callback = event.join_capture();
-        capture::CaptureResult result;
-        if (callback.has_error()) {
-          result.error = callback.error().error();
-        } else if (callback.has_finished()) {
-          result.frames_captured = callback.finished().frames_captured();
-          result.exit = callback.finished().exit() == proto::CaptureExit::CAPTURE_EXIT_END_OF_STREAM
-                            ? capture::CaptureExit::EndOfStream
-                            : capture::CaptureExit::Stopped;
-        }
-        pr.set_value(std::move(result));
-      },
-      std::make_exception_ptr(capture::CaptureSourceError("Capture join cancelled")));
-
-  proto::FfiRequest request;
-  auto* message = request.mutable_join_capture();
-  message->set_capture_handle(capture_handle);
-  message->set_request_async_id(async_id);
-
-  try {
-    const proto::FfiResponse response = send ? send(request) : sendRequest(request);
-    if (!response.has_join_capture()) {
-      logAndThrow("FfiResponse missing join_capture");
-    }
-  } catch (...) {
-    cancelPendingByAsyncId(async_id);
-    throw;
-  }
-
-  return fut;
-}
-
 std::future<void> FfiClient::unpublishTrackAsync(std::uint64_t local_participant_handle, const std::string& track_sid,
                                                  bool stop_on_unpublish) {
   // Generate client-side async_id first
@@ -1424,5 +1336,100 @@ std::future<Result<std::string, std::string>> FfiClient::getSchemaAsync(std::uin
 
   return fut;
 }
+
+#if LIVEKIT_CAPTURE_ENABLED
+
+std::future<std::shared_ptr<capture::CaptureSource>> FfiClient::newCaptureSourceAsync(
+    proto::NewCaptureSourceRequest request, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  // Generate client-side async_id first
+  const AsyncId async_id = generateAsyncId();
+
+  // Register the async handler BEFORE sending the request
+  auto fut = registerAsync<std::shared_ptr<capture::CaptureSource>>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_new_capture_source() && event.new_capture_source().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<std::shared_ptr<capture::CaptureSource>>& pr) {
+        const auto& cb = event.new_capture_source();
+        try {
+          if (cb.has_error()) {
+            throw capture::CaptureSourceError(cb.error());
+          }
+          if (!cb.has_source()) {
+            throw capture::CaptureSourceError("NewCaptureSourceCallback missing source");
+          }
+          // Adopt the handles before satisfying the promise. If the caller has
+          // discarded its future, destroying the pending promise releases the
+          // wrapper and both handles after this callback completes.
+          pr.set_value(capture::CaptureSource::fromOwned(cb.source()));
+        } catch (const std::exception& error) {
+          pr.set_exception(std::make_exception_ptr(capture::CaptureSourceError(error.what())));
+        } catch (...) {
+          pr.set_exception(std::make_exception_ptr(capture::CaptureSourceError("Capture source construction failed")));
+        }
+      },
+      std::make_exception_ptr(capture::CaptureSourceError("Async operation cancelled")));
+
+  request.set_request_async_id(async_id);
+  proto::FfiRequest req;
+  req.mutable_new_capture_source()->CopyFrom(request);
+
+  try {
+    const proto::FfiResponse resp = send ? send(req) : sendRequest(req);
+    if (!resp.has_new_capture_source()) {
+      logAndThrow("FfiResponse missing new_capture_source");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+std::future<capture::CaptureResult> FfiClient::joinCaptureAsync(
+    std::uint64_t capture_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<capture::CaptureResult>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_join_capture() && event.join_capture().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<capture::CaptureResult>& pr) {
+        const auto& callback = event.join_capture();
+        capture::CaptureResult result;
+        if (callback.has_error()) {
+          result.error = callback.error().error();
+        } else if (callback.has_finished()) {
+          result.frames_captured = callback.finished().frames_captured();
+          result.exit = callback.finished().exit() == proto::CaptureExit::CAPTURE_EXIT_END_OF_STREAM
+                            ? capture::CaptureExit::EndOfStream
+                            : capture::CaptureExit::Stopped;
+        }
+        pr.set_value(std::move(result));
+      },
+      std::make_exception_ptr(capture::CaptureSourceError("Capture join cancelled")));
+
+  proto::FfiRequest request;
+  auto* message = request.mutable_join_capture();
+  message->set_capture_handle(capture_handle);
+  message->set_request_async_id(async_id);
+
+  try {
+    const proto::FfiResponse response = send ? send(request) : sendRequest(request);
+    if (!response.has_join_capture()) {
+      logAndThrow("FfiResponse missing join_capture");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+#endif
 
 } // namespace livekit

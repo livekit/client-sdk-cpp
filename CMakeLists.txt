@@ -418,7 +418,6 @@ include(uniffi_cpp)
 add_library(livekit SHARED
   src/audio_frame.cpp
   src/audio_processing_module.cpp
-  src/capture_source.cpp
   src/audio_source.cpp
   src/audio_stream.cpp
   src/data_track_frame.cpp
@@ -472,6 +471,11 @@ add_library(livekit SHARED
   src/trace/trace_event.h
   src/trace/tracing.cpp
 )
+# Conditionally compile capture sources
+if(LIVEKIT_CAPTURE_ENABLED)
+  target_sources(livekit PRIVATE src/capture_source.cpp)
+endif()
+
 # Symbol visibility: keep liblivekit's exported ABI restricted to the public
 # LiveKit API. By default everything is hidden unless marked by the LIVEKIT_API
 # macro in code
