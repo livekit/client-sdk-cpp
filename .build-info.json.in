@@ -4,5 +4,7 @@
   "cpp_git_commit": "@GIT_COMMIT@",
   "rust_submodule_commit": "@RUST_GIT_COMMIT@",
   "livekit_ffi_version": "@LIVEKIT_FFI_VERSION@",
+  "capture_enabled": @LIVEKIT_CAPTURE_ENABLED@,
+  "cargo_features": "@LIVEKIT_CARGO_FEATURES@",
   "build_date": "@BUILD_DATE@"
 }

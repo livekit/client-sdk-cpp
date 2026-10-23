@@ -23,6 +23,54 @@ CMake/vcpkg flows.
 | Linux    | GCC 9+ or Clang 10+ | `apt` / `dnf` (or vcpkg) |
 | macOS    | Xcode 12+ (macOS 12.3+ for ScreenCaptureKit) | Homebrew (or vcpkg) |
 
+<a id="additional-capture-dependencies"></a>
+
+### Additional capture dependencies
+
+GStreamer is required only when the selected sources include `gstreamer`.
+This includes `--capture` / `--capture=all` and release `-capture` bundles,
+which enable all three sources. Standard SDK builds and builds selecting only
+`pattern`, `clock`, or both do not require GStreamer.
+
+For builds that include `gstreamer`, install GStreamer development libraries
+at build time and GStreamer libraries at runtime. The SDK does not redistribute
+these libraries or plugins. Install the runtime plugins required by your
+pipeline too. Pattern and clock sources need a compatible GPU adapter at runtime.
+
+**macOS:** Install both the official universal runtime and development packages
+from the [GStreamer downloads page](https://gstreamer.freedesktop.org/download/#macos).
+These packages support both x86_64 and arm64. Configure the framework paths:
+
+```bash
+export PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/bin:$PATH"
+export PKG_CONFIG_PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+```
+
+Use one GStreamer installation method per machine to keep libraries and plugins
+consistent.
+
+**Ubuntu / Debian:** Install the development packages and runtime plugins:
+
+```bash
+sudo apt install -y pkg-config libunwind-dev \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
+```
+
+**Windows:** Install the MSVC x86_64 runtime and development components from the
+[GStreamer downloads page](https://gstreamer.freedesktop.org/download/#windows).
+Add the installation's `bin` directory to `PATH` and its `lib/pkgconfig`
+directory to `PKG_CONFIG_PATH`.
+
+For GStreamer builds, development files must be discoverable through
+`pkg-config`. You can verify
+that they are available with:
+
+```bash
+pkg-config --modversion gstreamer-1.0 gstreamer-app-1.0
+```
+
 ## Clone the repository
 
 The SDK depends on the [`client-sdk-rust`](https://github.com/livekit/rust-sdks)
@@ -201,6 +249,7 @@ cmake --build build
 | `LIVEKIT_USE_SYSTEM_PROTOBUF` | OFF | Use system Protobuf instead of vcpkg's |
 | `LIVEKIT_LOG_LEVEL` | `TRACE` | Compile-time log threshold (see [logging.md](logging.md)) |
 | `LIVEKIT_VERSION` | repo-derived | SDK version string baked into the binary |
+| `LIVEKIT_CAPTURE` | empty (`none`) | Capture sources for the Rust FFI (`all`, `none`, or a comma-separated list; see [Capture sources](#capture-sources)) |
 
 ## Build output
 
@@ -347,6 +396,74 @@ cmake --build build --target cargo_clean        # Rust artifacts
 cmake --build build --target clean_generated    # Generated protobuf headers
 cmake --build build --target clean_all          # Full clean
 ```
+
+## Cargo output paths on Windows
+
+The SDK places Rust FFI outputs in `client-sdk-rust/target/cpp-<feature-hash>/`.
+Deep checkout paths can make WebRTC header paths exceed the Windows path limit.
+Set `CARGO_TARGET_DIR` to a short absolute path before building, for example
+`set CARGO_TARGET_DIR=C:\lk-rust` in Command Prompt. The SDK appends the
+feature directory so different source selections have separate outputs.
+Windows CI uses this setting for builds, tests, and release bundles.
+`clean-all` removes the default Rust target directory; remove a custom root
+separately when it is no longer needed.
+
+<a id="capture-sources"></a>
+
+## Capture sources
+
+Capture is disabled by default. Select sources with `-DLIVEKIT_CAPTURE=<value>`
+or `--capture[=list]` / `--no-capture`.
+
+Available sources (comma-separated; each maps to `capture-*` on `livekit-ffi`):
+
+| Source | Description |
+|--------|-------------|
+| `gstreamer` | GStreamer pipelines (needs GStreamer at build and runtime) |
+| `pattern` | GPU test pattern |
+| `clock` | GPU wall clock |
+
+Special values: `none` or empty (disabled), `all` (every source).
+`LIVEKIT_CAPTURE_ENABLED` is 1 when any source is selected; installed
+`share/livekit/build-info.json` also records `cargo_features`.
+
+```bash
+./build.sh release --capture --bundle --prefix sdk-out/livekit-sdk-capture
+./build.sh release --capture=pattern,clock --bundle --prefix sdk-out/livekit-sdk-pixel
+./build.sh release --capture=gstreamer --bundle --prefix sdk-out/livekit-sdk-gstreamer
+```
+
+On Windows, use `build.cmd release --capture --bundle --prefix sdk-out\livekit-sdk-capture`.
+Windows also accepts source lists, for example `build.cmd release --capture=pattern,clock`.
+Custom CMake configurations use `LIVEKIT_CAPTURE=all` or a source list such as
+`LIVEKIT_CAPTURE=pattern,clock`.
+
+The build scripts set `LIVEKIT_CAPTURE`. The generated numeric
+`LIVEKIT_CAPTURE_ENABLED` macro (0 or 1) supports `#if` checks in consumers.
+It indicates whether any source was compiled in; it does not identify which
+sources are available. Check `cargo_features` in `share/livekit/build-info.json`
+for the selected backends. Creating a source omitted from the SDK build fails
+through the returned future with `CaptureSourceError`.
+Capture-enabled bundles install the public API under `include/livekit/capture/`;
+standard bundles omit that directory. Use `<livekit/capture/capture_source.h>`
+for direct inclusion. The source-tree header also rejects use in a standard
+build. `share/livekit/build-info.json` in an installed bundle describes the same
+build features; neither value tests whether a GPU or a requested GStreamer plugin
+is available at runtime.
+
+Release downloads with `-capture` in their names include these features, for
+example `livekit-sdk-macos-arm64-capture-<version>.tar.gz`. Standard release
+bundles have capture disabled.
+
+See [Additional capture dependencies](#additional-capture-dependencies) before
+building or running a capture-enabled SDK.
+
+Rust artifacts are stored under `client-sdk-rust/target/cpp-<feature-hash>/`,
+with separate directories for each normalized source selection. Generated
+`build.h` files live in each CMake build directory, so feature metadata follows
+the installed SDK instead of another configuration's most recent build.
+
+See [Capture sources](capture-sources.md) for dependencies and usage.
 
 ## Support
 

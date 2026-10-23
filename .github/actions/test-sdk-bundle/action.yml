@@ -1,0 +1,79 @@
+# Copyright 2026 LiveKit, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Test installed SDK bundle
+description: Validate an SDK bundle through the standalone CTest consumer.
+inputs:
+  bundle-dir:
+    description: SDK installation directory relative to the workspace.
+    required: true
+  capture:
+    description: Expected capture sources (all, none, or a comma-separated source list).
+    default: 'all'
+  verify-pixel-sources:
+    description: Require successful pattern/clock creation using a GPU or software adapter.
+    default: 'false'
+  build-type:
+    description: Consumer configuration (Debug or Release).
+    default: Release
+  version:
+    description: Optional expected SDK version for release metadata checks.
+    default: ''
+  macos-arch:
+    description: Optional macOS architecture override.
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Test bundle (Unix)
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        SDK_BUNDLE_DIR: ${{ inputs.bundle-dir }}
+        SDK_CAPTURE: ${{ inputs.capture }}
+        SDK_VERIFY_PIXEL_SOURCES: ${{ inputs.verify-pixel-sources }}
+        SDK_BUILD_TYPE: ${{ inputs.build-type }}
+        SDK_VERSION: ${{ inputs.version }}
+        SDK_MACOS_ARCH: ${{ inputs.macos-arch }}
+      run: |
+        bundle="$GITHUB_WORKSPACE/$SDK_BUNDLE_DIR"
+        build_dir="${RUNNER_TEMP}/livekit-packaging-${SDK_CAPTURE//,/-}"
+        arch_args=()
+        if [[ -n "$SDK_MACOS_ARCH" ]]; then arch_args+=(-DCMAKE_OSX_ARCHITECTURES="$SDK_MACOS_ARCH"); fi
+        cmake -S src/tests/packaging -B "$build_dir" -G Ninja \
+          -DCMAKE_BUILD_TYPE="$SDK_BUILD_TYPE" -DCMAKE_PREFIX_PATH="$bundle" \
+          -DLIVEKIT_CAPTURE="$SDK_CAPTURE" \
+          -DLIVEKIT_VERIFY_PIXEL_SOURCES="$SDK_VERIFY_PIXEL_SOURCES" -DLIVEKIT_EXPECT_VERSION="$SDK_VERSION" "${arch_args[@]}"
+        cmake --build "$build_dir" --config "$SDK_BUILD_TYPE"
+        ctest --test-dir "$build_dir" -C "$SDK_BUILD_TYPE" --output-on-failure -L packaging
+    - name: Test bundle (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        SDK_BUNDLE_DIR: ${{ inputs.bundle-dir }}
+        SDK_CAPTURE: ${{ inputs.capture }}
+        SDK_VERIFY_PIXEL_SOURCES: ${{ inputs.verify-pixel-sources }}
+        SDK_BUILD_TYPE: ${{ inputs.build-type }}
+        SDK_VERSION: ${{ inputs.version }}
+      run: |
+        $bundle = Join-Path $env:GITHUB_WORKSPACE $env:SDK_BUNDLE_DIR
+        $selection = $env:SDK_CAPTURE -replace ',', '-'
+        $buildDir = Join-Path $env:RUNNER_TEMP "livekit-packaging-$selection"
+        cmake -S src/tests/packaging -B "$buildDir" -DCMAKE_PREFIX_PATH="$bundle" -DLIVEKIT_CAPTURE="$env:SDK_CAPTURE" -DLIVEKIT_VERIFY_PIXEL_SOURCES="$env:SDK_VERIFY_PIXEL_SOURCES" -DLIVEKIT_EXPECT_VERSION="$env:SDK_VERSION"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        cmake --build "$buildDir" --config "$env:SDK_BUILD_TYPE"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        $env:PATH = "$bundle\bin;$env:PATH"
+        ctest --test-dir "$buildDir" -C "$env:SDK_BUILD_TYPE" --output-on-failure -L packaging
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -29,7 +29,9 @@
 #include <unordered_map>
 #include <utility>
 
+#include "capture.pb.h"
 #include "data_track.pb.h"
+#include "livekit/build.h"
 #include "livekit/data_track_error.h"
 #include "livekit/data_track_options.h"
 #include "livekit/data_track_schema.h"
@@ -57,6 +59,12 @@ class DataStream;
 
 struct RoomOptions;
 struct TrackPublishOptions;
+#if LIVEKIT_CAPTURE_ENABLED
+namespace capture {
+class CaptureSource;
+struct CaptureResult;
+} // namespace capture
+#endif
 
 using FfiCallbackFn = void (*)(const uint8_t*, size_t);
 extern "C" void livekit_ffi_initialize(FfiCallbackFn cb, bool capture_logs, const char* sdk, const char* sdk_version);
@@ -64,6 +72,12 @@ extern "C" void livekit_ffi_initialize(FfiCallbackFn cb, bool capture_logs, cons
 extern "C" void livekit_ffi_dispose();
 
 extern "C" LIVEKIT_INTERNAL_API void ffiEventCallback(const uint8_t* buf, size_t len);
+
+/// @brief Release a Rust FFI handle and report whether it existed.
+/// Internal ownership test seam; not part of the public SDK API.
+/// @param handle Rust resource handle to release.
+/// @return True if the handle was released; false if it did not exist.
+[[nodiscard]] LIVEKIT_INTERNAL_API bool dropFfiHandle(std::uint64_t handle) noexcept;
 
 // The FfiClient is used to communicate with the FFI interface of the Rust SDK
 // We use the generated protocol messages to facilitate the communication.
@@ -120,6 +134,7 @@ public:
   std::future<void> publishSipDtmfAsync(std::uint64_t local_participant_handle, std::uint32_t code,
                                         const std::string& digit,
                                         const std::vector<std::string>& destination_identities);
+
   std::future<void> setLocalMetadataAsync(std::uint64_t local_participant_handle, const std::string& metadata);
   std::future<void> captureAudioFrameAsync(std::uint64_t source_handle, const proto::AudioFrameBufferInfo& buffer);
   std::future<std::string> performRpcAsync(std::uint64_t local_participant_handle,
@@ -159,7 +174,20 @@ public:
   // of sendRequest.
   proto::FfiResponse sendRequest(const proto::FfiRequest& request) const;
 
+#if LIVEKIT_CAPTURE_ENABLED
+  // Capture APIs
+  // Optional request transport permits deterministic callback tests without
+  // starting a GPU renderer or GStreamer pipeline.
+  std::future<std::shared_ptr<capture::CaptureSource>> newCaptureSourceAsync(
+      proto::NewCaptureSourceRequest request,
+      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+  std::future<capture::CaptureResult> joinCaptureAsync(
+      std::uint64_t capture_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+#endif
+
 private:
+  friend struct FfiClientTestAccess;
+
   FfiClient() = default;
 
   /// Lifecycle state of the FfiClient
@@ -184,6 +212,7 @@ private:
     std::promise<T> promise;
     std::function<bool(const proto::FfiEvent&)> match;
     std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler;
+    std::exception_ptr cancellation_error;
 
     bool matches(const proto::FfiEvent& event) const override { return match && match(event); }
 
@@ -191,7 +220,9 @@ private:
 
     void cancel() override {
       try {
-        promise.set_exception(std::make_exception_ptr(std::runtime_error("Async operation cancelled")));
+        promise.set_exception(cancellation_error
+                                  ? cancellation_error
+                                  : std::make_exception_ptr(std::runtime_error("Async operation cancelled")));
       } catch (const std::future_error& e) {
         // Unlikely to throw here as the promise should be satisfied before
         // cancel() Logging a debug message to avoid clang empty catch warning
@@ -221,7 +252,8 @@ private:
 
   template <typename T>
   std::future<T> registerAsync(AsyncId async_id, std::function<bool(const proto::FfiEvent&)> match,
-                               std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler);
+                               std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler,
+                               std::exception_ptr cancellation_error = {});
 
   // Generate a unique client-side async ID for request correlation
   AsyncId generateAsyncId();
