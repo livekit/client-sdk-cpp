@@ -38,11 +38,14 @@ headers do not name it.
 
 ## Create and publish a source
 
-Dimensions must be positive. Pattern and clock frame rates must also be positive.
-Invalid C++ configurations throw `std::invalid_argument` when the returned
-future is awaited. For GStreamer, resolution and codec can be omitted to discover
-them from negotiated pipeline caps. Producer setup failures reported by Rust
-throw `std::runtime_error` through that future.
+Rust validates capture configurations, including zero dimensions and frame rates,
+and reports failures as `std::runtime_error` when the returned future is awaited.
+Resolution dimensions use `std::uint32_t`, matching the protobuf and Rust types.
+The C++ wrapper rejects invalid enum values that cannot be serialized, using
+`std::invalid_argument`. For GStreamer, resolution and codec can be omitted to
+discover them from negotiated pipeline caps.
+Producer setup failures reported by Rust also throw `std::runtime_error` through
+that future.
 
 Discarding a creation future does not wait for creation to finish. Creation
 continues, and the source is released when the callback arrives.
@@ -126,9 +129,10 @@ A structured pump error received from Rust becomes a failed
 preserved. Check the result before calling `value()` or `error()`.
 
 Failures without a protobuf error kind throw a clear exception with the operation
-name and diagnostic. C++ configuration validation throws `std::invalid_argument`.
-Uninitialized SDK use, transport failures, malformed responses, shutdown
-cancellation, and untyped errors from Rust throw `std::runtime_error`.
+name and diagnostic. Invalid enum values that cannot be serialized throw
+`std::invalid_argument`. Rust configuration validation errors, uninitialized SDK
+use, transport failures, malformed responses, shutdown cancellation, and untyped
+errors from Rust throw `std::runtime_error`.
 `create()` and `join()` deliver these exceptions from the returned future's
 `get()`; `start()` and `stop()` throw directly. Exceptions are captured at the
 FFI callback boundary. They never unwind through Rust callbacks.
@@ -144,8 +148,3 @@ successful results when their requests succeed; the current protocol supplies
 structured error kinds only for the terminal pump result. The SDK does not
 classify untyped Rust messages by parsing their text. Allocation failures may
 also throw.
-
-This replaces the unreleased C++-only error categories. Code that handled
-`InvalidConfiguration`, `NotInitialized`, `Rejected`, `Transport`, `Protocol`, or
-`Cancelled` as enum values must now catch the corresponding exception. Existing
-`Source`, `Rtc`, and `Panicked` pump-error handling remains unchanged.

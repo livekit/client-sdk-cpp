@@ -21,9 +21,11 @@
 #include <livekit/track.h>
 
 #include <chrono>
+#include <limits>
 #include <new>
 #include <stdexcept>
 #include <thread>
+#include <type_traits>
 #include <utility>
 
 #include "../common/ffi_utils.h"
@@ -664,31 +666,119 @@ TEST(CaptureSourceProtoTest, ErrorKindsMatchProtoExactly) {
   }
 }
 
-TEST(CaptureSourceProtoTest, RejectsNonPositiveDimensionsBeforeUnsignedConversion) {
+TEST(CaptureSourceProtoTest, ResolutionMatchesUnsignedProtoFields) {
+  static_assert(
+      std::is_same_v<decltype(capture::CaptureResolution::width), decltype(proto::VideoSourceResolution{}.width())>);
+  static_assert(
+      std::is_same_v<decltype(capture::CaptureResolution::height), decltype(proto::VideoSourceResolution{}.height())>);
+  constexpr auto kMaxDimension = std::numeric_limits<std::uint32_t>::max();
   for (const capture::CaptureResolution resolution :
-       {capture::CaptureResolution{0, 720}, capture::CaptureResolution{-1, 720}, capture::CaptureResolution{1280, 0},
-        capture::CaptureResolution{1280, -1}}) {
-    capture::PatternVideoSourceConfig pattern;
-    pattern.resolution = resolution;
-    pattern.framerate_fps = 30;
-    expectException<std::invalid_argument>([&pattern] { return toProto(pattern); }, "CaptureSource::create:");
-    capture::ClockVideoSourceConfig clock;
-    clock.resolution = resolution;
-    clock.framerate_fps = 30;
-    expectException<std::invalid_argument>([&clock] { return toProto(clock); }, "CaptureSource::create:");
+       {capture::CaptureResolution{0, 720}, capture::CaptureResolution{1280, 0},
+        capture::CaptureResolution{kMaxDimension, kMaxDimension}}) {
+    const capture::PatternVideoSourceConfig pattern{resolution, 30};
+    const capture::ClockVideoSourceConfig clock{resolution, 30};
     capture::GstreamerVideoSourceConfig gstreamer;
     gstreamer.resolution = resolution;
-    expectException<std::invalid_argument>([&gstreamer] { return toProto(gstreamer); }, "CaptureSource::create:");
+    for (const auto& request : {toProto(pattern), toProto(clock), toProto(gstreamer)}) {
+      ASSERT_TRUE(request.IsInitialized());
+      const auto& serialized = request.has_pattern() ? request.pattern().resolution()
+                               : request.has_clock() ? request.clock().resolution()
+                                                     : request.gstreamer().resolution();
+      EXPECT_EQ(serialized.width(), resolution.width);
+      EXPECT_EQ(serialized.height(), resolution.height);
+    }
   }
 }
 
-TEST(CaptureSourceProtoTest, RejectsZeroFrameRate) {
+TEST_F(CaptureSourceCallbackTest, RustRejectsZeroDimensions) {
+  for (const capture::CaptureResolution resolution :
+       {capture::CaptureResolution{0, 720}, capture::CaptureResolution{1280, 0}}) {
+    capture::PatternVideoSourceConfig pattern;
+    pattern.resolution = resolution;
+    pattern.framerate_fps = 30;
+    auto pattern_future = capture::CaptureSource::create(pattern);
+    ASSERT_EQ(pattern_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    expectException([&pattern_future] { return pattern_future.get(); },
+                    "CaptureSource::create: Rust source setup failed: invalid request: "
+                    "pattern source resolution must be non-zero");
+
+    capture::ClockVideoSourceConfig clock;
+    clock.resolution = resolution;
+    clock.framerate_fps = 30;
+    auto clock_future = capture::CaptureSource::create(clock);
+    ASSERT_EQ(clock_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    expectException([&clock_future] { return clock_future.get(); },
+                    "CaptureSource::create: Rust source setup failed: invalid request: "
+                    "clock source resolution must be non-zero");
+  }
+}
+
+TEST_F(CaptureSourceCallbackTest, RustRejectsZeroFrameRate) {
   capture::PatternVideoSourceConfig pattern;
   pattern.resolution = {1280, 720};
-  expectException<std::invalid_argument>([&pattern] { return toProto(pattern); }, "CaptureSource::create:");
+  auto pattern_future = capture::CaptureSource::create(pattern);
+  ASSERT_EQ(pattern_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  expectException([&pattern_future] { return pattern_future.get(); },
+                  "CaptureSource::create: Rust source setup failed: invalid request: "
+                  "pattern source frame rate must be non-zero");
+
   capture::ClockVideoSourceConfig clock;
   clock.resolution = {1280, 720};
-  expectException<std::invalid_argument>([&clock] { return toProto(clock); }, "CaptureSource::create:");
+  auto clock_future = capture::CaptureSource::create(clock);
+  ASSERT_EQ(clock_future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  expectException([&clock_future] { return clock_future.get(); },
+                  "CaptureSource::create: Rust source setup failed: invalid request: "
+                  "clock source frame rate must be non-zero");
+}
+
+TEST_F(CaptureSourceCallbackTest, RustRejectsEmptyGstreamerPipeline) {
+  auto future = capture::CaptureSource::create(capture::GstreamerVideoSourceConfig{});
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  expectException([&future] { return future.get(); },
+                  "CaptureSource::create: Rust source setup failed: invalid request: "
+                  "GStreamer pipeline error: failed to create pipeline:");
+}
+
+TEST_F(CaptureSourceCallbackTest, RustRejectsEmptyRateControlElement) {
+  capture::GstreamerVideoSourceConfig config;
+  config.pipeline = "appsrc ! video/x-vp8 ! appsink name=lk_appsink";
+  config.rate_control = capture::GstreamerRateControl{"", "bitrate", capture::GstreamerBitrateUnit::Bps};
+  auto future = capture::CaptureSource::create(config);
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  expectException([&future] { return future.get(); },
+                  "CaptureSource::create: Rust source setup failed: invalid request: "
+                  "pipeline has no element named '' for rate control");
+}
+
+TEST_F(CaptureSourceCallbackTest, RustAcceptsEmptyRateControlPropertyDuringCreation) {
+  capture::GstreamerVideoSourceConfig config;
+  config.pipeline =
+      "videotestsrc num-buffers=4 ! video/x-raw,width=320,height=240,framerate=30/1 ! "
+      "vp8enc name=encoder deadline=1 ! appsink name=lk_appsink";
+  config.rate_control = capture::GstreamerRateControl{"encoder", "", capture::GstreamerBitrateUnit::Bps};
+  auto future = capture::CaptureSource::create(config);
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+  const auto created = future.get();
+  ASSERT_TRUE(created.ok());
+  EXPECT_EQ(created.value()->width(), 320);
+  EXPECT_EQ(created.value()->height(), 240);
+}
+
+TEST_F(CaptureSourceCallbackTest, RustRejectsGstreamerResolutionMismatch) {
+  for (const capture::CaptureResolution resolution :
+       {capture::CaptureResolution{0, 240}, capture::CaptureResolution{320, 0}}) {
+    capture::GstreamerVideoSourceConfig config;
+    config.pipeline =
+        "videotestsrc num-buffers=4 ! video/x-raw,width=320,height=240,framerate=30/1 ! "
+        "vp8enc deadline=1 ! appsink name=lk_appsink";
+    config.resolution = resolution;
+    auto future = capture::CaptureSource::create(config);
+    ASSERT_EQ(future.wait_for(std::chrono::seconds(5)), std::future_status::ready);
+    expectException([&future] { return future.get(); },
+                    "CaptureSource::create: Rust source setup failed: invalid request: "
+                    "pipeline produces 320x240, but the configuration declares " +
+                        std::to_string(resolution.width) + "x" + std::to_string(resolution.height));
+  }
 }
 
 // Deliberately exercise invalid enum inputs at the public API boundary.
@@ -705,15 +795,17 @@ TEST(CaptureSourceProtoTest, RejectsInvalidEnumValues) {
       capture::GstreamerRateControl{"encoder", "bitrate", static_cast<capture::GstreamerBitrateUnit>(99)};
   expectException<std::invalid_argument>([&gstreamer] { return toProto(gstreamer); }, "CaptureSource::create:");
 }
-// NOLINTEND(clang-analyzer-optin.core.EnumCastOutOfRange)
 
-TEST(CaptureSourceProtoTest, ValidationErrorsAreDeliveredThroughFuture) {
+TEST(CaptureSourceProtoTest, InvalidEnumsAreDeliveredThroughFuture) {
   std::future<CreationOutcome> future;
-  EXPECT_NO_THROW(future = capture::CaptureSource::create(capture::ClockVideoSourceConfig{}));
+  const capture::PatternVideoSourceConfig config{{1280, 720}, 30, static_cast<capture::Pattern>(99)};
+  EXPECT_NO_THROW(future = capture::CaptureSource::create(config));
   ASSERT_TRUE(future.valid());
   expectException<std::invalid_argument>([&future] { return future.get(); },
-                                         "CaptureSource::create: resolution dimensions must be positive");
+                                         "CaptureSource::create: invalid capture pattern");
 }
+
+// NOLINTEND(clang-analyzer-optin.core.EnumCastOutOfRange)
 
 TEST(CaptureSourceProtoTest, SendErrorsAreDeliveredThroughFuture) {
   FfiClient::instance().shutdown();

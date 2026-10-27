@@ -65,8 +65,8 @@ enum class GstreamerBitrateUnit {
 
 /// @brief Video resolution in pixels.
 struct CaptureResolution {
-  int width = 0;
-  int height = 0;
+  std::uint32_t width = 0;
+  std::uint32_t height = 0;
 };
 
 /// @brief Binding from WebRTC rate-control targets to a GStreamer encoder property.
@@ -179,9 +179,11 @@ struct CaptureResult {
 /// through @ref CaptureSource::publishOptions(), then call @ref CaptureSource::start().
 ///
 /// Structured pump failures are returned as Result values containing @ref CaptureError.
-/// Failures without a protobuf error kind throw exceptions. Invalid C++ input
-/// throws std::invalid_argument; initialization, transport, protocol, cancellation,
-/// and untyped Rust failures throw std::runtime_error. For create() and join(),
+/// Failures without a protobuf error kind throw exceptions. Rust validates source
+/// configurations and reports failures as std::runtime_error. Invalid enum values
+/// cannot be serialized and throw std::invalid_argument.
+/// Initialization, transport, protocol, cancellation, and untyped Rust failures
+/// throw std::runtime_error. For create() and join(),
 /// these exceptions are delivered when awaiting the future.
 ///
 /// Requires a capture-enabled SDK build (`LIVEKIT_CAPTURE`). Creation fails
@@ -202,9 +204,9 @@ public:
   ///
   /// @param config GStreamer pipeline configuration.
   /// @return A future containing a successful Result with the created source.
-  /// @throws std::invalid_argument When awaiting the future if the C++ configuration is invalid.
-  /// @throws std::runtime_error When awaiting the future if setup, initialization,
-  /// transport, protocol validation, or cancellation fails.
+  /// @throws std::invalid_argument When awaiting the future if enum values cannot be serialized.
+  /// @throws std::runtime_error When awaiting the future if Rust rejects the configuration
+  /// or setup, initialization, transport, protocol validation, or cancellation fails.
   /// @throws std::bad_alloc If allocation fails, including when awaiting the future.
   [[nodiscard]] static std::future<Result<std::shared_ptr<CaptureSource>, CaptureError>> create(
       const GstreamerVideoSourceConfig& config);
@@ -218,9 +220,9 @@ public:
   ///
   /// @param config Pattern source configuration.
   /// @return A future containing a successful Result with the created source.
-  /// @throws std::invalid_argument When awaiting the future if the C++ configuration is invalid.
-  /// @throws std::runtime_error When awaiting the future if setup, initialization,
-  /// transport, protocol validation, or cancellation fails.
+  /// @throws std::invalid_argument When awaiting the future if enum values cannot be serialized.
+  /// @throws std::runtime_error When awaiting the future if Rust rejects the configuration
+  /// or setup, initialization, transport, protocol validation, or cancellation fails.
   /// @throws std::bad_alloc If allocation fails, including when awaiting the future.
   [[nodiscard]] static std::future<Result<std::shared_ptr<CaptureSource>, CaptureError>> create(
       PatternVideoSourceConfig config);
@@ -234,9 +236,8 @@ public:
   ///
   /// @param config Clock source configuration.
   /// @return A future containing a successful Result with the created source.
-  /// @throws std::invalid_argument When awaiting the future if the C++ configuration is invalid.
-  /// @throws std::runtime_error When awaiting the future if setup, initialization,
-  /// transport, protocol validation, or cancellation fails.
+  /// @throws std::runtime_error When awaiting the future if Rust rejects the configuration
+  /// or setup, initialization, transport, protocol validation, or cancellation fails.
   /// @throws std::bad_alloc If allocation fails, including when awaiting the future.
   [[nodiscard]] static std::future<Result<std::shared_ptr<CaptureSource>, CaptureError>> create(
       ClockVideoSourceConfig config);

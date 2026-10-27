@@ -59,18 +59,8 @@ std::future<CreationResult> createCaptureSource(const Config& config) {
   }
 }
 
-void validateResolution(const CaptureResolution& resolution) {
-  if (resolution.width <= 0 || resolution.height <= 0) {
-    throw std::invalid_argument("CaptureSource::create: resolution dimensions must be positive");
-  }
-}
-
 template <typename ProtoConfig, typename Config>
 void copyPixelConfig(ProtoConfig& target, const Config& config) {
-  validateResolution(config.resolution);
-  if (config.framerate_fps == 0) {
-    throw std::invalid_argument("CaptureSource::create: frame rate must be positive");
-  }
   target.mutable_resolution()->set_width(config.resolution.width);
   target.mutable_resolution()->set_height(config.resolution.height);
   target.set_framerate_fps(config.framerate_fps);
@@ -104,14 +94,11 @@ std::future<Result<std::shared_ptr<CaptureSource>, CaptureError>> CaptureSource:
 }
 
 proto::NewCaptureSourceRequest toProto(const GstreamerVideoSourceConfig& config) {
-  if (config.resolution) {
-    validateResolution(*config.resolution);
-  }
-  if (config.pipeline.empty() || (config.codec && !proto::VideoCodec_IsValid(static_cast<int>(*config.codec))) ||
-      (config.rate_control && (config.rate_control->element.empty() || config.rate_control->property.empty() ||
-                               (config.rate_control->unit != GstreamerBitrateUnit::Bps &&
-                                config.rate_control->unit != GstreamerBitrateUnit::Kbps)))) {
-    throw std::invalid_argument("CaptureSource::create: invalid GStreamer pipeline, codec, or rate-control binding");
+  // Protobuf enum setters assert on invalid values; reject those before serialization.
+  if ((config.codec && !proto::VideoCodec_IsValid(static_cast<int>(*config.codec))) ||
+      (config.rate_control && config.rate_control->unit != GstreamerBitrateUnit::Bps &&
+       config.rate_control->unit != GstreamerBitrateUnit::Kbps)) {
+    throw std::invalid_argument("CaptureSource::create: invalid GStreamer codec or bitrate unit");
   }
   proto::NewCaptureSourceRequest request;
   auto* gstreamer = request.mutable_gstreamer();
