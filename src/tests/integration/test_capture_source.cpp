@@ -44,7 +44,7 @@ constexpr int kCaptureWidth = 1280;
 constexpr int kCaptureHeight = 720;
 constexpr std::uint32_t kCaptureFramerateFps = 30;
 
-std::shared_ptr<capture::CaptureSource> createCapture(bool clock) {
+Result<std::shared_ptr<capture::CaptureSource>, capture::CaptureError> createCapture(bool clock) {
   if (clock) {
     capture::ClockVideoSourceConfig config;
     config.resolution = {kCaptureWidth, kCaptureHeight};
@@ -68,7 +68,9 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
   failIfNotConfigured();
 
   const auto creation_started = std::chrono::steady_clock::now();
-  auto capture = createCapture(GetParam());
+  auto created = createCapture(GetParam());
+  ASSERT_TRUE(created.ok()) << created.error().message;
+  auto capture = std::move(created).value();
   RecordProperty(
       "capture_creation_ms",
       std::to_string(
@@ -84,7 +86,7 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
 
   Room sender_room;
   Room receiver_room;
-  RoomOptions options;
+  const RoomOptions options;
 
   ASSERT_TRUE(receiver_room.connect(config_.url, config_.token_b, options));
   ASSERT_TRUE(sender_room.connect(config_.url, config_.token_a, options));
@@ -104,7 +106,7 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
   const std::string track_name = "pixel-capture-track";
   receiver_room.setOnVideoFrameEventCallback(sender_identity, track_name,
                                              [&mutex, &cv, &frames_received](const VideoFrameEvent& /*event*/) {
-                                               std::lock_guard<std::mutex> lock(mutex);
+                                               const std::scoped_lock lock(mutex);
                                                if (++frames_received >= kMinFramesReceived) {
                                                  cv.notify_all();
                                                }
@@ -120,8 +122,9 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
   ASSERT_NO_THROW(lockLocalParticipant(sender_room)->publishTrack(track, capture->publishOptions(app_options)));
 
   const auto capture_started = std::chrono::steady_clock::now();
-  ASSERT_TRUE(capture->start());
-  EXPECT_FALSE(capture->start()) << "double start must be rejected";
+  const auto started = capture->start();
+  ASSERT_TRUE(started.ok()) << started.error().message;
+  EXPECT_THROW(static_cast<void>(capture->start()), std::runtime_error) << "double start must be rejected";
 
   {
     std::unique_lock<std::mutex> lock(mutex);
@@ -131,18 +134,19 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
   }
 
   // Stop is a signal; join synchronizes with shutdown and returns the stats.
-  ASSERT_TRUE(capture->stop());
+  const auto stopped = capture->stop();
+  ASSERT_TRUE(stopped.ok()) << stopped.error().message;
   auto joined = capture->join();
   ASSERT_EQ(joined.wait_for(10s), std::future_status::ready) << "Timed out waiting for capture join";
   const auto finished = joined.get();
 
-  ASSERT_FALSE(finished.error.has_value()) << finished.error->message;
-  EXPECT_EQ(finished.exit, capture::CaptureExit::Stopped);
-  EXPECT_GT(finished.frames_captured, 0u);
+  ASSERT_TRUE(finished.ok()) << finished.error().message;
+  EXPECT_EQ(finished.value().exit, capture::CaptureExit::Stopped);
+  EXPECT_GT(finished.value().frames_captured, 0u);
   const auto capture_seconds =
       std::chrono::duration<double>(std::chrono::steady_clock::now() - capture_started).count();
   RecordProperty("capture_frames_per_second",
-                 std::to_string(static_cast<double>(finished.frames_captured) / capture_seconds));
+                 std::to_string(static_cast<double>(finished.value().frames_captured) / capture_seconds));
 
   receiver_room.clearOnVideoFrameCallback(sender_identity, track_name);
   if (track->publication()) {

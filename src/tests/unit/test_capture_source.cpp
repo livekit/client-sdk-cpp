@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
+#include <google/protobuf/descriptor.h>
+#include <google/protobuf/unknown_field_set.h>
 #include <gtest/gtest.h>
 #include <livekit/capture/capture_source.h>
 #include <livekit/track.h>
 
 #include <chrono>
+#include <new>
+#include <stdexcept>
 #include <thread>
+#include <utility>
 
 #include "../common/ffi_utils.h"
 #include "capture.pb.h"
@@ -46,6 +51,26 @@ struct FfiClientTestAccess {
 
 namespace livekit::test {
 namespace {
+
+using CreationOutcome = Result<std::shared_ptr<capture::CaptureSource>, capture::CaptureError>;
+using JoinOutcome = Result<capture::CaptureResult, capture::CaptureError>;
+
+template <typename T>
+void expectError(const Result<T, capture::CaptureError>& result, capture::CaptureErrorKind kind) {
+  ASSERT_TRUE(result.hasError());
+  EXPECT_EQ(result.error().kind, kind);
+  EXPECT_FALSE(result.error().message.empty());
+}
+
+template <typename Exception = std::runtime_error, typename Function>
+void expectException(Function&& function, const std::string& diagnostic) {
+  try {
+    static_cast<void>(std::forward<Function>(function)());
+    FAIL() << "Expected an exception containing: " << diagnostic;
+  } catch (const Exception& error) {
+    EXPECT_NE(std::string(error.what()).find(diagnostic), std::string::npos) << error.what();
+  }
+}
 
 // Zero handles stand in for Rust resources: these tests exercise ownership of
 // the C++ wrapper without starting a capture producer.
@@ -103,7 +128,7 @@ protected:
   void SetUp() override { ASSERT_TRUE(FfiClient::instance().initialize(false)); }
   void TearDown() override { FfiClient::instance().shutdown(); }
 
-  std::future<std::shared_ptr<capture::CaptureSource>> beginCreation() {
+  std::future<CreationOutcome> beginCreation() {
     return FfiClient::instance().newCaptureSourceAsync({}, [this](const proto::FfiRequest& request) {
       async_id_ = request.new_capture_source().request_async_id();
       proto::FfiResponse response;
@@ -115,10 +140,10 @@ protected:
   std::shared_ptr<capture::CaptureSource> completeCreation(const proto::OwnedCaptureSource& owned) {
     auto future = beginCreation();
     emitFfiEvent(creationEvent(async_id_, owned));
-    return future.get();
+    return future.get().value();
   }
 
-  std::future<capture::CaptureResult> beginJoin(std::uint64_t capture_handle = 42) {
+  std::future<JoinOutcome> beginJoin(std::uint64_t capture_handle = 42) {
     return FfiClient::instance().joinCaptureAsync(capture_handle,
                                                   [this, capture_handle](const proto::FfiRequest& request) {
                                                     EXPECT_EQ(request.join_capture().capture_handle(), capture_handle);
@@ -186,7 +211,7 @@ TEST_F(CaptureSourceCallbackTest, AbandonedAndInvalidResultsReleaseBothRustHandl
     static_cast<void>(video_guard.release());
     emitFfiEvent(creationEvent(async_id_, owned));
     if (invalid) {
-      EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
+      expectException([&future] { return future.get(); }, "CaptureSource::create: invalid capture source info");
     }
     // A second drop must fail. If ownership leaked, this also cleans it up.
     EXPECT_FALSE(dropFfiHandle(capture.handle().id()));
@@ -204,16 +229,17 @@ TEST_F(CaptureSourceCallbackTest, CallbackMayCompleteBeforeSendReturns) {
     return response;
   });
   EXPECT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
-  EXPECT_NE(future.get(), nullptr);
+  EXPECT_NE(future.get().value(), nullptr);
 }
 
-TEST_F(CaptureSourceCallbackTest, CreationErrorUsesCaptureSourceError) {
+TEST_F(CaptureSourceCallbackTest, CreationStringErrorThrows) {
   auto future = beginCreation();
   proto::FfiEvent event;
   event.mutable_new_capture_source()->set_async_id(async_id_);
   event.mutable_new_capture_source()->set_error("discovery failed");
   emitFfiEvent(event);
-  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
+  expectException([&future] { return future.get(); },
+                  "CaptureSource::create: Rust source setup failed: discovery failed");
 }
 
 TEST_F(CaptureSourceCallbackTest, UnrelatedCallbackDoesNotCompleteFuture) {
@@ -224,28 +250,28 @@ TEST_F(CaptureSourceCallbackTest, UnrelatedCallbackDoesNotCompleteFuture) {
   emitFfiEvent(event);
   EXPECT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::timeout);
   emitFfiEvent(creationEvent(async_id_, makeOwned()));
-  EXPECT_NE(future.get(), nullptr);
+  EXPECT_NE(future.get().value(), nullptr);
 }
 
-TEST_F(CaptureSourceCallbackTest, MissingSourceUsesCaptureSourceError) {
+TEST_F(CaptureSourceCallbackTest, MissingSourceThrows) {
   auto future = beginCreation();
   proto::FfiEvent event;
   event.mutable_new_capture_source()->set_async_id(async_id_);
   emitFfiEvent(event);
-  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
+  expectException([&future] { return future.get(); }, "CaptureSource::create: callback is missing source or error");
 }
 
-TEST_F(CaptureSourceCallbackTest, ShutdownCancelsPendingFutureWithCaptureSourceError) {
+TEST_F(CaptureSourceCallbackTest, ShutdownCancelsPendingFutureWithException) {
   auto future = beginCreation();
   FfiClient::instance().shutdown();
   EXPECT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
-  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
+  expectException([&future] { return future.get(); }, "CaptureSource::create: operation cancelled during SDK shutdown");
 }
 
 TEST_F(CaptureSourceCallbackTest, SendFailureRemovesPendingOperation) {
-  EXPECT_THROW(FfiClient::instance().newCaptureSourceAsync(
-                   {}, [](const proto::FfiRequest&) -> proto::FfiResponse { throw std::runtime_error("send failed"); }),
-               std::runtime_error);
+  auto future = FfiClient::instance().newCaptureSourceAsync(
+      {}, [](const proto::FfiRequest&) -> proto::FfiResponse { throw std::runtime_error("send failed"); });
+  expectException([&future] { return future.get(); }, "CaptureSource::create: send failed");
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
@@ -254,9 +280,9 @@ TEST_F(CaptureSourceCallbackTest, JoinCallbackMapsFinishedResult) {
   emitFfiEvent(joinFinishedEvent(async_id_, 123, proto::CAPTURE_EXIT_END_OF_STREAM));
 
   const auto result = future.get();
-  EXPECT_FALSE(result.error.has_value());
-  EXPECT_EQ(result.frames_captured, 123u);
-  EXPECT_EQ(result.exit, capture::CaptureExit::EndOfStream);
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(result.value().frames_captured, 123u);
+  EXPECT_EQ(result.value().exit, capture::CaptureExit::EndOfStream);
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
@@ -270,9 +296,9 @@ TEST_F(CaptureSourceCallbackTest, JoinCallbackMayCompleteBeforeSendReturns) {
   });
   ASSERT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
   const auto result = future.get();
-  EXPECT_FALSE(result.error.has_value());
-  EXPECT_EQ(result.frames_captured, 3u);
-  EXPECT_EQ(result.exit, capture::CaptureExit::Stopped);
+  ASSERT_TRUE(result.ok());
+  EXPECT_EQ(result.value().frames_captured, 3u);
+  EXPECT_EQ(result.value().exit, capture::CaptureExit::Stopped);
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
@@ -289,7 +315,7 @@ TEST_F(CaptureSourceCallbackTest, JoinIgnoresUnrelatedCallbacksAndDuplicateCompl
   emitFfiEvent(joinFinishedEvent(async_id_, 7));
   emitFfiEvent(joinFinishedEvent(async_id_, 99));
   ASSERT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
-  EXPECT_EQ(future.get().frames_captured, 7u);
+  EXPECT_EQ(future.get().value().frames_captured, 7u);
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
@@ -300,20 +326,21 @@ TEST_F(CaptureSourceCallbackTest, JoinsCompleteIndependentlyInReverseOrder) {
   emitFfiEvent(joinFinishedEvent(async_id_, 2));
   EXPECT_EQ(first.wait_for(std::chrono::seconds(0)), std::future_status::timeout);
   ASSERT_EQ(second.wait_for(std::chrono::seconds(0)), std::future_status::ready);
-  EXPECT_EQ(second.get().frames_captured, 2u);
+  EXPECT_EQ(second.get().value().frames_captured, 2u);
   emitFfiEvent(joinFinishedEvent(first_async_id, 1));
   ASSERT_EQ(first.wait_for(std::chrono::seconds(0)), std::future_status::ready);
-  EXPECT_EQ(first.get().frames_captured, 1u);
+  EXPECT_EQ(first.get().value().frames_captured, 1u);
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
-TEST_F(CaptureSourceCallbackTest, JoinMissingTerminalResultUsesCaptureSourceError) {
+TEST_F(CaptureSourceCallbackTest, JoinMissingTerminalResultThrows) {
   auto future = beginJoin();
   proto::FfiEvent event;
   event.mutable_join_capture()->set_async_id(async_id_);
   emitFfiEvent(event);
   ASSERT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
-  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
+  expectException([&future] { return future.get(); },
+                  "CaptureSource::join: terminal result is missing finished or error");
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
@@ -328,9 +355,9 @@ TEST_F(CaptureSourceCallbackTest, JoinCallbackMapsPumpError) {
     emitFfiEvent(event);
 
     const auto result = future.get();
-    ASSERT_TRUE(result.error.has_value());
-    EXPECT_EQ(result.error->message, "capture failed");
-    EXPECT_EQ(result.error->kind, expected_kind);
+    ASSERT_TRUE(result.hasError());
+    EXPECT_EQ(result.error().message, "capture failed");
+    EXPECT_EQ(result.error().kind, expected_kind);
   };
 
   verify_kind(proto::CAPTURE_ERROR_KIND_SOURCE, capture::CaptureErrorKind::Source);
@@ -339,24 +366,50 @@ TEST_F(CaptureSourceCallbackTest, JoinCallbackMapsPumpError) {
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
-TEST_F(CaptureSourceCallbackTest, ShutdownCancelsPendingJoinWithCaptureSourceError) {
+TEST_F(CaptureSourceCallbackTest, UnknownWireEnumsThrowThroughFutureWithoutEscapingCallback) {
+  for (const bool unknown_error : {false, true}) {
+    auto future = beginJoin();
+    proto::FfiEvent event;
+    auto* callback = event.mutable_join_capture();
+    callback->set_async_id(async_id_);
+    if (unknown_error) {
+      auto* error = callback->mutable_error();
+      error->set_error("future error kind");
+      error->GetReflection()->MutableUnknownFields(error)->AddVarint(2, 99);
+    } else {
+      auto* finished = callback->mutable_finished();
+      finished->set_frames_captured(1);
+      finished->GetReflection()->MutableUnknownFields(finished)->AddVarint(2, 99);
+    }
+    // Proto2 retains unknown enum numbers as unknown fields; the required enum
+    // field stays unset. Send the partial wire payload to exercise that case.
+    std::string bytes;
+    ASSERT_TRUE(event.SerializePartialToString(&bytes));
+    EXPECT_NO_THROW(ffiEventCallback(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()));
+    ASSERT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
+    expectException([&future] { return future.get(); }, "CaptureSource::join: invalid terminal result");
+    EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+  }
+}
+
+TEST_F(CaptureSourceCallbackTest, ShutdownCancelsPendingJoinWithException) {
   auto future = beginJoin();
   FfiClient::instance().shutdown();
   EXPECT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
-  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
+  expectException([&future] { return future.get(); }, "CaptureSource::join: operation cancelled during SDK shutdown");
 }
 
 TEST_F(CaptureSourceCallbackTest, JoinSendFailureRemovesPendingOperation) {
-  EXPECT_THROW(FfiClient::instance().joinCaptureAsync(
-                   42, [](const proto::FfiRequest&) -> proto::FfiResponse { throw std::runtime_error("send failed"); }),
-               std::runtime_error);
+  auto future = FfiClient::instance().joinCaptureAsync(
+      42, [](const proto::FfiRequest&) -> proto::FfiResponse { throw std::runtime_error("send failed"); });
+  expectException([&future] { return future.get(); }, "CaptureSource::join: send failed");
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
 TEST_F(CaptureSourceCallbackTest, JoinMissingAcknowledgementRemovesPendingOperation) {
-  EXPECT_THROW(
-      FfiClient::instance().joinCaptureAsync(42, [](const proto::FfiRequest&) { return proto::FfiResponse{}; }),
-      std::runtime_error);
+  auto future =
+      FfiClient::instance().joinCaptureAsync(42, [](const proto::FfiRequest&) { return proto::FfiResponse{}; });
+  expectException([&future] { return future.get(); }, "CaptureSource::join: invalid join_capture acknowledgement");
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
@@ -365,12 +418,11 @@ TEST_F(CaptureSourceCallbackTest, JoinInvalidAcknowledgementRemovesPendingOperat
     const auto send = [missing_id](const proto::FfiRequest& request) {
       proto::FfiResponse response;
       auto* acknowledgement = response.mutable_join_capture();
-      if (!missing_id) {
-        acknowledgement->set_async_id(request.join_capture().request_async_id() + 1);
-      }
+      if (!missing_id) acknowledgement->set_async_id(request.join_capture().request_async_id() + 1);
       return response;
     };
-    EXPECT_THROW(FfiClient::instance().joinCaptureAsync(42, send), std::runtime_error);
+    auto future = FfiClient::instance().joinCaptureAsync(42, send);
+    expectException([&future] { return future.get(); }, "CaptureSource::join: invalid join_capture acknowledgement");
     EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
   }
 }
@@ -379,11 +431,136 @@ TEST_F(CaptureSourceCallbackTest, JoinApiReportsSynchronousSendFailureThroughFut
   auto source = completeCreation(makeOwned());
   FfiClient::instance().shutdown();
 
-  std::future<capture::CaptureResult> future;
+  std::future<JoinOutcome> future;
   EXPECT_NO_THROW(future = source->join());
   EXPECT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
-  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
+  expectException([&future] { return future.get(); }, "CaptureSource::join: LiveKit is not initialized");
+  expectException([&source] { return source->start(); }, "CaptureSource::start: LiveKit is not initialized");
+  expectException([&source] { return source->stop(); }, "CaptureSource::stop: LiveKit is not initialized");
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
+TEST_F(CaptureSourceCallbackTest, ControlsReturnSuccessAndThrowUntypedBackendErrors) {
+  for (const bool start : {false, true}) {
+    for (const bool rejected : {false, true}) {
+      const auto send = [start, rejected](const proto::FfiRequest& request) {
+        EXPECT_EQ(start ? request.start_capture().capture_handle() : request.stop_capture().capture_handle(), 42u);
+        proto::FfiResponse response;
+        if (start) {
+          auto* acknowledgement = response.mutable_start_capture();
+          if (rejected) acknowledgement->set_error("opaque backend diagnostic");
+        } else {
+          auto* acknowledgement = response.mutable_stop_capture();
+          if (rejected) acknowledgement->set_error("opaque backend diagnostic");
+        }
+        return response;
+      };
+      const auto control = [&] { return FfiClient::instance().controlCapture(42, start, send); };
+      if (rejected) {
+        const std::string operation = start ? "CaptureSource::start: " : "CaptureSource::stop: ";
+        expectException(control, operation + "request rejected by Rust: opaque backend diagnostic");
+      } else {
+        EXPECT_TRUE(control().ok());
+      }
+    }
+  }
+}
+
+TEST_F(CaptureSourceCallbackTest, ControlsThrowProtocolAndTransportFailures) {
+  for (const bool start : {false, true}) {
+    const std::string operation = start ? "CaptureSource::start: " : "CaptureSource::stop: ";
+    expectException(
+        [&] {
+          return FfiClient::instance().controlCapture(42, start,
+                                                      [](const proto::FfiRequest&) { return proto::FfiResponse{}; });
+        },
+        operation + "missing capture control acknowledgement");
+    expectException(
+        [&] {
+          return FfiClient::instance().controlCapture(42, start, [](const proto::FfiRequest&) -> proto::FfiResponse {
+            throw std::runtime_error("transport unavailable");
+          });
+        },
+        operation + "transport unavailable");
+  }
+}
+
+TEST_F(CaptureSourceCallbackTest, CreationRejectsInvalidAcknowledgements) {
+  for (const bool missing_id : {false, true}) {
+    auto future = FfiClient::instance().newCaptureSourceAsync({}, [missing_id](const proto::FfiRequest& request) {
+      proto::FfiResponse response;
+      auto* acknowledgement = response.mutable_new_capture_source();
+      if (!missing_id) acknowledgement->set_async_id(request.new_capture_source().request_async_id() + 1);
+      return response;
+    });
+    expectException([&future] { return future.get(); },
+                    "CaptureSource::create: invalid new_capture_source acknowledgement");
+    EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+  }
+  auto future =
+      FfiClient::instance().newCaptureSourceAsync({}, [](const proto::FfiRequest&) { return proto::FfiResponse{}; });
+  expectException([&future] { return future.get(); },
+                  "CaptureSource::create: invalid new_capture_source acknowledgement");
+  EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
+TEST_F(CaptureSourceCallbackTest, AllocationFailuresRemainExceptionalAndRemovePendingOperations) {
+  const auto send = [](const proto::FfiRequest&) -> proto::FfiResponse { throw std::bad_alloc(); };
+  EXPECT_THROW(static_cast<void>(FfiClient::instance().newCaptureSourceAsync({}, send)), std::bad_alloc);
+  EXPECT_THROW(static_cast<void>(FfiClient::instance().joinCaptureAsync(42, send)), std::bad_alloc);
+  EXPECT_THROW(static_cast<void>(FfiClient::instance().controlCapture(42, true, send)), std::bad_alloc);
+  EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
+TEST_F(CaptureSourceCallbackTest, UninitializedOperationsDoNotSendRequests) {
+  FfiClient::instance().shutdown();
+  bool sent = false;
+  const auto send = [&sent](const proto::FfiRequest&) {
+    sent = true;
+    return proto::FfiResponse{};
+  };
+  auto created = FfiClient::instance().newCaptureSourceAsync({}, send);
+  auto joined = FfiClient::instance().joinCaptureAsync(42, send);
+  expectException([&created] { return created.get(); }, "CaptureSource::create: LiveKit is not initialized");
+  expectException([&joined] { return joined.get(); }, "CaptureSource::join: LiveKit is not initialized");
+  expectException([&] { return FfiClient::instance().controlCapture(42, true, send); },
+                  "CaptureSource::start: LiveKit is not initialized");
+  expectException([&] { return FfiClient::instance().controlCapture(42, false, send); },
+                  "CaptureSource::stop: LiveKit is not initialized");
+  EXPECT_FALSE(sent);
+  EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
+TEST_F(CaptureSourceCallbackTest, ShutdownDuringSendThrowsWithContext) {
+  const auto send = [](const proto::FfiRequest&) -> proto::FfiResponse {
+    FfiClient::instance().shutdown();
+    throw std::runtime_error("send interrupted by shutdown");
+  };
+  auto created = FfiClient::instance().newCaptureSourceAsync({}, send);
+  expectException([&created] { return created.get(); }, "CaptureSource::create: send interrupted by shutdown");
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+  auto joined = FfiClient::instance().joinCaptureAsync(42, send);
+  expectException([&joined] { return joined.get(); }, "CaptureSource::join: send interrupted by shutdown");
+  ASSERT_TRUE(FfiClient::instance().initialize(false));
+  expectException([&] { return FfiClient::instance().controlCapture(42, true, send); },
+                  "CaptureSource::start: send interrupted by shutdown");
+  EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
+TEST_F(CaptureSourceCallbackTest, RepeatedBindingFailuresReleasePendingOperations) {
+  constexpr int kIterations = 256;
+  const auto send = [](const proto::FfiRequest&) { return proto::FfiResponse{}; };
+  const auto started = std::chrono::steady_clock::now();
+  for (int index = 0; index < kIterations; ++index) {
+    auto created = FfiClient::instance().newCaptureSourceAsync({}, send);
+    auto joined = FfiClient::instance().joinCaptureAsync(42, send);
+    expectException([&created] { return created.get(); }, "CaptureSource::create:");
+    expectException([&joined] { return joined.get(); }, "CaptureSource::join:");
+    expectException([&] { return FfiClient::instance().controlCapture(42, true, send); }, "CaptureSource::start:");
+    ASSERT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+  }
+  const auto elapsed = std::chrono::duration<double, std::nano>(std::chrono::steady_clock::now() - started).count();
+  RecordProperty("capture_exception_ns_per_operation", std::to_string(elapsed / (3 * kIterations)));
 }
 
 TEST_F(CaptureSourceCallbackTest, PixelPreservesCodecEncoderAndDisabledSimulcast) {
@@ -474,6 +651,19 @@ TEST(CaptureSourceProtoTest, ClockConfigurationUsesMainlineWireContract) {
   EXPECT_FALSE(request.has_pattern());
 }
 
+TEST(CaptureSourceProtoTest, ErrorKindsMatchProtoExactly) {
+  const std::pair<capture::CaptureErrorKind, proto::CaptureErrorKind> kinds[] = {
+      {capture::CaptureErrorKind::Source, proto::CAPTURE_ERROR_KIND_SOURCE},
+      {capture::CaptureErrorKind::Rtc, proto::CAPTURE_ERROR_KIND_RTC},
+      {capture::CaptureErrorKind::Panicked, proto::CAPTURE_ERROR_KIND_PANICKED},
+  };
+  ASSERT_EQ(proto::CaptureErrorKind_descriptor()->value_count(), 3)
+      << "Update the C++ enum and mapping when the protocol adds an error kind";
+  for (const auto& [cpp_kind, proto_kind] : kinds) {
+    EXPECT_EQ(static_cast<int>(cpp_kind), static_cast<int>(proto_kind));
+  }
+}
+
 TEST(CaptureSourceProtoTest, RejectsNonPositiveDimensionsBeforeUnsignedConversion) {
   for (const capture::CaptureResolution resolution :
        {capture::CaptureResolution{0, 720}, capture::CaptureResolution{-1, 720}, capture::CaptureResolution{1280, 0},
@@ -481,31 +671,48 @@ TEST(CaptureSourceProtoTest, RejectsNonPositiveDimensionsBeforeUnsignedConversio
     capture::PatternVideoSourceConfig pattern;
     pattern.resolution = resolution;
     pattern.framerate_fps = 30;
-    EXPECT_THROW(toProto(pattern), capture::CaptureSourceError);
+    expectException<std::invalid_argument>([&pattern] { return toProto(pattern); }, "CaptureSource::create:");
     capture::ClockVideoSourceConfig clock;
     clock.resolution = resolution;
     clock.framerate_fps = 30;
-    EXPECT_THROW(toProto(clock), capture::CaptureSourceError);
+    expectException<std::invalid_argument>([&clock] { return toProto(clock); }, "CaptureSource::create:");
     capture::GstreamerVideoSourceConfig gstreamer;
     gstreamer.resolution = resolution;
-    EXPECT_THROW(toProto(gstreamer), capture::CaptureSourceError);
+    expectException<std::invalid_argument>([&gstreamer] { return toProto(gstreamer); }, "CaptureSource::create:");
   }
 }
 
 TEST(CaptureSourceProtoTest, RejectsZeroFrameRate) {
   capture::PatternVideoSourceConfig pattern;
   pattern.resolution = {1280, 720};
-  EXPECT_THROW(toProto(pattern), capture::CaptureSourceError);
+  expectException<std::invalid_argument>([&pattern] { return toProto(pattern); }, "CaptureSource::create:");
   capture::ClockVideoSourceConfig clock;
   clock.resolution = {1280, 720};
-  EXPECT_THROW(toProto(clock), capture::CaptureSourceError);
+  expectException<std::invalid_argument>([&clock] { return toProto(clock); }, "CaptureSource::create:");
 }
 
+// Deliberately exercise invalid enum inputs at the public API boundary.
+// NOLINTBEGIN(clang-analyzer-optin.core.EnumCastOutOfRange)
+TEST(CaptureSourceProtoTest, RejectsInvalidEnumValues) {
+  const capture::PatternVideoSourceConfig pattern{{1280, 720}, 30, static_cast<capture::Pattern>(99)};
+  expectException<std::invalid_argument>([&pattern] { return toProto(pattern); }, "CaptureSource::create:");
+  capture::GstreamerVideoSourceConfig gstreamer;
+  gstreamer.pipeline = "videotestsrc ! vp8enc ! appsink name=lk_appsink";
+  gstreamer.codec = static_cast<VideoCodec>(99);
+  expectException<std::invalid_argument>([&gstreamer] { return toProto(gstreamer); }, "CaptureSource::create:");
+  gstreamer.codec.reset();
+  gstreamer.rate_control =
+      capture::GstreamerRateControl{"encoder", "bitrate", static_cast<capture::GstreamerBitrateUnit>(99)};
+  expectException<std::invalid_argument>([&gstreamer] { return toProto(gstreamer); }, "CaptureSource::create:");
+}
+// NOLINTEND(clang-analyzer-optin.core.EnumCastOutOfRange)
+
 TEST(CaptureSourceProtoTest, ValidationErrorsAreDeliveredThroughFuture) {
-  std::future<std::shared_ptr<capture::CaptureSource>> future;
+  std::future<CreationOutcome> future;
   EXPECT_NO_THROW(future = capture::CaptureSource::create(capture::ClockVideoSourceConfig{}));
   ASSERT_TRUE(future.valid());
-  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
+  expectException<std::invalid_argument>([&future] { return future.get(); },
+                                         "CaptureSource::create: resolution dimensions must be positive");
 }
 
 TEST(CaptureSourceProtoTest, SendErrorsAreDeliveredThroughFuture) {
@@ -513,10 +720,10 @@ TEST(CaptureSourceProtoTest, SendErrorsAreDeliveredThroughFuture) {
   capture::ClockVideoSourceConfig config;
   config.resolution = {1280, 720};
   config.framerate_fps = 30;
-  std::future<std::shared_ptr<capture::CaptureSource>> future;
+  std::future<CreationOutcome> future;
   EXPECT_NO_THROW(future = capture::CaptureSource::create(config));
   ASSERT_TRUE(future.valid());
-  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
+  expectException([&future] { return future.get(); }, "CaptureSource::create: LiveKit is not initialized");
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 

@@ -27,8 +27,22 @@
 #if LIVEKIT_CAPTURE_ENABLED
 namespace {
 
-// Strict GPU checks require successful creation of enabled sources. Omitted
-// backends must reject a valid configuration with the feature-disabled error.
+// Omitted backends must reject a valid configuration with the feature-disabled error.
+bool checkSourceError(std::string_view name, std::string_view message, bool expected,
+                      livekit::capture::CaptureSourceKind kind) {
+  constexpr std::string_view disabled = "capture source is not enabled in this build";
+  if (!expected && message.find(disabled) != std::string_view::npos) {
+    return true;
+  }
+  if (expected && kind == livekit::capture::CaptureSourceKind::Pixel && !LIVEKIT_VERIFY_PIXEL_SOURCES &&
+      message.find("no compatible GPU adapter") != std::string_view::npos) {
+    std::cout << name << ": creation not exercised (no GPU adapter); backend availability verified\n";
+    return true;
+  }
+  std::cerr << name << ": " << message << '\n';
+  return false;
+}
+
 template <typename Config>
 bool checkSource(std::string_view name, const Config& config, bool expected, livekit::capture::CaptureSourceKind kind) {
   try {
@@ -37,7 +51,11 @@ bool checkSource(std::string_view name, const Config& config, bool expected, liv
       std::cerr << name << ": source creation timed out\n";
       return false;
     }
-    auto source = future.get();
+    auto created = future.get();
+    if (!created) {
+      return checkSourceError(name, created.error().message, expected, kind);
+    }
+    const auto& source = created.value();
     if (!expected || !source || source->kind() != kind || source->width() != 320 || source->height() != 240 ||
         !source->videoSource() ||
         (kind == livekit::capture::CaptureSourceKind::Encoded && source->codec() != livekit::VideoCodec::VP8)) {
@@ -45,25 +63,8 @@ bool checkSource(std::string_view name, const Config& config, bool expected, liv
       return false;
     }
     return true;
-  } catch (const livekit::capture::CaptureSourceError& error) {
-    constexpr std::string_view disabled = "capture source is not enabled in this build";
-    const std::string_view message(error.what());
-    if (!expected && message.find(disabled) != std::string_view::npos) {
-      return true;
-    }
-    // Runners without an adapter can still prove that the selected backend
-    // reached its renderer. All other errors fail; strict GPU jobs also fail
-    // on a missing adapter.
-    if (expected && kind == livekit::capture::CaptureSourceKind::Pixel && !LIVEKIT_VERIFY_PIXEL_SOURCES &&
-        message.find("no compatible GPU adapter") != std::string_view::npos) {
-      std::cout << name << ": creation not exercised (no GPU adapter); backend availability verified\n";
-      return true;
-    }
-    std::cerr << name << ": " << error.what() << '\n';
-    return false;
   } catch (const std::exception& error) {
-    std::cerr << name << ": " << error.what() << '\n';
-    return false;
+    return checkSourceError(name, error.what(), expected, kind);
   }
 }
 

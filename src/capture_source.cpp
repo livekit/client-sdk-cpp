@@ -18,12 +18,12 @@
 
 #include <exception>
 #include <limits>
+#include <stdexcept>
 
 #include "capture.pb.h"
 #include "capture_source_internal.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
-#include "lk_log.h"
 
 namespace livekit::capture {
 
@@ -46,35 +46,31 @@ std::shared_ptr<VideoSource> CaptureSource::videoSource() const noexcept { retur
 
 namespace {
 
-// Report validation and synchronous send failures through the same future as
-// asynchronous creation errors. All public factories share this path.
+using CreationResult = Result<std::shared_ptr<CaptureSource>, CaptureError>;
+
 template <typename Config>
-std::future<std::shared_ptr<CaptureSource>> createCaptureSource(const Config& config) {
+std::future<CreationResult> createCaptureSource(const Config& config) {
   try {
-    return FfiClient::instance().newCaptureSourceAsync(toProto(std::move(config)));
-  } catch (const std::exception& error) {
-    std::promise<std::shared_ptr<CaptureSource>> promise;
-    promise.set_exception(std::make_exception_ptr(CaptureSourceError(error.what())));
+    return FfiClient::instance().newCaptureSourceAsync(toProto(config));
+  } catch (const std::invalid_argument&) {
+    std::promise<CreationResult> promise;
+    promise.set_exception(std::current_exception());
     return promise.get_future();
   }
 }
 
 void validateResolution(const CaptureResolution& resolution) {
   if (resolution.width <= 0 || resolution.height <= 0) {
-    throw CaptureSourceError("Capture resolution dimensions must be positive");
-  }
-}
-
-void validatePixelConfig(const CaptureResolution& resolution, std::uint32_t framerate_fps) {
-  validateResolution(resolution);
-  if (framerate_fps == 0) {
-    throw CaptureSourceError("Capture frame rate must be positive");
+    throw std::invalid_argument("CaptureSource::create: resolution dimensions must be positive");
   }
 }
 
 template <typename ProtoConfig, typename Config>
 void copyPixelConfig(ProtoConfig& target, const Config& config) {
-  validatePixelConfig(config.resolution, config.framerate_fps);
+  validateResolution(config.resolution);
+  if (config.framerate_fps == 0) {
+    throw std::invalid_argument("CaptureSource::create: frame rate must be positive");
+  }
   target.mutable_resolution()->set_width(config.resolution.width);
   target.mutable_resolution()->set_height(config.resolution.height);
   target.set_framerate_fps(config.framerate_fps);
@@ -102,13 +98,20 @@ proto::Pattern toProto(Pattern pattern) {
 
 } // namespace
 
-std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(const GstreamerVideoSourceConfig& config) {
+std::future<Result<std::shared_ptr<CaptureSource>, CaptureError>> CaptureSource::create(
+    const GstreamerVideoSourceConfig& config) {
   return createCaptureSource(config);
 }
 
 proto::NewCaptureSourceRequest toProto(const GstreamerVideoSourceConfig& config) {
   if (config.resolution) {
     validateResolution(*config.resolution);
+  }
+  if (config.pipeline.empty() || (config.codec && !proto::VideoCodec_IsValid(static_cast<int>(*config.codec))) ||
+      (config.rate_control && (config.rate_control->element.empty() || config.rate_control->property.empty() ||
+                               (config.rate_control->unit != GstreamerBitrateUnit::Bps &&
+                                config.rate_control->unit != GstreamerBitrateUnit::Kbps)))) {
+    throw std::invalid_argument("CaptureSource::create: invalid GStreamer pipeline, codec, or rate-control binding");
   }
   proto::NewCaptureSourceRequest request;
   auto* gstreamer = request.mutable_gstreamer();
@@ -129,7 +132,8 @@ proto::NewCaptureSourceRequest toProto(const GstreamerVideoSourceConfig& config)
   return request;
 }
 
-std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(PatternVideoSourceConfig config) {
+std::future<Result<std::shared_ptr<CaptureSource>, CaptureError>> CaptureSource::create(
+    PatternVideoSourceConfig config) {
   return createCaptureSource(config);
 }
 
@@ -137,11 +141,14 @@ proto::NewCaptureSourceRequest toProto(const PatternVideoSourceConfig& config) {
   proto::NewCaptureSourceRequest request;
   auto* pattern = request.mutable_pattern();
   copyPixelConfig(*pattern, config);
+  if (config.pattern != Pattern::Gradient && config.pattern != Pattern::Logo) {
+    throw std::invalid_argument("CaptureSource::create: invalid capture pattern");
+  }
   pattern->set_pattern(toProto(config.pattern));
   return request;
 }
 
-std::future<std::shared_ptr<CaptureSource>> CaptureSource::create(ClockVideoSourceConfig config) {
+std::future<Result<std::shared_ptr<CaptureSource>, CaptureError>> CaptureSource::create(ClockVideoSourceConfig config) {
   return createCaptureSource(config);
 }
 
@@ -160,7 +167,7 @@ std::shared_ptr<CaptureSource> CaptureSource::fromOwned(const proto::OwnedCaptur
       info.resolution().width() > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
       info.resolution().height() > static_cast<std::uint32_t>(std::numeric_limits<int>::max()) ||
       (info.kind() == proto::CAPTURE_SOURCE_ENCODED && !info.has_codec())) {
-    throw CaptureSourceError("Invalid capture source info");
+    throw std::runtime_error("CaptureSource::create: invalid capture source info");
   }
 
   std::shared_ptr<CaptureSource> source(new CaptureSource());
@@ -189,50 +196,14 @@ TrackPublishOptions CaptureSource::publishOptions(TrackPublishOptions options) c
 
 CaptureSource::~CaptureSource() = default;
 
-namespace {
-
-bool controlCapture(std::uint64_t handle, bool start) {
-  const char* operation = start ? "start" : "stop";
-  try {
-    proto::FfiRequest request;
-    if (start) {
-      request.mutable_start_capture()->set_capture_handle(handle);
-    } else {
-      request.mutable_stop_capture()->set_capture_handle(handle);
-    }
-    const auto response = FfiClient::instance().sendRequest(request);
-    if (!(start ? response.has_start_capture() : response.has_stop_capture())) {
-      LK_LOG_WARN("Capture {} request returned no {}_capture response", operation, operation);
-      return false;
-    }
-    if (start ? response.start_capture().has_error() : response.stop_capture().has_error()) {
-      const auto& error = start ? response.start_capture().error() : response.stop_capture().error();
-      LK_LOG_WARN("Capture {} request failed: {}", operation, error);
-      return false;
-    }
-    return true;
-  } catch (const std::exception& error) {
-    LK_LOG_WARN("Capture {} request failed: {}", operation, error.what());
-    return false;
-  }
+Result<void, CaptureError> CaptureSource::start() {
+  return FfiClient::instance().controlCapture(impl_->handle.get(), true);
 }
-
-} // namespace
-
-bool CaptureSource::start() { return controlCapture(impl_->handle.get(), true); }
-bool CaptureSource::stop() { return controlCapture(impl_->handle.get(), false); }
-std::future<CaptureResult> CaptureSource::join() {
-  try {
-    return FfiClient::instance().joinCaptureAsync(impl_->handle.get());
-  } catch (const std::exception& error) {
-    std::promise<CaptureResult> promise;
-    promise.set_exception(std::make_exception_ptr(CaptureSourceError(error.what())));
-    return promise.get_future();
-  } catch (...) {
-    std::promise<CaptureResult> promise;
-    promise.set_exception(std::make_exception_ptr(CaptureSourceError("Capture join failed")));
-    return promise.get_future();
-  }
+Result<void, CaptureError> CaptureSource::stop() {
+  return FfiClient::instance().controlCapture(impl_->handle.get(), false);
+}
+std::future<Result<CaptureResult, CaptureError>> CaptureSource::join() {
+  return FfiClient::instance().joinCaptureAsync(impl_->handle.get());
 }
 
 } // namespace livekit::capture

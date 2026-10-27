@@ -443,7 +443,7 @@ The build scripts set `LIVEKIT_CAPTURE`. The generated numeric
 It indicates whether any source was compiled in; it does not identify which
 sources are available. Check `cargo_features` in `share/livekit/build-info.json`
 for the selected backends. Creating a source omitted from the SDK build fails
-through the returned future with `CaptureSourceError`.
+through the returned future with `std::runtime_error`.
 Capture-enabled bundles install the public API under `include/livekit/capture/`;
 standard bundles omit that directory. Use `<livekit/capture/capture_source.h>`
 for direct inclusion. The source-tree header also rejects use in a standard

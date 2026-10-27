@@ -42,6 +42,10 @@
 #include "lk_log.h"
 #include "room.pb.h"
 
+#if LIVEKIT_CAPTURE_ENABLED
+#include "livekit/capture/capture_source.h"
+#endif
+
 namespace livekit {
 
 namespace proto {
@@ -59,12 +63,6 @@ class DataStream;
 
 struct RoomOptions;
 struct TrackPublishOptions;
-#if LIVEKIT_CAPTURE_ENABLED
-namespace capture {
-class CaptureSource;
-struct CaptureResult;
-} // namespace capture
-#endif
 
 using FfiCallbackFn = void (*)(const uint8_t*, size_t);
 extern "C" void livekit_ffi_initialize(FfiCallbackFn cb, bool capture_logs, const char* sdk, const char* sdk_version);
@@ -178,12 +176,15 @@ public:
   // Capture APIs
   // Optional request transport permits deterministic callback tests without
   // starting a GPU renderer or GStreamer pipeline.
-  std::future<std::shared_ptr<capture::CaptureSource>> newCaptureSourceAsync(
+  std::future<Result<std::shared_ptr<capture::CaptureSource>, capture::CaptureError>> newCaptureSourceAsync(
       proto::NewCaptureSourceRequest request,
+      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+  Result<void, capture::CaptureError> controlCapture(
+      std::uint64_t capture_handle, bool start,
       const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
   // Rust retains the pump even after it exits; joining requests its terminal
   // result rather than subscribing to an unsolicited completion event.
-  std::future<capture::CaptureResult> joinCaptureAsync(
+  std::future<Result<capture::CaptureResult, capture::CaptureError>> joinCaptureAsync(
       std::uint64_t capture_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
 #endif
 
