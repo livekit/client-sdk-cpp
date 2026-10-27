@@ -154,10 +154,6 @@ jobs:
           - os: macos-26-xlarge
             name: macos-arm64
             e2e-testing: true
-          - os: macos-26-large
-            name: macos-x64
-            macos_arch: x86_64
-            e2e-testing: true
           # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
@@ -250,10 +246,6 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Install Rust cross-compilation target
-        if: matrix.name == 'macos-x64'
-        run: rustup target add x86_64-apple-darwin
-
       # ---------- Cache Cargo ----------
       # See builds.yml for the rationale: the Rust FFI output only changes with
       # the client-sdk-rust submodule commit, so key the target cache on the
@@ -323,11 +315,7 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x build.sh
-          build_cmd=(./build.sh "${{ inputs.build_type }}-tests")
-          if [[ -n "${{ matrix.macos_arch || '' }}" ]]; then
-            build_cmd+=(--macos-arch "${{ matrix.macos_arch }}")
-          fi
-          "${build_cmd[@]}"
+          ./build.sh "${{ inputs.build_type }}-tests"
 
       - name: Build tests (Windows)
         if: runner.os == 'Windows'
