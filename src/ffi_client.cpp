@@ -1415,6 +1415,10 @@ std::future<capture::CaptureResult> FfiClient::joinCaptureAsync(
       },
       [](const proto::FfiEvent& event, std::promise<capture::CaptureResult>& pr) {
         const auto& callback = event.join_capture();
+        if (!callback.IsInitialized() || (!callback.has_error() && !callback.has_finished())) {
+          pr.set_exception(std::make_exception_ptr(capture::CaptureSourceError("Invalid capture join result")));
+          return;
+        }
         capture::CaptureResult result;
         if (callback.has_error()) {
           const auto kind = captureErrorKindFromProto(callback.error().kind());
@@ -1442,6 +1446,9 @@ std::future<capture::CaptureResult> FfiClient::joinCaptureAsync(
     const proto::FfiResponse response = send ? send(request) : sendRequest(request);
     if (!response.has_join_capture()) {
       logAndThrow("FfiResponse missing join_capture");
+    }
+    if (!response.join_capture().IsInitialized() || response.join_capture().async_id() != async_id) {
+      logAndThrow("FfiResponse join_capture async_id does not match request");
     }
   } catch (...) {
     cancelPendingByAsyncId(async_id);

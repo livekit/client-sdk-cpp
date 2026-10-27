@@ -181,6 +181,8 @@ public:
   std::future<std::shared_ptr<capture::CaptureSource>> newCaptureSourceAsync(
       proto::NewCaptureSourceRequest request,
       const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+  // Rust retains the pump even after it exits; joining requests its terminal
+  // result rather than subscribing to an unsolicited completion event.
   std::future<capture::CaptureResult> joinCaptureAsync(
       std::uint64_t capture_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
 #endif

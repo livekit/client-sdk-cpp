@@ -294,8 +294,8 @@ public:
   /// successful @ref start().
   ///
   /// @return A future containing the terminal result and captured frame count.
-  /// @throws CaptureSourceError When awaiting the future if the FFI request is
-  /// cancelled.
+  /// @throws CaptureSourceError When awaiting the future if the FFI request
+  /// fails, its result is invalid, or SDK shutdown cancels the operation.
   std::future<CaptureResult> join();
 
 private:

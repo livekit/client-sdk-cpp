@@ -156,8 +156,8 @@ TEST_F(CaptureSourceCallbackTest, CallbackReturnsWrapperAndOwnsVideoSource) {
   EXPECT_EQ(source->width(), 1280);
   EXPECT_EQ(source->height(), 720);
   EXPECT_EQ(FfiClientTestAccess::listenerCount(), 0u);
-  std::weak_ptr<capture::CaptureSource> weak_source = source;
-  std::weak_ptr<VideoSource> weak_video = source->videoSource();
+  const std::weak_ptr<capture::CaptureSource> weak_source = source;
+  const std::weak_ptr<VideoSource> weak_video = source->videoSource();
   source.reset();
   EXPECT_TRUE(weak_source.expired());
   EXPECT_TRUE(weak_video.expired());
@@ -260,6 +260,63 @@ TEST_F(CaptureSourceCallbackTest, JoinCallbackMapsFinishedResult) {
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
 }
 
+TEST_F(CaptureSourceCallbackTest, JoinCallbackMayCompleteBeforeSendReturns) {
+  auto future = FfiClient::instance().joinCaptureAsync(42, [](const proto::FfiRequest& request) {
+    const auto async_id = request.join_capture().request_async_id();
+    emitFfiEvent(joinFinishedEvent(async_id, 3));
+    proto::FfiResponse response;
+    response.mutable_join_capture()->set_async_id(async_id);
+    return response;
+  });
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
+  const auto result = future.get();
+  EXPECT_FALSE(result.error.has_value());
+  EXPECT_EQ(result.frames_captured, 3u);
+  EXPECT_EQ(result.exit, capture::CaptureExit::Stopped);
+  EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
+TEST_F(CaptureSourceCallbackTest, JoinIgnoresUnrelatedCallbacksAndDuplicateCompletion) {
+  auto future = beginJoin();
+  emitFfiEvent(joinFinishedEvent(async_id_ + 1, 99));
+  proto::FfiEvent unrelated;
+  unrelated.mutable_new_capture_source()->set_async_id(async_id_);
+  unrelated.mutable_new_capture_source()->set_error("unrelated creation failure");
+  emitFfiEvent(unrelated);
+  EXPECT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::timeout);
+  EXPECT_EQ(FfiClientTestAccess::pendingCount(), 1u);
+
+  emitFfiEvent(joinFinishedEvent(async_id_, 7));
+  emitFfiEvent(joinFinishedEvent(async_id_, 99));
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
+  EXPECT_EQ(future.get().frames_captured, 7u);
+  EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
+TEST_F(CaptureSourceCallbackTest, JoinsCompleteIndependentlyInReverseOrder) {
+  auto first = beginJoin(42);
+  const auto first_async_id = async_id_;
+  auto second = beginJoin(43);
+  emitFfiEvent(joinFinishedEvent(async_id_, 2));
+  EXPECT_EQ(first.wait_for(std::chrono::seconds(0)), std::future_status::timeout);
+  ASSERT_EQ(second.wait_for(std::chrono::seconds(0)), std::future_status::ready);
+  EXPECT_EQ(second.get().frames_captured, 2u);
+  emitFfiEvent(joinFinishedEvent(first_async_id, 1));
+  ASSERT_EQ(first.wait_for(std::chrono::seconds(0)), std::future_status::ready);
+  EXPECT_EQ(first.get().frames_captured, 1u);
+  EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
+TEST_F(CaptureSourceCallbackTest, JoinMissingTerminalResultUsesCaptureSourceError) {
+  auto future = beginJoin();
+  proto::FfiEvent event;
+  event.mutable_join_capture()->set_async_id(async_id_);
+  emitFfiEvent(event);
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(0)), std::future_status::ready);
+  EXPECT_THROW(static_cast<void>(future.get()), capture::CaptureSourceError);
+  EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
 TEST_F(CaptureSourceCallbackTest, JoinCallbackMapsPumpError) {
   const auto verify_kind = [this](proto::CaptureErrorKind proto_kind, capture::CaptureErrorKind expected_kind) {
     auto future = beginJoin();
@@ -301,6 +358,21 @@ TEST_F(CaptureSourceCallbackTest, JoinMissingAcknowledgementRemovesPendingOperat
       FfiClient::instance().joinCaptureAsync(42, [](const proto::FfiRequest&) { return proto::FfiResponse{}; }),
       std::runtime_error);
   EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+}
+
+TEST_F(CaptureSourceCallbackTest, JoinInvalidAcknowledgementRemovesPendingOperation) {
+  for (const bool missing_id : {false, true}) {
+    const auto send = [missing_id](const proto::FfiRequest& request) {
+      proto::FfiResponse response;
+      auto* acknowledgement = response.mutable_join_capture();
+      if (!missing_id) {
+        acknowledgement->set_async_id(request.join_capture().request_async_id() + 1);
+      }
+      return response;
+    };
+    EXPECT_THROW(FfiClient::instance().joinCaptureAsync(42, send), std::runtime_error);
+    EXPECT_EQ(FfiClientTestAccess::pendingCount(), 0u);
+  }
 }
 
 TEST_F(CaptureSourceCallbackTest, JoinApiReportsSynchronousSendFailureThroughFuture) {
@@ -370,17 +442,19 @@ TEST_F(CaptureSourceCallbackTest, RecommendationsCannotReplaceOtherApplicationOp
     EXPECT_EQ(options.stream, application.stream);
     EXPECT_EQ(options.source, application.source);
     ASSERT_TRUE(options.video_encoding.has_value());
-    EXPECT_EQ(options.video_encoding->max_bitrate, 2000000u);
-    EXPECT_EQ(options.video_encoding->max_framerate, 30);
+    const auto video_encoding = options.video_encoding.value_or(VideoEncodingOptions{});
+    EXPECT_EQ(video_encoding.max_bitrate, 2000000u);
+    EXPECT_EQ(video_encoding.max_framerate, 30);
     ASSERT_TRUE(options.audio_encoding.has_value());
-    EXPECT_EQ(options.audio_encoding->max_bitrate, 64000u);
+    EXPECT_EQ(options.audio_encoding.value_or(AudioEncodingOptions{}).max_bitrate, 64000u);
     EXPECT_EQ(options.dtx, application.dtx);
     EXPECT_EQ(options.red, application.red);
     EXPECT_EQ(options.preconnect_buffer, application.preconnect_buffer);
     ASSERT_TRUE(options.frame_metadata_features.has_value());
-    EXPECT_TRUE(options.frame_metadata_features->user_timestamp);
-    EXPECT_TRUE(options.frame_metadata_features->frame_id);
-    EXPECT_TRUE(options.frame_metadata_features->user_data);
+    const auto metadata_features = options.frame_metadata_features.value_or(FrameMetadataFeatures{});
+    EXPECT_TRUE(metadata_features.user_timestamp);
+    EXPECT_TRUE(metadata_features.frame_id);
+    EXPECT_TRUE(metadata_features.user_data);
     EXPECT_EQ(options.degradation_preference, application.degradation_preference);
   }
 }
