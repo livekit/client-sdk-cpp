@@ -49,6 +49,17 @@ jobs:
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
+              - .github/workflows/make-release.yml
+              - .github/actions/setup-sdk-deps/**
+              - .github/actions/setup-capture/**
+              - .github/actions/build-sdk/**
+              - .github/actions/cargo-target-root/**
+              - .github/actions/smoke-examples/**
+              - .github/actions/test-sdk-bundle/**
+              - .github/actions/test-capture-variants/**
+              - .github/actions/test-capture-variant/**
+              - .github/actions/check-sdk-symbols/**
+              - .github/scripts/check_no_private_symbols.py
             tests:
               - src/**
               - include/**
@@ -65,6 +76,13 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/tests.yml
               - .github/workflows/nightly.yml
+              - .github/actions/setup-sdk-deps/**
+              - .github/actions/setup-capture/**
+              - .github/actions/build-sdk/**
+              - .github/actions/cargo-target-root/**
+              - .github/actions/test-sdk-bundle/**
+              - .github/actions/test-capture-variants/**
+              - .github/actions/test-capture-variant/**
             docs:
               - README.md
               - include/**

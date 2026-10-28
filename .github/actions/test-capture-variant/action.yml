@@ -1,0 +1,124 @@
+# Copyright 2026 LiveKit, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Test one selective capture bundle
+description: Restore, build, verify, cache, and release one source variant's Cargo output.
+inputs:
+  preset:
+    description: SDK build preset without tests or examples (debug or release).
+    default: release
+  sources:
+    description: Comma-separated capture sources for this variant.
+    required: true
+  verify-pixel-sources:
+    description: Require successful GPU source creation on a prepared runner.
+    default: 'false'
+  macos-arch:
+    description: Optional macOS architecture override.
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Identify feature-specific Cargo cache
+      id: variant
+      shell: bash
+      env:
+        VARIANT_SOURCES: ${{ inputs.sources }}
+        VARIANT_PRESET: ${{ inputs.preset }}
+        VARIANT_ARCH: ${{ inputs.macos-arch }}
+        VARIANT_CONFIG_HASH: ${{ hashFiles('CMakeLists.txt', 'build.sh', 'build.cmd', '.github/actions/setup-capture/action.yml', '.github/actions/test-capture-variant/action.yml') }}
+      run: |
+        set -euo pipefail
+        variant_python=python
+        if ! command -v "$variant_python" >/dev/null 2>&1; then variant_python=python3; fi
+        "$variant_python" - <<'PYCODE'
+        import hashlib
+        import os
+        import pathlib
+        import subprocess
+        import time
+        sources = sorted(set(os.environ["VARIANT_SOURCES"].split(",")))
+        if not sources or any(source not in {"clock", "gstreamer", "pattern"} for source in sources):
+            raise SystemExit("Invalid selective capture source set")
+        features = ",".join("capture-" + source for source in sources)
+        feature_hash = hashlib.sha256(features.encode()).hexdigest()[:16]
+        root = pathlib.Path(os.environ["CARGO_TARGET_DIR"]).resolve()
+        cargo_dir = root / ("cpp-" + feature_hash)
+        rust_sha = subprocess.check_output(["git", "-C", "client-sdk-rust", "rev-parse", "HEAD"], text=True).strip()
+        key = "-".join(["capture-variant", os.environ["RUNNER_OS"], os.environ.get("ImageOS", os.environ["RUNNER_OS"]),
+                        os.environ["RUNNER_ARCH"], os.environ["VARIANT_ARCH"] or "native",
+                        os.environ["VARIANT_PRESET"], feature_hash,
+                        os.environ["VARIANT_CONFIG_HASH"], rust_sha])
+        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+            output.write(f"cargo-dir={cargo_dir.as_posix()}\nkey={key}\n")
+            output.write(f"started-at={time.monotonic()}\n")
+            output.write("bundle-dir=sdk-out/capture-" + "-".join(sources) + "\n")
+        PYCODE
+    - name: Restore variant Cargo cache
+      id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.variant.outputs.cargo-dir }}
+        key: ${{ steps.variant.outputs.key }}
+    - name: Build variant
+      uses: ./.github/actions/build-sdk
+      with:
+        preset: ${{ inputs.preset }}
+        capture: ${{ inputs.sources }}
+        bundle-dir: ${{ steps.variant.outputs.bundle-dir }}
+        macos-arch: ${{ inputs.macos-arch }}
+    - name: Test installed variant
+      uses: ./.github/actions/test-sdk-bundle
+      with:
+        bundle-dir: ${{ steps.variant.outputs.bundle-dir }}
+        capture: ${{ inputs.sources }}
+        verify-pixel-sources: ${{ inputs.verify-pixel-sources }}
+        build-type: ${{ inputs.preset == 'debug' && 'Debug' || 'Release' }}
+        macos-arch: ${{ inputs.macos-arch }}
+    - name: Save verified variant Cargo cache
+      if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ steps.variant.outputs.cargo-dir }}
+        key: ${{ steps.variant.outputs.key }}
+    # The installed bundle owns copies of the libraries. Releasing the Rust
+    # build tree bounds disk use across the sequence of feature configurations.
+    - name: Release temporary Cargo output
+      if: always() && steps.variant.outputs.cargo-dir != ''
+      shell: bash
+      env:
+        VARIANT_CARGO_DIR: ${{ steps.variant.outputs.cargo-dir }}
+        VARIANT_SOURCES: ${{ inputs.sources }}
+        VARIANT_STARTED_AT: ${{ steps.variant.outputs.started-at }}
+        VARIANT_CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+      run: |
+        set -euo pipefail
+        variant_python=python
+        if ! command -v "$variant_python" >/dev/null 2>&1; then variant_python=python3; fi
+        "$variant_python" - <<'PYCODE'
+        import os
+        import pathlib
+        import shutil
+        import time
+        path = pathlib.Path(os.environ["VARIANT_CARGO_DIR"]).resolve()
+        root = pathlib.Path(os.environ["CARGO_TARGET_DIR"]).resolve()
+        if path.parent != root or not path.name.startswith("cpp-"):
+            raise SystemExit("Refusing to remove a path outside the feature-specific Cargo root")
+        if path.exists():
+            shutil.rmtree(path)
+        elapsed = time.monotonic() - float(os.environ["VARIANT_STARTED_AT"])
+        cache = "hit" if os.environ["VARIANT_CACHE_HIT"] == "true" else "miss"
+        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+            summary.write(f"Capture `{os.environ['VARIANT_SOURCES']}`: {elapsed:.0f}s; Cargo cache {cache}.\n\n")
+        PYCODE

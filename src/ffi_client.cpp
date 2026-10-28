@@ -36,6 +36,10 @@
 #include "room.pb.h"
 #include "room_proto_converter.h"
 
+#if LIVEKIT_CAPTURE_ENABLED
+#include "livekit/capture/capture_source.h"
+#endif
+
 namespace livekit {
 
 namespace {
@@ -112,6 +116,10 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
       return event.chat_message().async_id();
     case E::kPerformRpc:
       return event.perform_rpc().async_id();
+    case E::kNewCaptureSource:
+      return event.new_capture_source().async_id();
+    case E::kJoinCapture:
+      return event.join_capture().async_id();
 
     // low-level data stream callbacks
     case E::kSendStreamHeader:
@@ -461,12 +469,14 @@ bool FfiClient::cancelPendingByAsyncId(AsyncId async_id) {
 
 template <typename T>
 std::future<T> FfiClient::registerAsync(AsyncId async_id, std::function<bool(const proto::FfiEvent&)> match,
-                                        std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler) {
+                                        std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler,
+                                        std::exception_ptr cancellation_error) {
   auto pending = std::make_unique<Pending<T>>();
   pending->async_id = async_id;
   auto fut = pending->promise.get_future();
   pending->match = std::move(match);
   pending->handler = std::move(handler);
+  pending->cancellation_error = std::move(cancellation_error);
   {
     const std::scoped_lock<std::mutex> guard(lock_);
     pending_by_id_.emplace(async_id, std::move(pending));
@@ -1326,5 +1336,171 @@ std::future<Result<std::string, std::string>> FfiClient::getSchemaAsync(std::uin
 
   return fut;
 }
+
+#if LIVEKIT_CAPTURE_ENABLED
+
+namespace {
+
+using CreationOutcome = Result<std::shared_ptr<capture::CaptureSource>, capture::CaptureError>;
+using JoinOutcome = Result<capture::CaptureResult, capture::CaptureError>;
+using ControlOutcome = Result<void, capture::CaptureError>;
+using CaptureError = capture::CaptureError;
+using CaptureErrorKind = capture::CaptureErrorKind;
+
+template <typename T>
+std::future<T> captureExceptionFuture(const std::string& message) {
+  std::promise<T> promise;
+  promise.set_exception(std::make_exception_ptr(std::runtime_error(message)));
+  return promise.get_future();
+}
+
+JoinOutcome captureJoinResult(const proto::JoinCaptureCallback& callback) {
+  if (!callback.IsInitialized()) {
+    throw std::runtime_error("CaptureSource::join: invalid terminal result: " + callback.InitializationErrorString());
+  }
+  if (callback.has_error()) {
+    CaptureErrorKind kind;
+    switch (callback.error().kind()) {
+      case proto::CAPTURE_ERROR_KIND_SOURCE:
+        kind = CaptureErrorKind::Source;
+        break;
+      case proto::CAPTURE_ERROR_KIND_RTC:
+        kind = CaptureErrorKind::Rtc;
+        break;
+      case proto::CAPTURE_ERROR_KIND_PANICKED:
+        kind = CaptureErrorKind::Panicked;
+        break;
+      default:
+        throw std::runtime_error("CaptureSource::join: unknown capture error kind " +
+                                 std::to_string(callback.error().kind()));
+    }
+    return JoinOutcome::failure(CaptureError{callback.error().error(), kind});
+  }
+  if (!callback.has_finished()) {
+    throw std::runtime_error("CaptureSource::join: terminal result is missing finished or error");
+  }
+  const auto& finished = callback.finished();
+  if (finished.exit() != proto::CAPTURE_EXIT_STOPPED && finished.exit() != proto::CAPTURE_EXIT_END_OF_STREAM) {
+    throw std::runtime_error("CaptureSource::join: unknown capture exit reason");
+  }
+  const auto exit = finished.exit() == proto::CAPTURE_EXIT_END_OF_STREAM ? capture::CaptureExit::EndOfStream
+                                                                         : capture::CaptureExit::Stopped;
+  return JoinOutcome::success(capture::CaptureResult{finished.frames_captured(), exit});
+}
+
+} // namespace
+
+std::future<Result<std::shared_ptr<capture::CaptureSource>, capture::CaptureError>> FfiClient::newCaptureSourceAsync(
+    proto::NewCaptureSourceRequest request, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  if (!isInitialized()) {
+    return captureExceptionFuture<CreationOutcome>("CaptureSource::create: LiveKit is not initialized");
+  }
+  const AsyncId async_id = generateAsyncId();
+  auto future = registerAsync<CreationOutcome>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_new_capture_source() && event.new_capture_source().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<CreationOutcome>& promise) {
+        const auto& callback = event.new_capture_source();
+        try {
+          if (callback.has_error()) {
+            throw std::runtime_error("CaptureSource::create: Rust source setup failed: " + callback.error());
+          }
+          if (!callback.has_source()) {
+            throw std::runtime_error("CaptureSource::create: callback is missing source or error");
+          }
+          // Adopt before fulfilling the promise so abandoned futures release both handles.
+          promise.set_value(CreationOutcome::success(capture::CaptureSource::fromOwned(callback.source())));
+        } catch (...) {
+          promise.set_exception(std::current_exception());
+        }
+      },
+      std::make_exception_ptr(std::runtime_error("CaptureSource::create: operation cancelled during SDK shutdown")));
+  request.set_request_async_id(async_id);
+  proto::FfiRequest ffi_request;
+  ffi_request.mutable_new_capture_source()->CopyFrom(request);
+  try {
+    const auto response = send ? send(ffi_request) : sendRequest(ffi_request);
+    if (!response.has_new_capture_source() || !response.new_capture_source().IsInitialized() ||
+        response.new_capture_source().async_id() != async_id) {
+      throw std::runtime_error("invalid new_capture_source acknowledgement (missing or mismatched async_id)");
+    }
+  } catch (const std::runtime_error& error) {
+    cancelPendingByAsyncId(async_id);
+    return captureExceptionFuture<CreationOutcome>("CaptureSource::create: " + std::string(error.what()));
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+  return future;
+}
+
+Result<void, capture::CaptureError> FfiClient::controlCapture(
+    std::uint64_t capture_handle, bool start, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  const char* operation = start ? "CaptureSource::start: " : "CaptureSource::stop: ";
+  if (!isInitialized()) {
+    throw std::runtime_error(std::string(operation) + "LiveKit is not initialized");
+  }
+  proto::FfiRequest request;
+  if (start) {
+    request.mutable_start_capture()->set_capture_handle(capture_handle);
+  } else {
+    request.mutable_stop_capture()->set_capture_handle(capture_handle);
+  }
+  try {
+    const auto response = send ? send(request) : sendRequest(request);
+    if (!(start ? response.has_start_capture() : response.has_stop_capture())) {
+      throw std::runtime_error("missing capture control acknowledgement");
+    }
+    if (start ? response.start_capture().has_error() : response.stop_capture().has_error()) {
+      const auto& error = start ? response.start_capture().error() : response.stop_capture().error();
+      throw std::runtime_error("request rejected by Rust: " + error);
+    }
+    return ControlOutcome::success();
+  } catch (const std::runtime_error& error) {
+    throw std::runtime_error(std::string(operation) + error.what());
+  }
+}
+
+std::future<Result<capture::CaptureResult, capture::CaptureError>> FfiClient::joinCaptureAsync(
+    std::uint64_t capture_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  if (!isInitialized()) {
+    return captureExceptionFuture<JoinOutcome>("CaptureSource::join: LiveKit is not initialized");
+  }
+  const AsyncId async_id = generateAsyncId();
+  auto future = registerAsync<JoinOutcome>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_join_capture() && event.join_capture().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<JoinOutcome>& promise) {
+        try {
+          promise.set_value(captureJoinResult(event.join_capture()));
+        } catch (...) {
+          promise.set_exception(std::current_exception());
+        }
+      },
+      std::make_exception_ptr(std::runtime_error("CaptureSource::join: operation cancelled during SDK shutdown")));
+  proto::FfiRequest request;
+  request.mutable_join_capture()->set_capture_handle(capture_handle);
+  request.mutable_join_capture()->set_request_async_id(async_id);
+  try {
+    const auto response = send ? send(request) : sendRequest(request);
+    if (!response.has_join_capture() || !response.join_capture().IsInitialized() ||
+        response.join_capture().async_id() != async_id) {
+      throw std::runtime_error("invalid join_capture acknowledgement (missing or mismatched async_id)");
+    }
+  } catch (const std::runtime_error& error) {
+    cancelPendingByAsyncId(async_id);
+    return captureExceptionFuture<JoinOutcome>("CaptureSource::join: " + std::string(error.what()));
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+  return future;
+}
+
+#endif
 
 } // namespace livekit

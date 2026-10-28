@@ -1,0 +1,72 @@
+# Copyright 2026 LiveKit, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Set up base SDK dependencies
+description: Install base SDK packages and the build compiler, without capture dependencies.
+inputs:
+  vcpkg-commit:
+    description: Pinned vcpkg revision for Windows builds.
+    default: fb87e2bb3fe69e16c224989acb5a61349166c782
+  linux-extra-packages:
+    description: Optional space-separated Linux packages to install with the base dependencies.
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Setup vcpkg (Windows only)
+      if: runner.os == 'Windows'
+      uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11.6
+      with:
+        vcpkgGitCommitId: ${{ inputs.vcpkg-commit }}
+
+    - name: Install base deps (Ubuntu)
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        SDK_EXTRA_PACKAGES: ${{ inputs.linux-extra-packages }}
+      run: |
+        set -eux
+        extra_packages=()
+        if [[ -n "$SDK_EXTRA_PACKAGES" ]]; then
+          read -r -a extra_packages <<< "$SDK_EXTRA_PACKAGES"
+        fi
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential cmake ninja-build pkg-config \
+          llvm-dev libclang-dev clang \
+          libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
+          libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
+          libxrandr-dev libxi-dev libxkbcommon-dev \
+          libasound2-dev libpulse-dev \
+          libssl-dev \
+          libprotobuf-dev protobuf-compiler \
+          libabsl-dev \
+          libcurl4-openssl-dev \
+          libwayland-dev libdecor-0-dev \
+          "${extra_packages[@]}"
+
+    # libwebrtc ships hermetic libc++ headers that require a newer clang than
+    # Ubuntu provides. The submodule script exports CC/CXX for later steps.
+    - name: Install clang for libwebrtc
+      if: runner.os == 'Linux'
+      shell: bash
+      run: client-sdk-rust/.github/scripts/install-clang.sh
+
+    - name: Install base deps (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        set -eux
+        brew update
+        brew install cmake ninja protobuf abseil
