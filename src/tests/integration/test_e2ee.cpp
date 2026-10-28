@@ -16,19 +16,16 @@
 
 #include <gtest/gtest.h>
 
-#include <chrono>
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include "../common/audio_utils.h"
 #include "../common/test_common.h"
 
 namespace livekit::test {
-
-using namespace std::chrono_literals;
 
 class E2EEIntegrationTest : public LiveKitTestBase {};
 
@@ -47,19 +44,11 @@ TEST_F(E2EEIntegrationTest, FrameCryptorsIncludePublishedTrack) {
   auto manager = room.e2eeManager().lock();
   ASSERT_NE(manager, nullptr);
 
-  // The track's cryptor may be created after publishing returns.
-  bool found = false;
-  const auto deadline = std::chrono::steady_clock::now() + 5s;
-  while (!found && std::chrono::steady_clock::now() < deadline) {
-    std::vector<E2EEManager::FrameCryptor> cryptors;
-    ASSERT_NO_THROW(cryptors = manager->frameCryptors());
-    for (const auto& cryptor : cryptors) {
-      found = found || cryptor.participantIdentity() == participant->identity();
-    }
-    if (!found) {
-      std::this_thread::sleep_for(50ms);
-    }
-  }
+  std::vector<E2EEManager::FrameCryptor> cryptors;
+  ASSERT_NO_THROW(cryptors = manager->frameCryptors());
+  const bool found = std::any_of(cryptors.begin(), cryptors.end(), [&](const auto& cryptor) {
+    return cryptor.participantIdentity() == participant->identity();
+  });
   EXPECT_TRUE(found) << "No frame cryptor for the local participant's track";
   participant->unpublishTrack(track->publication()->sid());
 }
