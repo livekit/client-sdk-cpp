@@ -147,9 +147,11 @@ The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 
 **Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. Linux
 source builds require clang/clang++ 21+ and a matching libclang runtime;
-`build.sh` discovers versioned installations, validates the toolchain, and
-rejects stale build directories configured with another compiler. macOS builds
-use Xcode Apple Clang selected through `xcrun`. On macOS:
+`build.sh` sources `scripts/setup-linux-toolchain.sh` to discover versioned
+installations and validate the toolchain. Source that script before direct
+Linux CMake usage. The build script rejects stale build directories configured
+with another compiler. macOS builds use Xcode Apple Clang selected through
+`xcrun`. On macOS:
 `brew install cmake ninja protobuf abseil`. On Linux: see `docs/building.md`
 and the CI workflow for apt packages. spdlog is vendored automatically via
 FetchContent (or vcpkg on Windows) to avoid system conflicts.

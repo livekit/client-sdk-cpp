@@ -11,17 +11,15 @@ CMake/vcpkg flows.
 - **CMake** ≥ 3.20
 - **Rust / Cargo** — latest stable toolchain (for building the Rust FFI layer).
   Install via [rustup](https://rustup.rs/).
-- **Git LFS** — required for examples that pull test media assets.
-- **Protobuf** ≥ 5.29
-- **Abseil** — always required (used by Protobuf 5.x+)
+- **Git/Submodules/LFS** — required to clone submodules and to pull test assets.
 
 ### Platform-specific toolchains
 
 | Platform | Compiler | Package manager |
 |----------|----------|-----------------|
+| Linux    | Clang 21+ with libclang (See [here](#clang-compiler-usage-on-linux) for rationale) | `apt` |
+| macOS    | Xcode 12+ Apple Clang (macOS 12.3+ for ScreenCaptureKit) | Homebrew |
 | Windows  | Visual Studio 2019+ (MSBuild or Ninja) | vcpkg (see below) |
-| Linux    | Clang 21+ with libclang | `apt` (or vcpkg) |
-| macOS    | Xcode 12+ Apple Clang (macOS 12.3+ for ScreenCaptureKit) | Homebrew (or vcpkg) |
 
 <a id="additional-capture-dependencies"></a>
 
@@ -73,8 +71,8 @@ pkg-config --modversion gstreamer-1.0 gstreamer-app-1.0
 
 ## Clone the repository
 
-The SDK depends on the [`client-sdk-rust`](https://github.com/livekit/rust-sdks)
-submodule (recursive), so always clone with submodules:
+The SDK uses recursive submodules for the [`Rust core`](https://github.com/livekit/rust-sdks), shared [C++ tooling](https://github.com/livekit/cpp-tools), and
+the [C++ example collection](https://github.com/livekit-examples/cpp-example-collection).
 
 ```bash
 # Option 1: clone with submodules in one step
@@ -85,13 +83,14 @@ git clone https://github.com/livekit/client-sdk-cpp.git
 cd client-sdk-cpp
 git submodule update --init --recursive
 
-# Pull Git LFS assets if you want to run the integration tests:
+# Pull the media asset required by the test suite:
 git lfs pull
 ```
 
 ## Recommended setup
 
-These are the exact packages our CI uses. They will also work for examples.
+This section outlines the recommended dependency/environmental setup for
+each supported platform.
 
 ### macOS
 
@@ -99,17 +98,16 @@ These are the exact packages our CI uses. They will also work for examples.
 brew install cmake ninja protobuf abseil rust
 ```
 
-### Ubuntu / Debian
+### Linux
 
 ```bash
 sudo apt update && sudo apt install -y \
-  build-essential cmake ninja-build pkg-config \
-  libprotobuf-dev protobuf-compiler libabsl-dev \
-  libssl-dev wget ca-certificates gnupg lsb-release
+  build-essential cmake ninja-build pkg-config git git-lfs curl \
+  libglib2.0-dev libssl-dev libcurl4-openssl-dev \
+  wget ca-certificates gnupg lsb-release
 
-# Ubuntu 22.04 ships clang 14 and Ubuntu 24.04 ships clang 18. The Rust
-# WebRTC bridge requires clang 21 or later, so install the minimal versioned
-# compiler package from apt.llvm.org.
+# Ubuntu 22.04 ships clang 14 and Ubuntu 24.04 ships clang 18. Install
+# clang 21 and libclang from apt.llvm.org.
 sudo install -m 0755 -d /etc/apt/keyrings
 wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
   | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
@@ -122,13 +120,10 @@ sudo apt install -y clang-21
 
 # Install Rust if you don't already have it
 curl https://sh.rustup.rs -sSf | sh
-```
 
-`clang-21` pulls in the matching libclang runtime without installing the full
-LLVM tool suite. `build.sh` discovers versioned compiler installations and
-exports `CC`, `CXX`, and `LIBCLANG_PATH` for CMake and Cargo. To use a custom
-LLVM installation instead, set `LLVM_ROOT` to its prefix (for example,
-`/opt/llvm-21.1.8`).
+# After cargo installs, run this (or open a new terminal)
+. "$HOME/.cargo/env"
+```
 
 If you plan to build the [example collection](https://github.com/livekit-examples/cpp-example-collection)
 (SDL-based renderer + camera/mic capture), also install:
@@ -169,8 +164,9 @@ wrap the right CMake preset for your platform and pick sensible defaults.
 ./build.sh debug-tests        # Debug + tests
 ./build.sh release-all        # Release + tests + examples
 ./build.sh debug-all          # Debug + tests + examples
+./build.sh build-all          # All Debug and Release variants above
 ./build.sh clean              # Clean CMake build artifacts + local-install
-./build.sh clean-all          # Deep clean (C++ + Rust + local-install + generated files)
+./build.sh clean-all          # Remove build dirs, local-install, and Rust target
 ```
 
 **Windows:**
@@ -186,7 +182,7 @@ wrap the right CMake preset for your platform and pick sensible defaults.
 To create an installable SDK bundle with public headers, runtime libraries, and
 CMake package files, add `--bundle --prefix <install-dir>` to a build command:
 
-**Linux/Mac:**
+**Linux/macOS:**
 
 ```bash
 ./build.sh release --bundle --prefix sdk-out/livekit-sdk
@@ -200,6 +196,8 @@ CMake package files, add `--bundle --prefix <install-dir>` to a build command:
 
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the auto-detected logical CPU count.
+Run `./build.sh help` for additional packaging and configuration options,
+including `--archive`, `--archive-name`, `--version`, and `-G`.
 
 ## Advanced: CMake presets
 
@@ -208,6 +206,7 @@ For more control, drive CMake directly via the presets in
 
 ```bash
 # Linux
+source scripts/setup-linux-toolchain.sh
 cmake --preset linux-release
 cmake --build --preset linux-release
 
@@ -226,13 +225,13 @@ Windows requires `VCPKG_ROOT` to be set:
 $env:VCPKG_ROOT = "C:\path\to\vcpkg"
 ```
 
-## Advanced: vcpkg manifest mode
+## Advanced: Windows vcpkg manifest mode
 
 vcpkg will automatically install all dependencies listed in
 [vcpkg.json](https://github.com/livekit/client-sdk-cpp/blob/main/vcpkg.json) the first time you configure with its toolchain
-file.
+file. This dependency path is supported only on Windows. Linux and macOS use
+the vendored dependency paths described above.
 
-**Windows:**
 ```powershell
 cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake
 cmake --build build --config Release
@@ -244,37 +243,15 @@ cmake -B build -S . `
 cmake --build build --config Release
 ```
 
-**Linux (compiler environment):**
-```bash
-# Direct CMake use bypasses build.sh's compiler validation.
-export CC=clang-21
-export CXX=clang++-21
-export LIBCLANG_PATH=/usr/lib/llvm-21/lib
-```
-
-**Linux/macOS:**
-```bash
-cmake -B build -S . \
-  -DCMAKE_TOOLCHAIN_FILE=<vcpkg-root>/scripts/buildsystems/vcpkg.cmake \
-  -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-
-# With examples:
-cmake -B build -S . \
-  -DCMAKE_TOOLCHAIN_FILE=<vcpkg-root>/scripts/buildsystems/vcpkg.cmake \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DLIVEKIT_BUILD_EXAMPLES=ON
-cmake --build build
-```
-
 ## CMake options
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `LIVEKIT_BUILD_EXAMPLES` | OFF | Build example applications |
-| `LIVEKIT_USE_SYSTEM_PROTOBUF` | OFF | Use system Protobuf instead of vcpkg's |
+| `LIVEKIT_BUILD_TESTS` | OFF | Build test executables |
+| `LIVEKIT_USE_SYSTEM_PROTOBUF` | OFF on Linux/macOS; ON on Windows | Select the platform dependency path; CMake forces the value |
 | `LIVEKIT_LOG_LEVEL` | `TRACE` | Compile-time log threshold (see [logging.md](logging.md)) |
-| `LIVEKIT_VERSION` | repo-derived | SDK version string baked into the binary |
+| `LIVEKIT_VERSION` | `0.0.0` | SDK version string baked into the binary; set with `--version` or CMake |
 | `LIVEKIT_CAPTURE` | empty (`none`) | Capture sources for the Rust FFI (`all`, `none`, or a comma-separated list; see [Capture sources](#capture-sources)) |
 
 ## Build output
@@ -289,12 +266,15 @@ build-release/
 │   └── livekit{,_ffi}.lib          # Import libraries (Windows)
 ├── include/                        # Public headers (auto-synced)
 │   └── livekit/
-└── bin/
-    └── livekit{,_ffi}.dll          # SDK DLLs (Windows)
+├── generated/                      # Generated protobuf and FFI sources
+├── compile_commands.json           # Compilation database
+└── bin/                            # Tests/examples when enabled; DLLs on Windows
 ```
 
 Release archives use the same layout: `include/`, `lib/`, and (on Windows)
-`bin/`. The exact build-tree layout can vary with the CMake generator.
+`bin/`. The repository root also receives a `compile_commands.json` symlink.
+Example builds use `local-install/` while configuring the example collection.
+The exact build-tree layout can vary with the CMake generator.
 
 ## Integrating into your project
 
@@ -384,11 +364,13 @@ export CFLAGS="-Wno-deprecated-declarations"
 
 ### Rust bindgen fails with "unable to find libclang"
 
-On Linux, install `clang-21` as shown above. `build.sh` accepts both versioned
-libraries such as `libclang-21.so.1` and an unversioned `libclang.so`. For a
-custom installation, set `LLVM_ROOT` or point `LIBCLANG_PATH` at its library
-directory. On macOS, install the Xcode Command Line Tools; `build.sh` selects
-Xcode Apple Clang with `xcrun`.
+On Linux, install `clang-21` as shown above. Rust bindgen uses libclang to
+generate the libyuv bindings; this is separate from the Clang 21 compiler
+requirement imposed by libwebrtc's hermetic libc++. `build.sh` accepts both
+versioned libraries such as `libclang-21.so.1` and an unversioned
+`libclang.so`. For a custom installation, set `LLVM_ROOT` or point
+`LIBCLANG_PATH` at its library directory. On macOS, install the Xcode Command
+Line Tools; `build.sh` selects Xcode Apple Clang with `xcrun`.
 
 ### Rust code recompiles after C++ edits
 
@@ -397,10 +379,16 @@ change or the Rust library is missing.
 
 ### Cannot find Protobuf or other dependencies
 
-Make sure you're passing the vcpkg toolchain file:
+On Linux and macOS, Protobuf, Abseil, spdlog, and nlohmann/json are fetched
+while CMake configures the project. Check network access and verify that all
+recursive submodules are initialized:
+
 ```bash
--DCMAKE_TOOLCHAIN_FILE=<vcpkg-root>/scripts/buildsystems/vcpkg.cmake
+git submodule update --init --recursive
 ```
+
+On Windows, make sure `VCPKG_ROOT` is set and pass the vcpkg toolchain file as
+shown above.
 
 ### `clang-tidy` on Windows
 
@@ -408,20 +396,16 @@ Not currently supported via our scripts — the Visual Studio (MSBuild) CMake
 generator doesn't produce `compile_commands.json`. The Ninja generator does;
 see [tools.md](tools.md).
 
-### How do I deep-clean?
+Or clean one configured build tree with its CMake targets:
 
 ```bash
-./build.sh clean-all         # C++ + Rust + local-install + generated files
+cmake --build build-release --target clean              # CMake artifacts
+cmake --build build-release --target cargo_clean        # Rust artifacts
+cmake --build build-release --target clean_generated    # Generated protobuf files
+cmake --build build-release --target clean_all          # Full clean; removes build-release
 ```
 
-Or via CMake targets:
-
-```bash
-cmake --build build --target clean              # CMake artifacts
-cmake --build build --target cargo_clean        # Rust artifacts
-cmake --build build --target clean_generated    # Generated protobuf headers
-cmake --build build --target clean_all          # Full clean
-```
+Replace `build-release` with `build-debug` for a Debug configuration.
 
 ## Cargo output paths on Windows
 
@@ -495,3 +479,40 @@ See [Capture sources](capture-sources.md) for dependencies and usage.
 
 - GitHub Issues: <https://github.com/livekit/client-sdk-cpp/issues>
 - LiveKit Docs: <https://docs.livekit.io/>
+
+## Appendix
+
+### Clang compiler usage on Linux
+
+The SDK compiler requirement moved from GCC to Clang 21 when the core Rust SDK
+[upgraded to WebRTC M150](https://github.com/livekit/rust-sdks/commit/415f05512b3b5cb417d21630e485c032c21d71b8).
+LiveKit's M150 artifact is built with Chromium's hermetic libc++ and ships
+those same headers for the Rust `webrtc-sys` C++ bridge. Chromium built that
+artifact with Clang 23, while the shipped libc++ headers declare Clang 21 as
+their minimum supported compiler. Older Clang versions fail on newer builtins
+used by those headers. GCC is also unsuitable for this artifact because it
+does not preserve the required libc++ `trivial_abi` calling conventions.
+
+The SDK also heavily used Clang tooling for formatting and tidy code quality
+checks before this WebRTC update, so a Clang dependency was not avoided before
+the migration off GCC.
+
+#### Avoiding Mixing Clang Versions
+
+Stable Linux distributions generally freeze a compiler major version for the
+life of a release. For example, Ubuntu 22.04 provides Clang 14, Ubuntu 24.04
+provides Clang 18, Debian 12 provides Clang 14, and Debian 13 provides Clang
+19. Those versions remain useful and supported by their distributions, but
+they predate the LLVM toolchain used to produce the current libwebrtc
+artifact. The apt.llvm.org repository above supplies a newer, versioned
+toolchain without replacing the distribution compiler.
+
+`build.sh` sources `scripts/setup-linux-toolchain.sh`, which locates the right
+Clang environment paths and exports `CC`, `CXX`, and `LIBCLANG_PATH` for CMake
+and Cargo. Within `build.sh`, those settings apply only to the build and its
+child processes. Direct CMake users can source the same setup script and those
+environment settings remain in the current shell. Neither usage modifies the
+system-wide compiler configuration.
+
+To use a custom LLVM installation instead, set
+`LLVM_ROOT` to its prefix (for example, `/opt/llvm-21.1.8`).

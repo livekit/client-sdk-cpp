@@ -27,124 +27,6 @@ detect_os() {
 
 OS_TYPE="$(detect_os)"
 
-compiler_clang_major() {
-  local compiler="$1"
-  "${compiler}" -dM -E -x c /dev/null 2>/dev/null \
-    | awk '$2 == "__clang_major__" { print $3; exit }'
-}
-
-resolve_compiler() {
-  local compiler="$1"
-  if [[ "${compiler}" == */* ]]; then
-    [[ -x "${compiler}" ]] || return 1
-    printf '%s\n' "${compiler}"
-  else
-    command -v "${compiler}" 2>/dev/null
-  fi
-}
-
-find_libclang_dir() {
-  local llvm_root="$1"
-  local clang_major="$2"
-  local -a search_dirs=(
-    "${llvm_root}/lib"
-    "${llvm_root}/lib64"
-    "/usr/lib/llvm-${clang_major}/lib"
-  )
-  local directory candidate
-
-  for directory in "${search_dirs[@]}"; do
-    [[ -d "${directory}" ]] || continue
-    for candidate in \
-      "${directory}/libclang.so" \
-      "${directory}"/libclang.so.* \
-      "${directory}"/libclang-*.so \
-      "${directory}"/libclang-*.so.*; do
-      [[ -f "${candidate}" ]] || continue
-      [[ "$(basename "${candidate}")" == *-cpp.* ]] && continue
-      printf '%s\n' "${directory}"
-      return 0
-    done
-  done
-
-  return 1
-}
-
-select_linux_clang_pair() {
-  local candidate_cc="$1"
-  local candidate_cxx="$2"
-  local resolved_cc resolved_cxx cc_major cxx_major llvm_root libclang_dir
-
-  resolved_cc="$(resolve_compiler "${candidate_cc}")" || return 1
-  resolved_cxx="$(resolve_compiler "${candidate_cxx}")" || return 1
-  cc_major="$(compiler_clang_major "${resolved_cc}")"
-  cxx_major="$(compiler_clang_major "${resolved_cxx}")"
-
-  [[ -n "${cc_major}" && "${cc_major}" == "${cxx_major}" ]] || return 1
-  ((cc_major >= 21)) || return 1
-
-  llvm_root="$(cd "$(dirname "${resolved_cxx}")/.." && pwd -P)"
-  libclang_dir="$(find_libclang_dir "${llvm_root}" "${cxx_major}")" || return 1
-
-  CC="${resolved_cc}"
-  CXX="${resolved_cxx}"
-  LIBCLANG_PATH="${libclang_dir}"
-  export CC CXX LIBCLANG_PATH
-  return 0
-}
-
-configure_linux_toolchain() {
-  local -a llvm_roots=()
-  local root version
-
-  if [[ -n "${LLVM_ROOT:-}" ]]; then
-    if ! select_linux_clang_pair "${LLVM_ROOT}/bin/clang" "${LLVM_ROOT}/bin/clang++"; then
-      echo "ERROR: LLVM_ROOT=${LLVM_ROOT} does not contain clang/clang++ 21+ and libclang." >&2
-      exit 1
-    fi
-  elif [[ -n "${CC:-}" || -n "${CXX:-}" ]]; then
-    if [[ -z "${CC:-}" || -z "${CXX:-}" ]]; then
-      echo "ERROR: CC and CXX must both be set when selecting a compiler explicitly." >&2
-      exit 1
-    fi
-    if ! select_linux_clang_pair "${CC}" "${CXX}"; then
-      echo "ERROR: CC=${CC} and CXX=${CXX} must select matching clang 21+ compilers with libclang." >&2
-      exit 1
-    fi
-  else
-    shopt -s nullglob
-    llvm_roots=(/opt/llvm-*)
-    shopt -u nullglob
-    if ((${#llvm_roots[@]})); then
-      while IFS= read -r root; do
-        if select_linux_clang_pair "${root}/bin/clang" "${root}/bin/clang++"; then
-          break
-        fi
-      done < <(printf '%s\n' "${llvm_roots[@]}" | sort -Vr)
-    fi
-
-    if [[ -z "${CC:-}" ]]; then
-      for ((version = 40; version >= 21; --version)); do
-        if select_linux_clang_pair "clang-${version}" "clang++-${version}"; then
-          break
-        fi
-      done
-    fi
-
-    if [[ -z "${CC:-}" ]] && ! select_linux_clang_pair "clang" "clang++"; then
-      echo "ERROR: Linux builds require clang/clang++ 21+ and libclang." >&2
-      echo "Ubuntu 22.04 and 24.04 distro clang versions are too old." >&2
-      echo "Install clang-21 from apt.llvm.org or set LLVM_ROOT to a compatible LLVM installation." >&2
-      exit 1
-    fi
-  fi
-
-  echo "==> Linux compiler: $("${CXX}" --version | awk 'NR == 1 { print; exit }')"
-  echo "==> CC=${CC}"
-  echo "==> CXX=${CXX}"
-  echo "==> LIBCLANG_PATH=${LIBCLANG_PATH}"
-}
-
 configure_macos_toolchain() {
   if ! command -v xcrun >/dev/null 2>&1; then
     echo "ERROR: xcrun is unavailable. Install Xcode Command Line Tools." >&2
@@ -162,7 +44,7 @@ configure_macos_toolchain() {
 
 configure_build_toolchain() {
   case "${OS_TYPE}" in
-    linux) configure_linux_toolchain ;;
+    linux) source "${PROJECT_ROOT}/scripts/setup-linux-toolchain.sh" ;;
     macos) configure_macos_toolchain ;;
   esac
 }
