@@ -361,3 +361,22 @@ endif()
 if(TARGET livekit_stress_tests)
   add_dependencies(run_all_tests livekit_stress_tests)
 endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_executable(livekit_memory_tester
+    "${CMAKE_CURRENT_SOURCE_DIR}/memory/memory_tester.cpp"
+  )
+  target_link_libraries(livekit_memory_tester PRIVATE livekit)
+  target_include_directories(livekit_memory_tester PRIVATE
+    ${LIVEKIT_ROOT_DIR}/include
+  )
+  add_custom_command(TARGET livekit_memory_tester POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:livekit>
+      $<TARGET_FILE_DIR:livekit_memory_tester>
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "$<TARGET_FILE_DIR:livekit>/liblivekit_ffi.so"
+      $<TARGET_FILE_DIR:livekit_memory_tester>
+    COMMENT "Copying shared libraries next to livekit_memory_tester"
+  )
+endif()
