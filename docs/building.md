@@ -516,6 +516,8 @@ See [Capture sources](capture-sources.md) for dependencies and usage.
 
 ## Appendix
 
+<a id="clang-compiler-usage-on-linux"></a>
+
 ### Clang compiler usage on Linux
 
 The SDK compiler requirement moved from GCC to Clang 21 when the core Rust SDK
