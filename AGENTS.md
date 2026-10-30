@@ -366,6 +366,8 @@ malformed table, missing `@param` on a documented function, …) fails the build
 | GStreamer | Capture builds / runtime | System libraries and plugins; accessed through Rust; not redistributed in SDK bundles |
 | Google Test | Test only | FetchContent in `src/tests/CMakeLists.txt` |
 
+When a dependency is added, removed, upgraded, or used differently, update the
+Dependencies table in `docs/building.md` in the same change.
 When adding a new private/vendored dependency to this table, also add a
 forbidden symbol pattern for it to
 `.github/scripts/check_no_private_symbols.py` so the "Symbol leak check"

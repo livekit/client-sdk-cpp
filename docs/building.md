@@ -6,14 +6,14 @@ CMake/vcpkg flows.
 
 ## Prerequisites
 
-### Common to all platforms
+### Core Tools
 
 - **CMake** ≥ 3.25
 - **Rust / Cargo** — latest stable toolchain (for building the Rust FFI layer).
   Install via [rustup](https://rustup.rs/).
 - **Git/Submodules/LFS** — required to clone submodules and to pull test assets.
 
-### Platform-specific toolchains
+### Compilers
 
 | Platform | Compiler | Package manager |
 |----------|----------|-----------------|
@@ -21,73 +21,40 @@ CMake/vcpkg flows.
 | macOS    | Xcode 12+ Apple Clang (macOS 12.3+ for ScreenCaptureKit) | Homebrew |
 | Windows  | Visual Studio 2019+ (MSBuild or Ninja) | vcpkg (see below) |
 
+### Dependencies
+
+These dependencies are linked by the SDK, used directly by its production C++
+sources, or support optional repository targets.
+
+| Dependency | Platform | Version | Source | How it is used |
+|------------|----------|---------|--------|----------------|
+| `client-sdk-rust` / `livekit_ffi` | All | `livekit_ffi` 0.13.3; pinned commit | Git submodule | Owns WebRTC, networking, media, and most business logic. The C++ SDK calls its C ABI and exchanges Protobuf FFI requests, responses, and events. Its shared library ships beside `liblivekit`. |
+| Protobuf | All | 25.3 vendored; 5.29.5+ on Windows | Vendored / vcpkg | Generates and implements the FFI message types used throughout the C++ wrapper for rooms, tracks, streams, frames, statistics, RPC, encryption, and capture. |
+| Abseil | All | 20240116.2 vendored; vcpkg-managed on Windows | Vendored / vcpkg | Supports the Protobuf build. Production C++ sources do not call Abseil APIs directly. |
+| spdlog | All | 1.15.1 vendored; vcpkg-managed on Windows | Vendored / vcpkg | Implements the internal `LK_LOG_*` macros, default stderr logger, log-level filtering, and the public log callback adapter. |
+| nlohmann/json | All | 3.12.0 vendored; vcpkg-managed on Windows | Vendored / vcpkg | Parses token-endpoint JSON responses and JWT payload claims. |
+| Chromium trace-event code | All | Pinned source snapshot | Vendored source | Implements trace-event macros used by the production tracing API. Benchmark utilities consume the resulting Chromium-format traces, but Chromium is not a benchmark library dependency. |
+| libcurl | Linux | System-provided | System library | Implements HTTP requests made by `TokenSource`. |
+| OpenSSL | Linux | System-provided | System library | Linked into `liblivekit`. Current production C++ sources do not call OpenSSL APIs directly. |
+| libcurl | Mac | System-provided | System library | Implements HTTP requests made by `TokenSource`. |
+| Apple system frameworks | Mac | OS-provided | System frameworks | Supplies the audio, video, graphics, security, UI, and ScreenCaptureKit frameworks required by the media stack. |
+| WinHTTP | Windows | OS-provided | System library | Implements HTTP requests made by `TokenSource`. |
+
+### Capture Dependencies
+
+| Dependency | Platform | Version | Source | How it is used |
+|------------|----------|---------|--------|----------------|
+| GStreamer | All | Platform-provided | System library | Used by the Rust `capture-gstreamer` backend. The C++ capture API reaches it through the FFI; GStreamer headers are not exposed publicly. |
+
+### Test Dependencies
+
+| Dependency | Platform | Version | Source | How it is used |
+|------------|----------|---------|--------|----------------|
+| GoogleTest | All | 1.14.0 | Vendored | Implements unit, integration, and stress test executables. It is not linked into SDK bundles. |
+
 <a id="additional-capture-dependencies"></a>
 
-### Additional capture dependencies
-
-GStreamer is required only when the selected sources include `gstreamer`.
-This includes `--capture` / `--capture=all` and release `-capture` bundles,
-which enable all three sources. Standard SDK builds and builds selecting only
-`pattern`, `clock`, or both do not require GStreamer.
-
-For builds that include `gstreamer`, install GStreamer development libraries
-at build time and GStreamer libraries at runtime. The SDK does not redistribute
-these libraries or plugins. Install the runtime plugins required by your
-pipeline too. Pattern and clock sources need a compatible GPU adapter at runtime.
-
-**macOS:** Install both the official universal runtime and development packages
-from the [GStreamer downloads page](https://gstreamer.freedesktop.org/download/#macos).
-These packages support both x86_64 and arm64. Configure the framework paths:
-
-```bash
-export PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/bin:$PATH"
-export PKG_CONFIG_PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
-```
-
-Use one GStreamer installation method per machine to keep libraries and plugins
-consistent.
-
-**Ubuntu / Debian:** Install the development packages and runtime plugins:
-
-```bash
-sudo apt install -y pkg-config libunwind-dev \
-  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-  gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-  gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
-```
-
-**Windows:** Install the MSVC x86_64 runtime and development components from the
-[GStreamer downloads page](https://gstreamer.freedesktop.org/download/#windows).
-Add the installation's `bin` directory to `PATH` and its `lib/pkgconfig`
-directory to `PKG_CONFIG_PATH`.
-
-For GStreamer builds, development files must be discoverable through
-`pkg-config`. You can verify
-that they are available with:
-
-```bash
-pkg-config --modversion gstreamer-1.0 gstreamer-app-1.0
-```
-
-## Clone the repository
-
-The SDK uses recursive submodules for the [`Rust core`](https://github.com/livekit/rust-sdks), shared [C++ tooling](https://github.com/livekit/cpp-tools), and
-the [C++ example collection](https://github.com/livekit-examples/cpp-example-collection).
-
-```bash
-# Option 1: clone with submodules in one step
-git clone --recurse-submodules https://github.com/livekit/client-sdk-cpp.git
-
-# Option 2: clone first, then initialize submodules
-git clone https://github.com/livekit/client-sdk-cpp.git
-cd client-sdk-cpp
-git submodule update --init --recursive
-
-# Pull the media asset required by the test suite:
-git lfs pull
-```
-
-## Recommended setup
+## Installation
 
 This section outlines the recommended dependency/environmental setup for
 each supported platform.
@@ -152,6 +119,24 @@ $env:VCPKG_ROOT = "$PWD\vcpkg"
 CMake's vcpkg manifest mode (below) reads
 `vcpkg.json` and installs the rest automatically the first time you configure.
 
+## Clone the repository
+
+The SDK uses recursive submodules for the [`Rust core`](https://github.com/livekit/rust-sdks), shared [C++ tooling](https://github.com/livekit/cpp-tools), and
+the [C++ example collection](https://github.com/livekit-examples/cpp-example-collection).
+
+```bash
+# Option 1: clone with submodules in one step
+git clone --recurse-submodules https://github.com/livekit/client-sdk-cpp.git
+
+# Option 2: clone first, then initialize submodules
+git clone https://github.com/livekit/client-sdk-cpp.git
+cd client-sdk-cpp
+git submodule update --init --recursive
+
+# Pull the media asset required by the test suite:
+git lfs pull
+```
+
 ## Build scripts (recommended)
 
 The repo ships with `build.sh` (Linux/macOS) and `build.cmd` (Windows) that
@@ -178,6 +163,52 @@ wrap the right CMake preset for your platform and pick sensible defaults.
 .\build.cmd debug
 .\build.cmd release-examples
 # ... same suffixes as build.sh
+```
+
+### GStreamer Installation (LiveKit Capture)
+
+GStreamer is required only when the selected sources include `gstreamer`.
+This includes `--capture` / `--capture=all` and release `-capture` bundles,
+which enable all three sources. Standard SDK builds and builds selecting only
+`pattern`, `clock`, or both do not require GStreamer.
+
+For builds that include `gstreamer`, install GStreamer development libraries
+at build time and GStreamer libraries at runtime. The SDK does not redistribute
+these libraries or plugins. Install the runtime plugins required by your
+pipeline too. Pattern and clock sources need a compatible GPU adapter at runtime.
+
+**macOS:** Install both the official universal runtime and development packages
+from the [GStreamer downloads page](https://gstreamer.freedesktop.org/download/#macos).
+These packages support both x86_64 and arm64. Configure the framework paths:
+
+```bash
+export PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/bin:$PATH"
+export PKG_CONFIG_PATH="/Library/Frameworks/GStreamer.framework/Versions/1.0/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+```
+
+Use one GStreamer installation method per machine to keep libraries and plugins
+consistent.
+
+**Ubuntu / Debian:** Install the development packages and runtime plugins:
+
+```bash
+sudo apt install -y pkg-config libunwind-dev \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
+```
+
+**Windows:** Install the MSVC x86_64 runtime and development components from the
+[GStreamer downloads page](https://gstreamer.freedesktop.org/download/#windows).
+Add the installation's `bin` directory to `PATH` and its `lib/pkgconfig`
+directory to `PKG_CONFIG_PATH`.
+
+For GStreamer builds, development files must be discoverable through
+`pkg-config`. You can verify
+that they are available with:
+
+```bash
+pkg-config --modversion gstreamer-1.0 gstreamer-app-1.0
 ```
 
 ### Create an SDK bundle
