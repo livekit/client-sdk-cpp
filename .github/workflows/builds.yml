@@ -157,9 +157,6 @@ jobs:
         run: |
           echo "CXXFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
           echo "CFLAGS=-Wno-deprecated-declarations" >> "$GITHUB_ENV"
-          LLVM_ROOT="$(dirname "${CXX}")/.."
-          test -f "${LLVM_ROOT}/lib/libclang.so"
-          echo "LIBCLANG_PATH=${LLVM_ROOT}/lib" >> "$GITHUB_ENV"
 
       # ---------- Build ----------
       - name: Build standard SDK

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 
 if(NOT DEFINED LIVEKIT_VERSION OR LIVEKIT_VERSION STREQUAL "")
   set(LIVEKIT_VERSION "0.0.0")

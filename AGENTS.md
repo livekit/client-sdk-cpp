@@ -145,7 +145,16 @@ the source tree. Track capture Rust sources and shaders in build dependencies.
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
 
-**Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. On macOS: `brew install cmake ninja protobuf abseil`. On Linux: see the CI workflow for apt packages. spdlog is vendored automatically via FetchContent (or vcpkg on Windows) to avoid system conflicts.
+**Requirements:** CMake 3.25+, C++17, Rust toolchain (cargo), protoc. Linux
+source builds require clang/clang++ 21+ and a matching libclang runtime;
+`build.sh` sources `scripts/setup-linux-toolchain.sh` to discover versioned
+installations and validate the toolchain. Source that script before direct
+Linux CMake usage. The build script rejects stale build directories configured
+with another compiler. macOS builds use Xcode Apple Clang selected through
+`xcrun`. On macOS:
+`brew install cmake ninja protobuf abseil`. On Linux: see `docs/building.md`
+and the CI workflow for apt packages. spdlog is vendored automatically via
+FetchContent (or vcpkg on Windows) to avoid system conflicts.
 
 ### SDK Packaging
 
@@ -357,6 +366,8 @@ malformed table, missing `@param` on a documented function, …) fails the build
 | GStreamer | Capture builds / runtime | System libraries and plugins; accessed through Rust; not redistributed in SDK bundles |
 | Google Test | Test only | FetchContent in `src/tests/CMakeLists.txt` |
 
+When a dependency is added, removed, upgraded, or used differently, update the
+Dependencies table in `docs/building.md` in the same change.
 When adding a new private/vendored dependency to this table, also add a
 forbidden symbol pattern for it to
 `.github/scripts/check_no_private_symbols.py` so the "Symbol leak check"
