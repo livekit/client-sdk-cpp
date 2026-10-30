@@ -8,7 +8,7 @@ CMake/vcpkg flows.
 
 ### Common to all platforms
 
-- **CMake** ≥ 3.20
+- **CMake** ≥ 3.25
 - **Rust / Cargo** — latest stable toolchain (for building the Rust FFI layer).
   Install via [rustup](https://rustup.rs/).
 - **Git/Submodules/LFS** — required to clone submodules and to pull test assets.
@@ -105,6 +105,9 @@ sudo apt update && sudo apt install -y \
   build-essential cmake ninja-build pkg-config git git-lfs curl \
   libglib2.0-dev libssl-dev libcurl4-openssl-dev \
   wget ca-certificates gnupg lsb-release
+
+# Ubuntu 22.04 provides CMake 3.22. Install CMake 3.25+ separately
+# (for example, from https://apt.kitware.com/) before building.
 
 # Ubuntu 22.04 ships clang 14 and Ubuntu 24.04 ships clang 18. Install
 # clang 21 and libclang from apt.llvm.org.

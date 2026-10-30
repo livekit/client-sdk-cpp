@@ -145,7 +145,7 @@ the source tree. Track capture Rust sources and shaders in build dependencies.
 The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 `CMAKE_BUILD_PARALLEL_LEVEL` to override the default detected logical CPU count.
 
-**Requirements:** CMake 3.20+, C++17, Rust toolchain (cargo), protoc. Linux
+**Requirements:** CMake 3.25+, C++17, Rust toolchain (cargo), protoc. Linux
 source builds require clang/clang++ 21+ and a matching libclang runtime;
 `build.sh` sources `scripts/setup-linux-toolchain.sh` to discover versioned
 installations and validate the toolchain. Source that script before direct
