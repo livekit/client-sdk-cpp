@@ -66,7 +66,7 @@ livekit_find_libclang_dir() {
 livekit_select_linux_clang_pair() {
   local candidate_cc="$1"
   local candidate_cxx="$2"
-  local resolved_cc resolved_cxx cc_major cxx_major llvm_root libclang_dir
+  local resolved_cc resolved_cxx real_cxx cc_major cxx_major llvm_root libclang_dir
 
   resolved_cc="$(livekit_resolve_compiler "${candidate_cc}")" || return 1
   resolved_cxx="$(livekit_resolve_compiler "${candidate_cxx}")" || return 1
@@ -76,7 +76,8 @@ livekit_select_linux_clang_pair() {
   [[ -n "${cc_major}" && "${cc_major}" == "${cxx_major}" ]] || return 1
   ((cc_major >= 21)) || return 1
 
-  llvm_root="$(cd "$(dirname "${resolved_cxx}")/.." && pwd -P)"
+  real_cxx="$(readlink -f "${resolved_cxx}")" || return 1
+  llvm_root="$(cd "$(dirname "${real_cxx}")/.." && pwd -P)"
   libclang_dir="$(livekit_find_libclang_dir "${llvm_root}" "${cxx_major}")" || return 1
 
   CC="${resolved_cc}"

@@ -46,6 +46,7 @@ jobs:
               - CMakePresets.json
               - build*
               - .build*
+              - scripts/setup-linux-toolchain.sh
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
@@ -68,6 +69,7 @@ jobs:
               - cmake/**
               - scripts/set-test-tokens.sh
               - scripts/run-with-backtrace.sh
+              - scripts/setup-linux-toolchain.sh
               - CMakeLists.txt
               - CMakePresets.json
               - build*
