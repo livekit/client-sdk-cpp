@@ -116,6 +116,22 @@ validate_capture_value() {
   done
 }
 
+canonicalize_path() {
+  local path="$1"
+  local resolved directory
+
+  if resolved="$(readlink -f "${path}" 2>/dev/null)" && [[ -n "${resolved}" ]]; then
+    printf '%s\n' "${resolved}"
+    return
+  fi
+
+  if directory="$(cd "$(dirname "${path}")" 2>/dev/null && pwd -P)"; then
+    printf '%s/%s\n' "${directory}" "$(basename "${path}")"
+  else
+    printf '%s\n' "${path}"
+  fi
+}
+
 parse_opts() {
   shift || true
   while [[ $# -gt 0 ]]; do
@@ -196,16 +212,16 @@ parse_opts() {
 }
 
 configure() {
-  if [[ "${OS_TYPE}" == "linux" && -f "${BUILD_DIR}/CMakeCache.txt" ]]; then
+  if [[ -f "${BUILD_DIR}/CMakeCache.txt" ]]; then
     local cached_cc cached_cxx selected_cc selected_cxx
     cached_cc="$(awk -F= '$1 == "CMAKE_C_COMPILER:FILEPATH" { print $2; exit }' \
       "${BUILD_DIR}/CMakeCache.txt")"
     cached_cxx="$(awk -F= '$1 == "CMAKE_CXX_COMPILER:FILEPATH" { print $2; exit }' \
       "${BUILD_DIR}/CMakeCache.txt")"
-    selected_cc="$(readlink -f "${CC}")"
-    selected_cxx="$(readlink -f "${CXX}")"
-    if [[ -n "${cached_cc}" && "$(readlink -f "${cached_cc}")" != "${selected_cc}" ]] \
-      || [[ -n "${cached_cxx}" && "$(readlink -f "${cached_cxx}")" != "${selected_cxx}" ]]; then
+    selected_cc="$(canonicalize_path "${CC}")"
+    selected_cxx="$(canonicalize_path "${CXX}")"
+    if [[ -n "${cached_cc}" && "$(canonicalize_path "${cached_cc}")" != "${selected_cc}" ]] \
+      || [[ -n "${cached_cxx}" && "$(canonicalize_path "${cached_cxx}")" != "${selected_cxx}" ]]; then
       echo "ERROR: ${BUILD_DIR} was configured with a different compiler:" >&2
       echo "  cached CC=${cached_cc}" >&2
       echo "  cached CXX=${cached_cxx}" >&2
