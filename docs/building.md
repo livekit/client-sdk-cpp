@@ -52,8 +52,6 @@ sources, or support optional repository targets.
 |------------|----------|---------|--------|----------------|
 | GoogleTest | All | 1.14.0 | Vendored | Implements unit, integration, and stress test executables. It is not linked into SDK bundles. |
 
-<a id="additional-capture-dependencies"></a>
-
 ## Installation
 
 This section outlines the recommended dependency/environmental setup for
@@ -164,6 +162,8 @@ wrap the right CMake preset for your platform and pick sensible defaults.
 .\build.cmd release-examples
 # ... same suffixes as build.sh
 ```
+
+<a id="additional-capture-dependencies"></a>
 
 ### GStreamer Installation (LiveKit Capture)
 
