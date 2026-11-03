@@ -196,6 +196,8 @@ if(INTEGRATION_TEST_SOURCES)
       spdlog::spdlog
       ${LIVEKIT_PROTOBUF_TARGET}
       GTest::gtest_main
+      # TODO: determine if this is best spot for this
+      $<$<PLATFORM_ID:Windows>:ws2_32>
   )
 
   target_include_directories(livekit_integration_tests
