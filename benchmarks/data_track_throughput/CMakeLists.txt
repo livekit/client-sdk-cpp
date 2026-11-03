@@ -4,7 +4,7 @@
 # All paths are relative to CMAKE_CURRENT_SOURCE_DIR so this directory
 # can be moved or renamed freely.
 
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.25)
 project(DataTrackThroughput LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)

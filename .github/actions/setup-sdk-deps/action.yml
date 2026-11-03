@@ -43,25 +43,37 @@ runs:
         fi
         sudo apt-get update
         sudo apt-get install -y \
-          build-essential cmake ninja-build pkg-config \
-          llvm-dev libclang-dev clang \
+          build-essential cmake ninja-build pkg-config git git-lfs curl \
           libva-dev libdrm-dev libgbm-dev libx11-dev libgl1-mesa-dev \
           libxext-dev libxcomposite-dev libxdamage-dev libxfixes-dev \
           libxrandr-dev libxi-dev libxkbcommon-dev \
           libasound2-dev libpulse-dev \
-          libssl-dev \
-          libprotobuf-dev protobuf-compiler \
-          libabsl-dev \
-          libcurl4-openssl-dev \
+          libglib2.0-dev libssl-dev libcurl4-openssl-dev \
           libwayland-dev libdecor-0-dev \
+          wget ca-certificates gnupg lsb-release \
           "${extra_packages[@]}"
 
-    # libwebrtc ships hermetic libc++ headers that require a newer clang than
-    # Ubuntu provides. The submodule script exports CC/CXX for later steps.
-    - name: Install clang for libwebrtc
+    - name: Install Clang 21
       if: runner.os == 'Linux'
       shell: bash
-      run: client-sdk-rust/.github/scripts/install-clang.sh
+      run: |
+        set -eux
+        sudo install -m 0755 -d /etc/apt/keyrings
+        wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+          | sudo tee /etc/apt/keyrings/llvm.asc >/dev/null
+        sudo chmod a+r /etc/apt/keyrings/llvm.asc
+        codename=$(lsb_release -cs)
+        echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-21 main" \
+          | sudo tee /etc/apt/sources.list.d/llvm-21.list >/dev/null
+        sudo apt-get update
+        sudo apt-get install -y clang-21
+
+        source scripts/setup-linux-toolchain.sh
+        {
+          echo "CC=$CC"
+          echo "CXX=$CXX"
+          echo "LIBCLANG_PATH=$LIBCLANG_PATH"
+        } >> "$GITHUB_ENV"
 
     - name: Install base deps (macOS)
       if: runner.os == 'macOS'

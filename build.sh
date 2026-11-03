@@ -27,6 +27,28 @@ detect_os() {
 
 OS_TYPE="$(detect_os)"
 
+configure_macos_toolchain() {
+  if ! command -v xcrun >/dev/null 2>&1; then
+    echo "ERROR: xcrun is unavailable. Install Xcode Command Line Tools." >&2
+    exit 1
+  fi
+
+  CC="$(xcrun --find clang)"
+  CXX="$(xcrun --find clang++)"
+  export CC CXX
+
+  echo "==> macOS compiler: $("${CXX}" --version | awk 'NR == 1 { print; exit }')"
+  echo "==> CC=${CC}"
+  echo "==> CXX=${CXX}"
+}
+
+configure_build_toolchain() {
+  case "${OS_TYPE}" in
+    linux) source "${PROJECT_ROOT}/scripts/setup-linux-toolchain.sh" ;;
+    macos) configure_macos_toolchain ;;
+  esac
+}
+
 usage() {
   cat <<EOF
 Usage:
@@ -92,6 +114,22 @@ validate_capture_value() {
         ;;
     esac
   done
+}
+
+canonicalize_path() {
+  local path="$1"
+  local resolved directory
+
+  if resolved="$(readlink -f "${path}" 2>/dev/null)" && [[ -n "${resolved}" ]]; then
+    printf '%s\n' "${resolved}"
+    return
+  fi
+
+  if directory="$(cd "$(dirname "${path}")" 2>/dev/null && pwd -P)"; then
+    printf '%s/%s\n' "${directory}" "$(basename "${path}")"
+  else
+    printf '%s\n' "${path}"
+  fi
 }
 
 parse_opts() {
@@ -174,6 +212,26 @@ parse_opts() {
 }
 
 configure() {
+  if [[ -f "${BUILD_DIR}/CMakeCache.txt" ]]; then
+    local cached_cc cached_cxx selected_cc selected_cxx
+    cached_cc="$(awk -F= '$1 == "CMAKE_C_COMPILER:FILEPATH" { print $2; exit }' \
+      "${BUILD_DIR}/CMakeCache.txt")"
+    cached_cxx="$(awk -F= '$1 == "CMAKE_CXX_COMPILER:FILEPATH" { print $2; exit }' \
+      "${BUILD_DIR}/CMakeCache.txt")"
+    selected_cc="$(canonicalize_path "${CC}")"
+    selected_cxx="$(canonicalize_path "${CXX}")"
+    if [[ -n "${cached_cc}" && "$(canonicalize_path "${cached_cc}")" != "${selected_cc}" ]] \
+      || [[ -n "${cached_cxx}" && "$(canonicalize_path "${cached_cxx}")" != "${selected_cxx}" ]]; then
+      echo "ERROR: ${BUILD_DIR} was configured with a different compiler:" >&2
+      echo "  cached CC=${cached_cc}" >&2
+      echo "  cached CXX=${cached_cxx}" >&2
+      echo "  selected CC=${CC}" >&2
+      echo "  selected CXX=${CXX}" >&2
+      echo "Run './build.sh clean' and retry." >&2
+      exit 1
+    fi
+  fi
+
   echo "==> Configuring CMake (${BUILD_TYPE}) using preset ${PRESET}..."
   local -a extra_args=("-DLIVEKIT_CAPTURE=${CAPTURE_OVERRIDE}")
   if [[ -n "${LIVEKIT_VERSION}" ]]; then
@@ -351,6 +409,8 @@ clean() {
     else
       echo "      (skipping) Unknown build system or not configured"
     fi
+    rm -f "${debug_dir}/CMakeCache.txt"
+    rm -rf "${debug_dir}/CMakeFiles"
   else
     echo "   (skipping) build-debug does not exist."
   fi
@@ -365,6 +425,8 @@ clean() {
     else
       echo "      (skipping) Unknown build system or not configured"
     fi
+    rm -f "${release_dir}/CMakeCache.txt"
+    rm -rf "${release_dir}/CMakeFiles"
   else
     echo "   (skipping) build-release does not exist."
   fi
@@ -400,6 +462,11 @@ fi
 
 cmd="$1"
 parse_opts "$@"
+case "${cmd}" in
+  debug|debug-examples|debug-tests|debug-all|release|release-examples|release-tests|release-all|build-all)
+    configure_build_toolchain
+    ;;
+esac
 case "${cmd}" in
   debug)
     BUILD_TYPE="Debug"
