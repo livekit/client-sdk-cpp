@@ -34,9 +34,8 @@ sources, or support optional repository targets.
 | spdlog | All | 1.15.1 vendored; vcpkg-managed on Windows | Vendored / vcpkg | Implements the internal `LK_LOG_*` macros, default stderr logger, log-level filtering, and the public log callback adapter. |
 | nlohmann/json | All | 3.12.0 vendored; vcpkg-managed on Windows | Vendored / vcpkg | Parses token-endpoint JSON responses and JWT payload claims. |
 | Chromium trace-event code | All | Pinned source snapshot | Vendored source | Implements trace-event macros used by the production tracing API. Benchmark utilities consume the resulting Chromium-format traces, but Chromium is not a benchmark library dependency. |
-| libcurl | Linux | System-provided | System library | Implements HTTP requests made by `TokenSource`. |
+| libcurl | Mac, Linux | System-provided | System library | Implements HTTP requests made by `TokenSource`. |
 | OpenSSL | Linux | System-provided | System library | Linked into `liblivekit`. Current production C++ sources do not call OpenSSL APIs directly. |
-| libcurl | Mac | System-provided | System library | Implements HTTP requests made by `TokenSource`. |
 | Apple system frameworks | Mac | OS-provided | System frameworks | Supplies the audio, video, graphics, security, UI, and ScreenCaptureKit frameworks required by the media stack. |
 | WinHTTP | Windows | OS-provided | System library | Implements HTTP requests made by `TokenSource`. |
 
