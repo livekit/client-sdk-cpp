@@ -28,7 +28,7 @@ sources, or support optional repository targets.
 
 | Dependency | Platform | Version | Source | How it is used |
 |------------|----------|---------|--------|----------------|
-| `client-sdk-rust` / `livekit_ffi` | All | `livekit_ffi` 0.13.3; pinned commit | Git submodule | Owns WebRTC, networking, media, and most business logic. The C++ SDK calls its C ABI and exchanges Protobuf FFI requests, responses, and events. Its shared library ships beside `liblivekit`. |
+| `client-sdk-rust` / `livekit_ffi` | All | `livekit_ffi` pinned commit | Git submodule | Owns WebRTC, networking, media, and most business logic. The C++ SDK calls its C ABI and exchanges Protobuf FFI requests, responses, and events. Its shared library ships beside `liblivekit`. |
 | Protobuf | All | 25.3 vendored; 5.29.5+ on Windows | Vendored / vcpkg | Generates and implements the FFI message types used throughout the C++ wrapper for rooms, tracks, streams, frames, statistics, RPC, encryption, and capture. |
 | Abseil | All | 20240116.2 vendored; vcpkg-managed on Windows | Vendored / vcpkg | Supports the Protobuf build. Production C++ sources do not call Abseil APIs directly. |
 | spdlog | All | 1.15.1 vendored; vcpkg-managed on Windows | Vendored / vcpkg | Implements the internal `LK_LOG_*` macros, default stderr logger, log-level filtering, and the public log callback adapter. |
