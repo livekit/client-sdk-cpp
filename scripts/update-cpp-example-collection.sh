@@ -18,7 +18,6 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(cd "${script_dir}/.." && pwd -P)"
-examples_dir="${repo_root}/cpp-example-collection"
 examples_repo="livekit-examples/cpp-example-collection"
 examples_remote="https://github.com/${examples_repo}.git"
 default_branch="main"
@@ -78,71 +77,12 @@ if [[ "$hash_provided" == true && ! "$requested_hash" =~ ^[0-9a-fA-F]{7,40}$ ]];
   exit 2
 fi
 
-if ! command -v git >/dev/null 2>&1; then
-  echo "ERROR: git not found in PATH" >&2
-  exit 1
-fi
+# Shared checkout logic keeps the two dependency updaters consistent.
+source "${script_dir}/update-submodule-common.sh"
+check_update_prerequisites
 
-if ! git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
-  echo "ERROR: ${repo_root} is not a Git worktree" >&2
-  exit 1
-fi
-
-if [[ ! -e "${examples_dir}/.git" ]]; then
-  echo "==> Initializing cpp-example-collection"
-  git -C "$repo_root" submodule update --init cpp-example-collection
-fi
-
-if ! git -C "$examples_dir" diff --quiet ||
-  ! git -C "$examples_dir" diff --cached --quiet; then
-  echo "ERROR: cpp-example-collection has tracked changes; commit or stash them first" >&2
-  exit 1
-fi
-
-fetch_ref="$requested_hash"
-
+fetch_ref=""
 if [[ "$hash_provided" == false ]]; then
-  echo "==> Finding the most recent cpp-example-collection commit"
-  branch_ref="refs/heads/${default_branch}"
-  remote_ref="$(git ls-remote "$examples_remote" "$branch_ref")"
-  read -r requested_hash resolved_ref <<<"$remote_ref"
-  if [[ -z "$requested_hash" || "$resolved_ref" != "$branch_ref" ]]; then
-    echo "ERROR: branch '${default_branch}' was not found in ${examples_repo}" >&2
-    exit 1
-  fi
-  fetch_ref="$branch_ref"
-  echo "==> Latest ${default_branch} commit: ${requested_hash}"
-else
-  requested_hash="$(printf '%s' "$requested_hash" | tr '[:upper:]' '[:lower:]')"
-  echo "==> Requested examples commit: ${requested_hash}"
+  fetch_ref="refs/heads/${default_branch}"
 fi
-
-echo "==> Fetching cpp-example-collection"
-if [[ "$hash_provided" == false ]]; then
-  git -C "$examples_dir" fetch --quiet origin "$fetch_ref"
-elif [[ ${#requested_hash} -eq 40 ]]; then
-  if ! git -C "$examples_dir" fetch --quiet origin "$fetch_ref"; then
-    git -C "$examples_dir" fetch --quiet origin
-  fi
-else
-  git -C "$examples_dir" fetch --quiet origin
-fi
-
-if ! resolved_hash="$(git -C "$examples_dir" rev-parse --verify "${requested_hash}^{commit}" 2>/dev/null)"; then
-  echo "ERROR: '${requested_hash}' does not resolve to a cpp-example-collection commit" >&2
-  exit 1
-fi
-
-current_hash="$(git -C "$examples_dir" rev-parse HEAD)"
-if [[ "$current_hash" == "$resolved_hash" ]]; then
-  echo "==> cpp-example-collection is already at ${resolved_hash}"
-else
-  git -C "$examples_dir" checkout --quiet --detach "$resolved_hash"
-  echo "==> Updated cpp-example-collection: ${current_hash} -> ${resolved_hash}"
-fi
-
-echo "==> Synchronizing nested example submodules"
-git -C "$examples_dir" submodule sync --recursive
-git -C "$examples_dir" submodule update --init --recursive
-
-echo "==> Done. Review and commit the cpp-example-collection gitlink change."
+update_submodule cpp-example-collection "$examples_remote" "$fetch_ref"

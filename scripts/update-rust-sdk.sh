@@ -18,7 +18,6 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(cd "${script_dir}/.." && pwd -P)"
-rust_dir="${repo_root}/client-sdk-rust"
 rust_repo="livekit/client-sdk-rust"
 rust_remote="https://github.com/${rust_repo}.git"
 
@@ -35,8 +34,9 @@ Options:
   -h, --help
         Show this help and exit.
 
-When --hash is omitted, the script uses the commit tagged by the most recent
-published, non-draft GitHub release in livekit/client-sdk-rust (requires gh).
+When --hash is omitted, the script uses the commit tagged by the most recently
+published, non-draft GitHub release (including prereleases) in
+livekit/client-sdk-rust (requires gh).
 EOF
 }
 
@@ -77,98 +77,31 @@ if [[ "$hash_provided" == true && ! "$requested_hash" =~ ^[0-9a-fA-F]{7,40}$ ]];
   exit 2
 fi
 
-if ! command -v git >/dev/null 2>&1; then
-  echo "ERROR: git not found in PATH" >&2
-  exit 1
-fi
-
-if ! git -C "$repo_root" rev-parse --show-toplevel >/dev/null 2>&1; then
-  echo "ERROR: ${repo_root} is not a Git worktree" >&2
-  exit 1
-fi
-
-if [[ ! -e "${rust_dir}/.git" ]]; then
-  echo "==> Initializing client-sdk-rust"
-  git -C "$repo_root" submodule update --init client-sdk-rust
-fi
-
-if ! git -C "$rust_dir" diff --quiet ||
-  ! git -C "$rust_dir" diff --cached --quiet; then
-  echo "ERROR: client-sdk-rust has tracked changes; commit or stash them first" >&2
-  exit 1
-fi
-
-fetch_ref="$requested_hash"
-release_tag=""
+# Shared checkout logic keeps the two dependency updaters consistent.
+source "${script_dir}/update-submodule-common.sh"
+check_update_prerequisites
 
 if [[ "$hash_provided" == false ]]; then
   if ! command -v gh >/dev/null 2>&1; then
     echo "ERROR: gh not found in PATH; install GitHub CLI or provide --hash" >&2
     exit 1
   fi
-
-  echo "==> Finding the most recent published Rust SDK release"
-  release_tags="$(
-    gh api --paginate "repos/${rust_repo}/releases?per_page=100" \
-      --jq '.[] | select(.draft == false) | .tag_name'
-  )"
-  release_tag="${release_tags%%$'\n'*}"
+  echo "==> Finding the most recently published Rust SDK release"
+  # Sort across every page by publication time, including prereleases. API
+  # list order and GitHub's designated "latest" release are different concepts.
+  release_tag="$(gh api --hostname github.com --paginate --slurp \
+    "repos/${rust_repo}/releases?per_page=100" \
+    --jq '[.[][] | select(.draft == false and .published_at != null)] |
+          sort_by(.published_at, .id) | last | .tag_name // empty')"
   if [[ -z "$release_tag" ]]; then
     echo "ERROR: no published release found for ${rust_repo}" >&2
     exit 1
   fi
-
-  tag_refs="$(
-    git ls-remote "$rust_remote" \
-      "refs/tags/${release_tag}" "refs/tags/${release_tag}^{}"
-  )"
-  while read -r tag_hash tag_ref; do
-    if [[ "$tag_ref" == "refs/tags/${release_tag}^{}" ]]; then
-      requested_hash="$tag_hash"
-      break
-    fi
-    if [[ "$tag_ref" == "refs/tags/${release_tag}" ]]; then
-      requested_hash="$tag_hash"
-    fi
-  done <<<"$tag_refs"
-
-  if [[ -z "$requested_hash" ]]; then
-    echo "ERROR: release tag '${release_tag}' was not found in ${rust_repo}" >&2
-    exit 1
-  fi
+  git check-ref-format "refs/tags/${release_tag}" >/dev/null
   fetch_ref="refs/tags/${release_tag}"
-  echo "==> Latest release: ${release_tag} (${requested_hash})"
+  echo "==> Selected release: ${release_tag}"
 else
-  requested_hash="$(printf '%s' "$requested_hash" | tr '[:upper:]' '[:lower:]')"
-  echo "==> Requested Rust SDK commit: ${requested_hash}"
+  fetch_ref=""
 fi
 
-echo "==> Fetching client-sdk-rust"
-if [[ "$hash_provided" == false ]]; then
-  git -C "$rust_dir" fetch --quiet origin "$fetch_ref"
-elif [[ ${#requested_hash} -eq 40 ]]; then
-  if ! git -C "$rust_dir" fetch --quiet origin "$fetch_ref"; then
-    git -C "$rust_dir" fetch --quiet origin
-  fi
-else
-  git -C "$rust_dir" fetch --quiet origin
-fi
-
-if ! resolved_hash="$(git -C "$rust_dir" rev-parse --verify "${requested_hash}^{commit}" 2>/dev/null)"; then
-  echo "ERROR: '${requested_hash}' does not resolve to a client-sdk-rust commit" >&2
-  exit 1
-fi
-
-current_hash="$(git -C "$rust_dir" rev-parse HEAD)"
-if [[ "$current_hash" == "$resolved_hash" ]]; then
-  echo "==> client-sdk-rust is already at ${resolved_hash}"
-else
-  git -C "$rust_dir" checkout --quiet --detach "$resolved_hash"
-  echo "==> Updated client-sdk-rust: ${current_hash} -> ${resolved_hash}"
-fi
-
-echo "==> Synchronizing nested Rust SDK submodules"
-git -C "$rust_dir" submodule sync --recursive
-git -C "$rust_dir" submodule update --init --recursive --checkout
-
-echo "==> Done. Review and commit the client-sdk-rust gitlink change."
+update_submodule client-sdk-rust "$rust_remote" "$fetch_ref"
