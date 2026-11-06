@@ -8,6 +8,15 @@ are also enforced in CI on PRs.
 The shared configuration and tooling scripts come from the
 [`livekit/cpp-tools`](https://github.com/livekit/cpp-tools) submodule.
 
+These developer tools are versioned independently from the compiler used to
+build the SDK:
+
+- Linux SDK builds require clang 21 or later.
+- Formatting CI uses clang-format 22.
+- Static-analysis CI uses clang-tidy 19 (the configuration requires at least
+  version 19).
+- macOS SDK builds use Xcode Apple Clang, not Homebrew LLVM.
+
 - **`clang-tidy`** — static analysis. See
   [cpp-tools/.clang-tidy](https://github.com/livekit/cpp-tools/blob/main/.clang-tidy) for the
   enabled checks. Enforced in CI on PR.
@@ -32,10 +41,24 @@ This installs `clang-format`, `clang-tidy`, and `run-clang-tidy`. Homebrew may
 ask you to add `/opt/homebrew/opt/llvm/bin` (Apple Silicon) or
 `/usr/local/opt/llvm/bin` (Intel) to your `PATH`.
 
+CI remains the reference for exact formatter and analyzer versions when the
+current Homebrew LLVM release differs.
+
 **Linux (Ubuntu/Debian):**
 
 ```bash
-sudo apt-get install clang-format clang-tidy clang-tools
+# Configure the apt.llvm.org signing key as described in building.md, then add
+# the two developer-tool repositories:
+codename=$(lsb_release -cs)
+for version in 19 22; do
+  echo "deb [signed-by=/etc/apt/keyrings/llvm.asc] http://apt.llvm.org/${codename}/ llvm-toolchain-${codename}-${version} main" \
+    | sudo tee "/etc/apt/sources.list.d/llvm-${version}.list" >/dev/null
+done
+sudo apt-get update
+sudo apt-get install clang-format-22 clang-tidy-19 clang-tools-19
+sudo ln -sf /usr/bin/clang-format-22 /usr/local/bin/clang-format
+sudo ln -sf /usr/bin/clang-tidy-19 /usr/local/bin/clang-tidy
+sudo ln -sf /usr/bin/run-clang-tidy-19 /usr/local/bin/run-clang-tidy
 ```
 
 Install the shared configuration symlinks from the repository root:

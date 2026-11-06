@@ -42,7 +42,7 @@ body:
     validations: { required: true }
     attributes:
       label: CMake Version
-      description: Output of `cmake --version` (must be ≥ 3.20).
+      description: Output of `cmake --version` (must be ≥ 3.25).
       placeholder: "3.28.1"
   - type: dropdown
     id: consumption

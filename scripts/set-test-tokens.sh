@@ -53,11 +53,13 @@ if [[ $# -ne 0 ]]; then
   _fail "this script is hard-coded and does not accept arguments" 2
 fi
 
-LIVEKIT_API_KEY="devkey"
-LIVEKIT_API_SECRET="secret"
+LIVEKIT_API_KEY="${LIVEKIT_API_KEY:-devkey}"
+LIVEKIT_API_SECRET="${LIVEKIT_API_SECRET:-secret}"
+LIVEKIT_URL="${LIVEKIT_URL:-ws://localhost:7880}"
 LIVEKIT_VALID_FOR="99999h"
-LIVEKIT_URL="ws://localhost:7880"
 _grant_json='{"canPublish":true,"canSubscribe":true,"canPublishData":true}'
+
+echo "set_test_tokens: Using LIVEKIT_URL: $LIVEKIT_URL" >&2
 
 if ! command -v lk >/dev/null 2>&1; then
   _fail "'lk' CLI not found. Install: https://docs.livekit.io/home/cli/" 2

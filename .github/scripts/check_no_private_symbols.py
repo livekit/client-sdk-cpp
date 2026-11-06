@@ -57,6 +57,9 @@ DEFAULT_FORBIDDEN = [
     "google::protobuf",
     "absl::",
     "nlohmann::",
+    # Capture pipelines are private Rust/GStreamer implementation details.
+    "gstreamer::",
+    "gst_",
     # Generated UniFFI C++ binding API and runtime implementation.
     "livekit_ffi::",
     "uniffi::",

@@ -16,9 +16,12 @@
 
 #include "livekit/ffi_handle.h"
 
+#include "ffi_client.h"
 #include "livekit_ffi.h"
 
 namespace livekit {
+
+bool dropFfiHandle(std::uint64_t handle) noexcept { return livekit_ffi_drop_handle(handle); }
 
 FfiHandle::FfiHandle(uintptr_t h) noexcept : handle_(h) {}
 
@@ -35,7 +38,7 @@ FfiHandle& FfiHandle::operator=(FfiHandle&& other) noexcept {
 
 void FfiHandle::reset(uintptr_t new_handle) noexcept {
   if (handle_) {
-    livekit_ffi_drop_handle(handle_);
+    static_cast<void>(dropFfiHandle(handle_));
   }
   handle_ = new_handle;
 }

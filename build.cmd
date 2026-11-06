@@ -8,6 +8,7 @@ set "BUILD_TYPE=Release"
 set "PRESET=windows-release"
 set "LIVEKIT_VERSION="
 set "CMAKE_EXTRA_ARGS="
+set "CAPTURE_OVERRIDE=none"
 set "BUILD_PARALLEL_JOBS="
 set "DO_BUNDLE="
 set "PREFIX="
@@ -89,6 +90,27 @@ if /I "%~1"=="--version" (
     goto :get_version_value
 )
 
+set "ARG=%~1"
+if /I "!ARG:~0,10!"=="--capture=" (
+    set "CAPTURE_OVERRIDE=!ARG:~10!"
+    if "!CAPTURE_OVERRIDE!"=="" (
+        echo ERROR: --capture= requires a value ^(gstreamer, pattern, clock, or all^)
+        exit /b 1
+    )
+    shift
+    goto :collect_capture_tokens
+)
+if /I "%~1"=="--capture" (
+    set "CAPTURE_OVERRIDE="
+    shift
+    goto :collect_capture_tokens
+)
+if /I "%~1"=="--no-capture" (
+    set "CAPTURE_OVERRIDE=none"
+    shift
+    goto parse_all
+)
+
 :: 3. Install the SDK bundle after a successful build.
 if /I "%~1"=="--bundle" (
     set "DO_BUNDLE=1"
@@ -121,7 +143,51 @@ set "PREFIX=%~1"
 shift
 goto parse_all
 
+REM cmd.exe splits unquoted commas and equals signs. Rejoin source names that
+REM followed --capture so --capture=pattern,clock reaches CMake intact.
+:collect_capture_tokens
+if "%~1"=="" goto :finish_capture_tokens
+set "NEXT=%~1"
+if /I "!NEXT!"=="gstreamer" goto :append_capture_token
+if /I "!NEXT!"=="pattern" goto :append_capture_token
+if /I "!NEXT!"=="clock" goto :append_capture_token
+if /I "!NEXT!"=="all" goto :append_capture_token
+if /I "!NEXT!"=="none" goto :append_capture_token
+goto :finish_capture_tokens
+
+:append_capture_token
+if defined CAPTURE_OVERRIDE (
+    set "CAPTURE_OVERRIDE=!CAPTURE_OVERRIDE!,!NEXT!"
+) else (
+    set "CAPTURE_OVERRIDE=!NEXT!"
+)
+shift
+goto :collect_capture_tokens
+
+:finish_capture_tokens
+if not defined CAPTURE_OVERRIDE set "CAPTURE_OVERRIDE=all"
+goto parse_all
+
+:validate_capture
+set "CAPTURE_CHECK=!CAPTURE_OVERRIDE!"
+set "CAPTURE_CHECK=!CAPTURE_CHECK: =!"
+if /I "!CAPTURE_CHECK!"=="" exit /b 0
+if /I "!CAPTURE_CHECK!"=="none" exit /b 0
+if /I "!CAPTURE_CHECK!"=="all" exit /b 0
+set "CAPTURE_CHECK=!CAPTURE_CHECK:,= !"
+set "CAPTURE_INVALID="
+for %%T in (!CAPTURE_CHECK!) do (
+    if /I not "%%T"=="gstreamer" if /I not "%%T"=="pattern" if /I not "%%T"=="clock" (
+        echo ERROR: Unknown capture source '%%T'. Expected: gstreamer, pattern, clock, all, or none.
+        set "CAPTURE_INVALID=1"
+    )
+)
+if defined CAPTURE_INVALID exit /b 1
+exit /b 0
+
 :after_parse
+call :validate_capture
+if errorlevel 1 exit /b 1
 if not defined CMD (
     echo ERROR: No command specified
     call :usage
@@ -132,6 +198,7 @@ if defined LIVEKIT_VERSION (
     set "CMAKE_EXTRA_ARGS=-DLIVEKIT_VERSION=%LIVEKIT_VERSION%"
     echo ==^> Injecting LIVEKIT_VERSION=%LIVEKIT_VERSION%
 )
+set "CMAKE_EXTRA_ARGS=%CMAKE_EXTRA_ARGS% -DLIVEKIT_CAPTURE=%CAPTURE_OVERRIDE%"
 goto dispatch
 
 :dispatch
@@ -215,6 +282,9 @@ echo   clean-all         Full clean (build dirs + local-install + Rust targets)
 echo   help              Show this help
 echo.
 echo Options (for debug / release):
+echo   --capture[=list]  Enable capture sources ^(default: all^).
+echo                     list: gstreamer, pattern, clock ^(comma-separated^)
+echo   --no-capture      Explicitly disable capture sources ^(the default^)
 echo   --bundle          Install the SDK bundle using cmake --install
 echo   --prefix ^<dir^>    Install prefix for --bundle ^(default: .\sdk-out\livekit-sdk^)
 echo.

@@ -1,0 +1,80 @@
+# Copyright 2026 LiveKit, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Test selective capture bundles
+description: Build and validate singleton capture sources, with optional pair combinations.
+inputs:
+  preset:
+    description: SDK build preset without tests or examples (debug or release).
+    default: release
+  combinations:
+    description: Also validate each two-source combination.
+    default: 'false'
+  verify-pixel-sources:
+    description: Require successful GPU source creation on a prepared runner.
+    default: 'false'
+  macos-arch:
+    description: Optional macOS architecture override.
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Check pattern bundle
+      uses: ./.github/actions/test-capture-variant
+      with:
+        preset: ${{ inputs.preset }}
+        sources: 'pattern'
+        verify-pixel-sources: ${{ inputs.verify-pixel-sources }}
+        macos-arch: ${{ inputs.macos-arch }}
+    - name: Check clock bundle
+      uses: ./.github/actions/test-capture-variant
+      with:
+        preset: ${{ inputs.preset }}
+        sources: 'clock'
+        verify-pixel-sources: ${{ inputs.verify-pixel-sources }}
+        macos-arch: ${{ inputs.macos-arch }}
+    # Pixel-only variants run before installing GStreamer.
+    - name: Set up GStreamer dependencies
+      uses: ./.github/actions/setup-capture
+    - name: Check gstreamer bundle
+      uses: ./.github/actions/test-capture-variant
+      with:
+        preset: ${{ inputs.preset }}
+        sources: 'gstreamer'
+        verify-pixel-sources: ${{ inputs.verify-pixel-sources }}
+        macos-arch: ${{ inputs.macos-arch }}
+    - name: Check pattern,clock bundle
+      if: inputs.combinations == 'true'
+      uses: ./.github/actions/test-capture-variant
+      with:
+        preset: ${{ inputs.preset }}
+        sources: 'pattern,clock'
+        verify-pixel-sources: ${{ inputs.verify-pixel-sources }}
+        macos-arch: ${{ inputs.macos-arch }}
+    - name: Check gstreamer,pattern bundle
+      if: inputs.combinations == 'true'
+      uses: ./.github/actions/test-capture-variant
+      with:
+        preset: ${{ inputs.preset }}
+        sources: 'gstreamer,pattern'
+        verify-pixel-sources: ${{ inputs.verify-pixel-sources }}
+        macos-arch: ${{ inputs.macos-arch }}
+    - name: Check gstreamer,clock bundle
+      if: inputs.combinations == 'true'
+      uses: ./.github/actions/test-capture-variant
+      with:
+        preset: ${{ inputs.preset }}
+        sources: 'gstreamer,clock'
+        verify-pixel-sources: ${{ inputs.verify-pixel-sources }}
+        macos-arch: ${{ inputs.macos-arch }}

@@ -58,7 +58,7 @@ jobs:
   build:
     name: Generate and verify docs
     if: github.event_name == 'release' || inputs.build_docs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       project_number: ${{ steps.build_docs.outputs.project_number }}
       artifact_name: ${{ steps.artifact_meta.outputs.name }}
@@ -168,7 +168,7 @@ jobs:
     # CI enables this only for trusted main pushes. Release events always
     # check credentials before publishing. PR jobs never receive deploy keys.
     if: github.event_name == 'release' || inputs.check_credentials
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Verify docs deploy credentials
         env:
@@ -187,7 +187,7 @@ jobs:
     name: Publish (S3 + CloudFront)
     needs: [build, credentials]
     if: github.event_name == 'release' && github.event.release.prerelease == false
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Download docs artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

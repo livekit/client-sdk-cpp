@@ -125,7 +125,7 @@ One row per received frame. Raw observation data only:
 
 ## Prerequisites
 
-- CMake 3.20+
+- CMake 3.25+
 - C++17 compiler
 - The LiveKit C++ SDK, built and installed (see below)
 

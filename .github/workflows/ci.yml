@@ -20,7 +20,7 @@ jobs:
   # below explicitly opt manual runs back into running everything.
   changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       builds: ${{ steps.filter.outputs.builds }}
       tests:  ${{ steps.filter.outputs.tests }}
@@ -46,9 +46,21 @@ jobs:
               - CMakePresets.json
               - build*
               - .build*
+              - scripts/setup-linux-toolchain.sh
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/builds.yml
+              - .github/workflows/make-release.yml
+              - .github/actions/setup-sdk-deps/**
+              - .github/actions/setup-capture/**
+              - .github/actions/build-sdk/**
+              - .github/actions/cargo-target-root/**
+              - .github/actions/smoke-examples/**
+              - .github/actions/test-sdk-bundle/**
+              - .github/actions/test-capture-variants/**
+              - .github/actions/test-capture-variant/**
+              - .github/actions/check-sdk-symbols/**
+              - .github/scripts/check_no_private_symbols.py
             tests:
               - src/**
               - include/**
@@ -58,6 +70,7 @@ jobs:
               - scripts/memory-tester.sh
               - scripts/set-test-tokens.sh
               - scripts/run-with-backtrace.sh
+              - scripts/setup-linux-toolchain.sh
               - CMakeLists.txt
               - CMakePresets.json
               - build*
@@ -66,6 +79,13 @@ jobs:
               - .github/workflows/ci.yml
               - .github/workflows/tests.yml
               - .github/workflows/nightly.yml
+              - .github/actions/setup-sdk-deps/**
+              - .github/actions/setup-capture/**
+              - .github/actions/build-sdk/**
+              - .github/actions/cargo-target-root/**
+              - .github/actions/test-sdk-bundle/**
+              - .github/actions/test-capture-variants/**
+              - .github/actions/test-capture-variant/**
             docs:
               - README.md
               - include/**
@@ -146,7 +166,7 @@ jobs:
   # This job is an aggregate job
   ci:
     name: CI
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # List all the jobs that need to succeed for the CI to pass
     needs:
       - changes

@@ -155,6 +155,7 @@ std::weak_ptr<const E2EEManager::KeyProvider> E2EEManager::keyProvider() const {
 std::vector<E2EEManager::FrameCryptor> E2EEManager::frameCryptors() const {
   proto::FfiRequest req;
   req.mutable_e2ee()->set_room_handle(room_handle_);
+  req.mutable_e2ee()->mutable_manager_get_frame_cryptors();
   auto resp = FfiClient::instance().sendRequest(req);
   std::vector<E2EEManager::FrameCryptor> out;
   const auto& list = resp.e2ee().manager_get_frame_cryptors().frame_cryptors();

@@ -27,6 +27,7 @@ namespace livekit {
 
 class VideoFrame;
 class EncodedVideoSource;
+struct VideoSourceAccess;
 
 /// Rotation of a video frame.
 ///
@@ -97,9 +98,17 @@ public:
 
 private:
   friend class EncodedVideoSource;
+  friend struct VideoSourceAccess;
 
   enum class SourceType { Native, Encoded };
   VideoSource(int width, int height, SourceType source_type);
+
+  /// @brief Adopt an existing FFI video source handle.
+  /// @param handle Rust-owned video source handle.
+  /// @param width Frame width in pixels.
+  /// @param height Frame height in pixels.
+  VideoSource(FfiHandle&& handle, int width, int height) noexcept
+      : handle_(std::move(handle)), width_(width), height_(height) {}
 
   FfiHandle handle_; // owned FFI handle
   int width_{0};
