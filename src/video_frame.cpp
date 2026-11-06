@@ -289,9 +289,14 @@ VideoFrame VideoFrame::create(int width, int height, VideoBufferType type) {
 }
 
 VideoFrame::VideoFrame(VideoFrame&& other) noexcept
-    : width_(other.width_), height_(other.height_), type_(other.type_), data_(std::move(other.data_)),
-      borrowed_data_(other.borrowed_data_), borrowed_size_(other.borrowed_size_),
-      borrowed_planes_(std::move(other.borrowed_planes_)), borrowed_handle_(std::move(other.borrowed_handle_)) {
+    : width_(other.width_),
+      height_(other.height_),
+      type_(other.type_),
+      data_(std::move(other.data_)),
+      borrowed_data_(other.borrowed_data_),
+      borrowed_size_(other.borrowed_size_),
+      borrowed_planes_(std::move(other.borrowed_planes_)),
+      borrowed_handle_(std::move(other.borrowed_handle_)) {
   // The handle moved, so the source no longer keeps the buffer alive and must stop naming it.
   other.borrowed_data_ = nullptr;
   other.borrowed_size_ = 0;

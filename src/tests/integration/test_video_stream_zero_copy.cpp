@@ -74,8 +74,8 @@ private:
 };
 
 /// Finds the remote video publication named `track_name`, waiting for it.
-std::shared_ptr<Track> awaitRemoteVideoTrack(Room& room, const std::string& identity,
-                                             const std::string& track_name, std::chrono::seconds timeout) {
+std::shared_ptr<Track> awaitRemoteVideoTrack(Room& room, const std::string& identity, const std::string& track_name,
+                                             std::chrono::seconds timeout) {
   const auto deadline = std::chrono::steady_clock::now() + timeout;
   while (std::chrono::steady_clock::now() < deadline) {
     auto participant = room.remoteParticipant(identity).lock();

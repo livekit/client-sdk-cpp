@@ -18,10 +18,10 @@
 // copy of it. These build the OwnedVideoBuffer the FFI would send, over a
 // buffer this test owns, so the pointers stay valid however the frame behaves.
 
+#include <gtest/gtest.h>
+
 #include <cstdint>
 #include <vector>
-
-#include <gtest/gtest.h>
 
 #include "livekit/video_frame.h"
 #include "video_utils.h"
