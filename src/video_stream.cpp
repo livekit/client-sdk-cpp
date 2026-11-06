@@ -50,6 +50,7 @@ VideoStream::VideoStream(VideoStream&& other) noexcept {
   const std::scoped_lock<std::mutex> lock(other.mutex_);
   queue_ = std::move(other.queue_);
   capacity_ = other.capacity_;
+  zero_copy_ = other.zero_copy_;
   eof_ = other.eof_;
   closed_ = other.closed_;
   stream_handle_ = std::move(other.stream_handle_);
@@ -72,6 +73,7 @@ VideoStream& VideoStream::operator=(VideoStream&& other) noexcept {
 
     queue_ = std::move(other.queue_);
     capacity_ = other.capacity_;
+    zero_copy_ = other.zero_copy_;
     eof_ = other.eof_;
     closed_ = other.closed_;
     stream_handle_ = std::move(other.stream_handle_);
@@ -128,6 +130,7 @@ void VideoStream::close() {
 
 void VideoStream::initFromTrack(const std::shared_ptr<Track>& track, const Options& options) {
   capacity_ = options.capacity;
+  zero_copy_ = options.zero_copy;
 
   // Subscribe to FFI events, this is essential to get video frames from FFI.
   listener_id_ = FfiClient::instance().addListener([this](const proto::FfiEvent& e) { this->onFfiEvent(e); });
@@ -153,6 +156,7 @@ void VideoStream::initFromTrack(const std::shared_ptr<Track>& track, const Optio
 
 void VideoStream::initFromParticipant(Participant& participant, TrackSource track_source, const Options& options) {
   capacity_ = options.capacity;
+  zero_copy_ = options.zero_copy;
 
   // 1) Subscribe to FFI events
   listener_id_ = FfiClient::instance().addListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
@@ -187,12 +191,13 @@ void VideoStream::onFfiEvent(const proto::FfiEvent& event) {
   if (vse.has_frame_received()) {
     const auto& fr = vse.frame_received();
 
-    // Convert owned buffer->VideoFrame via a helper.
-    // You should implement this static function in your VideoFrame class.
     VideoFrameEvent ev;
-    ev.frame = VideoFrame::fromOwnedInfo(fr.buffer());
+    // Borrowing hands the frame the FFI handle instead of copying the pixels out of it; the
+    // buffer then lives as long as ev.frame does.
+    ev.frame = zero_copy_ ? VideoFrame::borrowOwnedInfo(fr.buffer()) : VideoFrame::fromOwnedInfo(fr.buffer());
     ev.timestamp_us = fr.timestamp_us();
     ev.rotation = static_cast<VideoRotation>(fr.rotation());
+    ev.dropped_frames = fr.dropped_frames();
     if (fr.has_metadata()) {
       ev.metadata = fromProto(fr.metadata());
     }
@@ -211,7 +216,8 @@ void VideoStream::pushFrame(VideoFrameEvent&& ev) {
     }
 
     if (capacity_ > 0 && queue_.size() >= capacity_) {
-      // Ring behavior: drop oldest frame.
+      // Ring behavior: drop oldest frame. For a borrowed frame this is also what returns its
+      // buffer to the SDK, via ~VideoFrame.
       queue_.pop_front();
     }
 

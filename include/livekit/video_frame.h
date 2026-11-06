@@ -21,6 +21,7 @@
 #include <optional>
 #include <vector>
 
+#include "livekit/ffi_handle.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
@@ -41,10 +42,21 @@ class OwnedVideoBuffer;
 
 /// Public SDK representation of a video frame.
 ///
-/// - Owns its pixel buffer (std::vector<uint8_t>).
+/// - Owns its pixel buffer (std::vector<uint8_t>), unless borrowed.
 /// - Developers can allocate and fill frames in C++ and pass them to the SDK.
 /// - The SDK can expose the backing memory to Rust via data_ptr + layout for
 ///   the duration of a blocking FFI call (similar to AudioFrame).
+///
+/// ## Borrowed frames
+///
+/// A frame delivered by a VideoStream opened with `Options::zero_copy` reads the SDK's own buffer
+/// instead of a copy of it, saving a full frame-sized memcpy per frame. Such a frame holds the FFI
+/// handle that keeps the buffer alive, so the buffer is returned when the frame is destroyed or
+/// release() is called -- plain RAII, and the reason VideoFrame is move-only.
+///
+/// Every accessor works the same either way. The difference is lifetime: pointers from data() and
+/// planeInfos() on a borrowed frame are only valid while that frame is, so do not stash them past
+/// its scope.
 class LIVEKIT_API VideoFrame {
 public:
   VideoFrame();
@@ -53,8 +65,10 @@ public:
 
   VideoFrame(const VideoFrame&) = delete;
   VideoFrame& operator=(const VideoFrame&) = delete;
-  VideoFrame(VideoFrame&&) noexcept = default;
-  VideoFrame& operator=(VideoFrame&&) noexcept = default;
+  // Hand-written rather than defaulted: a defaulted move copies the borrowed pointers and leaves
+  // the source naming memory it no longer owns.
+  VideoFrame(VideoFrame&&) noexcept;
+  VideoFrame& operator=(VideoFrame&&) noexcept;
 
   /// Allocate a new frame with the correct buffer size for the given format.
   /// Data is zero-initialized.
@@ -65,14 +79,28 @@ public:
   int height() const noexcept { return height_; }
   VideoBufferType type() const noexcept { return type_; }
 
-  std::uint8_t* data() noexcept { return data_.data(); }
-  const std::uint8_t* data() const noexcept { return data_.data(); }
-  std::size_t dataSize() const noexcept { return data_.size(); }
+  std::uint8_t* data() noexcept { return borrowed_data_ != nullptr ? borrowed_data_ : data_.data(); }
+  const std::uint8_t* data() const noexcept { return borrowed_data_ != nullptr ? borrowed_data_ : data_.data(); }
+  std::size_t dataSize() const noexcept { return borrowed_data_ != nullptr ? borrowed_size_ : data_.size(); }
+
+  /// Whether this frame reads the SDK's buffer rather than owning a copy.
+  /// See the class comment for what that means for pointer lifetimes.
+  bool isBorrowed() const noexcept { return borrowed_data_ != nullptr; }
+
+  /// Returns a borrowed frame's buffer to the SDK early, instead of waiting for the destructor.
+  /// No-op on an owning frame, and safe to call twice.
+  ///
+  /// After this, data() and planeInfos() describe an empty frame. Anything still pointing into the
+  /// old buffer is dangling.
+  void release() noexcept;
 
   /// Compute plane layout for this frame (Y/U/V, UV, etc.), in terms of
   /// pointers & sizes relative to this frame's backing buffer.
   ///
   /// For packed formats (ARGB, RGB24) this will be either 1 plane or empty.
+  ///
+  /// A borrowed frame reports the layout the SDK gave it, rather than one derived from
+  /// width/height, so a padded stride is described accurately.
   std::vector<VideoPlaneInfo> planeInfos() const;
 
   /// Convert this frame into another pixel format.
@@ -104,13 +132,28 @@ protected:
   friend class VideoStream;
   // Only internal classes (e.g., VideoStream)
   // should construct frames directly from FFI buffers.
+
+  /// Copies the pixels out of the SDK buffer and releases the handle.
   static VideoFrame fromOwnedInfo(const proto::OwnedVideoBuffer& owned);
+
+  /// Wraps the SDK buffer in place and takes ownership of the handle, so the buffer lives exactly
+  /// as long as the returned frame. No copy.
+  static VideoFrame borrowOwnedInfo(const proto::OwnedVideoBuffer& owned);
 
 private:
   int width_;
   int height_;
   VideoBufferType type_;
+
+  /// Pixels for an owning frame; empty for a borrowed one.
   std::vector<std::uint8_t> data_;
+
+  /// Non-null only for a borrowed frame, in which case it points into the buffer
+  /// `borrowed_handle_` keeps alive. Doubles as the "is borrowed" flag.
+  std::uint8_t* borrowed_data_{nullptr};
+  std::size_t borrowed_size_{0};
+  std::vector<VideoPlaneInfo> borrowed_planes_;
+  FfiHandle borrowed_handle_;
 };
 
 } // namespace livekit
