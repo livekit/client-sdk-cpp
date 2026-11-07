@@ -51,7 +51,8 @@ struct VideoFrameEvent {
   /// and `framesDropped` does not, so this counter is the only way to observe it.
   ///
   /// Cumulative and monotonic: compare against the previous event's value to see how many frames
-  /// went missing in between.
+  /// went missing in between. Counts losses on both sides of the FFI -- frames the SDK's own
+  /// queue overflowed, and frames this stream's `capacity` evicted before `read()` reached them.
   std::uint64_t dropped_frames{0};
 };
 
@@ -148,6 +149,8 @@ private:
   std::deque<VideoFrameEvent> queue_;
   std::size_t capacity_{0};
   bool zero_copy_{false};
+  // Frames this stream's own queue evicted; added to the SDK's count on delivery.
+  std::uint64_t evicted_frames_{0};
   bool eof_{false};
   bool closed_{false};
 

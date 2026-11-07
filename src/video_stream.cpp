@@ -51,6 +51,7 @@ VideoStream::VideoStream(VideoStream&& other) noexcept {
   queue_ = std::move(other.queue_);
   capacity_ = other.capacity_;
   zero_copy_ = other.zero_copy_;
+  evicted_frames_ = other.evicted_frames_;
   eof_ = other.eof_;
   closed_ = other.closed_;
   stream_handle_ = std::move(other.stream_handle_);
@@ -74,6 +75,7 @@ VideoStream& VideoStream::operator=(VideoStream&& other) noexcept {
     queue_ = std::move(other.queue_);
     capacity_ = other.capacity_;
     zero_copy_ = other.zero_copy_;
+    evicted_frames_ = other.evicted_frames_;
     eof_ = other.eof_;
     closed_ = other.closed_;
     stream_handle_ = std::move(other.stream_handle_);
@@ -99,6 +101,9 @@ bool VideoStream::read(VideoFrameEvent& out) {
 
   out = std::move(queue_.front());
   queue_.pop_front();
+  // Add this stream's own evictions to the SDK's count, so the number the caller sees covers
+  // every frame that was decoded but never reached them. Both parts are monotonic, so the sum is.
+  out.dropped_frames += evicted_frames_;
   return true;
 }
 
@@ -218,7 +223,11 @@ void VideoStream::pushFrame(VideoFrameEvent&& ev) {
     if (capacity_ > 0 && queue_.size() >= capacity_) {
       // Ring behavior: drop oldest frame. For a borrowed frame this is also what returns its
       // buffer to the SDK, via ~VideoFrame.
+      //
+      // The SDK cannot see this loss -- it already stamped its own count on the event before
+      // handing it over -- so it is counted here and added on delivery.
       queue_.pop_front();
+      ++evicted_frames_;
     }
 
     queue_.push_back(std::move(ev));

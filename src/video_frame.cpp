@@ -427,15 +427,30 @@ VideoFrame VideoFrame::borrowOwnedInfo(const proto::OwnedVideoBuffer& owned) {
   frame.type_ = fromProto(info.type());
 
   if (info.components_size() > 0) {
-    // Planar. The planes are contiguous and in order, so the frame's extent runs from the first
-    // plane to the end of the last.
+    // Planar. data()/dataSize() describe one run starting at the first plane, which is only
+    // truthful if the planes sit end to end in order. The Rust side packs them that way today,
+    // but that is a convention across an FFI boundary rather than something the message
+    // guarantees, so check it rather than trust it: a frame that fails has to be copied, or
+    // data() would hand out a span covering memory between the planes.
     std::size_t total_size = 0;
+    std::uintptr_t next_plane = static_cast<std::uintptr_t>(info.components(0).data_ptr());
+    bool contiguous = true;
+
     frame.borrowed_planes_.reserve(static_cast<std::size_t>(info.components_size()));
     for (const auto& comp : info.components()) {
-      frame.borrowed_planes_.push_back(
-          VideoPlaneInfo{static_cast<std::uintptr_t>(comp.data_ptr()), comp.stride(), comp.size()});
+      const auto address = static_cast<std::uintptr_t>(comp.data_ptr());
+      contiguous = contiguous && address == next_plane;
+      next_plane = address + comp.size();
+
+      frame.borrowed_planes_.push_back(VideoPlaneInfo{address, comp.stride(), comp.size()});
       total_size += static_cast<std::size_t>(comp.size());
     }
+
+    if (!contiguous) {
+      LK_LOG_WARN("VideoFrame::borrowOwnedInfo: planes are not contiguous, copying instead");
+      return fromOwnedInfo(owned);
+    }
+
     frame.borrowed_size_ = total_size;
     // NOLINTNEXTLINE(performance-no-int-to-ptr)
     frame.borrowed_data_ = reinterpret_cast<std::uint8_t*>(static_cast<std::uintptr_t>(info.components(0).data_ptr()));

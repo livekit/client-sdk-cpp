@@ -157,6 +157,23 @@ TEST(VideoFrameBorrowTest, PackedFormatsBorrowTheTopLevelPointer) {
   EXPECT_FALSE(frame.planeInfos().empty());
 }
 
+TEST(VideoFrameBorrowTest, NonContiguousPlanesAreCopiedRatherThanBorrowed) {
+  // data()/dataSize() describe one run from the first plane, so borrowing is only truthful
+  // when the planes sit end to end. The SDK packs them that way, but it is a convention
+  // across the FFI rather than a guarantee of the message -- if it is ever broken, the frame
+  // must fall back to copying instead of handing out a span covering the gap.
+  FakeBuffer native;
+  proto::OwnedVideoBuffer owned = native.planar();
+  const auto luma_size = owned.info().components(0).size();
+  // Push the U plane past the end of Y, leaving a hole.
+  owned.mutable_info()->mutable_components(1)->set_data_ptr(native.address() + luma_size + 4096);
+
+  VideoFrame frame = FrameFactory::borrowOwnedInfo(owned);
+
+  EXPECT_FALSE(frame.isBorrowed()) << "a frame with a gap must not advertise one span";
+  EXPECT_EQ(frame.dataSize(), kI420Size) << "it is an owning copy instead";
+}
+
 TEST(VideoFrameBorrowTest, ReleaseEmptiesTheFrame) {
   FakeBuffer native;
   VideoFrame frame = FrameFactory::borrowOwnedInfo(native.planar());
