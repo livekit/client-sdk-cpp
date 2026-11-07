@@ -63,6 +63,7 @@ enum class Scenario {
   RoomServerDelete,
   CaptureClock,
   CapturePattern,
+  CaptureGstreamer,
 };
 
 struct Options {
@@ -169,6 +170,8 @@ std::string_view scenarioName(Scenario scenario) {
       return "capture-clock";
     case Scenario::CapturePattern:
       return "capture-pattern";
+    case Scenario::CaptureGstreamer:
+      return "capture-gstreamer";
   }
   throw std::runtime_error("unknown scenario");
 }
@@ -197,6 +200,9 @@ Scenario parseScenario(std::string_view value) {
   }
   if (value == "capture-pattern") {
     return Scenario::CapturePattern;
+  }
+  if (value == "capture-gstreamer") {
+    return Scenario::CaptureGstreamer;
   }
   throw std::runtime_error("invalid value for --scenario");
 }
@@ -657,6 +663,21 @@ void runCapturePatternCycle(const RoomCredentials& credentials) {
       livekit::capture::PatternVideoSourceConfig{{640, 360}, kCaptureFramerateFps, livekit::capture::Pattern::Gradient},
       "memory-capture-pattern");
 }
+
+// Exercises a software-only GStreamer producer and encoder, encoded-frame
+// ingest, publication, pump synchronization, and complete SDK shutdown.
+void runCaptureGstreamerCycle(const RoomCredentials& credentials) {
+  livekit::capture::GstreamerVideoSourceConfig config;
+  config.pipeline =
+      "videotestsrc is-live=true ! video/x-raw,width=640,height=360,framerate=30/1 ! "
+      "vp8enc name=lk_encoder deadline=1 target-bitrate=500000 ! "
+      "appsink name=lk_appsink max-buffers=2 drop=true";
+  config.codec = livekit::VideoCodec::VP8;
+  config.resolution = livekit::capture::CaptureResolution{640, 360};
+  config.rate_control = livekit::capture::GstreamerRateControl{"lk_encoder", "target-bitrate",
+                                                               livekit::capture::GstreamerBitrateUnit::Bps};
+  runCaptureSourceCycle(credentials, std::move(config), "memory-capture-gstreamer");
+}
 #endif
 
 void runCycle(Scenario scenario, const RoomCredentials& credentials, livekit::Room* reusable_room) {
@@ -689,9 +710,13 @@ void runCycle(Scenario scenario, const RoomCredentials& credentials, livekit::Ro
     case Scenario::CapturePattern:
       runCapturePatternCycle(credentials);
       return;
+    case Scenario::CaptureGstreamer:
+      runCaptureGstreamerCycle(credentials);
+      return;
 #else
     case Scenario::CaptureClock:
     case Scenario::CapturePattern:
+    case Scenario::CaptureGstreamer:
       throw std::runtime_error("capture scenarios require a capture-enabled SDK build");
 #endif
   }
@@ -706,7 +731,8 @@ int main(int argc, char* argv[]) {
     const RoomCredentials credentials = roomCredentials();
     const bool per_cycle_sdk = options.scenario == Scenario::AudioTrack || options.scenario == Scenario::VideoTrack ||
                                options.scenario == Scenario::CaptureClock ||
-                               options.scenario == Scenario::CapturePattern;
+                               options.scenario == Scenario::CapturePattern ||
+                               options.scenario == Scenario::CaptureGstreamer;
     std::unique_ptr<SdkLifetime> room_sdk;
     if (!per_cycle_sdk) {
       room_sdk = std::make_unique<SdkLifetime>();

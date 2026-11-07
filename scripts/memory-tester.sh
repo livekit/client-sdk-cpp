@@ -28,7 +28,8 @@ Options:
   --scenario NAME             audio-track, video-track, data-track,
                               room-reuse, room-client-leave,
                               room-server-delete, capture-clock,
-                              capture-pattern, or all (default: audio-track)
+                              capture-pattern, capture-gstreamer,
+                              or all (default: audio-track)
   --iterations N              Lifecycle cycles (default: 100)
   --warmup N                  Baseline cycle (default: 20)
   --max-rss-growth-mib MIB    Allowed RSS growth; may be fractional (default: 8)
@@ -75,7 +76,7 @@ if [[ ! -x "${tester}" ]]; then
 fi
 
 case "${scenario}" in
-  audio-track|video-track|data-track|room-reuse|room-client-leave|room-server-delete|capture-clock|capture-pattern)
+  audio-track|video-track|data-track|room-reuse|room-client-leave|room-server-delete|capture-clock|capture-pattern|capture-gstreamer)
     scenarios=("${scenario}")
     ;;
   all)
@@ -88,6 +89,7 @@ case "${scenario}" in
       room-server-delete
       capture-clock
       capture-pattern
+      capture-gstreamer
     )
     ;;
   *)

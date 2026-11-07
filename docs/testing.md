@@ -211,6 +211,9 @@ or groups of scenarios:
   (10 seconds of video at 30 fps).
 - `capture-pattern` exercises the same lifecycle with the GPU-rendered gradient
   pattern capture source.
+- `capture-gstreamer` exercises the same lifecycle through an entirely
+  software-based GStreamer pipeline (`videotestsrc` and `vp8enc`), including
+  encoded-frame ingest and WebRTC passthrough.
 
 Each scenario reports process RSS and thread count at cycle 0, after warmup
 cycle 20, and after final cycle 100. Checkpoint sampling waits for the thread
@@ -230,7 +233,7 @@ Start `livekit-server --dev`, install the `lk` CLI, and source the local test
 tokens before running any scenario:
 
 ```bash
-./build.sh release-tests --capture=pattern,clock
+./build.sh release-tests --capture=all
 source scripts/set-test-tokens.sh
 scripts/memory-tester.sh --scenario audio-track \
   --iterations 100 --warmup 20 \
@@ -240,7 +243,7 @@ scripts/memory-tester.sh --scenario video-track \
   --max-rss-growth-mib 8 --max-thread-growth 0
 ```
 
-Use `--scenario all` to run all eight scenarios, each in a fresh tester process:
+Use `--scenario all` to run all nine scenarios, each in a fresh tester process:
 
 ```bash
 scripts/memory-tester.sh --scenario data-track
@@ -249,6 +252,7 @@ scripts/memory-tester.sh --scenario room-client-leave
 scripts/memory-tester.sh --scenario room-server-delete
 scripts/memory-tester.sh --scenario capture-clock
 scripts/memory-tester.sh --scenario capture-pattern
+scripts/memory-tester.sh --scenario capture-gstreamer
 scripts/memory-tester.sh --scenario all
 ```
 
