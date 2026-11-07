@@ -27,7 +27,8 @@ Options:
   --build-dir PATH            Build directory (default: build-release)
   --scenario NAME             audio-track, video-track, data-track,
                               room-reuse, room-client-leave,
-                              room-server-delete, or all (default: audio-track)
+                              room-server-delete, capture-clock,
+                              capture-pattern, or all (default: audio-track)
   --iterations N              Lifecycle cycles (default: 100)
   --warmup N                  Baseline cycle (default: 20)
   --max-rss-growth-mib MIB    Allowed RSS growth; may be fractional (default: 8)
@@ -74,11 +75,20 @@ if [[ ! -x "${tester}" ]]; then
 fi
 
 case "${scenario}" in
-  audio-track|video-track|data-track|room-reuse|room-client-leave|room-server-delete)
+  audio-track|video-track|data-track|room-reuse|room-client-leave|room-server-delete|capture-clock|capture-pattern)
     scenarios=("${scenario}")
     ;;
   all)
-    scenarios=(audio-track video-track data-track room-reuse room-client-leave room-server-delete)
+    scenarios=(
+      audio-track
+      video-track
+      data-track
+      room-reuse
+      room-client-leave
+      room-server-delete
+      capture-clock
+      capture-pattern
+    )
     ;;
   *)
     echo "ERROR: invalid scenario: ${scenario}" >&2

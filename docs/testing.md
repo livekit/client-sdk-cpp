@@ -204,6 +204,13 @@ or groups of scenarios:
   track, captures I420 frames without unpublishing, and uses `lk` to delete
   the local test room. It then verifies the disconnect and end-of-stream
   callbacks.
+- `capture-clock` repeatedly initializes the SDK, creates and publishes the
+  GPU-rendered clock capture source, starts and stops its frame pump, joins its
+  worker, unpublishes, disconnects, and shuts down. Each cycle must produce at
+  least three frames, so the default 100-cycle run captures at least 300 frames
+  (10 seconds of video at 30 fps).
+- `capture-pattern` exercises the same lifecycle with the GPU-rendered gradient
+  pattern capture source.
 
 Each scenario reports process RSS and thread count at cycle 0, after warmup
 cycle 20, and after final cycle 100. Checkpoint sampling waits for the thread
@@ -223,7 +230,7 @@ Start `livekit-server --dev`, install the `lk` CLI, and source the local test
 tokens before running any scenario:
 
 ```bash
-./build.sh release-tests
+./build.sh release-tests --capture=pattern,clock
 source scripts/set-test-tokens.sh
 scripts/memory-tester.sh --scenario audio-track \
   --iterations 100 --warmup 20 \
@@ -233,13 +240,15 @@ scripts/memory-tester.sh --scenario video-track \
   --max-rss-growth-mib 8 --max-thread-growth 0
 ```
 
-Use `--scenario all` to run all six scenarios, each in a fresh tester process:
+Use `--scenario all` to run all eight scenarios, each in a fresh tester process:
 
 ```bash
 scripts/memory-tester.sh --scenario data-track
 scripts/memory-tester.sh --scenario room-reuse
 scripts/memory-tester.sh --scenario room-client-leave
 scripts/memory-tester.sh --scenario room-server-delete
+scripts/memory-tester.sh --scenario capture-clock
+scripts/memory-tester.sh --scenario capture-pattern
 scripts/memory-tester.sh --scenario all
 ```
 

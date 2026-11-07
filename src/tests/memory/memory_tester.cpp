@@ -17,6 +17,10 @@
 #include <livekit/livekit.h>
 #include <livekit/local_data_track.h>
 
+#if LIVEKIT_CAPTURE_ENABLED
+#include <livekit/capture/capture_source.h>
+#endif
+
 #include <algorithm>
 #include <cctype>
 #include <charconv>
@@ -44,6 +48,8 @@ using namespace std::chrono_literals;
 
 constexpr std::string_view kLocalTestLiveKitUrl = "ws://localhost:7880";
 constexpr int kFramesPerCycle = 3;
+constexpr std::uint32_t kCaptureFramerateFps = 30;
+constexpr auto kCaptureRunPeriod = 150ms;
 constexpr auto kThreadQuiescencePeriod = 500ms;
 constexpr auto kThreadQuiescencePollInterval = 50ms;
 constexpr auto kThreadQuiescenceTimeout = 2s;
@@ -55,6 +61,8 @@ enum class Scenario {
   RoomReuse,
   RoomClientLeave,
   RoomServerDelete,
+  CaptureClock,
+  CapturePattern,
 };
 
 struct Options {
@@ -157,6 +165,10 @@ std::string_view scenarioName(Scenario scenario) {
       return "room-client-leave";
     case Scenario::RoomServerDelete:
       return "room-server-delete";
+    case Scenario::CaptureClock:
+      return "capture-clock";
+    case Scenario::CapturePattern:
+      return "capture-pattern";
   }
   throw std::runtime_error("unknown scenario");
 }
@@ -179,6 +191,12 @@ Scenario parseScenario(std::string_view value) {
   }
   if (value == "room-server-delete") {
     return Scenario::RoomServerDelete;
+  }
+  if (value == "capture-clock") {
+    return Scenario::CaptureClock;
+  }
+  if (value == "capture-pattern") {
+    return Scenario::CapturePattern;
   }
   throw std::runtime_error("invalid value for --scenario");
 }
@@ -567,6 +585,80 @@ void runRoomServerDeleteCycle(const RoomCredentials& credentials) {
   delegate.requireServerTeardown();
 }
 
+#if LIVEKIT_CAPTURE_ENABLED
+template <typename Config>
+void runCaptureSourceCycle(const RoomCredentials& credentials, Config config, const char* track_name) {
+  SdkLifetime sdk;
+  DisconnectTrackingDelegate delegate;
+  livekit::Room room;
+  room.setDelegate(&delegate);
+  connectRoom(room, credentials);
+
+  auto created = livekit::capture::CaptureSource::create(std::move(config)).get();
+  if (!created) {
+    throw std::runtime_error("failed to create capture source: " + created.error().message);
+  }
+  auto capture = std::move(created).value();
+  auto track = livekit::LocalVideoTrack::createLocalVideoTrack(track_name, capture->videoSource());
+  if (!track) {
+    throw std::runtime_error("failed to create capture video track");
+  }
+
+  auto participant = room.localParticipant().lock();
+  if (!participant) {
+    throw std::runtime_error("local participant expired before publishing capture track");
+  }
+  livekit::TrackPublishOptions publish_options;
+  publish_options.source = livekit::TrackSource::SOURCE_CAMERA;
+  publish_options.simulcast = false;
+  participant->publishTrack(track, capture->publishOptions(publish_options));
+  const auto publication = track->publication();
+  if (!publication) {
+    throw std::runtime_error("failed to publish capture video track");
+  }
+
+  const auto started = capture->start();
+  if (!started) {
+    throw std::runtime_error("failed to start capture source: " + started.error().message);
+  }
+  std::this_thread::sleep_for(kCaptureRunPeriod);
+  const auto stopped = capture->stop();
+  if (!stopped) {
+    throw std::runtime_error("failed to stop capture source: " + stopped.error().message);
+  }
+  const auto finished = capture->join().get();
+  if (!finished) {
+    throw std::runtime_error("capture source failed: " + finished.error().message);
+  }
+  if (finished.value().exit != livekit::capture::CaptureExit::Stopped ||
+      finished.value().frames_captured < static_cast<std::uint64_t>(kFramesPerCycle)) {
+    throw std::runtime_error("capture source stopped before producing the minimum frame count");
+  }
+
+  participant->unpublishTrack(publication->sid());
+  if (!room.disconnect()) {
+    throw std::runtime_error("client room disconnect failed");
+  }
+  delegate.requireDisconnect(livekit::DisconnectReason::ClientInitiated);
+}
+
+// Exercises clock-source creation, publication, pump synchronization,
+// encoder/resource teardown, and complete SDK shutdown.
+void runCaptureClockCycle(const RoomCredentials& credentials) {
+  runCaptureSourceCycle(credentials, livekit::capture::ClockVideoSourceConfig{{640, 360}, kCaptureFramerateFps},
+                        "memory-capture-clock");
+}
+
+// Exercises pattern-source creation, publication, pump synchronization,
+// encoder/resource teardown, and complete SDK shutdown.
+void runCapturePatternCycle(const RoomCredentials& credentials) {
+  runCaptureSourceCycle(
+      credentials,
+      livekit::capture::PatternVideoSourceConfig{{640, 360}, kCaptureFramerateFps, livekit::capture::Pattern::Gradient},
+      "memory-capture-pattern");
+}
+#endif
+
 void runCycle(Scenario scenario, const RoomCredentials& credentials, livekit::Room* reusable_room) {
   switch (scenario) {
     case Scenario::AudioTrack:
@@ -590,6 +682,18 @@ void runCycle(Scenario scenario, const RoomCredentials& credentials, livekit::Ro
     case Scenario::RoomServerDelete:
       runRoomServerDeleteCycle(credentials);
       return;
+#if LIVEKIT_CAPTURE_ENABLED
+    case Scenario::CaptureClock:
+      runCaptureClockCycle(credentials);
+      return;
+    case Scenario::CapturePattern:
+      runCapturePatternCycle(credentials);
+      return;
+#else
+    case Scenario::CaptureClock:
+    case Scenario::CapturePattern:
+      throw std::runtime_error("capture scenarios require a capture-enabled SDK build");
+#endif
   }
   throw std::runtime_error("unknown scenario");
 }
@@ -600,7 +704,9 @@ int main(int argc, char* argv[]) {
   try {
     const Options options = parseOptions(argc, argv);
     const RoomCredentials credentials = roomCredentials();
-    const bool per_cycle_sdk = options.scenario == Scenario::AudioTrack || options.scenario == Scenario::VideoTrack;
+    const bool per_cycle_sdk = options.scenario == Scenario::AudioTrack || options.scenario == Scenario::VideoTrack ||
+                               options.scenario == Scenario::CaptureClock ||
+                               options.scenario == Scenario::CapturePattern;
     std::unique_ptr<SdkLifetime> room_sdk;
     if (!per_cycle_sdk) {
       room_sdk = std::make_unique<SdkLifetime>();
