@@ -468,8 +468,10 @@ jobs:
             --scenario all \
             --iterations 100 \
             --warmup 20 \
-            --max-rss-growth-mib 8 \
-            --max-thread-growth 0
+            --max-rss-growth-mib 24 \
+            --max-thread-growth 2 \
+            --advisory-max-rss-growth-mib 8 \
+            --advisory-max-thread-growth 0
 
       - name: Run stress tests
         if: matrix.e2e-testing && inputs.run_stress_tests

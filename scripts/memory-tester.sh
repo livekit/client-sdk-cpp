@@ -32,15 +32,24 @@ Options:
                               or all (default: audio-track)
   --iterations N              Lifecycle cycles (default: 100)
   --warmup N                  Baseline cycle (default: 20)
-  --max-rss-growth-mib MIB    Allowed RSS growth; may be fractional (default: 8)
-  --max-thread-growth N       Allowed thread growth (default: 0)
+  --max-rss-growth-mib MIB    Blocking RSS growth limit; may be fractional
+                              (default: 8)
+  --max-thread-growth N       Blocking thread growth limit (default: 0)
+  --advisory-max-rss-growth-mib MIB
+                              RSS growth that emits a warning (default: same
+                              as --max-rss-growth-mib)
+  --advisory-max-thread-growth N
+                              Thread growth that emits a warning (default:
+                              same as --max-thread-growth)
   -h, --help                  Show this help
 
 Environment:
   MEMORY_TESTER_BUILD_DIR, MEMORY_TESTER_SCENARIO,
   MEMORY_TESTER_ITERATIONS,
   MEMORY_TESTER_WARMUP, MEMORY_TESTER_MAX_RSS_GROWTH_MIB,
-  MEMORY_TESTER_MAX_THREAD_GROWTH, MALLOC_ARENA_MAX.
+  MEMORY_TESTER_MAX_THREAD_GROWTH,
+  MEMORY_TESTER_ADVISORY_MAX_RSS_GROWTH_MIB,
+  MEMORY_TESTER_ADVISORY_MAX_THREAD_GROWTH, MALLOC_ARENA_MAX.
   All scenarios require LIVEKIT_URL and LIVEKIT_TOKEN_A.
 EOF
 }
@@ -52,6 +61,8 @@ iterations="${MEMORY_TESTER_ITERATIONS:-100}"
 warmup="${MEMORY_TESTER_WARMUP:-20}"
 max_rss_growth_mib="${MEMORY_TESTER_MAX_RSS_GROWTH_MIB:-8}"
 max_thread_growth="${MEMORY_TESTER_MAX_THREAD_GROWTH:-0}"
+advisory_max_rss_growth_mib="${MEMORY_TESTER_ADVISORY_MAX_RSS_GROWTH_MIB:-}"
+advisory_max_thread_growth="${MEMORY_TESTER_ADVISORY_MAX_THREAD_GROWTH:-}"
 
 while (($#)); do
   case "$1" in
@@ -61,10 +72,23 @@ while (($#)); do
     --warmup) warmup="$2"; shift 2 ;;
     --max-rss-growth-mib) max_rss_growth_mib="$2"; shift 2 ;;
     --max-thread-growth) max_thread_growth="$2"; shift 2 ;;
+    --advisory-max-rss-growth-mib) advisory_max_rss_growth_mib="$2"; shift 2 ;;
+    --advisory-max-thread-growth) advisory_max_thread_growth="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "ERROR: unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+advisory_max_rss_growth_mib="${advisory_max_rss_growth_mib:-${max_rss_growth_mib}}"
+advisory_max_thread_growth="${advisory_max_thread_growth:-${max_thread_growth}}"
+if [[ ! "${advisory_max_rss_growth_mib}" =~ ^([0-9]+([.][0-9]*)?|[.][0-9]+)$ ]]; then
+  echo "ERROR: advisory RSS growth limit must be a nonnegative number." >&2
+  exit 2
+fi
+if [[ ! "${advisory_max_thread_growth}" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: advisory thread growth limit must be a nonnegative integer." >&2
+  exit 2
+fi
 
 if [[ "${build_dir}" != /* ]]; then
   build_dir="${repo_root}/${build_dir}"
@@ -113,7 +137,8 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     echo
     echo "Iterations: ${iterations}"
     echo "Warmup: ${warmup}"
-    echo "Threshold: RSS growth ≤ ${max_rss_growth_mib} MiB; thread growth ≤ ${max_thread_growth}."
+    echo "Blocking limits: RSS growth ≤ ${max_rss_growth_mib} MiB; thread growth ≤ ${max_thread_growth}."
+    echo "Advisory limits: RSS growth ≤ ${advisory_max_rss_growth_mib} MiB; thread growth ≤ ${advisory_max_thread_growth}."
     echo
     echo "| Scenario | RSS 0→${warmup} | RSS ${warmup}→${iterations} | Threads 0→${warmup} | Threads ${warmup}→${iterations} | Status |"
     echo "|---|---:|---:|---:|---:|---|"
@@ -146,11 +171,30 @@ for current_scenario in "${scenarios[@]}"; do
   printf '%s\n' "${output}"
 
   if [[ "${output}" =~ ${report_regex} ]]; then
+    advisory_exceeded=false
+    if awk -v growth="${BASH_REMATCH[6]}" -v limit="${advisory_max_rss_growth_mib}" \
+        'BEGIN { exit !(growth > limit) }'; then
+      advisory_exceeded=true
+    fi
+    if (( BASH_REMATCH[11] > advisory_max_thread_growth )); then
+      advisory_exceeded=true
+    fi
+
+    if [[ "${BASH_REMATCH[12]}" == "PASS" && "${advisory_exceeded}" == "true" ]]; then
+      advisory_message="${current_scenario} exceeded the advisory limit: RSS growth ${BASH_REMATCH[6]} MiB, thread growth ${BASH_REMATCH[11]}."
+      echo "WARNING: ${advisory_message}" >&2
+      if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+        echo "::warning title=Memory regression advisory::${advisory_message}"
+      fi
+    fi
+
     if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-      if [[ "${BASH_REMATCH[12]}" == "PASS" ]]; then
-        verdict=":white_check_mark: PASS"
-      else
+      if [[ "${BASH_REMATCH[12]}" == "FAIL" ]]; then
         verdict=":x: FAIL"
+      elif [[ "${advisory_exceeded}" == "true" ]]; then
+        verdict=":warning: ADVISORY"
+      else
+        verdict=":white_check_mark: PASS"
       fi
       rss_warmup_growth="$(format_growth "${BASH_REMATCH[4]}")"
       rss_final_growth="$(format_growth "${BASH_REMATCH[6]}")"
