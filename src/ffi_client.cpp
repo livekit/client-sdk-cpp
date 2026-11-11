@@ -120,6 +120,14 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
       return event.new_capture_source().async_id();
     case E::kJoinCapture:
       return event.join_capture().async_id();
+    case E::kNewAudioCaptureSource:
+      return event.new_audio_capture_source().async_id();
+    case E::kStopAudioPlayout:
+      return event.stop_audio_playout().async_id();
+    case E::kAttachAudioPlayoutTrack:
+      return event.attach_audio_playout_track().async_id();
+    case E::kDetachAudioPlayoutTrack:
+      return event.detach_audio_playout_track().async_id();
 
     // low-level data stream callbacks
     case E::kSendStreamHeader:
@@ -470,13 +478,13 @@ bool FfiClient::cancelPendingByAsyncId(AsyncId async_id) {
 template <typename T>
 std::future<T> FfiClient::registerAsync(AsyncId async_id, std::function<bool(const proto::FfiEvent&)> match,
                                         std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler,
-                                        std::exception_ptr cancellation_error) {
+                                        const std::exception_ptr& cancellation_error) {
   auto pending = std::make_unique<Pending<T>>();
   pending->async_id = async_id;
   auto fut = pending->promise.get_future();
   pending->match = std::move(match);
   pending->handler = std::move(handler);
-  pending->cancellation_error = std::move(cancellation_error);
+  pending->cancellation_error = cancellation_error;
   {
     const std::scoped_lock<std::mutex> guard(lock_);
     pending_by_id_.emplace(async_id, std::move(pending));
@@ -1385,7 +1393,18 @@ JoinOutcome captureJoinResult(const proto::JoinCaptureCallback& callback) {
   }
   const auto exit = finished.exit() == proto::CAPTURE_EXIT_END_OF_STREAM ? capture::CaptureExit::EndOfStream
                                                                          : capture::CaptureExit::Stopped;
-  return JoinOutcome::success(capture::CaptureResult{finished.frames_captured(), exit});
+  capture::CaptureResult result;
+  result.frames_captured = finished.frames_captured();
+  result.exit = exit;
+  result.samples_captured = finished.has_samples_captured() ? finished.samples_captured() : 0;
+  result.bytes_captured = finished.has_bytes_captured() ? finished.bytes_captured() : 0;
+  if (finished.has_first_timestamp_ns()) {
+    result.first_timestamp_ns = finished.first_timestamp_ns();
+  }
+  if (finished.has_last_timestamp_ns()) {
+    result.last_timestamp_ns = finished.last_timestamp_ns();
+  }
+  return JoinOutcome::success(result);
 }
 
 } // namespace
@@ -1494,6 +1513,221 @@ std::future<Result<capture::CaptureResult, capture::CaptureError>> FfiClient::jo
   } catch (const std::runtime_error& error) {
     cancelPendingByAsyncId(async_id);
     return captureExceptionFuture<JoinOutcome>("CaptureSource::join: " + std::string(error.what()));
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+  return future;
+}
+
+std::future<Result<std::shared_ptr<capture::GstreamerAudioCaptureSource>, capture::CaptureError>>
+FfiClient::newAudioCaptureSourceAsync(proto::NewAudioCaptureSourceRequest request,
+                                      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  using Outcome = Result<std::shared_ptr<capture::GstreamerAudioCaptureSource>, capture::CaptureError>;
+  constexpr const char* kOperation = "GstreamerAudioCaptureSource::create: ";
+  if (!isInitialized()) {
+    return captureExceptionFuture<Outcome>(std::string(kOperation) + "LiveKit is not initialized");
+  }
+  const AsyncId async_id = generateAsyncId();
+  auto future = registerAsync<Outcome>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_new_audio_capture_source() && event.new_audio_capture_source().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<Outcome>& promise) {
+        try {
+          const auto& callback = event.new_audio_capture_source();
+          if (callback.has_error()) {
+            throw std::runtime_error("GstreamerAudioCaptureSource::create: Rust source setup failed: " +
+                                     callback.error());
+          }
+          if (!callback.has_source()) {
+            throw std::runtime_error("GstreamerAudioCaptureSource::create: callback is missing source or error");
+          }
+          promise.set_value(Outcome::success(capture::GstreamerAudioCaptureSource::fromOwned(callback.source())));
+        } catch (...) {
+          promise.set_exception(std::current_exception());
+        }
+      },
+      std::make_exception_ptr(std::runtime_error(std::string(kOperation) + "operation cancelled during SDK shutdown")));
+  request.set_request_async_id(async_id);
+  proto::FfiRequest ffi_request;
+  ffi_request.mutable_new_audio_capture_source()->CopyFrom(request);
+  try {
+    const auto response = send ? send(ffi_request) : sendRequest(ffi_request);
+    if (!response.has_new_audio_capture_source() || !response.new_audio_capture_source().IsInitialized() ||
+        response.new_audio_capture_source().async_id() != async_id) {
+      throw std::runtime_error("invalid new_audio_capture_source acknowledgement (missing or mismatched async_id)");
+    }
+  } catch (const std::runtime_error& error) {
+    cancelPendingByAsyncId(async_id);
+    return captureExceptionFuture<Outcome>(std::string(kOperation) + error.what());
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+  return future;
+}
+
+std::shared_ptr<capture::GstreamerAudioPlayoutSink> FfiClient::newAudioPlayout(
+    const proto::NewAudioPlayoutRequest& request,
+    const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  constexpr const char* kOperation = "GstreamerAudioPlayoutSink::create: ";
+  if (!isInitialized()) {
+    throw std::runtime_error(std::string(kOperation) + "LiveKit is not initialized");
+  }
+  proto::FfiRequest ffi_request;
+  ffi_request.mutable_new_audio_playout()->CopyFrom(request);
+  try {
+    const auto response = send ? send(ffi_request) : sendRequest(ffi_request);
+    if (!response.has_new_audio_playout()) {
+      throw std::runtime_error("missing new_audio_playout response");
+    }
+    const auto& playout = response.new_audio_playout();
+    if (playout.has_error() && !playout.error().empty()) {
+      throw std::runtime_error("Rust pipeline setup failed: " + playout.error());
+    }
+    if (!playout.has_playout() || !playout.playout().IsInitialized() || playout.playout().id() == 0) {
+      throw std::runtime_error("response is missing a valid playout handle");
+    }
+    return capture::GstreamerAudioPlayoutSink::fromHandle(playout.playout().id());
+  } catch (const std::runtime_error& error) {
+    throw std::runtime_error(std::string(kOperation) + error.what());
+  }
+}
+
+std::future<std::string> FfiClient::attachAudioPlayoutTrackAsync(
+    std::uint64_t playout_handle, std::uint64_t track_handle,
+    const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  constexpr const char* kOperation = "GstreamerAudioPlayoutSink::attachTrack: ";
+  if (!isInitialized()) {
+    return captureExceptionFuture<std::string>(std::string(kOperation) + "LiveKit is not initialized");
+  }
+  const AsyncId async_id = generateAsyncId();
+  auto future = registerAsync<std::string>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_attach_audio_playout_track() && event.attach_audio_playout_track().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<std::string>& promise) {
+        const auto& callback = event.attach_audio_playout_track();
+        if (callback.has_error() && !callback.error().empty()) {
+          promise.set_exception(std::make_exception_ptr(
+              std::runtime_error("GstreamerAudioPlayoutSink::attachTrack: " + callback.error())));
+        } else if (!callback.has_track_id() || callback.track_id().empty()) {
+          promise.set_exception(std::make_exception_ptr(
+              std::runtime_error("GstreamerAudioPlayoutSink::attachTrack: callback is missing track_id")));
+        } else {
+          promise.set_value(callback.track_id());
+        }
+      },
+      std::make_exception_ptr(std::runtime_error(std::string(kOperation) + "operation cancelled during SDK shutdown")));
+  proto::FfiRequest request;
+  auto* message = request.mutable_attach_audio_playout_track();
+  message->set_playout_handle(playout_handle);
+  message->set_track_handle(track_handle);
+  message->set_request_async_id(async_id);
+  try {
+    const auto response = send ? send(request) : sendRequest(request);
+    if (!response.has_attach_audio_playout_track() || !response.attach_audio_playout_track().IsInitialized() ||
+        response.attach_audio_playout_track().async_id() != async_id) {
+      throw std::runtime_error("invalid attach_audio_playout_track acknowledgement (missing or mismatched async_id)");
+    }
+  } catch (const std::runtime_error& error) {
+    cancelPendingByAsyncId(async_id);
+    return captureExceptionFuture<std::string>(std::string(kOperation) + error.what());
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+  return future;
+}
+
+std::future<bool> FfiClient::detachAudioPlayoutTrackAsync(
+    std::uint64_t playout_handle, const std::string& track_id,
+    const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  constexpr const char* kOperation = "GstreamerAudioPlayoutSink::detachTrack: ";
+  if (!isInitialized()) {
+    return captureExceptionFuture<bool>(std::string(kOperation) + "LiveKit is not initialized");
+  }
+  const AsyncId async_id = generateAsyncId();
+  auto future = registerAsync<bool>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_detach_audio_playout_track() && event.detach_audio_playout_track().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<bool>& promise) {
+        const auto& callback = event.detach_audio_playout_track();
+        if (callback.has_error() && !callback.error().empty()) {
+          promise.set_exception(std::make_exception_ptr(
+              std::runtime_error("GstreamerAudioPlayoutSink::detachTrack: " + callback.error())));
+        } else if (!callback.has_detached()) {
+          promise.set_exception(std::make_exception_ptr(
+              std::runtime_error("GstreamerAudioPlayoutSink::detachTrack: callback is missing detached status")));
+        } else {
+          promise.set_value(callback.detached());
+        }
+      },
+      std::make_exception_ptr(std::runtime_error(std::string(kOperation) + "operation cancelled during SDK shutdown")));
+  proto::FfiRequest request;
+  auto* message = request.mutable_detach_audio_playout_track();
+  message->set_playout_handle(playout_handle);
+  message->set_track_id(track_id);
+  message->set_request_async_id(async_id);
+  try {
+    const auto response = send ? send(request) : sendRequest(request);
+    if (!response.has_detach_audio_playout_track() || !response.detach_audio_playout_track().IsInitialized() ||
+        response.detach_audio_playout_track().async_id() != async_id) {
+      throw std::runtime_error("invalid detach_audio_playout_track acknowledgement (missing or mismatched async_id)");
+    }
+  } catch (const std::runtime_error& error) {
+    cancelPendingByAsyncId(async_id);
+    return captureExceptionFuture<bool>(std::string(kOperation) + error.what());
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+  return future;
+}
+
+std::future<capture::AudioPlayoutStats> FfiClient::stopAudioPlayoutAsync(
+    std::uint64_t playout_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  constexpr const char* kOperation = "GstreamerAudioPlayoutSink::stop: ";
+  if (!isInitialized()) {
+    return captureExceptionFuture<capture::AudioPlayoutStats>(std::string(kOperation) + "LiveKit is not initialized");
+  }
+  const AsyncId async_id = generateAsyncId();
+  auto future = registerAsync<capture::AudioPlayoutStats>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_stop_audio_playout() && event.stop_audio_playout().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<capture::AudioPlayoutStats>& promise) {
+        const auto& callback = event.stop_audio_playout();
+        if (callback.has_error() && !callback.error().empty()) {
+          promise.set_exception(
+              std::make_exception_ptr(std::runtime_error("GstreamerAudioPlayoutSink::stop: " + callback.error())));
+        } else if (!callback.has_frames_pushed() || !callback.has_frames_dropped() || !callback.has_bytes_pushed()) {
+          promise.set_exception(std::make_exception_ptr(
+              std::runtime_error("GstreamerAudioPlayoutSink::stop: callback is missing playout statistics")));
+        } else {
+          promise.set_value({callback.frames_pushed(), callback.frames_dropped(), callback.bytes_pushed()});
+        }
+      },
+      std::make_exception_ptr(std::runtime_error(std::string(kOperation) + "operation cancelled during SDK shutdown")));
+  proto::FfiRequest request;
+  auto* message = request.mutable_stop_audio_playout();
+  message->set_playout_handle(playout_handle);
+  message->set_request_async_id(async_id);
+  try {
+    const auto response = send ? send(request) : sendRequest(request);
+    if (!response.has_stop_audio_playout() || !response.stop_audio_playout().IsInitialized() ||
+        response.stop_audio_playout().async_id() != async_id) {
+      throw std::runtime_error("invalid stop_audio_playout acknowledgement (missing or mismatched async_id)");
+    }
+  } catch (const std::runtime_error& error) {
+    cancelPendingByAsyncId(async_id);
+    return captureExceptionFuture<capture::AudioPlayoutStats>(std::string(kOperation) + error.what());
   } catch (...) {
     cancelPendingByAsyncId(async_id);
     throw;

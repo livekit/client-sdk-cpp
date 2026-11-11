@@ -168,6 +168,20 @@ struct CaptureResult {
 
   /// @brief Why the capture ended successfully.
   CaptureExit exit = CaptureExit::Stopped;
+
+  /// @brief Number of audio samples captured per channel.
+  ///
+  /// Zero for video capture sources.
+  std::uint64_t samples_captured = 0;
+
+  /// @brief Number of payload bytes captured.
+  std::uint64_t bytes_captured = 0;
+
+  /// @brief Timestamp of the first captured item in nanoseconds.
+  std::optional<std::uint64_t> first_timestamp_ns;
+
+  /// @brief Timestamp of the last captured item in nanoseconds.
+  std::optional<std::uint64_t> last_timestamp_ns;
 };
 
 /// @brief A server-side capture source (livekit-capture) that produces video

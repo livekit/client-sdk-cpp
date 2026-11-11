@@ -489,10 +489,12 @@ for the selected backends. Creating a source omitted from the SDK build fails
 through the returned future with `std::runtime_error`.
 Capture-enabled bundles install the public API under `include/livekit/capture/`;
 standard bundles omit that directory. Use `<livekit/capture/capture_source.h>`
-for direct inclusion. The source-tree header also rejects use in a standard
-build. `share/livekit/build-info.json` in an installed bundle describes the same
-build features; neither value tests whether a GPU or a requested GStreamer plugin
-is available at runtime.
+for video, `<livekit/capture/audio_capture_source.h>` for GStreamer PCM capture,
+and `<livekit/capture/audio_playout_sink.h>` for mixed GStreamer playout. The
+source-tree headers also reject use in a standard build.
+`share/livekit/build-info.json` in an installed bundle describes the same build
+features; neither value tests whether a GPU or a requested GStreamer plugin is
+available at runtime.
 
 Release downloads with `-capture` in their names include these features, for
 example `livekit-sdk-macos-arm64-capture-<version>.tar.gz`. Standard release

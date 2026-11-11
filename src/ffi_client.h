@@ -43,6 +43,8 @@
 #include "room.pb.h"
 
 #if LIVEKIT_CAPTURE_ENABLED
+#include "livekit/capture/audio_capture_source.h"
+#include "livekit/capture/audio_playout_sink.h"
 #include "livekit/capture/capture_source.h"
 #endif
 
@@ -186,6 +188,20 @@ public:
   // result rather than subscribing to an unsolicited completion event.
   std::future<Result<capture::CaptureResult, capture::CaptureError>> joinCaptureAsync(
       std::uint64_t capture_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+  std::future<Result<std::shared_ptr<capture::GstreamerAudioCaptureSource>, capture::CaptureError>>
+  newAudioCaptureSourceAsync(proto::NewAudioCaptureSourceRequest request,
+                             const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+  std::shared_ptr<capture::GstreamerAudioPlayoutSink> newAudioPlayout(
+      const proto::NewAudioPlayoutRequest& request,
+      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+  std::future<std::string> attachAudioPlayoutTrackAsync(
+      std::uint64_t playout_handle, std::uint64_t track_handle,
+      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+  std::future<bool> detachAudioPlayoutTrackAsync(
+      std::uint64_t playout_handle, const std::string& track_id,
+      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
+  std::future<capture::AudioPlayoutStats> stopAudioPlayoutAsync(
+      std::uint64_t playout_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
 #endif
 
 private:
@@ -256,7 +272,7 @@ private:
   template <typename T>
   std::future<T> registerAsync(AsyncId async_id, std::function<bool(const proto::FfiEvent&)> match,
                                std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler,
-                               std::exception_ptr cancellation_error = {});
+                               const std::exception_ptr& cancellation_error = {});
 
   // Generate a unique client-side async ID for request correlation
   AsyncId generateAsyncId();

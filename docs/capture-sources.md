@@ -2,15 +2,18 @@
 
 > **NOTE:** LiveKit Capture is not officially supported on Intel-based Macs.
 
-`livekit::capture::CaptureSource` connects a Rust video producer to a regular C++ `VideoSource`.
-The capture pump runs in Rust, so C++ does not send one FFI request per frame.
-The SDK supports three source configurations:
+The capture APIs connect Rust media producers and consumers to regular C++ track
+types. Media frames stay in Rust, so C++ does not send one FFI request per
+frame. The SDK supports video capture, GStreamer PCM audio capture, and mixed
+remote-track GStreamer audio playout.
 
 | Configuration | Output | Runtime requirements |
 | --- | --- | --- |
 | `PatternVideoSourceConfig` | GPU-rendered gradient or LiveKit logo | Compatible GPU adapter |
 | `ClockVideoSourceConfig` | GPU-rendered local time with millisecond precision | Compatible GPU adapter |
 | `GstreamerVideoSourceConfig` | Pre-encoded video from a GStreamer pipeline | GStreamer runtime and the pipeline's plugins |
+| `GstreamerAudioCaptureConfig` | PCM S16LE audio into an `AudioSource` | GStreamer runtime and the pipeline's plugins |
+| `GstreamerAudioPlayoutConfig` | Mixed remote audio tracks into GStreamer | GStreamer runtime and the pipeline's plugins |
 
 A custom SDK build can include all sources or a subset selected with
 `--capture=pattern,clock` or `--capture=gstreamer`. Release `-capture` bundles
@@ -31,6 +34,8 @@ install the API in `include/livekit/capture/`:
 
 ```cpp
 #include <livekit/capture/capture_source.h>
+#include <livekit/capture/audio_capture_source.h>
+#include <livekit/capture/audio_playout_sink.h>
 ```
 
 Standard SDK bundles omit the `capture/` directory, and their other installed
@@ -90,6 +95,57 @@ finish without waiting. `join()` consumes the running pump, waits for its
 thread to exit, and reports the exit reason and frame count. For unbounded
 sources, call `stop()` before `join()`. Destroying the source also stops
 capture.
+
+## GStreamer audio capture
+
+`GstreamerAudioCaptureSource` asynchronously creates a fixed-format PCM S16LE
+pipeline and owns the `AudioSource` fed by its Rust capture pump. Publish that
+source through a normal `LocalAudioTrack`, then use the same start, stop, and
+join lifecycle as video capture:
+
+```cpp
+livekit::capture::GstreamerAudioCaptureConfig config;
+config.pipeline = "audiotestsrc ! audioconvert ! "
+                  "audio/x-raw,format=S16LE,layout=interleaved,rate=48000,channels=1 ! "
+                  "appsink name=lk_audio_appsink";
+config.sample_rate = 48000;
+config.num_channels = 1;
+config.frame_duration_ms = 10;
+
+auto capture = livekit::capture::GstreamerAudioCaptureSource::create(config).get().value();
+auto track = livekit::LocalAudioTrack::createLocalAudioTrack("gstreamer", capture->audioSource());
+participant->publishTrack(track);
+capture->start().value();
+
+capture->stop().value();
+auto result = capture->join().get().value();
+// result contains frames_captured, samples_captured, bytes_captured,
+// first_timestamp_ns, last_timestamp_ns, and exit.
+```
+
+The negotiated `format()` reports sample rate, channel count, and samples per
+channel. Rust validates that pipeline caps match the requested fixed format.
+
+## GStreamer audio playout
+
+`GstreamerAudioPlayoutSink` starts with an empty mixer. Attach subscribed
+`RemoteAudioTrack` objects as they arrive, retain the returned stable track IDs,
+and detach them when subscriptions end:
+
+```cpp
+livekit::capture::GstreamerAudioPlayoutConfig config;
+config.pipeline = "appsrc name=lk_audio_appsrc ! audioconvert ! autoaudiosink";
+auto sink = livekit::capture::GstreamerAudioPlayoutSink::create(config);
+
+const std::string track_id = sink->attachTrack(remote_audio_track).get();
+const bool detached = sink->detachTrack(track_id).get();
+const auto stats = sink->stop().get();
+// stats contains frames_pushed, frames_dropped, and bytes_pushed.
+```
+
+Attach, detach, and stop complete asynchronously. Serialize `stop()` with
+attach/detach calls; stop consumes the server-side playout and may be called
+once. Destruction also stops playout but does not return statistics.
 
 ## GStreamer encoded pipelines
 

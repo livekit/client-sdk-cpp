@@ -103,7 +103,9 @@ if(EXISTS "${_sdk_include_dir}/livekit/capture_source.h")
   message(FATAL_ERROR "Installed SDK contains the obsolete flat capture header")
 endif()
 if(_expected_capture)
-  if(NOT EXISTS "${_sdk_include_dir}/livekit/capture/capture_source.h")
+  if(NOT EXISTS "${_sdk_include_dir}/livekit/capture/capture_source.h" OR
+     NOT EXISTS "${_sdk_include_dir}/livekit/capture/audio_capture_source.h" OR
+     NOT EXISTS "${_sdk_include_dir}/livekit/capture/audio_playout_sink.h")
     message(FATAL_ERROR "Capture SDK is missing the capture public API directory")
   endif()
 elseif(EXISTS "${_sdk_include_dir}/livekit/capture")
@@ -115,7 +117,9 @@ include(CheckCXXSourceCompiles)
 set(CMAKE_REQUIRED_INCLUDES "${_sdk_include_dir}")
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 unset(_capture_header_compiles CACHE)
-check_cxx_source_compiles("#include <livekit/capture/capture_source.h>
+check_cxx_source_compiles("#include <livekit/capture/audio_capture_source.h>
+#include <livekit/capture/audio_playout_sink.h>
+#include <livekit/capture/capture_source.h>
 int main() { return 0; }"
   _capture_header_compiles)
 unset(CMAKE_REQUIRED_INCLUDES)

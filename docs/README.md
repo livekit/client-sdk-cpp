@@ -4,7 +4,7 @@ Additional documentation for the SDK.
 
 - [Building](building.md) — prerequisites, build scripts, Linux build
   container, CMake presets, vcpkg, integration into your CMake project, troubleshooting.
-- [Capture sources](capture-sources.md) — pattern, clock, and GStreamer sources;
+- [Capture sources](capture-sources.md) — video sources plus GStreamer audio capture and playout;
   build features, release bundles, and publishing. Use capture to stream video through LiveKit
   without maintaining your own video pipeline.
 - [Authentication](authentication.md) — generating tokens, token source types

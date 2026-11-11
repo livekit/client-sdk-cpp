@@ -30,6 +30,7 @@ class FfiResponse;
 } // namespace proto
 
 class FfiClient;
+struct AudioSourceAccess;
 
 /// Represents a real-time audio source with an internal audio queue.
 class LIVEKIT_API AudioSource {
@@ -131,6 +132,10 @@ public:
   void captureFrame(const AudioFrame& frame, int timeout_ms = 20);
 
 private:
+  friend struct AudioSourceAccess;
+
+  AudioSource(FfiHandle handle, int sample_rate, int num_channels, int queue_size_ms) noexcept;
+
   // Internal helper to reset the local queue tracking (like _release_waiter).
   void resetQueueTracking() noexcept;
 
