@@ -16,6 +16,8 @@
 
 #include <livekit/livekit.h>
 #if LIVEKIT_CAPTURE_ENABLED
+#include <livekit/capture/audio_capture_source.h>
+#include <livekit/capture/audio_playout_sink.h>
 #include <livekit/capture/capture_source.h>
 #endif
 
@@ -87,6 +89,40 @@ bool checkSources() {
   clock.framerate_fps = 30;
   success =
       checkSource("clock", clock, LIVEKIT_EXPECT_CLOCK != 0, livekit::capture::CaptureSourceKind::Pixel) && success;
+
+  if (LIVEKIT_EXPECT_GSTREAMER) {
+    try {
+      livekit::capture::GstreamerAudioCaptureConfig audio;
+      audio.pipeline =
+          "audiotestsrc samplesperbuffer=480 num-buffers=2 ! "
+          "audio/x-raw,format=S16LE,layout=interleaved,rate=48000,channels=1 ! "
+          "appsink name=lk_audio_appsink";
+      auto created = livekit::capture::GstreamerAudioCaptureSource::create(audio).get();
+      if (!created || !created.value()->audioSource() || created.value()->format().samples_per_channel != 480 ||
+          !created.value()->start()) {
+        std::cerr << "gstreamer audio capture: unexpected source metadata\n";
+        success = false;
+      } else {
+        const auto finished = created.value()->join().get();
+        if (!finished || finished.value().samples_captured == 0 || finished.value().bytes_captured == 0) {
+          std::cerr << "gstreamer audio capture: missing terminal statistics\n";
+          success = false;
+        }
+      }
+
+      livekit::capture::GstreamerAudioPlayoutConfig playout;
+      playout.pipeline = "appsrc name=lk_audio_appsrc ! fakesink sync=false";
+      const auto sink = livekit::capture::GstreamerAudioPlayoutSink::create(playout);
+      const auto stats = sink->stop().get();
+      if (stats.frames_pushed != 0 || stats.frames_dropped != 0 || stats.bytes_pushed != 0) {
+        std::cerr << "gstreamer audio playout: unexpected empty-pipeline statistics\n";
+        success = false;
+      }
+    } catch (const std::exception& error) {
+      std::cerr << "gstreamer audio: " << error.what() << '\n';
+      success = false;
+    }
+  }
   return success;
 }
 

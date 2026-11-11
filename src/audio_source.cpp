@@ -19,6 +19,7 @@
 #include <chrono>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 
 #include "audio_frame.pb.h"
 #include "ffi.pb.h"
@@ -55,6 +56,12 @@ AudioSource::AudioSource(int sample_rate, int num_channels, int queue_size_ms)
   // Wrap FFI handle in RAII FfiHandle
   handle_ = FfiHandle(static_cast<uintptr_t>(source_info.handle().id()));
 }
+
+AudioSource::AudioSource(FfiHandle handle, int sample_rate, int num_channels, int queue_size_ms) noexcept
+    : sample_rate_(sample_rate),
+      num_channels_(num_channels),
+      queue_size_ms_(queue_size_ms),
+      handle_(std::move(handle)) {}
 
 double AudioSource::queuedDuration() const noexcept {
   if (last_capture_ == 0.0) {

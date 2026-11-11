@@ -74,6 +74,7 @@ file(GLOB UNIT_TEST_SOURCES
 
 if(NOT LIVEKIT_CAPTURE_ENABLED)
   list(REMOVE_ITEM UNIT_TEST_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/test_audio_capture_playout.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/test_capture_source.cpp")
 endif()
 
