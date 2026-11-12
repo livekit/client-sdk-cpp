@@ -18,7 +18,7 @@ CMake/vcpkg flows.
 | Platform | Compiler | Package manager |
 |----------|----------|-----------------|
 | Linux    | Clang 21+ with libclang (See [here](#clang-compiler-usage-on-linux) for rationale) | `apt` |
-| macOS    | Xcode 12+ Apple Clang (macOS 12.3+ for ScreenCaptureKit) | Homebrew |
+| macOS    | Apple Clang from current Xcode Command Line Tools or full Xcode | Apple developer tools |
 | Windows  | Visual Studio 2019+ (MSBuild or Ninja) | vcpkg (see below) |
 
 ### Dependencies
@@ -58,9 +58,39 @@ each supported platform.
 
 ### macOS
 
+Install Apple's standalone Command Line Tools, or use an existing full Xcode
+installation:
+
+```bash
+xcode-select --install
+```
+
+After installation, verify the selected developer directory, compiler, and SDK:
+
+```bash
+xcode-select -p
+xcrun --sdk macosx --find clang++
+xcrun --sdk macosx --show-sdk-path
+```
+
+Standalone tools normally select `/Library/Developer/CommandLineTools`; full
+Xcode normally selects `/Applications/Xcode.app/Contents/Developer`. If the
+selection points to an old or removed installation, select the installed tools:
+
+```bash
+sudo xcode-select --switch /Library/Developer/CommandLineTools
+# Or, for full Xcode:
+# sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+```
+
+Install the remaining tools with Homebrew:
+
 ```bash
 brew install cmake ninja protobuf abseil rust
 ```
+
+`build.sh` selects Apple Clang through `xcrun` and exports `CC`, `CXX`, and
+`SDKROOT` for CMake and Cargo. You do not need to export `SDKROOT` manually.
 
 ### Linux
 
@@ -403,7 +433,22 @@ requirement imposed by libwebrtc's hermetic libc++. `build.sh` accepts both
 versioned libraries such as `libclang-21.so.1` and an unversioned
 `libclang.so`. For a custom installation, set `LLVM_ROOT` or point
 `LIBCLANG_PATH` at its library directory. On macOS, install the Xcode Command
-Line Tools; `build.sh` selects Xcode Apple Clang with `xcrun`.
+Line Tools; `build.sh` selects Apple Clang and the macOS SDK with `xcrun`.
+
+### macOS build cannot find `TargetConditionals.h`
+
+This can occur when Cargo invokes Apple Clang directly without a macOS SDK
+root. Use the current `build.sh`, which exports `SDKROOT` automatically. If
+you set `SDKROOT` or `DEVELOPER_DIR` yourself, check that they point to an
+installed macOS SDK and developer tools, respectively. See the
+[macOS setup instructions](#macos) to verify or repair the selection.
+
+For direct Cargo or CMake invocations outside `build.sh`, initialize the SDK
+environment in that shell first:
+
+```bash
+export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+```
 
 ### Rust code recompiles after C++ edits
 
