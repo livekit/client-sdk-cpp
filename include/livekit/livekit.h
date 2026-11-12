@@ -23,6 +23,7 @@
 #include "livekit/build.h"
 #include "livekit/e2ee.h"
 #include "livekit/encoded_video_source.h"
+#include "livekit/length_prefixed_access_unit_parser.h"
 #include "livekit/local_audio_track.h"
 #include "livekit/local_participant.h"
 #include "livekit/local_track_publication.h"
