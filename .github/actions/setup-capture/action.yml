@@ -13,6 +13,20 @@ runs:
         sudo apt-get install -y libunwind-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
           gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
           gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav
+
+    # Restore cached official installers so capture stages do not depend on a
+    # successful freedesktop.org transfer on every run. Hashes are still checked
+    # before install; a corrupt cache entry is discarded and re-downloaded.
+    # Save only after a verified download so failed transfers cannot poison the
+    # cache key.
+    - name: Restore GStreamer installers cache (macOS)
+      if: runner.os == 'macOS'
+      id: gstreamer-cache-macos
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/gstreamer-installers
+        key: gstreamer-macos-1.28.5-0a8fc7a1cf8d7bac-6f7b55e8fb86dcc6
+
     - name: Install GStreamer (macOS)
       if: runner.os == 'macOS'
       env:
@@ -30,15 +44,57 @@ runs:
         devel_pkg="gstreamer-1.0-devel-$GSTREAMER_MACOS_VERSION-universal.pkg"
         mkdir -p "$installer_dir"
 
-        for package in "$runtime_pkg" "$devel_pkg"; do
-          expected_hash="$GSTREAMER_MACOS_RUNTIME_SHA256"
-          if [[ "$package" == "$devel_pkg" ]]; then
-            expected_hash="$GSTREAMER_MACOS_DEVEL_SHA256"
+        # freedesktop.org has been aborting large HTTP/2 transfers on GitHub
+        # runners (curl exit 92 / PROTOCOL_ERROR). Force HTTP/1.1, resume
+        # partial files after mid-transfer drops. Keep retries in this loop:
+        # curl's own retries discard bytes from a failed transfer.
+        download_pkg() {
+          local url="$1"
+          local dest="$2"
+          local expected_hash="$3"
+          local max_attempts=4
+          local attempt=1
+          local curl_status
+
+          if [[ -f "$dest" ]] && printf '%s  %s\n' "$expected_hash" "$dest" | shasum -a 256 -c -; then
+            echo "Using cached installer: $dest"
+            return 0
           fi
-          curl --fail --location --retry 3 --connect-timeout 30 --max-time 600 \
-            "$base_url/$package" --output "$installer_dir/$package"
-          printf '%s  %s\n' "$expected_hash" "$installer_dir/$package" | shasum -a 256 -c -
-        done
+          if [[ -f "$dest" ]]; then
+            echo "Cached installer hash mismatch; re-downloading $dest"
+            rm -f "$dest"
+          fi
+
+          while (( attempt <= max_attempts )); do
+            echo "Downloading $url (attempt ${attempt}/${max_attempts})"
+            if curl --fail --location --http1.1 \
+              --connect-timeout 30 --max-time 600 \
+              -C - --output "$dest" "$url"; then
+              if printf '%s  %s\n' "$expected_hash" "$dest" | shasum -a 256 -c -; then
+                return 0
+              fi
+              echo "SHA-256 mismatch after a complete transfer; discarding $dest"
+              rm -f "$dest"
+            else
+              curl_status=$?
+              echo "Download attempt ${attempt} failed (curl=${curl_status})"
+              # curl 33 = HTTP range error (often a stale/complete local file).
+              # Empty files cannot be resumed usefully.
+              if [[ "$curl_status" -eq 33 ]] || [[ ! -s "$dest" ]]; then
+                rm -f "$dest"
+              fi
+            fi
+            if (( attempt < max_attempts )); then
+              sleep $(( attempt * 5 ))
+            fi
+            attempt=$(( attempt + 1 ))
+          done
+          echo "ERROR: failed to download $url after ${max_attempts} attempts"
+          return 1
+        }
+
+        download_pkg "$base_url/$runtime_pkg" "$installer_dir/$runtime_pkg" "$GSTREAMER_MACOS_RUNTIME_SHA256"
+        download_pkg "$base_url/$devel_pkg" "$installer_dir/$devel_pkg" "$GSTREAMER_MACOS_DEVEL_SHA256"
 
         # Verify both downloads before installing either package.
         sudo installer -pkg "$installer_dir/$runtime_pkg" -target /
@@ -54,6 +110,22 @@ runs:
         echo "RUSTFLAGS=${RUSTFLAGS:+$RUSTFLAGS }-C link-arg=-Wl,-rpath,$framework/lib" >> "$GITHUB_ENV"
         pkg-config --modversion gstreamer-1.0 gstreamer-app-1.0
         gst-inspect-1.0 --version
+
+    - name: Save GStreamer installers cache (macOS)
+      if: runner.os == 'macOS' && steps.gstreamer-cache-macos.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/gstreamer-installers
+        key: gstreamer-macos-1.28.5-0a8fc7a1cf8d7bac-6f7b55e8fb86dcc6
+
+    - name: Restore GStreamer installer cache (Windows)
+      if: runner.os == 'Windows'
+      id: gstreamer-cache-windows
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/gstreamer-installers
+        key: gstreamer-windows-1.28.5-51ee5eaec33008e8
+
     - name: Install GStreamer (Windows)
       if: runner.os == 'Windows'
       env:
@@ -61,15 +133,70 @@ runs:
         GSTREAMER_WINDOWS_SHA256: "51ee5eaec33008e8409d8cf6f6884457f22aa3bd515f8856f993a3eaab903530"
       shell: pwsh
       run: |
-        $installer = Join-Path $env:RUNNER_TEMP "gstreamer-installer.exe"
+        $ErrorActionPreference = 'Stop'
+        # Keep curl non-zero exits under our retry loop instead of treating them
+        # as terminating native-command errors (pwsh 7.3+).
+        $PSNativeCommandUseErrorActionPreference = $false
+        $installerDir = Join-Path $env:RUNNER_TEMP "gstreamer-installers"
+        $installer = Join-Path $installerDir "gstreamer-1.0-msvc-x86_64-$env:GSTREAMER_WINDOWS_VERSION.exe"
         $installDir = Join-Path $env:RUNNER_TEMP "gstreamer"
         $uri = "https://gstreamer.freedesktop.org/data/pkg/windows/$env:GSTREAMER_WINDOWS_VERSION/msvc/gstreamer-1.0-msvc-x86_64-$env:GSTREAMER_WINDOWS_VERSION.exe"
+        New-Item -ItemType Directory -Force -Path $installerDir | Out-Null
 
-        Invoke-WebRequest -Uri $uri -OutFile $installer
-        $actualHash = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
-        if ($actualHash -ne $env:GSTREAMER_WINDOWS_SHA256) {
-          throw "GStreamer installer SHA-256 mismatch: expected $env:GSTREAMER_WINDOWS_SHA256, got $actualHash"
+        function Test-InstallerHash {
+          param([string]$Path, [string]$Expected)
+          if (-not (Test-Path -LiteralPath $Path)) { return $false }
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+          return ($actual -eq $Expected.ToLowerInvariant())
         }
+
+        # Invoke-WebRequest fails with ResponseEnded on flaky transfers. Use
+        # curl.exe with HTTP/1.1 and resume partial files between attempts.
+        function Download-Installer {
+          param(
+            [string]$Uri,
+            [string]$OutFile,
+            [string]$ExpectedHash,
+            [int]$MaxAttempts = 4
+          )
+
+          if (Test-InstallerHash -Path $OutFile -Expected $ExpectedHash) {
+            Write-Host "Using cached installer: $OutFile"
+            return
+          }
+          if (Test-Path -LiteralPath $OutFile) {
+            Write-Host "Cached installer hash mismatch; re-downloading $OutFile"
+            Remove-Item -LiteralPath $OutFile -Force
+          }
+
+          for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+            Write-Host "Downloading $Uri (attempt $attempt/$MaxAttempts)"
+            & curl.exe --fail --location --http1.1 `
+              --connect-timeout 30 --max-time 600 `
+              -C - --output $OutFile $Uri
+            $curlExit = $LASTEXITCODE
+            if ($curlExit -eq 0) {
+              if (Test-InstallerHash -Path $OutFile -Expected $ExpectedHash) {
+                return
+              }
+              Write-Host "SHA-256 mismatch after a complete transfer; discarding $OutFile"
+              Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+            } else {
+              Write-Host "Download attempt $attempt failed (curl=$curlExit)"
+              # curl 33 = HTTP range error (often a stale/complete local file).
+              $empty = -not (Test-Path -LiteralPath $OutFile) -or ((Get-Item -LiteralPath $OutFile).Length -eq 0)
+              if ($curlExit -eq 33 -or $empty) {
+                Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+              }
+            }
+            if ($attempt -lt $MaxAttempts) {
+              Start-Sleep -Seconds ($attempt * 5)
+            }
+          }
+          throw "Failed to download $Uri after $MaxAttempts attempts"
+        }
+
+        Download-Installer -Uri $uri -OutFile $installer -ExpectedHash $env:GSTREAMER_WINDOWS_SHA256
 
         $process = Start-Process -FilePath $installer -ArgumentList @(
           "/TYPE=devel",
@@ -84,3 +211,10 @@ runs:
 
         "$installDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         "PKG_CONFIG_PATH=$installDir\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Save GStreamer installer cache (Windows)
+      if: runner.os == 'Windows' && steps.gstreamer-cache-windows.outputs.cache-hit != 'true'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ${{ runner.temp }}/gstreamer-installers
+        key: gstreamer-windows-1.28.5-51ee5eaec33008e8
