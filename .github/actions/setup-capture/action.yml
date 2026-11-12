@@ -46,14 +46,15 @@ runs:
 
         # freedesktop.org has been aborting large HTTP/2 transfers on GitHub
         # runners (curl exit 92 / PROTOCOL_ERROR). Force HTTP/1.1, resume
-        # partial files, and retry all curl failures — including mid-transfer
-        # drops that --retry alone does not cover.
+        # partial files after mid-transfer drops. Keep retries in this loop:
+        # curl's own retries discard bytes from a failed transfer.
         download_pkg() {
           local url="$1"
           local dest="$2"
           local expected_hash="$3"
-          local max_attempts=6
+          local max_attempts=4
           local attempt=1
+          local curl_status
 
           if [[ -f "$dest" ]] && printf '%s  %s\n' "$expected_hash" "$dest" | shasum -a 256 -c -; then
             echo "Using cached installer: $dest"
@@ -66,26 +67,26 @@ runs:
 
           while (( attempt <= max_attempts )); do
             echo "Downloading $url (attempt ${attempt}/${max_attempts})"
-            local curl_status=0
-            curl --fail --location --http1.1 \
-              --retry 5 --retry-delay 5 --retry-all-errors --retry-connrefused \
-              --connect-timeout 30 --max-time 900 \
-              -C - --output "$dest" "$url" || curl_status=$?
-            if [[ "$curl_status" -eq 0 ]]; then
+            if curl --fail --location --http1.1 \
+              --connect-timeout 30 --max-time 600 \
+              -C - --output "$dest" "$url"; then
               if printf '%s  %s\n' "$expected_hash" "$dest" | shasum -a 256 -c -; then
                 return 0
               fi
               echo "SHA-256 mismatch after a complete transfer; discarding $dest"
               rm -f "$dest"
             else
-              echo "Download attempt ${attempt} failed (curl=${curl_status}); will retry"
+              curl_status=$?
+              echo "Download attempt ${attempt} failed (curl=${curl_status})"
               # curl 33 = HTTP range error (often a stale/complete local file).
               # Empty files cannot be resumed usefully.
               if [[ "$curl_status" -eq 33 ]] || [[ ! -s "$dest" ]]; then
                 rm -f "$dest"
               fi
             fi
-            sleep $(( attempt * 5 ))
+            if (( attempt < max_attempts )); then
+              sleep $(( attempt * 5 ))
+            fi
             attempt=$(( attempt + 1 ))
           done
           echo "ERROR: failed to download $url after ${max_attempts} attempts"
@@ -149,15 +150,14 @@ runs:
           return ($actual -eq $Expected.ToLowerInvariant())
         }
 
-        # Prefer curl.exe over Invoke-WebRequest: the latter has no built-in
-        # retry and fails with ResponseEnded on flaky freedesktop.org transfers.
-        # Match the macOS strategy: HTTP/1.1, resume, and retry-all-errors.
+        # Invoke-WebRequest fails with ResponseEnded on flaky transfers. Use
+        # curl.exe with HTTP/1.1 and resume partial files between attempts.
         function Download-Installer {
           param(
             [string]$Uri,
             [string]$OutFile,
             [string]$ExpectedHash,
-            [int]$MaxAttempts = 6
+            [int]$MaxAttempts = 4
           )
 
           if (Test-InstallerHash -Path $OutFile -Expected $ExpectedHash) {
@@ -172,8 +172,7 @@ runs:
           for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
             Write-Host "Downloading $Uri (attempt $attempt/$MaxAttempts)"
             & curl.exe --fail --location --http1.1 `
-              --retry 5 --retry-delay 5 --retry-all-errors --retry-connrefused `
-              --connect-timeout 30 --max-time 900 `
+              --connect-timeout 30 --max-time 600 `
               -C - --output $OutFile $Uri
             $curlExit = $LASTEXITCODE
             if ($curlExit -eq 0) {
@@ -183,24 +182,21 @@ runs:
               Write-Host "SHA-256 mismatch after a complete transfer; discarding $OutFile"
               Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
             } else {
-              Write-Host "Download attempt $attempt failed (curl=$curlExit); will retry"
+              Write-Host "Download attempt $attempt failed (curl=$curlExit)"
               # curl 33 = HTTP range error (often a stale/complete local file).
               $empty = -not (Test-Path -LiteralPath $OutFile) -or ((Get-Item -LiteralPath $OutFile).Length -eq 0)
               if ($curlExit -eq 33 -or $empty) {
                 Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
               }
             }
-            Start-Sleep -Seconds ($attempt * 5)
+            if ($attempt -lt $MaxAttempts) {
+              Start-Sleep -Seconds ($attempt * 5)
+            }
           }
           throw "Failed to download $Uri after $MaxAttempts attempts"
         }
 
         Download-Installer -Uri $uri -OutFile $installer -ExpectedHash $env:GSTREAMER_WINDOWS_SHA256
-
-        if (-not (Test-InstallerHash -Path $installer -Expected $env:GSTREAMER_WINDOWS_SHA256)) {
-          $actualHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installer).Hash.ToLowerInvariant()
-          throw "GStreamer installer SHA-256 mismatch: expected $env:GSTREAMER_WINDOWS_SHA256, got $actualHash"
-        }
 
         $process = Start-Process -FilePath $installer -ArgumentList @(
           "/TYPE=devel",
