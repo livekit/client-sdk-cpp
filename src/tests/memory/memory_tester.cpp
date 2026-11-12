@@ -72,6 +72,8 @@ struct Options {
   std::uint64_t warmup{20};
   double max_rss_growth_mib{8.0};
   std::uint64_t max_thread_growth{0};
+  double advisory_max_rss_growth_mib{8.0};
+  std::uint64_t advisory_max_thread_growth{0};
 };
 
 struct ProcessSample {
@@ -227,6 +229,8 @@ double parseNonnegativeDouble(std::string_view value, std::string_view option) {
 
 Options parseOptions(int argc, char* argv[]) {
   Options options;
+  bool advisory_rss_limit_set = false;
+  bool advisory_thread_limit_set = false;
   for (int index = 1; index < argc; ++index) {
     const std::string_view option(argv[index]);
     if (index + 1 >= argc) {
@@ -243,9 +247,21 @@ Options parseOptions(int argc, char* argv[]) {
       options.max_rss_growth_mib = parseNonnegativeDouble(value, option);
     } else if (option == "--max-thread-growth") {
       options.max_thread_growth = parseUnsigned(value, option);
+    } else if (option == "--advisory-max-rss-growth-mib") {
+      options.advisory_max_rss_growth_mib = parseNonnegativeDouble(value, option);
+      advisory_rss_limit_set = true;
+    } else if (option == "--advisory-max-thread-growth") {
+      options.advisory_max_thread_growth = parseUnsigned(value, option);
+      advisory_thread_limit_set = true;
     } else {
       throw std::runtime_error("unknown option: " + std::string(option));
     }
+  }
+  if (!advisory_rss_limit_set) {
+    options.advisory_max_rss_growth_mib = options.max_rss_growth_mib;
+  }
+  if (!advisory_thread_limit_set) {
+    options.advisory_max_thread_growth = options.max_thread_growth;
   }
   if (options.warmup == 0 || options.warmup >= options.iterations) {
     throw std::runtime_error("--warmup must be between 1 and --iterations - 1");
@@ -776,6 +792,8 @@ int main(int argc, char* argv[]) {
         static_cast<std::int64_t>(final.process.threads) - static_cast<std::int64_t>(warmup.process.threads);
     const bool passed = kibToMib(final_rss_growth) <= options.max_rss_growth_mib &&
                         final_thread_growth <= static_cast<std::int64_t>(options.max_thread_growth);
+    const bool advisory_passed = kibToMib(final_rss_growth) <= options.advisory_max_rss_growth_mib &&
+                                 final_thread_growth <= static_cast<std::int64_t>(options.advisory_max_thread_growth);
     if (final_thread_growth > 0) {
       if (sustained_thread_growth_iteration == 0) {
         sustained_thread_growth_iteration = options.iterations;
@@ -793,7 +811,7 @@ int main(int argc, char* argv[]) {
               << " MiB (" << kibToMib(final_rss_growth) << " MiB), threads 0 " << initial.process.threads
               << " -> warmup " << warmup.process.threads << " (" << warmup_thread_growth << ") -> final "
               << final.process.threads << " (" << final_thread_growth << "), verdict=" << (passed ? "PASS" : "FAIL")
-              << '\n';
+              << ", advisory=" << (advisory_passed ? "PASS" : "FAIL") << '\n';
     return passed ? 0 : 1;
   } catch (const std::exception& error) {
     std::cerr << "memory tester failed: " << error.what() << '\n';

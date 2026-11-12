@@ -145,7 +145,7 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   } >> "${GITHUB_STEP_SUMMARY}"
 fi
 
-report_regex='memory tester: scenario=([a-z-]+), RSS 0 ([0-9]+\.[0-9]+) -> warmup ([0-9]+\.[0-9]+) MiB \((-?[0-9]+\.[0-9]+) MiB\) -> final ([0-9]+\.[0-9]+) MiB \((-?[0-9]+\.[0-9]+) MiB\), threads 0 ([0-9]+) -> warmup ([0-9]+) \((-?[0-9]+)\) -> final ([0-9]+) \((-?[0-9]+)\), verdict=(PASS|FAIL)'
+report_regex='memory tester: scenario=([a-z-]+), RSS 0 ([0-9]+\.[0-9]+) -> warmup ([0-9]+\.[0-9]+) MiB \((-?[0-9]+\.[0-9]+) MiB\) -> final ([0-9]+\.[0-9]+) MiB \((-?[0-9]+\.[0-9]+) MiB\), threads 0 ([0-9]+) -> warmup ([0-9]+) \((-?[0-9]+)\) -> final ([0-9]+) \((-?[0-9]+)\), verdict=(PASS|FAIL), advisory=(PASS|FAIL)'
 
 format_growth() {
   if [[ "$1" == "0" || "$1" == "0.00" || "$1" == -* ]]; then
@@ -164,7 +164,9 @@ for current_scenario in "${scenarios[@]}"; do
       --iterations "${iterations}" \
       --warmup "${warmup}" \
       --max-rss-growth-mib "${max_rss_growth_mib}" \
-      --max-thread-growth "${max_thread_growth}" 2>&1
+      --max-thread-growth "${max_thread_growth}" \
+      --advisory-max-rss-growth-mib "${advisory_max_rss_growth_mib}" \
+      --advisory-max-thread-growth "${advisory_max_thread_growth}" 2>&1
   )"
   status=$?
   set -e
@@ -172,11 +174,7 @@ for current_scenario in "${scenarios[@]}"; do
 
   if [[ "${output}" =~ ${report_regex} ]]; then
     advisory_exceeded=false
-    if awk -v growth="${BASH_REMATCH[6]}" -v limit="${advisory_max_rss_growth_mib}" \
-        'BEGIN { exit !(growth > limit) }'; then
-      advisory_exceeded=true
-    fi
-    if (( BASH_REMATCH[11] > advisory_max_thread_growth )); then
+    if [[ "${BASH_REMATCH[13]}" == "FAIL" ]]; then
       advisory_exceeded=true
     fi
 
