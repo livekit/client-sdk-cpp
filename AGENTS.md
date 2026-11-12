@@ -150,8 +150,12 @@ source builds require clang/clang++ 21+ and a matching libclang runtime;
 `build.sh` sources `scripts/setup-linux-toolchain.sh` to discover versioned
 installations and validate the toolchain. Source that script before direct
 Linux CMake usage. The build script rejects stale build directories configured
-with another compiler. macOS builds use Xcode Apple Clang selected through
-`xcrun`. On macOS:
+with another compiler. macOS builds use Apple Clang from standalone Xcode
+Command Line Tools or full Xcode selected through `xcrun`. `build.sh` exports
+`CC`, `CXX`, and `SDKROOT` for both CMake and Cargo; an explicit `SDKROOT` must
+be an absolute SDK directory containing `usr/include/TargetConditionals.h`.
+When unset or empty, `SDKROOT` is discovered with
+`xcrun --sdk macosx --show-sdk-path`. On macOS:
 `brew install cmake ninja protobuf abseil`. On Linux: see `docs/building.md`
 and the CI workflow for apt packages. spdlog is vendored automatically via
 FetchContent (or vcpkg on Windows) to avoid system conflicts.
