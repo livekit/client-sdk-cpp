@@ -47,7 +47,6 @@ runs:
         import os
         import pathlib
         import subprocess
-        import time
         sources = sorted(set(os.environ["VARIANT_SOURCES"].split(",")))
         if not sources or any(source not in {"clock", "gstreamer", "pattern"} for source in sources):
             raise SystemExit("Invalid selective capture source set")
@@ -62,7 +61,6 @@ runs:
                         os.environ["VARIANT_CONFIG_HASH"], rust_sha])
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
             output.write(f"cargo-dir={cargo_dir.as_posix()}\nkey={key}\n")
-            output.write(f"started-at={time.monotonic()}\n")
             output.write("bundle-dir=sdk-out/capture-" + "-".join(sources) + "\n")
         PYCODE
     - name: Restore variant Cargo cache
@@ -99,9 +97,6 @@ runs:
       shell: bash
       env:
         VARIANT_CARGO_DIR: ${{ steps.variant.outputs.cargo-dir }}
-        VARIANT_SOURCES: ${{ inputs.sources }}
-        VARIANT_STARTED_AT: ${{ steps.variant.outputs.started-at }}
-        VARIANT_CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
       run: |
         set -euo pipefail
         variant_python=python
@@ -110,15 +105,10 @@ runs:
         import os
         import pathlib
         import shutil
-        import time
         path = pathlib.Path(os.environ["VARIANT_CARGO_DIR"]).resolve()
         root = pathlib.Path(os.environ["CARGO_TARGET_DIR"]).resolve()
         if path.parent != root or not path.name.startswith("cpp-"):
             raise SystemExit("Refusing to remove a path outside the feature-specific Cargo root")
         if path.exists():
             shutil.rmtree(path)
-        elapsed = time.monotonic() - float(os.environ["VARIANT_STARTED_AT"])
-        cache = "hit" if os.environ["VARIANT_CACHE_HIT"] == "true" else "miss"
-        with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
-            summary.write(f"Capture `{os.environ['VARIANT_SOURCES']}`: {elapsed:.0f}s; Cargo cache {cache}.\n\n")
         PYCODE
