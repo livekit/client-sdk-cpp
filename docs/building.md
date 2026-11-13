@@ -98,6 +98,7 @@ sudo apt install -y \
   libwayland-dev libdecor-0-dev
 ```
 
+<a id="macos"></a>
 ### macOS
 
 Install Apple's standalone Command Line Tools, or use an existing full Xcode
