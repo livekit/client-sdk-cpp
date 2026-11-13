@@ -43,9 +43,8 @@
 #include "room.pb.h"
 
 #if LIVEKIT_CAPTURE_ENABLED
-#include "livekit/capture/audio_capture_source.h"
-#include "livekit/capture/audio_playout_sink.h"
-#include "livekit/capture/capture_source.h"
+#include "livekit/capture/audio_source.h"
+#include "livekit/capture/video_source.h"
 #endif
 
 namespace livekit {

@@ -15,8 +15,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <livekit/capture/audio_capture_source.h>
-#include <livekit/capture/audio_playout_sink.h>
+#include <livekit/capture/audio_source.h>
 #include <livekit/livekit.h>
 
 #include <chrono>
@@ -39,7 +38,7 @@ protected:
 };
 
 TEST_F(GstreamerAudioTest, CapturesSyntheticPcmAndReportsFormatAndStats) {
-  capture::GstreamerAudioCaptureConfig config;
+  capture::GstreamerAudioSourceConfig config;
   config.pipeline =
       "audiotestsrc wave=sine samplesperbuffer=480 num-buffers=8 ! "
       "audio/x-raw,format=S16LE,layout=interleaved,rate=48000,channels=1 ! "

@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "livekit/capture/capture_source.h"
-
 #include <exception>
 #include <limits>
 #include <stdexcept>
@@ -24,6 +22,7 @@
 #include "capture_source_internal.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
+#include "livekit/capture/video_source.h"
 
 namespace livekit::capture {
 

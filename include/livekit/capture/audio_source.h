@@ -19,7 +19,7 @@
 #include "livekit/build.h"
 
 #if !LIVEKIT_CAPTURE_ENABLED && !defined(LIVEKIT_BUILDING_SDK)
-#error "Audio playout requires a capture-enabled LiveKit SDK; rebuild with --capture=gstreamer."
+#error "Audio capture requires a capture-enabled LiveKit SDK; rebuild with --capture=gstreamer."
 #endif
 
 #include <cstdint>
@@ -27,14 +27,125 @@
 #include <memory>
 #include <string>
 
+#include "livekit/audio_source.h"
+#include "livekit/capture/capture_types.h"
 #include "livekit/remote_audio_track.h"
+#include "livekit/result.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
+
 class FfiClient;
+
+namespace proto {
+class OwnedAudioCaptureSource;
+} // namespace proto
+
 } // namespace livekit
 
 namespace livekit::capture {
+
+/// @brief Fixed PCM format produced by a GStreamer audio capture source.
+struct AudioCaptureFormat {
+  /// @brief Sample rate in Hz.
+  std::uint32_t sample_rate = 0;
+
+  /// @brief Number of interleaved channels.
+  std::uint32_t num_channels = 0;
+
+  /// @brief Number of samples per channel in each captured frame.
+  std::uint32_t samples_per_channel = 0;
+};
+
+/// @brief Configuration for PCM S16LE audio ingest from GStreamer.
+struct GstreamerAudioSourceConfig {
+  /// @brief GStreamer launch description.
+  ///
+  /// @note Must contain `appsink name=lk_audio_appsink`.
+  std::string pipeline;
+
+  /// @brief Output sample rate in Hz.
+  std::uint32_t sample_rate = 48000;
+
+  /// @brief Number of interleaved output channels.
+  std::uint32_t num_channels = 1;
+
+  /// @brief Frame duration in milliseconds.
+  std::uint32_t frame_duration_ms = 10;
+};
+
+/// @brief GStreamer audio capture source backed by a Rust capture pump.
+///
+/// Creation builds the pipeline asynchronously. The object owns both the
+/// capture pump and the returned @ref AudioSource. Keep it alive while a local
+/// audio track uses that source. This type is not safe for concurrent lifecycle
+/// calls.
+class LIVEKIT_API GstreamerAudioCaptureSource {
+public:
+  /// @brief Create a GStreamer audio capture source asynchronously.
+  ///
+  /// Completes asynchronously after Rust initializes the producer and RTC
+  /// source. Keep the future to overlap setup with other work, or await it
+  /// immediately. Destroying the future does not wait for creation; an
+  /// abandoned result is released when creation completes.
+  ///
+  /// @param config Pipeline and fixed PCM output format.
+  /// @return Future containing the created source on success.
+  /// @throws std::runtime_error When awaiting the future if setup, transport,
+  /// protocol validation, or SDK shutdown fails.
+  /// @throws std::bad_alloc If allocation fails.
+  [[nodiscard]] static std::future<Result<std::shared_ptr<GstreamerAudioCaptureSource>, CaptureError>> create(
+      const GstreamerAudioSourceConfig& config);
+
+  ~GstreamerAudioCaptureSource();
+
+  GstreamerAudioCaptureSource(const GstreamerAudioCaptureSource&) = delete;
+  GstreamerAudioCaptureSource& operator=(const GstreamerAudioCaptureSource&) = delete;
+  GstreamerAudioCaptureSource(GstreamerAudioCaptureSource&&) = delete;
+  GstreamerAudioCaptureSource& operator=(GstreamerAudioCaptureSource&&) = delete;
+
+  /// @brief Negotiated fixed PCM format.
+  /// @return Audio format reported by Rust.
+  AudioCaptureFormat format() const noexcept;
+
+  /// @brief RTC audio source fed by the capture pump.
+  /// @return Owned audio source suitable for `LocalAudioTrack::createLocalAudioTrack()`.
+  std::shared_ptr<AudioSource> audioSource() const noexcept;
+
+  /// @brief Start pumping pipeline audio into the RTC source.
+  /// @return Success when Rust acknowledges the request.
+  /// @throws std::runtime_error If the request cannot be completed.
+  [[nodiscard]] Result<void, CaptureError> start();
+
+  /// @brief Signal capture to stop without waiting for cleanup.
+  ///
+  /// Call @ref join() to synchronize and retrieve the terminal result.
+  /// Stopping an already-finished capture is a no-op.
+  ///
+  /// @return Success when Rust acknowledges the request.
+  /// @throws std::runtime_error If the request cannot be completed.
+  [[nodiscard]] Result<void, CaptureError> stop();
+
+  /// @brief Wait asynchronously for capture to finish and return audio statistics.
+  ///
+  /// Call @ref stop() first for an unbounded pipeline. The returned
+  /// @ref CaptureResult includes frame, sample, byte, and timestamp statistics.
+  /// Join may be called only once after a successful @ref start().
+  ///
+  /// @return Future containing terminal statistics or a structured capture error.
+  /// @throws std::runtime_error When awaiting the future if transport, protocol,
+  /// cancellation, or SDK shutdown fails.
+  [[nodiscard]] std::future<Result<CaptureResult, CaptureError>> join();
+
+private:
+  friend class livekit::FfiClient;
+
+  GstreamerAudioCaptureSource();
+  static std::shared_ptr<GstreamerAudioCaptureSource> fromOwned(const proto::OwnedAudioCaptureSource& owned);
+
+  struct Impl;
+  std::unique_ptr<Impl> impl_;
+};
 
 /// @brief Configuration for mixed PCM S16LE playout through GStreamer.
 struct GstreamerAudioPlayoutConfig {

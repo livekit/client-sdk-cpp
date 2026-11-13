@@ -37,7 +37,7 @@
 #include "room_proto_converter.h"
 
 #if LIVEKIT_CAPTURE_ENABLED
-#include "livekit/capture/capture_source.h"
+#include "livekit/capture/video_source.h"
 #endif
 
 namespace livekit {

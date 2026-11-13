@@ -12,7 +12,7 @@ remote-track GStreamer audio playout.
 | `PatternVideoSourceConfig` | GPU-rendered gradient or LiveKit logo | Compatible GPU adapter |
 | `ClockVideoSourceConfig` | GPU-rendered local time with millisecond precision | Compatible GPU adapter |
 | `GstreamerVideoSourceConfig` | Pre-encoded video from a GStreamer pipeline | GStreamer runtime and the pipeline's plugins |
-| `GstreamerAudioCaptureConfig` | PCM S16LE audio into an `AudioSource` | GStreamer runtime and the pipeline's plugins |
+| `GstreamerAudioSourceConfig` | PCM S16LE audio into an `AudioSource` | GStreamer runtime and the pipeline's plugins |
 | `GstreamerAudioPlayoutConfig` | Mixed remote audio tracks into GStreamer | GStreamer runtime and the pipeline's plugins |
 
 A custom SDK build can include all sources or a subset selected with
@@ -32,10 +32,18 @@ requirements, see [Building — Capture sources](building.md#capture-sources).
 Capture types live in the `livekit::capture` namespace. Capture-enabled bundles
 install the API in `include/livekit/capture/`:
 
+| Header | Contents |
+| --- | --- |
+| `capture_source.h` | Umbrella for all capture and playout APIs; existing callers can keep this include |
+| `audio_source.h` | Audio capture, mixed audio playout, and their configurations |
+| `video_source.h` | Video capture and its configurations |
+| `capture_types.h` | Shared capture results, errors, and exit reasons |
+
+Include the umbrella for the full API, or the audio and video headers directly:
+
 ```cpp
-#include <livekit/capture/capture_source.h>
-#include <livekit/capture/audio_capture_source.h>
-#include <livekit/capture/audio_playout_sink.h>
+#include <livekit/capture/video_source.h>
+#include <livekit/capture/audio_source.h>
 ```
 
 Standard SDK bundles omit the `capture/` directory, and their other installed
@@ -57,7 +65,7 @@ continues, and the source is released when the callback arrives.
 
 ```cpp
 #include <livekit/livekit.h>
-#include <livekit/capture/capture_source.h>
+#include <livekit/capture/video_source.h>
 
 // The SDK is initialized, and room is connected.
 try {
@@ -98,13 +106,18 @@ capture.
 
 ## GStreamer audio capture
 
+`GstreamerAudioSourceConfig` follows the naming of `GstreamerVideoSourceConfig`.
+Both source APIs create asynchronously and use
+the same `start()`, `stop()`, and `join()` lifecycle, `CaptureResult`, and
+`CaptureError` types.
+
 `GstreamerAudioCaptureSource` asynchronously creates a fixed-format PCM S16LE
 pipeline and owns the `AudioSource` fed by its Rust capture pump. Publish that
 source through a normal `LocalAudioTrack`, then use the same start, stop, and
 join lifecycle as video capture:
 
 ```cpp
-livekit::capture::GstreamerAudioCaptureConfig config;
+livekit::capture::GstreamerAudioSourceConfig config;
 config.pipeline = "audiotestsrc ! audioconvert ! "
                   "audio/x-raw,format=S16LE,layout=interleaved,rate=48000,channels=1 ! "
                   "appsink name=lk_audio_appsink";
@@ -125,6 +138,10 @@ auto result = capture->join().get().value();
 
 The negotiated `format()` reports sample rate, channel count, and samples per
 channel. Rust validates that pipeline caps match the requested fixed format.
+Unlike video resolution and codec discovery, audio requires an explicit fixed
+format (48 kHz, mono, 10 ms by default). The pipeline must contain the named
+appsink. Audio capture does not expose video's `publishOptions()` helper;
+publish it with normal audio track options.
 
 ## GStreamer audio playout
 

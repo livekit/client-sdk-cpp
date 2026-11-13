@@ -104,8 +104,9 @@ if(EXISTS "${_sdk_include_dir}/livekit/capture_source.h")
 endif()
 if(_expected_capture)
   if(NOT EXISTS "${_sdk_include_dir}/livekit/capture/capture_source.h" OR
-     NOT EXISTS "${_sdk_include_dir}/livekit/capture/audio_capture_source.h" OR
-     NOT EXISTS "${_sdk_include_dir}/livekit/capture/audio_playout_sink.h")
+     NOT EXISTS "${_sdk_include_dir}/livekit/capture/video_source.h" OR
+     NOT EXISTS "${_sdk_include_dir}/livekit/capture/audio_source.h" OR
+     NOT EXISTS "${_sdk_include_dir}/livekit/capture/capture_types.h")
     message(FATAL_ERROR "Capture SDK is missing the capture public API directory")
   endif()
 elseif(EXISTS "${_sdk_include_dir}/livekit/capture")
@@ -116,19 +117,19 @@ endif()
 include(CheckCXXSourceCompiles)
 set(CMAKE_REQUIRED_INCLUDES "${_sdk_include_dir}")
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
-unset(_capture_header_compiles CACHE)
-check_cxx_source_compiles("#include <livekit/capture/audio_capture_source.h>
-#include <livekit/capture/audio_playout_sink.h>
-#include <livekit/capture/capture_source.h>
-int main() { return 0; }"
-  _capture_header_compiles)
+foreach(_header IN ITEMS capture_source video_source audio_source capture_types)
+  set(_check "_capture_${_header}_compiles")
+  unset(${_check} CACHE)
+  check_cxx_source_compiles("#include <livekit/capture/${_header}.h>
+int main() { return 0; }" ${_check})
+  if(_expected_capture AND NOT ${_check})
+    message(FATAL_ERROR "Capture SDK must allow including livekit/capture/${_header}.h")
+  elseif(NOT _expected_capture AND ${_check})
+    message(FATAL_ERROR "Standard SDK must reject including livekit/capture/${_header}.h")
+  endif()
+endforeach()
 unset(CMAKE_REQUIRED_INCLUDES)
 unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
-if(_expected_capture AND NOT _capture_header_compiles)
-  message(FATAL_ERROR "Capture SDK must allow including livekit/capture/capture_source.h")
-elseif(NOT _expected_capture AND _capture_header_compiles)
-  message(FATAL_ERROR "Standard SDK must reject including livekit/capture/capture_source.h")
-endif()
 
 add_executable(livekit_capture_package_test test_capture_bundle.cpp)
 target_compile_features(livekit_capture_package_test PRIVATE cxx_std_17)
