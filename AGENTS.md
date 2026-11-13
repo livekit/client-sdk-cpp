@@ -85,6 +85,10 @@ Be sure to update the directory layout in this file if the directory layout chan
 |------|-------------|
 | `include/livekit/` | Public API headers (what SDK consumers include) |
 | `include/livekit/capture/` | Capture API headers; installed only for capture-enabled SDKs |
+| `include/livekit/capture/capture_source.h` | Compatibility umbrella exposing all audio/video capture and audio playout APIs |
+| `include/livekit/capture/audio_source.h` | Audio capture and playout APIs and configurations |
+| `include/livekit/capture/video_source.h` | Video capture API and configurations |
+| `include/livekit/capture/capture_types.h` | Shared capture results, errors, and exit reasons |
 | `src/` | Implementation files and internal-only headers (`ffi_client.h`, `lk_log.h`, etc.) |
 | `src/tests/` | Google Test integration and stress tests |
 | `examples/` | In-tree example applications |

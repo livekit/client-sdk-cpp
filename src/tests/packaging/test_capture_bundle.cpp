@@ -16,8 +16,6 @@
 
 #include <livekit/livekit.h>
 #if LIVEKIT_CAPTURE_ENABLED
-#include <livekit/capture/audio_capture_source.h>
-#include <livekit/capture/audio_playout_sink.h>
 #include <livekit/capture/capture_source.h>
 #endif
 
@@ -92,7 +90,7 @@ bool checkSources() {
 
   if (LIVEKIT_EXPECT_GSTREAMER) {
     try {
-      livekit::capture::GstreamerAudioCaptureConfig audio;
+      livekit::capture::GstreamerAudioSourceConfig audio;
       audio.pipeline =
           "audiotestsrc samplesperbuffer=480 num-buffers=2 ! "
           "audio/x-raw,format=S16LE,layout=interleaved,rate=48000,channels=1 ! "

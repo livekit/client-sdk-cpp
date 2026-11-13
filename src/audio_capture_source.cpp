@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#include "livekit/capture/audio_capture_source.h"
-
 #include <exception>
 #include <limits>
 #include <stdexcept>
@@ -23,6 +21,7 @@
 
 #include "capture.pb.h"
 #include "ffi_client.h"
+#include "livekit/capture/audio_source.h"
 #include "livekit/ffi_handle.h"
 
 namespace livekit {
@@ -47,7 +46,7 @@ GstreamerAudioCaptureSource::GstreamerAudioCaptureSource() : impl_(std::make_uni
 GstreamerAudioCaptureSource::~GstreamerAudioCaptureSource() = default;
 
 std::future<Result<std::shared_ptr<GstreamerAudioCaptureSource>, CaptureError>> GstreamerAudioCaptureSource::create(
-    const GstreamerAudioCaptureConfig& config) {
+    const GstreamerAudioSourceConfig& config) {
   proto::NewAudioCaptureSourceRequest request;
   auto* gstreamer = request.mutable_gstreamer();
   gstreamer->set_pipeline(config.pipeline);

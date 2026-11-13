@@ -109,8 +109,10 @@ means none. Explicit source selections determine the expected capture flag.
 The test creates a GStreamer VP8 source when that source is selected. It also
 requires each omitted backend to report the feature-disabled error. Configuration
 checks that `include/livekit/capture/` is present only in capture bundles and
-that direct inclusion of `livekit/capture/capture_source.h` succeeds only in
-those bundles. The obsolete flat capture header must be absent. Both variants must
+that each capture header compiles independently only in those bundles,
+including `video_source.h` and the compatibility umbrella `capture_source.h`.
+The umbrella is also used by the runtime packaging test to exercise both audio
+and video APIs. The obsolete flat capture header must be absent. Both variants must
 still compile with `livekit/livekit.h`. It needs no LiveKit server.
 GStreamer-enabled runs require the pipeline's plugins. Set
 `LIVEKIT_VERIFY_PIXEL_SOURCES=ON` to also require successful pattern and clock

@@ -14,12 +14,11 @@
  * limitations under the License.
  */
 
-#include "livekit/capture/audio_playout_sink.h"
-
 #include <utility>
 
 #include "capture.pb.h"
 #include "ffi_client.h"
+#include "livekit/capture/audio_source.h"
 #include "livekit/ffi_handle.h"
 
 namespace livekit::capture {

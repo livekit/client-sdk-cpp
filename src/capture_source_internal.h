@@ -20,7 +20,7 @@
 #include <utility>
 
 #include "capture.pb.h"
-#include "livekit/capture/capture_source.h"
+#include "livekit/capture/video_source.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
