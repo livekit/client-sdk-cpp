@@ -56,42 +56,6 @@ sources, or support optional repository targets.
 This section outlines the recommended dependency/environmental setup for
 each supported platform.
 
-### macOS
-
-Install Apple's standalone Command Line Tools, or use an existing full Xcode
-installation:
-
-```bash
-xcode-select --install
-```
-
-After installation, verify the selected developer directory, compiler, and SDK:
-
-```bash
-xcode-select -p
-xcrun --sdk macosx --find clang++
-xcrun --sdk macosx --show-sdk-path
-```
-
-Standalone tools normally select `/Library/Developer/CommandLineTools`; full
-Xcode normally selects `/Applications/Xcode.app/Contents/Developer`. If the
-selection points to an old or removed installation, select the installed tools:
-
-```bash
-sudo xcode-select --switch /Library/Developer/CommandLineTools
-# Or, for full Xcode:
-# sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
-```
-
-Install the remaining tools with Homebrew:
-
-```bash
-brew install cmake ninja protobuf abseil rust
-```
-
-`build.sh` selects Apple Clang through `xcrun` and exports `CC`, `CXX`, and
-`SDKROOT` for CMake and Cargo. You do not need to export `SDKROOT` manually.
-
 ### Linux
 
 ```bash
@@ -133,6 +97,42 @@ sudo apt install -y \
   libasound2-dev libpulse-dev \
   libwayland-dev libdecor-0-dev
 ```
+
+### macOS
+
+Install Apple's standalone Command Line Tools, or use an existing full Xcode
+installation:
+
+```bash
+xcode-select --install
+```
+
+After installation, verify the selected developer directory, compiler, and SDK:
+
+```bash
+xcode-select -p
+xcrun --sdk macosx --find clang++
+xcrun --sdk macosx --show-sdk-path
+```
+
+Standalone tools normally select `/Library/Developer/CommandLineTools`; full
+Xcode normally selects `/Applications/Xcode.app/Contents/Developer`. If the
+selection points to an old or removed installation, select the installed tools:
+
+```bash
+sudo xcode-select --switch /Library/Developer/CommandLineTools
+# Or, for full Xcode:
+# sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+```
+
+Install the remaining tools with Homebrew:
+
+```bash
+brew install cmake ninja protobuf abseil rust
+```
+
+`build.sh` selects Apple Clang through `xcrun` and exports `CC`, `CXX`, and
+`SDKROOT` for CMake and Cargo. You do not need to export `SDKROOT` manually.
 
 ### Windows
 
