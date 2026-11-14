@@ -35,9 +35,10 @@ TEST(E2EETest, E2EEOptionsDefaults) {
 }
 
 TEST(E2EETest, FrameCryptorAccessors) {
-  E2EEManager::FrameCryptor cryptor(/*room_handle=*/0, "alice", /*key_index=*/3,
+  E2EEManager::FrameCryptor cryptor(/*room_handle=*/0, "alice", "TR_alice", /*key_index=*/3,
                                     /*enabled=*/true);
   EXPECT_EQ(cryptor.participantIdentity(), "alice");
+  EXPECT_EQ(cryptor.trackSid(), "TR_alice");
   EXPECT_EQ(cryptor.keyIndex(), 3);
   EXPECT_TRUE(cryptor.enabled());
 }

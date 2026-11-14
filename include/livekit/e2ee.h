@@ -160,10 +160,11 @@ public:
     KeyProviderOptions options_;
   };
 
-  /// @brief Frame-level cryptor controls for one participant.
+  /// @brief Frame-level cryptor controls for one participant's track.
   class LIVEKIT_API FrameCryptor {
   public:
-    FrameCryptor(std::uint64_t room_handle, std::string participant_identity, int key_index, bool enabled);
+    FrameCryptor(std::uint64_t room_handle, std::string participant_identity, std::string track_sid, int key_index,
+                 bool enabled);
     ~FrameCryptor() = default;
     FrameCryptor(const FrameCryptor&) = delete;
     FrameCryptor& operator=(const FrameCryptor&) = delete;
@@ -171,6 +172,8 @@ public:
     FrameCryptor& operator=(FrameCryptor&&) noexcept = default;
 
     const std::string& participantIdentity() const;
+    /// The sid of the track this cryptor encrypts or decrypts.
+    const std::string& trackSid() const;
     int keyIndex() const;
     bool enabled() const;
 
@@ -184,6 +187,7 @@ public:
     std::uint64_t room_handle_{0};
     bool enabled_{false};
     std::string participant_identity_;
+    std::string track_sid_;
     int key_index_{0};
   };
 

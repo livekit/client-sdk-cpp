@@ -20,6 +20,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <tuple>
 #include <vector>
 
 #include "../common/audio_utils.h"
@@ -51,6 +52,37 @@ TEST_F(E2EEIntegrationTest, FrameCryptorsIncludePublishedTrack) {
   });
   EXPECT_TRUE(found) << "No frame cryptor for the local participant's track";
   participant->unpublishTrack(track->publication()->sid());
+}
+
+TEST_F(E2EEIntegrationTest, FrameCryptorSettersApplyToItsTrack) {
+  failIfNotConfigured();
+
+  Room room;
+  RoomOptions room_options;
+  room_options.encryption = E2EEOptions{};
+  room_options.encryption->key_provider_options.shared_key = std::vector<std::uint8_t>{'k', 'e', 'y'};
+  ASSERT_TRUE(room.connect(config_.url, config_.token_a, room_options));
+  auto participant = lockLocalParticipant(room);
+  auto source = std::make_shared<AudioSource>(kDefaultAudioSampleRate, kDefaultAudioChannels, 0);
+  auto track = participant->publishAudioTrack("e2ee-key-index", source, TrackSource::SOURCE_MICROPHONE);
+  const std::string track_sid = track->publication()->sid();
+  auto manager = room.e2eeManager().lock();
+  ASSERT_NE(manager, nullptr);
+  manager->keyProvider().lock()->setSharedKey(std::vector<std::uint8_t>{'n', 'e', 'w'}, 1);
+
+  for (auto& cryptor : manager->frameCryptors()) {
+    cryptor.setKeyIndex(1);
+    cryptor.setEnabled(false);
+  }
+
+  std::vector<std::tuple<std::string, std::string, int, bool>> states;
+  for (const auto& cryptor : manager->frameCryptors()) {
+    states.emplace_back(cryptor.participantIdentity(), cryptor.trackSid(), cryptor.keyIndex(), cryptor.enabled());
+  }
+  EXPECT_EQ(
+      states,
+      (std::vector<std::tuple<std::string, std::string, int, bool>>{{participant->identity(), track_sid, 1, false}}));
+  participant->unpublishTrack(track_sid);
 }
 
 } // namespace livekit::test
