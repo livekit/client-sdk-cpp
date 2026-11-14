@@ -232,6 +232,45 @@ The build scripts pass an explicit job count to `cmake --build --parallel`. Set
 Run `./build.sh help` for additional packaging and configuration options,
 including `--archive`, `--archive-name`, `--version`, and `-G`.
 
+## Cross-compiling for Android
+
+Android builds use the NDK's CMake toolchain file from a Linux or macOS host.
+They need:
+
+- **Android NDK r27 or newer.** Older NDKs can't compile `webrtc-sys`.
+- **The Rust target** for the ABI: `aarch64-linux-android` (`arm64-v8a`),
+  `armv7-linux-androideabi` (`armeabi-v7a`) or `x86_64-linux-android` (`x86_64`).
+  Run `rustup target add` from `client-sdk-rust`, which pins the toolchain.
+- **A host `protoc` 25.3.** The vendored Protobuf can't build one that runs on
+  the host when cross-compiling. Pass it with `Protobuf_PROTOC_EXECUTABLE`.
+
+```bash
+(cd client-sdk-rust && rustup target add aarch64-linux-android)
+cmake -S . -B build-android -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake" \
+  -DANDROID_ABI=arm64-v8a \
+  -DANDROID_PLATFORM=android-24 \
+  -DANDROID_STL=c++_shared \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DProtobuf_PROTOC_EXECUTABLE=/path/to/protoc
+cmake --build build-android
+cmake --install build-android --prefix sdk-out/livekit-sdk-android-arm64
+```
+
+Use `ANDROID_STL=c++_shared`, and ship `libc++_shared.so` with the app. The SDK
+throws exceptions to its callers, which the app can't catch if `liblivekit` has
+its own copy of the C++ runtime.
+
+On Android:
+
+- **Java and JNI setup.** WebRTC uses Java for audio I/O, so the app has to
+  include `libwebrtc.jar` from the same WebRTC release as `livekit_ffi`. It also
+  has to load `livekit_ffi` with `System.loadLibrary`, so its `JNI_OnLoad` runs.
+- **Certificates.** `livekit_ffi` trusts the Mozilla CA roots it bundles,
+  through `rustls-tls-webpki-roots`, rather than the system's certificates.
+- **No HTTP token sources.** There's no system libcurl, so `TokenSource`'s HTTP
+  requests return an error.
+
 ## Advanced: CMake presets
 
 For more control, drive CMake directly via the presets in

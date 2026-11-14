@@ -27,6 +27,10 @@ if(NOT CFG STREQUAL "Debug")
   list(APPEND ARGS --release)
 endif()
 
+if(CARGO_NO_DEFAULT_FEATURES)
+  list(APPEND ARGS --no-default-features)
+endif()
+
 if(DEFINED CARGO_FEATURES AND NOT CARGO_FEATURES STREQUAL "")
   list(APPEND ARGS --features "${CARGO_FEATURES}")
   message(STATUS "[run_cargo.cmake] Cargo features: ${CARGO_FEATURES}")
@@ -47,6 +51,22 @@ endif()
 if(DEFINED GCC_LIB_DIR AND NOT GCC_LIB_DIR STREQUAL "")
   set(ENV{RUSTFLAGS} "-L ${GCC_LIB_DIR} $ENV{RUSTFLAGS}")
   set(ENV{LD_LIBRARY_PATH} "${GCC_LIB_DIR}:$ENV{LD_LIBRARY_PATH}")
+endif()
+
+# Point cargo, the cc crate and bindgen at the NDK's toolchain for the target, as cargo-ndk does. webrtc-sys
+# finds the NDK through ANDROID_NDK_HOME.
+if(DEFINED ANDROID_NDK AND NOT ANDROID_NDK STREQUAL "")
+  string(REPLACE "-" "_" _target_env "${RUST_TARGET}")
+  string(TOUPPER "${_target_env}" _target_env_upper)
+  get_filename_component(_toolchain_bin "${ANDROID_CC}" DIRECTORY)
+  get_filename_component(_toolchain_root "${_toolchain_bin}" DIRECTORY)
+  set(ENV{ANDROID_NDK_HOME} "${ANDROID_NDK}")
+  set(ENV{CC_${_target_env}} "${ANDROID_CC}")
+  set(ENV{CXX_${_target_env}} "${ANDROID_CC}++")
+  set(ENV{AR_${_target_env}} "${ANDROID_AR}")
+  set(ENV{CARGO_TARGET_${_target_env_upper}_LINKER} "${ANDROID_CC}")
+  set(ENV{BINDGEN_EXTRA_CLANG_ARGS_${_target_env}} "--sysroot=${_toolchain_root}/sysroot")
+  message(STATUS "[run_cargo.cmake] Android NDK=${ANDROID_NDK}  CC=${ANDROID_CC}")
 endif()
 
 execute_process(

@@ -27,14 +27,14 @@
 #endif
 #include <windows.h>
 #include <winhttp.h>
-#else
+#elif !defined(__ANDROID__)
 #include <curl/curl.h>
 #endif
 
 namespace livekit {
 namespace {
 
-#if !defined(_WIN32)
+#if !defined(_WIN32) && !defined(__ANDROID__)
 size_t curlWriteCallback(char* contents, size_t size, size_t nmemb, void* user_data) {
   const size_t total_size = size * nmemb;
   auto* response = static_cast<std::string*>(user_data);
@@ -43,6 +43,7 @@ size_t curlWriteCallback(char* contents, size_t size, size_t nmemb, void* user_d
 }
 #endif
 
+#if !defined(__ANDROID__)
 std::string normalizeHttpMethod(std::string method) {
   if (method.empty()) {
     return "POST";
@@ -61,6 +62,7 @@ std::int64_t effectiveTimeoutMs(std::chrono::milliseconds timeout) {
   const std::int64_t count = timeout.count();
   return count > 0 ? count : kDefaultTimeoutMs;
 }
+#endif
 
 #if defined(_WIN32)
 std::wstring toWide(const std::string& value) {
@@ -198,6 +200,14 @@ Result<std::string, std::string> tokenSourceHttpRequest(const std::string& metho
                                                         std::chrono::milliseconds timeout) {
 #if defined(_WIN32)
   return winHttpRequest(method, url, headers, json_body, timeout);
+#elif defined(__ANDROID__)
+  // Android has no system libcurl, and bundling one would mean bundling a TLS library too.
+  static_cast<void>(method);
+  static_cast<void>(url);
+  static_cast<void>(headers);
+  static_cast<void>(json_body);
+  static_cast<void>(timeout);
+  return Result<std::string, std::string>::failure("HTTP token sources aren't supported on Android");
 #else
   CURL* curl = curl_easy_init();
   if (curl == nullptr) {

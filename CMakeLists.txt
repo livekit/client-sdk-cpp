@@ -211,6 +211,15 @@ if(_lk_capture_features)
   list(JOIN _lk_capture_features "," LIVEKIT_CARGO_FEATURES)
   set(LIVEKIT_CAPTURE_ENABLED 1)
 endif()
+# Android keeps its CA certificates where rustls-native-certs doesn't look, so use the bundled webpki roots there, as
+# LiveKit's own Android FFI builds do.
+set(LIVEKIT_CARGO_NO_DEFAULT_FEATURES OFF)
+if(ANDROID)
+  set(LIVEKIT_CARGO_NO_DEFAULT_FEATURES ON)
+  set(_lk_cargo_features ${_lk_capture_features} room-apis rustls-tls-webpki-roots)
+  list(SORT _lk_cargo_features)
+  list(JOIN _lk_cargo_features "," LIVEKIT_CARGO_FEATURES)
+endif()
 message(STATUS "LIVEKIT_CAPTURE='${LIVEKIT_CAPTURE}' -> cargo features: '${LIVEKIT_CARGO_FEATURES}'")
 
 set(GIT_COMMIT "unknown")
@@ -261,13 +270,54 @@ configure_file(
 
 find_program(CARGO_EXECUTABLE NAMES cargo REQUIRED)
 
-# Determine Rust target triple for cross-compilation on macOS
+# Determine Rust target triple for cross-compilation on macOS and Android
 set(RUST_TARGET_TRIPLE "")
+set(LIVEKIT_ANDROID_NDK "")
+set(LIVEKIT_ANDROID_CC "")
 if(APPLE AND CMAKE_OSX_ARCHITECTURES)
   if(CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64")
     set(RUST_TARGET_TRIPLE "x86_64-apple-darwin")
   elseif(CMAKE_OSX_ARCHITECTURES STREQUAL "arm64")
     set(RUST_TARGET_TRIPLE "aarch64-apple-darwin")
+  endif()
+elseif(ANDROID)
+  # The NDK names its clang wrappers after the target triple, which differs from Rust's for 32-bit ARM.
+  if(CMAKE_ANDROID_ARCH_ABI STREQUAL "arm64-v8a")
+    set(RUST_TARGET_TRIPLE "aarch64-linux-android")
+    set(_lk_android_clang_triple "aarch64-linux-android")
+  elseif(CMAKE_ANDROID_ARCH_ABI STREQUAL "armeabi-v7a")
+    set(RUST_TARGET_TRIPLE "armv7-linux-androideabi")
+    set(_lk_android_clang_triple "armv7a-linux-androideabi")
+  elseif(CMAKE_ANDROID_ARCH_ABI STREQUAL "x86_64")
+    set(RUST_TARGET_TRIPLE "x86_64-linux-android")
+    set(_lk_android_clang_triple "x86_64-linux-android")
+  else()
+    message(FATAL_ERROR "Unsupported Android ABI: '${CMAKE_ANDROID_ARCH_ABI}'")
+  endif()
+  set(LIVEKIT_ANDROID_NDK "${CMAKE_ANDROID_NDK}")
+  # Cargo links the FFI itself, so it needs the NDK's compiler for the same ABI and API level as this build.
+  # The NDK's toolchain file sets ANDROID_PLATFORM_LEVEL; CMake's own Android support uses CMAKE_SYSTEM_VERSION.
+  if(DEFINED ANDROID_PLATFORM_LEVEL)
+    set(_lk_android_api "${ANDROID_PLATFORM_LEVEL}")
+  else()
+    set(_lk_android_api "${CMAKE_SYSTEM_VERSION}")
+  endif()
+  get_filename_component(_lk_android_toolchain_bin "${CMAKE_C_COMPILER}" DIRECTORY)
+  set(LIVEKIT_ANDROID_CC
+    "${_lk_android_toolchain_bin}/${_lk_android_clang_triple}${_lk_android_api}-clang")
+  if(NOT EXISTS "${LIVEKIT_ANDROID_CC}")
+    message(FATAL_ERROR "Android NDK compiler not found: ${LIVEKIT_ANDROID_CC}")
+  endif()
+  # The SDK throws exceptions to its callers. With a static C++ runtime, liblivekit and the app's libraries each get
+  # their own copy, so the app can't catch them and aborts instead.
+  if(DEFINED ANDROID_STL)
+    set(_lk_android_stl "${ANDROID_STL}")
+  else()
+    set(_lk_android_stl "${CMAKE_ANDROID_STL_TYPE}")
+  endif()
+  if(NOT _lk_android_stl STREQUAL "c++_shared")
+    message(WARNING "Building for Android with ANDROID_STL='${_lk_android_stl}'. Use c++_shared, or apps won't be "
+                    "able to catch the SDK's exceptions.")
   endif()
 endif()
 
@@ -293,7 +343,8 @@ endif()
 # This is needed when using a non-system GCC (e.g. GCC 14) on an older distro whose
 # system libstdc++ lacks symbols like __cxa_call_terminate.
 set(GCC_LIB_DIR "")
-if(NOT WIN32)
+# The NDK's compiler is clang, and the libraries beside it are for the build machine, not the target.
+if(NOT WIN32 AND NOT ANDROID)
   get_filename_component(_gcc_bin_dir "${CMAKE_C_COMPILER}" DIRECTORY)
   get_filename_component(_gcc_root "${_gcc_bin_dir}" DIRECTORY)
   if(IS_DIRECTORY "${_gcc_root}/lib64")
@@ -397,8 +448,12 @@ add_custom_command(
           -DCARGO=${CARGO_EXECUTABLE}
           -DPROTOC_PATH=${Protobuf_PROTOC_EXECUTABLE}
           -DRUST_TARGET=${RUST_TARGET_TRIPLE}
+          -DANDROID_NDK=${LIVEKIT_ANDROID_NDK}
+          -DANDROID_CC=${LIVEKIT_ANDROID_CC}
+          -DANDROID_AR=${CMAKE_AR}
           -DGCC_LIB_DIR=${GCC_LIB_DIR}
           -DCARGO_FEATURES=${LIVEKIT_CARGO_FEATURES}
+          -DCARGO_NO_DEFAULT_FEATURES=${LIVEKIT_CARGO_NO_DEFAULT_FEATURES}
           -DCARGO_TARGET_DIR=${LIVEKIT_CARGO_TARGET_DIR}
           -P "${RUN_CARGO_SCRIPT}"
   WORKING_DIRECTORY "${RUST_ROOT}"
@@ -533,7 +588,7 @@ target_link_libraries(livekit
 
 if(WIN32)
   target_link_libraries(livekit PRIVATE winhttp)
-else()
+elseif(NOT ANDROID)
   find_package(CURL REQUIRED)
   target_link_libraries(livekit PRIVATE CURL::libcurl)
 endif()
@@ -684,7 +739,7 @@ if(WIN32)
   )
 endif()
 
-if(UNIX AND NOT APPLE)
+if(UNIX AND NOT APPLE AND NOT ANDROID)
   find_package(OpenSSL REQUIRED)
   target_link_libraries(livekit PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 endif()
