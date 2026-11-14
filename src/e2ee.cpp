@@ -34,6 +34,26 @@ std::string bytesToString(const std::vector<std::uint8_t>& v) {
 
 std::vector<std::uint8_t> stringToBytes(const std::string& s) { return std::vector<std::uint8_t>(s.begin(), s.end()); }
 
+proto::FfiResponse getFrameCryptors(std::uint64_t room_handle) {
+  proto::FfiRequest req;
+  req.mutable_e2ee()->set_room_handle(room_handle);
+  req.mutable_e2ee()->mutable_manager_get_frame_cryptors();
+  return FfiClient::instance().sendRequest(req);
+}
+
+// The FFI addresses a cryptor by participant and track, but a FrameCryptor only knows its participant (adding the
+// track would change its layout), so its setters apply to each of the participant's tracks.
+std::vector<std::string> participantTrackSids(std::uint64_t room_handle, const std::string& participant_identity) {
+  const auto resp = getFrameCryptors(room_handle);
+  std::vector<std::string> track_sids;
+  for (const auto& fc : resp.e2ee().manager_get_frame_cryptors().frame_cryptors()) {
+    if (fc.participant_identity() == participant_identity) {
+      track_sids.push_back(fc.track_sid());
+    }
+  }
+  return track_sids;
+}
+
 } // namespace
 
 // ============================================================================
@@ -102,35 +122,37 @@ std::vector<std::uint8_t> E2EEManager::KeyProvider::ratchetKey(const std::string
 // FrameCryptor
 // ============================================================================
 
-E2EEManager::FrameCryptor::FrameCryptor(std::uint64_t room_handle, std::string participant_identity,
-                                        std::string track_sid, int key_index, bool enabled)
+E2EEManager::FrameCryptor::FrameCryptor(std::uint64_t room_handle, std::string participant_identity, int key_index,
+                                        bool enabled)
     : room_handle_(room_handle),
       enabled_(enabled),
       participant_identity_(std::move(participant_identity)),
-      track_sid_(std::move(track_sid)),
       key_index_(key_index) {}
 
 const std::string& E2EEManager::FrameCryptor::participantIdentity() const { return participant_identity_; }
-const std::string& E2EEManager::FrameCryptor::trackSid() const { return track_sid_; }
 int E2EEManager::FrameCryptor::keyIndex() const { return key_index_; }
 bool E2EEManager::FrameCryptor::enabled() const { return enabled_; }
 
 void E2EEManager::FrameCryptor::setEnabled(bool enabled) {
-  proto::FfiRequest req;
-  req.mutable_e2ee()->set_room_handle(room_handle_);
-  req.mutable_e2ee()->mutable_cryptor_set_enabled()->set_participant_identity(participant_identity_);
-  req.mutable_e2ee()->mutable_cryptor_set_enabled()->set_track_sid(track_sid_);
-  req.mutable_e2ee()->mutable_cryptor_set_enabled()->set_enabled(enabled);
-  FfiClient::instance().sendRequest(req);
+  for (const auto& track_sid : participantTrackSids(room_handle_, participant_identity_)) {
+    proto::FfiRequest req;
+    req.mutable_e2ee()->set_room_handle(room_handle_);
+    req.mutable_e2ee()->mutable_cryptor_set_enabled()->set_participant_identity(participant_identity_);
+    req.mutable_e2ee()->mutable_cryptor_set_enabled()->set_track_sid(track_sid);
+    req.mutable_e2ee()->mutable_cryptor_set_enabled()->set_enabled(enabled);
+    FfiClient::instance().sendRequest(req);
+  }
 }
 
 void E2EEManager::FrameCryptor::setKeyIndex(int key_index) {
-  proto::FfiRequest req;
-  req.mutable_e2ee()->set_room_handle(room_handle_);
-  req.mutable_e2ee()->mutable_cryptor_set_key_index()->set_participant_identity(participant_identity_);
-  req.mutable_e2ee()->mutable_cryptor_set_key_index()->set_track_sid(track_sid_);
-  req.mutable_e2ee()->mutable_cryptor_set_key_index()->set_key_index(key_index);
-  FfiClient::instance().sendRequest(req);
+  for (const auto& track_sid : participantTrackSids(room_handle_, participant_identity_)) {
+    proto::FfiRequest req;
+    req.mutable_e2ee()->set_room_handle(room_handle_);
+    req.mutable_e2ee()->mutable_cryptor_set_key_index()->set_participant_identity(participant_identity_);
+    req.mutable_e2ee()->mutable_cryptor_set_key_index()->set_track_sid(track_sid);
+    req.mutable_e2ee()->mutable_cryptor_set_key_index()->set_key_index(key_index);
+    FfiClient::instance().sendRequest(req);
+  }
 }
 
 // ============================================================================
@@ -157,15 +179,12 @@ std::weak_ptr<E2EEManager::KeyProvider> E2EEManager::keyProvider() { return key_
 std::weak_ptr<const E2EEManager::KeyProvider> E2EEManager::keyProvider() const { return key_provider_; }
 
 std::vector<E2EEManager::FrameCryptor> E2EEManager::frameCryptors() const {
-  proto::FfiRequest req;
-  req.mutable_e2ee()->set_room_handle(room_handle_);
-  req.mutable_e2ee()->mutable_manager_get_frame_cryptors();
-  auto resp = FfiClient::instance().sendRequest(req);
+  auto resp = getFrameCryptors(room_handle_);
   std::vector<E2EEManager::FrameCryptor> out;
   const auto& list = resp.e2ee().manager_get_frame_cryptors().frame_cryptors();
   out.reserve(static_cast<std::size_t>(list.size()));
   for (const auto& fc : list) {
-    out.emplace_back(room_handle_, fc.participant_identity(), fc.track_sid(), fc.key_index(), fc.enabled());
+    out.emplace_back(room_handle_, fc.participant_identity(), fc.key_index(), fc.enabled());
   }
   return out;
 }

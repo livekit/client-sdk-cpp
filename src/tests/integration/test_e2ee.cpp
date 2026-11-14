@@ -54,7 +54,7 @@ TEST_F(E2EEIntegrationTest, FrameCryptorsIncludePublishedTrack) {
   participant->unpublishTrack(track->publication()->sid());
 }
 
-TEST_F(E2EEIntegrationTest, FrameCryptorSettersApplyToItsTrack) {
+TEST_F(E2EEIntegrationTest, FrameCryptorSettersApplyToEachOfTheParticipantsTracks) {
   failIfNotConfigured();
 
   Room room;
@@ -64,25 +64,26 @@ TEST_F(E2EEIntegrationTest, FrameCryptorSettersApplyToItsTrack) {
   ASSERT_TRUE(room.connect(config_.url, config_.token_a, room_options));
   auto participant = lockLocalParticipant(room);
   auto source = std::make_shared<AudioSource>(kDefaultAudioSampleRate, kDefaultAudioChannels, 0);
-  auto track = participant->publishAudioTrack("e2ee-key-index", source, TrackSource::SOURCE_MICROPHONE);
-  const std::string track_sid = track->publication()->sid();
+  auto microphone = participant->publishAudioTrack("e2ee-microphone", source, TrackSource::SOURCE_MICROPHONE);
+  auto screen_share =
+      participant->publishAudioTrack("e2ee-screen-share", source, TrackSource::SOURCE_SCREENSHARE_AUDIO);
   auto manager = room.e2eeManager().lock();
   ASSERT_NE(manager, nullptr);
   manager->keyProvider().lock()->setSharedKey(std::vector<std::uint8_t>{'n', 'e', 'w'}, 1);
 
-  for (auto& cryptor : manager->frameCryptors()) {
-    cryptor.setKeyIndex(1);
-    cryptor.setEnabled(false);
-  }
+  auto cryptors = manager->frameCryptors();
+  ASSERT_FALSE(cryptors.empty());
+  cryptors.front().setKeyIndex(1);
+  cryptors.front().setEnabled(false);
 
-  std::vector<std::tuple<std::string, std::string, int, bool>> states;
+  std::vector<std::tuple<std::string, int, bool>> states;
   for (const auto& cryptor : manager->frameCryptors()) {
-    states.emplace_back(cryptor.participantIdentity(), cryptor.trackSid(), cryptor.keyIndex(), cryptor.enabled());
+    states.emplace_back(cryptor.participantIdentity(), cryptor.keyIndex(), cryptor.enabled());
   }
-  EXPECT_EQ(
-      states,
-      (std::vector<std::tuple<std::string, std::string, int, bool>>{{participant->identity(), track_sid, 1, false}}));
-  participant->unpublishTrack(track_sid);
+  EXPECT_EQ(states, (std::vector<std::tuple<std::string, int, bool>>{{participant->identity(), 1, false},
+                                                                     {participant->identity(), 1, false}}));
+  participant->unpublishTrack(microphone->publication()->sid());
+  participant->unpublishTrack(screen_share->publication()->sid());
 }
 
 } // namespace livekit::test
