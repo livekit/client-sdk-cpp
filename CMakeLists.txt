@@ -323,7 +323,12 @@ endif()
 
 # Cargo artifacts cannot be shared between capture-enabled and disabled SDKs.
 # Include the feature selection in the path, including future feature changes.
-string(SHA256 LIVEKIT_CARGO_FEATURE_HASH "${LIVEKIT_CARGO_FEATURES}")
+# Android artifacts also can't be shared between NDKs or API levels, which the compiler path identifies.
+set(_lk_cargo_artifact_key "${LIVEKIT_CARGO_FEATURES}")
+if(ANDROID)
+  string(APPEND _lk_cargo_artifact_key ";${LIVEKIT_ANDROID_CC}")
+endif()
+string(SHA256 LIVEKIT_CARGO_FEATURE_HASH "${_lk_cargo_artifact_key}")
 string(SUBSTRING "${LIVEKIT_CARGO_FEATURE_HASH}" 0 16 LIVEKIT_CARGO_FEATURE_HASH)
 # A short Cargo root avoids MAX_PATH failures in nested WebRTC headers on Windows.
 # Treat CARGO_TARGET_DIR as the root; retain feature-specific subdirectories.
