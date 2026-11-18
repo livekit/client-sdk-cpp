@@ -1,0 +1,101 @@
+# Copyright 2026 LiveKit, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Memory results comment
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+# Keep write access out of the build jobs, including builds of fork PRs.
+# This workflow never checks out or executes code from the triggering run.
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: memory-results-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  comment:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Find memory report
+        id: report
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo, run_id: run.id
+            });
+            const artifact = artifacts.find(item =>
+              item.name === `memory-tester-report-${run.run_attempt}` && !item.expired);
+            if (artifact) core.setOutput('artifact-id', artifact.id);
+
+      - name: Download memory report
+        if: steps.report.outputs.artifact-id != ''
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ steps.report.outputs.artifact-id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/memory-results
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Update PR comment
+        if: steps.report.outputs.artifact-id != ''
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require('node:fs');
+            const run = context.payload.workflow_run;
+            // Resolve the PR through GitHub, never through downloaded metadata.
+            // The workflow_run pull_requests array can be empty for fork PRs.
+            const pulls = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
+              ...context.repo, commit_sha: run.head_sha
+            });
+            const marker = '<!-- livekit-memory-results -->';
+            const report = fs.readFileSync(`${process.env.RUNNER_TEMP}/memory-results/memory-tester-report.md`, 'utf8');
+            if (report.length > 32000) throw new Error('Memory report is too large');
+            const needsAttention = /:x: (FAIL|ERROR)|:warning: ADVISORY/.test(report);
+            for (const pull of pulls) {
+              const { data: current } = await github.rest.pulls.get({
+                ...context.repo, pull_number: pull.number
+              });
+              if (current.state !== 'open' || current.head.sha !== run.head_sha ||
+                  current.base.repo.full_name !== `${context.repo.owner}/${context.repo.repo}`) continue;
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                ...context.repo, issue_number: pull.number
+              });
+              const existing = comments.find(comment =>
+                comment.user.login === 'github-actions[bot]' && comment.body?.startsWith(marker));
+              if (!existing && !needsAttention) continue;
+              // A delayed completion or rerun must not replace a newer result.
+              const previous = existing?.body.match(/<!-- run:(\d+) attempt:(\d+) -->/);
+              if (previous && (Number(previous[1]) > run.id ||
+                  (Number(previous[1]) === run.id && Number(previous[2]) > run.run_attempt))) continue;
+              const body = `${marker}\n<!-- run:${run.id} attempt:${run.run_attempt} -->\n` +
+                `${needsAttention ? '⚠️ Memory checks need attention.' : '✅ Memory checks passed.'}\n\n` +
+                `[CI run](${run.html_url}/attempts/${run.run_attempt}) · Commit ${run.head_sha}\n\n${report}`;
+              if (existing) {
+                await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ ...context.repo, issue_number: pull.number, body });
+              }
+            }
