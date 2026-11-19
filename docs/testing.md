@@ -147,33 +147,30 @@ capture-enabled CI release jobs, the expectation is explicitly `ON`; a disabled
 bundle cannot pass by rejecting source creation. On Windows, add the installed
 SDK's `bin` directory and GStreamer's `bin` directory to `PATH` before running CTest.
 
-### Selective capture in CI
+### Capture packaging in nightly and release runs
+
+Capture bundle packaging checks run in nightly tests and the release workflow,
+including manual nightly runs and releases. Regular CI retains capture builds
+and runtime tests, but skips capture packaging checks. Standard SDK packaging checks
+run on `main` and in releases; PRs and manual runs on other branches skip them.
 
 Intel macOS CI runs the standard SDK tests only; capture builds and checks are
 not supported on that platform.
 
-The Ubuntu 24.04 x64 test job checks `none`, each singleton source, and `all`.
-Singleton builds reuse the C++ build tree and do not compile the unit/integration
-suites. Pattern and clock builds run before GStreamer installation. This runner
-uses Mesa software Vulkan, and pixel-source creation must succeed. The full test
-suite runs once after rebuilding with all sources.
-
-The reusable `test-capture-variants` action uses `build-sdk` and
-`test-sdk-bundle`. The latter accepts `expected-sources` and
-`verify-pixel-sources`, so build, test, and release workflows share one installed
-consumer test. Nightly runs enable `extended_capture_sources`, adding the three
-two-source combinations on Linux and selective bundles on macOS arm64 and
-Windows x64. Windows validates exact metadata and source availability, allowing
-an explicit missing-adapter error for enabled pixel sources. Successful pixel
-creation is required on Linux and macOS. Manual test-workflow runs can enable
-the same coverage.
+Nightly runs and releases check each singleton source and all three two-source combinations on
+Ubuntu 24.04 x64, macOS arm64, and Windows x64 using `test-capture-variants`.
+These builds reuse the C++ build tree without compiling the unit/integration
+suites. Pattern and clock builds run before GStreamer installation. Linux uses
+Mesa software Vulkan. Pixel-source creation must succeed on Linux and macOS;
+Windows allows an explicit missing-adapter error for enabled pixel sources.
+All-sources bundles are checked on every capture-supported platform. Releases
+also verify the final bundle's version metadata before publication.
 
 Cargo caches include the build configuration, build type, and source selection.
-Each variant reports elapsed time and cache hits in the job summary.
 Each selective variant has its own cache, saved after its installed-bundle check
-passes on trusted main runs. The variant's temporary Cargo directory is then
-removed to bound disk usage. Standard/all outputs use the existing shared cache,
-saved after the full suite passes. Rust variants still compile separately on
+passes on trusted main or version-tag runs. The variant's temporary Cargo
+directory is then removed to bound disk usage. Standard/all outputs use the existing shared cache,
+saved after successful builds. Rust variants still compile separately on
 cold runs even though C++ dependencies are reused.
 
 ## Test coverage
@@ -225,9 +222,8 @@ variation. It also emits a non-blocking advisory above 8 MiB RSS or zero
 threads. If threads grow, the tester reports when the final sustained growth
 began and groups the warmup and final threads by their Linux thread names.
 
-Advisory or failing results create a single PR comment with the scenario table
-and a link to the CI run. Later runs update that comment, including when the
-checks pass again. Passing runs do not create a new comment. PR commenting is
+Each PR run with memory results creates or updates a single comment with the
+scenario table and a link to the CI run, including passing results. PR commenting is
 handled by a separate workflow, which becomes active once it is on `main`.
 
 The binary can be run directly, or via a helper script at `scripts/memory-tester.sh`,

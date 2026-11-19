@@ -85,7 +85,6 @@ jobs:
               });
               const existing = comments.find(comment =>
                 comment.user.login === 'github-actions[bot]' && comment.body?.startsWith(marker));
-              if (!existing && !needsAttention) continue;
               // A delayed completion or rerun must not replace a newer result.
               const previous = existing?.body.match(/<!-- run:(\d+) attempt:(\d+) -->/);
               if (previous && (Number(previous[1]) > run.id ||
