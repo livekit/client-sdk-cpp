@@ -44,6 +44,7 @@ struct ProducerOptions {
   std::optional<double> single_rate_hz;
   std::optional<std::size_t> single_packet_size_bytes;
   std::optional<std::size_t> single_message_count;
+  bool no_subscriber = false;
 };
 
 void handleSignal(int) { g_running.store(false); }
@@ -64,7 +65,8 @@ void printUsage(const char* prog) {
                "the full sweep\n"
             << "  --packet-size <size>             Single-scenario packet size, e.g. "
                "1mb\n"
-            << "  --num-msgs <count>               Single-scenario message count\n\n"
+            << "  --num-msgs <count>               Single-scenario message count\n"
+            << "  --no-subscriber                 Measure pushes without a consumer\n\n"
             << "Env fallbacks:\n"
             << "  LIVEKIT_URL, LIVEKIT_TOKEN" << std::endl;
 }
@@ -152,6 +154,8 @@ bool parseArgs(int argc, char* argv[], ProducerOptions& options) {
       options.single_packet_size_bytes = parseByteSize(readFlagValue("--packet-size", index));
     } else if (arg.rfind("--num-msgs", 0) == 0) {
       options.single_message_count = static_cast<std::size_t>(std::stoull(readFlagValue("--num-msgs", index)));
+    } else if (arg == "--no-subscriber") {
+      options.no_subscriber = true;
     }
   }
 
@@ -159,7 +163,7 @@ bool parseArgs(int argc, char* argv[], ProducerOptions& options) {
   for (int index = 1; index < argc; ++index) {
     const std::string arg = argv[index];
     if (arg.rfind("--", 0) == 0) {
-      if (arg.find('=') == std::string::npos && index + 1 < argc) {
+      if (arg != "--no-subscriber" && arg.find('=') == std::string::npos && index + 1 < argc) {
         ++index;
       }
       continue;
@@ -187,7 +191,7 @@ bool parseArgs(int argc, char* argv[], ProducerOptions& options) {
   const bool single_mode_complete = options.single_rate_hz.has_value() &&
                                     options.single_packet_size_bytes.has_value() &&
                                     options.single_message_count.has_value();
-  if (single_mode_requested && !single_mode_complete) {
+  if ((single_mode_requested || options.no_subscriber) && !single_mode_complete) {
     throw std::runtime_error(
         "Single-scenario mode requires --rate-hz, "
         "--packet-size, and --num-msgs");
@@ -248,7 +252,8 @@ ProducerStats runScenario(LocalDataTrack& track, const ScenarioRequest& request)
   stats.scenario_name = request.scenario_name;
 
   const auto frame_interval = std::chrono::duration<double>(1.0 / request.desired_rate_hz);
-  auto next_send = std::chrono::steady_clock::now();
+  const auto start = std::chrono::steady_clock::now();
+  auto next_send = start;
 
   for (std::size_t index = 0; index < request.message_count && g_running.load(); ++index) {
     const std::uint64_t send_time_us = nowSystemUs();
@@ -261,21 +266,45 @@ ProducerStats runScenario(LocalDataTrack& track, const ScenarioRequest& request)
     stats.attempted_bytes += request.packet_size_bytes;
 
     auto payload = makePayload(request, static_cast<std::uint64_t>(index), send_time_us);
-    auto push_result = track.tryPush(std::move(payload), send_time_us);
+    const auto push_start = std::chrono::steady_clock::now();
+    const auto push_result = track.tryPush(std::move(payload), send_time_us);
+    stats.push_time += std::chrono::steady_clock::now() - push_start;
     if (push_result) {
       ++stats.enqueue_success_count;
       stats.enqueued_bytes += request.packet_size_bytes;
     } else {
       ++stats.enqueue_failure_count;
-      std::cerr << "tryPush failed for scenario " << request.scenario_name << " seq=" << index
-                << " reason=" << push_result.error().message << std::endl;
+      switch (push_result.error().code) {
+        case LocalDataTrackTryPushErrorCode::NO_SUBSCRIBERS:
+          ++stats.no_subscribers_count;
+          break;
+        case LocalDataTrackTryPushErrorCode::QUEUE_FULL:
+          ++stats.queue_full_count;
+          break;
+        default:
+          std::cerr << "tryPush failed for scenario " << request.scenario_name << " seq=" << index
+                    << " reason=" << push_result.error().message << std::endl;
+      }
     }
 
     next_send += std::chrono::duration_cast<std::chrono::steady_clock::duration>(frame_interval);
     std::this_thread::sleep_until(next_send);
   }
 
+  stats.elapsed = std::chrono::steady_clock::now() - start;
   return stats;
+}
+
+void printPushStats(const ProducerStats& stats) {
+  if (stats.attempted_count == 0) {
+    return;
+  }
+  const auto elapsed_seconds = std::chrono::duration<double>(stats.elapsed).count();
+  const auto push_us = std::chrono::duration<double, std::micro>(stats.push_time).count();
+  std::cout << "Pushes: attempts=" << stats.attempted_count << " accepted=" << stats.enqueue_success_count
+            << " no_subscribers=" << stats.no_subscribers_count << " queue_full=" << stats.queue_full_count
+            << " accepted_per_second=" << stats.enqueue_success_count / elapsed_seconds
+            << " mean_push_us=" << push_us / stats.attempted_count << std::endl;
 }
 
 void printScenarioSummary(const json& summary) {
@@ -329,11 +358,14 @@ int main(int argc, char* argv[]) {
     }
     auto track = publish_result.value();
 
-    const std::string consumer_identity =
-        waitForConsumerIdentity(room, options.consumer_identity, std::chrono::seconds(30));
     const auto scenarios = buildScenarioPlan(options, local_participant->identity());
+    const std::string consumer_identity =
+        options.no_subscriber ? std::string{}
+                              : waitForConsumerIdentity(room, options.consumer_identity, std::chrono::seconds(30));
 
-    std::cout << "Target consumer: " << consumer_identity << std::endl;
+    if (!options.no_subscriber) {
+      std::cout << "Target consumer: " << consumer_identity << std::endl;
+    }
     std::cout << "Running " << scenarios.size() << " scenario(s)" << std::endl;
 
     for (const auto& scenario : scenarios) {
@@ -345,6 +377,11 @@ int main(int argc, char* argv[]) {
                 << " packet_size=" << humanBytes(scenario.packet_size_bytes) << " messages=" << scenario.message_count
                 << std::endl;
 
+      if (options.no_subscriber) {
+        printPushStats(runScenario(*track, scenario));
+        continue;
+      }
+
       const auto prepare_payload = toJson(scenario).dump();
       const std::string prepare_response =
           local_participant->performRpc(consumer_identity, kPrepareRpcMethod, prepare_payload, 30.0);
@@ -355,6 +392,7 @@ int main(int argc, char* argv[]) {
       }
 
       const ProducerStats stats = runScenario(*track, scenario);
+      printPushStats(stats);
       json finish_payload;
       finish_payload["stats"] = toJson(stats);
       const std::string finish_response =

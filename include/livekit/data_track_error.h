@@ -59,6 +59,8 @@ enum class LocalDataTrackTryPushErrorCode : std::uint32_t {
   TRACK_UNPUBLISHED = 2,
   QUEUE_FULL = 3,
   INTERNAL = 4,
+  /// The server reports that the published track has no subscribers.
+  NO_SUBSCRIBERS = 5,
 };
 
 /// @brief Error details returned when pushing a frame to a local data track fails.

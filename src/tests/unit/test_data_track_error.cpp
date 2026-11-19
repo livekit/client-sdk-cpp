@@ -43,6 +43,20 @@ TEST(DataTrackErrorTest, TryPushErrorFromEmptyProto) {
   EXPECT_EQ(err.code, LocalDataTrackTryPushErrorCode::UNKNOWN);
 }
 
+TEST(DataTrackErrorTest, TryPushNoSubscribersErrorFromProto) {
+  proto::LocalDataTrackTryPushErrorCode code;
+  if (!proto::LocalDataTrackTryPushErrorCode_Parse("LOCAL_DATA_TRACK_TRY_PUSH_ERROR_CODE_NO_SUBSCRIBERS", &code)) {
+    GTEST_SKIP() << "The pinned Rust protocol does not include NO_SUBSCRIBERS";
+  }
+  proto::LocalDataTrackTryPushError proto_err;
+  proto_err.set_code(code);
+  proto_err.set_message("no remote subscribers");
+
+  const auto error = LocalDataTrackTryPushError::fromProto(proto_err);
+  EXPECT_EQ(error.code, LocalDataTrackTryPushErrorCode::NO_SUBSCRIBERS);
+  EXPECT_EQ(error.message, "no remote subscribers");
+}
+
 TEST(DataTrackErrorTest, SubscribeErrorFromEmptyProto) {
   proto::SubscribeDataTrackError proto_err;
   SubscribeDataTrackError err = SubscribeDataTrackError::fromProto(proto_err);

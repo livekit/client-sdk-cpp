@@ -52,7 +52,9 @@ PublishDataTrackErrorCode fromProtoCode(proto::PublishDataTrackErrorCode code) {
 }
 
 LocalDataTrackTryPushErrorCode fromProtoCode(proto::LocalDataTrackTryPushErrorCode code) {
-  switch (code) {
+  // The pinned Rust schema predates NO_SUBSCRIBERS. Use its protocol value
+  // until we can build against a published Rust release that names it.
+  switch (static_cast<int>(code)) {
     case proto::LOCAL_DATA_TRACK_TRY_PUSH_ERROR_CODE_INVALID_HANDLE:
       return LocalDataTrackTryPushErrorCode::INVALID_HANDLE;
     case proto::LOCAL_DATA_TRACK_TRY_PUSH_ERROR_CODE_TRACK_UNPUBLISHED:
@@ -61,6 +63,8 @@ LocalDataTrackTryPushErrorCode fromProtoCode(proto::LocalDataTrackTryPushErrorCo
       return LocalDataTrackTryPushErrorCode::QUEUE_FULL;
     case proto::LOCAL_DATA_TRACK_TRY_PUSH_ERROR_CODE_INTERNAL:
       return LocalDataTrackTryPushErrorCode::INTERNAL;
+    case 5:
+      return LocalDataTrackTryPushErrorCode::NO_SUBSCRIBERS;
     case proto::LOCAL_DATA_TRACK_TRY_PUSH_ERROR_CODE_UNKNOWN:
     default:
       return LocalDataTrackTryPushErrorCode::UNKNOWN;

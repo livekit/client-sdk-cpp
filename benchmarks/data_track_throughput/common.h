@@ -161,6 +161,10 @@ struct ProducerStats {
   std::size_t attempted_count = 0;
   std::size_t enqueue_success_count = 0;
   std::size_t enqueue_failure_count = 0;
+  std::size_t no_subscribers_count = 0;
+  std::size_t queue_full_count = 0;
+  std::chrono::nanoseconds push_time{};
+  std::chrono::steady_clock::duration elapsed{};
   std::uint64_t attempted_bytes = 0;
   std::uint64_t enqueued_bytes = 0;
   std::uint64_t first_send_time_us = 0;

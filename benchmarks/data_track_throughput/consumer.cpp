@@ -179,12 +179,6 @@ public:
                     "arrival_time_us,is_duplicate");
   }
 
-  ~ThroughputConsumer() {
-    if (room_ != nullptr && callback_id_ != std::numeric_limits<DataFrameCallbackId>::max()) {
-      room_->removeOnDataFrameCallback(callback_id_);
-    }
-  }
-
   void setRoom(Room& room) { room_ = &room; }
 
   void ensureDataCallbackRegistered(const ScenarioRequest& request) {
@@ -469,6 +463,7 @@ int main(int argc, char* argv[]) {
 
   try {
     ThroughputConsumer consumer(options);
+    // The room owns the callbacks and destroys them before the consumer.
     Room room;
     consumer.setRoom(room);
 

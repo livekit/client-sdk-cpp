@@ -65,6 +65,20 @@ LIVEKIT_CONFIG="enable_participant_data_blob: true"
 livekit-server --dev
 ```
 
+### Data track dynacast
+
+The dynacast test needs a Rust core with `NO_SUBSCRIBERS` and a server that
+sends data track demand updates. The current release pins lack this support.
+With compatible builds, run the test from the repository root.
+
+```bash
+source scripts/set-test-tokens.sh
+LIVEKIT_TEST_DATA_TRACK_DYNACAST=1 ./build-debug/bin/livekit_integration_tests \
+  --gtest_filter=DataTrackE2ETest.DynacastPausesAndResumesDataTrack
+```
+
+The test fails if the publisher never reports `NO_SUBSCRIBERS`.
+
 ## Environment variables
 
 The integration and stress test suites (data tracks, RPC, media multistream,
@@ -196,8 +210,9 @@ or groups of scenarios:
   track, captures synthetic PCM frames, unpublishes, disconnects, and shuts down.
 - `video-track` repeatedly initializes the SDK, connects, publishes a video
   track, captures synthetic I420 frames, unpublishes, disconnects, and shuts down.
-- `data-track` repeatedly connects, publishes a data track, pushes synthetic
-  payloads, unpublishes it, and disconnects.
+- `data-track` connects a publisher and a subscriber for each cycle. The
+  publisher pushes synthetic frames and unpublishes the track. The subscriber
+  uses `LIVEKIT_TOKEN_B`.
 - `room-reuse` repeatedly connects and disconnects the same room object.
 - `room-client-leave` repeatedly connects, disconnects, and destroys a room.
 - `room-server-delete` repeatedly connects, publishes one synthetic video

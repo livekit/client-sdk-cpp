@@ -169,6 +169,23 @@ The executables and required shared libraries are placed in `build/`.
 
 ## Running
 
+### Measure dynacast
+
+Use the same rate, payload size, and frame count for each run. Run the producer
+with a consumer first. The producer reports accepted frames per second and mean
+push time. Use the consumer's message CSV to compare send and arrival times.
+
+For the zero-subscriber run, use a room with no consumer. Set `LIVEKIT_URL` and
+`LIVEKIT_TOKEN` for that room. Run the same scenario with `--no-subscriber`.
+The producer reports rejected frames with `NO_SUBSCRIBERS` and `QUEUE_FULL`
+separately. A server and a Rust core with dynacast support are required to see
+`NO_SUBSCRIBERS`.
+
+```bash
+./build/DataTrackThroughputProducer --rate-hz 100 --packet-size 1kb \
+  --num-msgs 1000 --no-subscriber
+```
+
 ## Generate Tokens
 
 ```bash

@@ -65,32 +65,36 @@ public:
   /// Metadata about this data track.
   const DataTrackInfo& info() const noexcept { return info_; }
 
-  /// Try to push a frame to all subscribers of this track.
+  /// @brief Try to push a frame to all subscribers of this track.
   ///
   /// An empty payload succeeds without sending a frame to subscribers.
+  /// If the server reports that no one subscribes, the track stays published.
+  /// Drop the rejected frame and try again with a fresh frame.
   ///
   /// @param frame The frame to push.
-  /// @return Success on delivery acceptance, or a typed error describing why
-  ///         the frame could not be queued.
+  /// @return Success if accepted, @c NO_SUBSCRIBERS if the server reports no
+  ///         subscribers, or another error if the frame could not be queued.
   Result<void, LocalDataTrackTryPushError> tryPush(const DataTrackFrame& frame);
 
-  /// Try to push a frame to all subscribers of this track.
+  /// @brief Try to push a frame to all subscribers of this track.
   ///
   /// An empty payload succeeds without sending a frame to subscribers.
+  /// Drop a frame rejected with @c NO_SUBSCRIBERS and try again with a fresh frame.
   ///
   /// @param payload The payload to push.
   /// @param user_timestamp Optional application-defined timestamp. The unit is
   ///        caller-defined.
-  /// @return Success on delivery acceptance, or a typed error describing why
-  ///         the frame could not be queued.
+  /// @return Success if accepted, @c NO_SUBSCRIBERS if the server reports no
+  ///         subscribers, or another error if the frame could not be queued.
   Result<void, LocalDataTrackTryPushError> tryPush(std::vector<std::uint8_t>&& payload,
                                                    std::optional<std::uint64_t> user_timestamp = std::nullopt);
 
-  /// Try to push a frame from a borrowed byte buffer.
+  /// @brief Try to push a frame from a borrowed byte buffer.
   ///
   /// Copies @p size bytes from @p data into an FFI request before returning;
   /// the SDK does not retain the buffer.
   /// An empty payload succeeds without sending a frame to subscribers.
+  /// Drop a frame rejected with @c NO_SUBSCRIBERS and try again with a fresh frame.
   ///
   /// @note This avoids an intermediate copy when the caller already owns a byte
   /// buffer, but it is not a zero-copy send.
@@ -101,8 +105,8 @@ public:
   ///        no-op.
   /// @param user_timestamp Optional application-defined timestamp. The unit is
   ///        caller-defined.
-  /// @return Success on delivery acceptance, or a typed error describing why
-  ///         the frame could not be queued.
+  /// @return Success if accepted, @c NO_SUBSCRIBERS if the server reports no
+  ///         subscribers, or another error if the frame could not be queued.
   Result<void, LocalDataTrackTryPushError> tryPush(const std::uint8_t* data, std::size_t size,
                                                    std::optional<std::uint64_t> user_timestamp = std::nullopt);
 
