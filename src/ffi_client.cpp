@@ -1396,14 +1396,6 @@ JoinOutcome captureJoinResult(const proto::JoinCaptureCallback& callback) {
   capture::CaptureResult result;
   result.frames_captured = finished.frames_captured();
   result.exit = exit;
-  result.samples_captured = finished.has_samples_captured() ? finished.samples_captured() : 0;
-  result.bytes_captured = finished.has_bytes_captured() ? finished.bytes_captured() : 0;
-  if (finished.has_first_timestamp_ns()) {
-    result.first_timestamp_ns = finished.first_timestamp_ns();
-  }
-  if (finished.has_last_timestamp_ns()) {
-    result.last_timestamp_ns = finished.last_timestamp_ns();
-  }
   return JoinOutcome::success(result);
 }
 

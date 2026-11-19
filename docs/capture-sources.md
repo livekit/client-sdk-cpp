@@ -123,7 +123,6 @@ config.pipeline = "audiotestsrc ! audioconvert ! "
                   "appsink name=lk_audio_appsink";
 config.sample_rate = 48000;
 config.num_channels = 1;
-config.frame_duration_ms = 10;
 
 auto capture = livekit::capture::GstreamerAudioCaptureSource::create(config).get().value();
 auto track = livekit::LocalAudioTrack::createLocalAudioTrack("gstreamer", capture->audioSource());
@@ -132,15 +131,14 @@ capture->start().value();
 
 capture->stop().value();
 auto result = capture->join().get().value();
-// result contains frames_captured, samples_captured, bytes_captured,
-// first_timestamp_ns, last_timestamp_ns, and exit.
+// result contains frames_captured (one frame = 10 ms of audio) and exit.
 ```
 
 The negotiated `format()` reports sample rate, channel count, and samples per
 channel. Rust validates that pipeline caps match the requested fixed format.
 Unlike video resolution and codec discovery, audio requires an explicit fixed
-format (48 kHz, mono, 10 ms by default). The pipeline must contain the named
-appsink. Audio capture does not expose video's `publishOptions()` helper;
+format (48 kHz and mono by default). Audio frames are always 10 ms. The pipeline
+must contain the named appsink. Audio capture does not expose video's `publishOptions()` helper;
 publish it with normal audio track options.
 
 ## GStreamer audio playout

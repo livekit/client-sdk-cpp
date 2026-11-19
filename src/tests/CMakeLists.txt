@@ -54,6 +54,9 @@ endif()
 enable_testing()
 include(GoogleTest)
 
+# Standalone interactive testers; these are not registered with CTest.
+add_subdirectory(manual)
+
 # ============================================================================
 # Benchmark Utilities (shared by all test types)
 # ============================================================================

@@ -36,7 +36,6 @@ std::shared_ptr<GstreamerAudioPlayoutSink> GstreamerAudioPlayoutSink::create(
   request.set_pipeline(config.pipeline);
   request.set_sample_rate(config.sample_rate);
   request.set_num_channels(config.num_channels);
-  request.set_frame_duration_ms(config.frame_duration_ms);
   return FfiClient::instance().newAudioPlayout(request);
 }
 

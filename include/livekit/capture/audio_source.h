@@ -45,7 +45,7 @@ class OwnedAudioCaptureSource;
 
 namespace livekit::capture {
 
-/// @brief Fixed PCM format produced by a GStreamer audio capture source.
+/// @brief Fixed PCM format produced in 10 ms frames by an audio capture source.
 struct AudioCaptureFormat {
   /// @brief Sample rate in Hz.
   std::uint32_t sample_rate = 0;
@@ -57,7 +57,7 @@ struct AudioCaptureFormat {
   std::uint32_t samples_per_channel = 0;
 };
 
-/// @brief Configuration for PCM S16LE audio ingest from GStreamer.
+/// @brief Configuration for PCM S16LE audio ingest in 10 ms frames from GStreamer.
 struct GstreamerAudioSourceConfig {
   /// @brief GStreamer launch description.
   ///
@@ -69,9 +69,6 @@ struct GstreamerAudioSourceConfig {
 
   /// @brief Number of interleaved output channels.
   std::uint32_t num_channels = 1;
-
-  /// @brief Frame duration in milliseconds.
-  std::uint32_t frame_duration_ms = 10;
 };
 
 /// @brief GStreamer audio capture source backed by a Rust capture pump.
@@ -129,7 +126,7 @@ public:
   /// @brief Wait asynchronously for capture to finish and return audio statistics.
   ///
   /// Call @ref stop() first for an unbounded pipeline. The returned
-  /// @ref CaptureResult includes frame, sample, byte, and timestamp statistics.
+  /// @ref CaptureResult includes the number of accepted 10 ms frames and exit reason.
   /// Join may be called only once after a successful @ref start().
   ///
   /// @return Future containing terminal statistics or a structured capture error.
@@ -147,7 +144,7 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-/// @brief Configuration for mixed PCM S16LE playout through GStreamer.
+/// @brief Configuration for mixed PCM S16LE playout in 10 ms frames through GStreamer.
 struct GstreamerAudioPlayoutConfig {
   /// @brief GStreamer launch description.
   ///
@@ -159,9 +156,6 @@ struct GstreamerAudioPlayoutConfig {
 
   /// @brief Number of interleaved output channels.
   std::uint32_t num_channels = 1;
-
-  /// @brief Mixed output frame duration in milliseconds.
-  std::uint32_t frame_duration_ms = 10;
 };
 
 /// @brief Terminal statistics for GStreamer audio playout.

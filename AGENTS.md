@@ -91,8 +91,11 @@ Be sure to update the directory layout in this file if the directory layout chan
 | `include/livekit/capture/capture_types.h` | Shared capture results, errors, and exit reasons |
 | `src/` | Implementation files and internal-only headers (`ffi_client.h`, `lk_log.h`, etc.) |
 | `src/tests/` | Google Test integration and stress tests |
+| `src/tests/manual/` | Interactive hardware testers built with the test targets; not registered with CTest |
 | `examples/` | In-tree example applications |
 | `client-sdk-rust/` | Git submodule holding the Rust core of the SDK|
+| `client-sdk-rust/livekit-capture/src/audio/` | PCM audio sources, pump, and playout |
+| `client-sdk-rust/livekit-capture/src/video/` | Pixel and encoded video pumps, sources, and rendering |
 | `cpp-tools/` | Git submodule holding shared LiveKit C++ engineering guidance, clang-format / clang-tidy configs, scripts, docs, and CI workflow |
 | `client-sdk-rust/livekit-ffi/protocol/*.proto` | FFI contract (protobuf definitions, read-only reference) |
 | `cmake/` | Build helpers (`protobuf.cmake`, `spdlog.cmake`, `nlohmann_json.cmake`, `LiveKitConfig.cmake.in`) |

@@ -64,10 +64,30 @@ TEST_F(GstreamerAudioTest, CapturesSyntheticPcmAndReportsFormatAndStats) {
   ASSERT_TRUE(finished.ok()) << finished.error().message;
   EXPECT_EQ(finished.value().exit, capture::CaptureExit::EndOfStream);
   EXPECT_EQ(finished.value().frames_captured, 8u);
-  EXPECT_EQ(finished.value().samples_captured, 3840u);
-  EXPECT_EQ(finished.value().bytes_captured, 7680u);
-  EXPECT_TRUE(finished.value().first_timestamp_ns.has_value());
-  EXPECT_TRUE(finished.value().last_timestamp_ns.has_value());
+}
+
+TEST_F(GstreamerAudioTest, RechunksStereoBuffersIntoTenMsFrames) {
+  capture::GstreamerAudioSourceConfig config;
+  config.num_channels = 2;
+  config.pipeline =
+      "audiotestsrc samplesperbuffer=960 num-buffers=4 ! "
+      "audio/x-raw,format=S16LE,layout=interleaved,rate=48000,channels=2 ! "
+      "appsink name=lk_audio_appsink";
+
+  auto pending = capture::GstreamerAudioCaptureSource::create(config);
+  ASSERT_EQ(pending.wait_for(10s), std::future_status::ready);
+  const auto created = pending.get();
+  ASSERT_TRUE(created.ok()) << created.error().message;
+  const auto source = created.value();
+  EXPECT_EQ(source->format().num_channels, 2u);
+  EXPECT_EQ(source->format().samples_per_channel, 480u);
+  ASSERT_TRUE(source->start().ok());
+  auto joined = source->join();
+  ASSERT_EQ(joined.wait_for(10s), std::future_status::ready);
+  const auto finished = joined.get();
+  ASSERT_TRUE(finished.ok()) << finished.error().message;
+  EXPECT_EQ(finished.value().exit, capture::CaptureExit::EndOfStream);
+  EXPECT_EQ(finished.value().frames_captured, 8u);
 }
 
 TEST_F(GstreamerAudioTest, StartsEmptyPlayoutAndStopsWithZeroStats) {

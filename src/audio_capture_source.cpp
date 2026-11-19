@@ -52,7 +52,6 @@ std::future<Result<std::shared_ptr<GstreamerAudioCaptureSource>, CaptureError>> 
   gstreamer->set_pipeline(config.pipeline);
   gstreamer->set_sample_rate(config.sample_rate);
   gstreamer->set_num_channels(config.num_channels);
-  gstreamer->set_frame_duration_ms(config.frame_duration_ms);
   return FfiClient::instance().newAudioCaptureSourceAsync(std::move(request));
 }
 

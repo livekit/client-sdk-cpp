@@ -102,7 +102,7 @@ bool checkSources() {
         success = false;
       } else {
         const auto finished = created.value()->join().get();
-        if (!finished || finished.value().samples_captured == 0 || finished.value().bytes_captured == 0) {
+        if (!finished || finished.value().frames_captured == 0) {
           std::cerr << "gstreamer audio capture: missing terminal statistics\n";
           success = false;
         }
