@@ -33,13 +33,31 @@ configure_macos_toolchain() {
     exit 1
   fi
 
-  CC="$(xcrun --find clang)"
-  CXX="$(xcrun --find clang++)"
-  export CC CXX
+  if ! CC="$(xcrun --sdk macosx --find clang)" \
+    || ! CXX="$(xcrun --sdk macosx --find clang++)"; then
+    echo "ERROR: Cannot locate Apple Clang. Check your developer tools with xcode-select -p." >&2
+    exit 1
+  fi
+
+  # Cargo's C/C++ build scripts invoke these absolute compiler paths directly.
+  # Standalone Command Line Tools need an explicit SDK root for system headers.
+  if [[ -z "${SDKROOT:-}" ]]; then
+    if ! SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"; then
+      echo "ERROR: Cannot locate the macOS SDK. Install or select Xcode Command Line Tools or Xcode." >&2
+      exit 1
+    fi
+  fi
+  if [[ "${SDKROOT}" != /* || ! -f "${SDKROOT}/usr/include/TargetConditionals.h" ]]; then
+    echo "ERROR: SDKROOT must be an absolute SDK directory containing usr/include/TargetConditionals.h: ${SDKROOT}" >&2
+    echo "Unset SDKROOT to use the macOS SDK selected by xcrun." >&2
+    exit 1
+  fi
+  export CC CXX SDKROOT
 
   echo "==> macOS compiler: $("${CXX}" --version | awk 'NR == 1 { print; exit }')"
   echo "==> CC=${CC}"
   echo "==> CXX=${CXX}"
+  echo "==> SDKROOT=${SDKROOT}"
 }
 
 configure_build_toolchain() {
