@@ -190,17 +190,6 @@ public:
   std::future<Result<std::shared_ptr<capture::GstreamerAudioCaptureSource>, capture::CaptureError>>
   newAudioCaptureSourceAsync(proto::NewAudioCaptureSourceRequest request,
                              const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
-  std::shared_ptr<capture::GstreamerAudioPlayoutSink> newAudioPlayout(
-      const proto::NewAudioPlayoutRequest& request,
-      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
-  std::future<std::string> attachAudioPlayoutTrackAsync(
-      std::uint64_t playout_handle, std::uint64_t track_handle,
-      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
-  std::future<bool> detachAudioPlayoutTrackAsync(
-      std::uint64_t playout_handle, const std::string& track_id,
-      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
-  std::future<capture::AudioPlayoutStats> stopAudioPlayoutAsync(
-      std::uint64_t playout_handle, const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send = {});
 #endif
 
 private:

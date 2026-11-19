@@ -107,15 +107,6 @@ bool checkSources() {
           success = false;
         }
       }
-
-      livekit::capture::GstreamerAudioPlayoutConfig playout;
-      playout.pipeline = "appsrc name=lk_audio_appsrc ! fakesink sync=false";
-      const auto sink = livekit::capture::GstreamerAudioPlayoutSink::create(playout);
-      const auto stats = sink->stop().get();
-      if (stats.frames_pushed != 0 || stats.frames_dropped != 0 || stats.bytes_pushed != 0) {
-        std::cerr << "gstreamer audio playout: unexpected empty-pipeline statistics\n";
-        success = false;
-      }
     } catch (const std::exception& error) {
       std::cerr << "gstreamer audio: " << error.what() << '\n';
       success = false;

@@ -16,6 +16,6 @@
 
 #pragma once
 
-// Compatibility umbrella for video capture, audio capture, and audio playout.
+// Compatibility umbrella for video and audio capture.
 #include "livekit/capture/audio_source.h"
 #include "livekit/capture/video_source.h"

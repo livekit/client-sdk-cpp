@@ -475,7 +475,6 @@ add_library(livekit SHARED
 if(LIVEKIT_CAPTURE_ENABLED)
   target_sources(livekit PRIVATE
     src/audio_capture_source.cpp
-    src/audio_playout_sink.cpp
     src/capture_source.cpp
   )
 endif()

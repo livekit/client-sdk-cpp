@@ -2,10 +2,9 @@
 
 > **NOTE:** LiveKit Capture is not officially supported on Intel-based Macs.
 
-The capture APIs connect Rust media producers and consumers to regular C++ track
+The capture APIs connect Rust media producers to regular C++ track
 types. Media frames stay in Rust, so C++ does not send one FFI request per
-frame. The SDK supports video capture, GStreamer PCM audio capture, and mixed
-remote-track GStreamer audio playout.
+frame. The SDK supports video capture and GStreamer PCM audio capture.
 
 | Configuration | Output | Runtime requirements |
 | --- | --- | --- |
@@ -13,7 +12,6 @@ remote-track GStreamer audio playout.
 | `ClockVideoSourceConfig` | GPU-rendered local time with millisecond precision | Compatible GPU adapter |
 | `GstreamerVideoSourceConfig` | Pre-encoded video from a GStreamer pipeline | GStreamer runtime and the pipeline's plugins |
 | `GstreamerAudioSourceConfig` | PCM S16LE audio into an `AudioSource` | GStreamer runtime and the pipeline's plugins |
-| `GstreamerAudioPlayoutConfig` | Mixed remote audio tracks into GStreamer | GStreamer runtime and the pipeline's plugins |
 
 A custom SDK build can include all sources or a subset selected with
 `--capture=pattern,clock` or `--capture=gstreamer`. Release `-capture` bundles
@@ -34,8 +32,8 @@ install the API in `include/livekit/capture/`:
 
 | Header | Contents |
 | --- | --- |
-| `capture_source.h` | Umbrella for all capture and playout APIs; existing callers can keep this include |
-| `audio_source.h` | Audio capture, mixed audio playout, and their configurations |
+| `capture_source.h` | Umbrella for all capture APIs; existing callers can keep this include |
+| `audio_source.h` | Audio capture and its configurations |
 | `video_source.h` | Video capture and its configurations |
 | `capture_types.h` | Shared capture results, errors, and exit reasons |
 
@@ -140,27 +138,6 @@ Unlike video resolution and codec discovery, audio requires an explicit fixed
 format (48 kHz and mono by default). Audio frames are always 10 ms. The pipeline
 must contain the named appsink. Audio capture does not expose video's `publishOptions()` helper;
 publish it with normal audio track options.
-
-## GStreamer audio playout
-
-`GstreamerAudioPlayoutSink` starts with an empty mixer. Attach subscribed
-`RemoteAudioTrack` objects as they arrive, retain the returned stable track IDs,
-and detach them when subscriptions end:
-
-```cpp
-livekit::capture::GstreamerAudioPlayoutConfig config;
-config.pipeline = "appsrc name=lk_audio_appsrc ! audioconvert ! autoaudiosink";
-auto sink = livekit::capture::GstreamerAudioPlayoutSink::create(config);
-
-const std::string track_id = sink->attachTrack(remote_audio_track).get();
-const bool detached = sink->detachTrack(track_id).get();
-const auto stats = sink->stop().get();
-// stats contains frames_pushed, frames_dropped, and bytes_pushed.
-```
-
-Attach, detach, and stop complete asynchronously. Serialize `stop()` with
-attach/detach calls; stop consumes the server-side playout and may be called
-once. Destruction also stops playout but does not return statistics.
 
 ## GStreamer encoded pipelines
 

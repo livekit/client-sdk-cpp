@@ -535,8 +535,7 @@ for the selected backends. Creating a source omitted from the SDK build fails
 through the returned future with `std::runtime_error`.
 Capture-enabled bundles install the public API under `include/livekit/capture/`;
 standard bundles omit that directory. Use `<livekit/capture/video_source.h>`
-for video and `<livekit/capture/audio_source.h>` for GStreamer PCM capture
-and mixed GStreamer playout.
+for video and `<livekit/capture/audio_source.h>` for GStreamer PCM capture.
 `<livekit/capture/capture_source.h>` remains the umbrella that includes both
 headers and their shared types from `<livekit/capture/capture_types.h>`.
 The source-tree audio and video headers also reject use in a standard build.

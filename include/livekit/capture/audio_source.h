@@ -29,7 +29,6 @@
 
 #include "livekit/audio_source.h"
 #include "livekit/capture/capture_types.h"
-#include "livekit/remote_audio_track.h"
 #include "livekit/result.h"
 #include "livekit/visibility.h"
 
@@ -139,88 +138,6 @@ private:
 
   GstreamerAudioCaptureSource();
   static std::shared_ptr<GstreamerAudioCaptureSource> fromOwned(const proto::OwnedAudioCaptureSource& owned);
-
-  struct Impl;
-  std::unique_ptr<Impl> impl_;
-};
-
-/// @brief Configuration for mixed PCM S16LE playout in 10 ms frames through GStreamer.
-struct GstreamerAudioPlayoutConfig {
-  /// @brief GStreamer launch description.
-  ///
-  /// The pipeline must contain `appsrc name=lk_audio_appsrc`.
-  std::string pipeline;
-
-  /// @brief Mixed output sample rate in Hz.
-  std::uint32_t sample_rate = 48000;
-
-  /// @brief Number of interleaved output channels.
-  std::uint32_t num_channels = 1;
-};
-
-/// @brief Terminal statistics for GStreamer audio playout.
-struct AudioPlayoutStats {
-  /// @brief Number of frames accepted by the GStreamer pipeline.
-  std::uint64_t frames_pushed = 0;
-
-  /// @brief Number of frames dropped because the pipeline could not accept them.
-  std::uint64_t frames_dropped = 0;
-
-  /// @brief Number of PCM bytes accepted by the pipeline.
-  std::uint64_t bytes_pushed = 0;
-};
-
-/// @brief GStreamer sink that dynamically mixes remote audio tracks.
-///
-/// The sink starts with no tracks. Attach and detach operations complete
-/// asynchronously on the Rust runtime. Calling @ref stop() consumes the
-/// server-side playout and returns its terminal statistics. This type is safe
-/// for concurrent attach and detach calls; stop must be externally serialized
-/// with those operations.
-class LIVEKIT_API GstreamerAudioPlayoutSink {
-public:
-  /// @brief Create and start an empty GStreamer audio playout pipeline.
-  ///
-  /// @param config Pipeline and fixed mixed PCM format.
-  /// @return The running playout sink.
-  /// @throws std::runtime_error If the SDK is uninitialized, the pipeline is
-  /// invalid, or Rust returns a malformed response.
-  /// @throws std::bad_alloc If allocation fails.
-  [[nodiscard]] static std::shared_ptr<GstreamerAudioPlayoutSink> create(const GstreamerAudioPlayoutConfig& config);
-
-  ~GstreamerAudioPlayoutSink();
-
-  GstreamerAudioPlayoutSink(const GstreamerAudioPlayoutSink&) = delete;
-  GstreamerAudioPlayoutSink& operator=(const GstreamerAudioPlayoutSink&) = delete;
-  GstreamerAudioPlayoutSink(GstreamerAudioPlayoutSink&&) = delete;
-  GstreamerAudioPlayoutSink& operator=(GstreamerAudioPlayoutSink&&) = delete;
-
-  /// @brief Attach a remote audio track to the mixer.
-  /// @param track Remote audio track whose handle Rust will clone.
-  /// @return Future containing the stable track ID used by @ref detachTrack().
-  /// @throws std::runtime_error When awaiting the future if the operation fails.
-  [[nodiscard]] std::future<std::string> attachTrack(const RemoteAudioTrack& track);
-
-  /// @brief Detach an attached track by its stable ID.
-  /// @param track_id ID returned by @ref attachTrack().
-  /// @return Future containing true if the track was attached and removed.
-  /// @throws std::runtime_error When awaiting the future if the operation fails.
-  [[nodiscard]] std::future<bool> detachTrack(const std::string& track_id);
-
-  /// @brief Stop playout asynchronously and return terminal statistics.
-  ///
-  /// This operation may be called once. Destruction also stops playout, but
-  /// discards terminal statistics.
-  ///
-  /// @return Future containing playout statistics.
-  /// @throws std::runtime_error When awaiting the future if the operation fails.
-  [[nodiscard]] std::future<AudioPlayoutStats> stop();
-
-private:
-  friend class livekit::FfiClient;
-
-  GstreamerAudioPlayoutSink();
-  static std::shared_ptr<GstreamerAudioPlayoutSink> fromHandle(std::uint64_t handle);
 
   struct Impl;
   std::unique_ptr<Impl> impl_;
