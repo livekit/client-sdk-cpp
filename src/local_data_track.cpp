@@ -18,10 +18,8 @@
 
 #include "data_track.pb.h"
 #include "data_track_proto_converter.h"
-#include "ffi.pb.h"
-#include "ffi_client.h"
 #include "livekit/data_track_error.h"
-#include "lk_log.h"
+#include "livekit_ffi.hpp"
 
 namespace livekit {
 
@@ -53,21 +51,15 @@ Result<void, LocalDataTrackTryPushError> LocalDataTrack::tryPush(const std::uint
   }
 
   try {
-    proto::FfiRequest req;
-    auto* msg = req.mutable_local_data_track_try_push();
-    msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
-    auto* pf = msg->mutable_frame();
-    pf->set_payload(data, size);
-    if (user_timestamp.has_value()) {
-      pf->set_user_timestamp(user_timestamp.value());
-    }
-
-    const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-    const auto& r = resp.local_data_track_try_push();
-    if (r.has_error()) {
-      return Result<void, LocalDataTrackTryPushError>::failure(LocalDataTrackTryPushError::fromProto(r.error()));
-    }
+    livekit_ffi::LocalDataTrack::from_ffi_handle_id(handle_.get())
+        ->try_push(livekit_ffi::DataTrackFrame{std::vector<std::uint8_t>(data, data + size), user_timestamp});
     return Result<void, LocalDataTrackTryPushError>::success();
+  } catch (const livekit_datatrack::push_frame_error_reason::TrackUnpublished&) {
+    return Result<void, LocalDataTrackTryPushError>::failure(LocalDataTrackTryPushError{
+        LocalDataTrackTryPushErrorCode::TRACK_UNPUBLISHED, "Failed to publish frame: track unpublished"});
+  } catch (const livekit_datatrack::push_frame_error_reason::QueueFull&) {
+    return Result<void, LocalDataTrackTryPushError>::failure(
+        LocalDataTrackTryPushError{LocalDataTrackTryPushErrorCode::QUEUE_FULL, "Failed to publish frame: queue full"});
   } catch (const std::exception& e) {
     return Result<void, LocalDataTrackTryPushError>::failure(
         LocalDataTrackTryPushError{LocalDataTrackTryPushErrorCode::INTERNAL, e.what()});
@@ -79,12 +71,7 @@ bool LocalDataTrack::isPublished() const {
     return false;
   }
 
-  proto::FfiRequest req;
-  auto* msg = req.mutable_local_data_track_is_published();
-  msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
-
-  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-  return resp.local_data_track_is_published().is_published();
+  return livekit_ffi::LocalDataTrack::from_ffi_handle_id(handle_.get())->is_published();
 }
 
 void LocalDataTrack::unpublishDataTrack() {
@@ -92,11 +79,7 @@ void LocalDataTrack::unpublishDataTrack() {
     return;
   }
 
-  proto::FfiRequest req;
-  auto* msg = req.mutable_local_data_track_unpublish();
-  msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
-
-  (void)FfiClient::instance().sendRequest(req);
+  livekit_ffi::LocalDataTrack::from_ffi_handle_id(handle_.get())->unpublish();
 }
 
 } // namespace livekit

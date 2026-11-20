@@ -16,14 +16,12 @@
 
 #pragma once
 
-#include <condition_variable>
 #include <cstdint>
-#include <mutex>
+#include <memory>
 #include <optional>
 
 #include "livekit/data_track_error.h"
 #include "livekit/data_track_frame.h"
-#include "livekit/ffi_handle.h"
 #include "livekit/visibility.h"
 
 namespace livekit {
@@ -36,10 +34,10 @@ class DataTrackStreamReadResponse;
 /// Represents a pull-based stream of frames from a remote data track.
 ///
 /// Provides a blocking read() interface similar to AudioStream / VideoStream.
-/// Frames are delivered via FfiEvent callbacks and stored internally.
+/// Frames are received through UniFFI futures and stored internally.
 ///
 /// Destroying the stream automatically unsubscribes from the remote track by
-/// releasing the underlying FFI handle.
+/// releasing the underlying Rust stream.
 ///
 /// Typical usage:
 ///
@@ -63,8 +61,6 @@ public:
 
   DataTrackStream(const DataTrackStream&) = delete;
   DataTrackStream& operator=(const DataTrackStream&) = delete;
-  // The FFI listener captures `this`, so moving the object would leave the
-  // registered callback pointing at the old address.
   DataTrackStream(DataTrackStream&&) noexcept = delete;
   // Instances are created and returned as std::shared_ptr, so value-move
   // support is not required by the current API.
@@ -86,8 +82,8 @@ public:
 
   /// End the stream early.
   ///
-  /// Releases the FFI handle (which unsubscribes from the remote track),
-  /// unregisters the event listener, and wakes any blocking read().
+  /// Cancels pending Rust operations, releases the stream, and wakes any
+  /// blocking read().
   void close();
 
 private:
@@ -96,11 +92,11 @@ private:
   friend class DataTrackStreamTest;
 #endif
 
-  DataTrackStream() = default;
+  DataTrackStream();
   /// Internal init helper, called by RemoteDataTrack.
-  void init(FfiHandle subscription_handle);
+  void init(std::uint64_t track_handle, const Options& options);
 
-  /// FFI event handler, called by FfiClient.
+  /// Decode legacy FFI events for the existing protocol unit tests.
   void onFfiEvent(const proto::FfiEvent& event);
 
   /// Handle the immediate response returned by a read request.
@@ -115,31 +111,8 @@ private:
   /// Push an end-of-stream signal (EOS).
   void pushEos(std::optional<SubscribeDataTrackError> error = std::nullopt);
 
-  /// Protects all mutable state below.
-  mutable std::mutex mutex_;
-
-  /// Signalled when a frame is pushed or the subscription ends.
-  std::condition_variable cv_;
-
-  /// Received frame awaiting read().
-  /// NOTE: the Rust side handles buffering, so we should only really ever have
-  /// one item.
-  std::optional<DataTrackFrame> frame_;
-
-  /// True once the remote side signals end-of-stream.
-  bool eof_{false};
-
-  /// True after close() has been called by the consumer.
-  bool closed_{false};
-
-  /// Typed terminal error reported with EOS, if subscription setup failed.
-  std::optional<SubscribeDataTrackError> terminal_error_;
-
-  /// RAII handle for the Rust-owned subscription resource.
-  FfiHandle subscription_handle_;
-
-  /// FfiClient listener id for routing FfiEvent callbacks to this object.
-  std::int32_t listener_id_{-1};
+  struct Impl;
+  std::shared_ptr<Impl> impl_;
 };
 
 } // namespace livekit

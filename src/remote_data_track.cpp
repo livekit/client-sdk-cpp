@@ -20,8 +20,7 @@
 
 #include "data_track.pb.h"
 #include "data_track_proto_converter.h"
-#include "ffi.pb.h"
-#include "ffi_client.h"
+#include "livekit_ffi.hpp"
 #include "lk_log.h"
 
 namespace livekit {
@@ -36,12 +35,7 @@ bool RemoteDataTrack::isPublished() const {
     return false;
   }
 
-  proto::FfiRequest req;
-  auto* msg = req.mutable_remote_data_track_is_published();
-  msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
-
-  const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-  return resp.remote_data_track_is_published().is_published();
+  return livekit_ffi::RemoteDataTrack::from_ffi_handle_id(handle_.get())->is_published();
 }
 
 void RemoteDataTrack::setPipelineOptions(const DataTrackPipelineOptions& options) {
@@ -49,15 +43,8 @@ void RemoteDataTrack::setPipelineOptions(const DataTrackPipelineOptions& options
     return;
   }
 
-  proto::FfiRequest req;
-  auto* msg = req.mutable_remote_data_track_set_pipeline_options();
-  msg->set_track_handle(static_cast<uint64_t>(handle_.get()));
-  auto* opts = msg->mutable_options();
-  if (options.max_partial_frames) {
-    opts->set_max_partial_frames(*options.max_partial_frames);
-  }
-
-  FfiClient::instance().sendRequest(req);
+  livekit_ffi::RemoteDataTrack::from_ffi_handle_id(handle_.get())
+      ->set_pipeline_options(livekit_ffi::RemoteDataTrackPipelineOptions{options.max_partial_frames});
 }
 
 Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> RemoteDataTrack::subscribe(
@@ -72,19 +59,14 @@ Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError> RemoteDataTrac
                                 "handle"});
   }
 
-  auto result =
-      FfiClient::instance().subscribeDataTrack(static_cast<std::uint64_t>(handle_.get()), options.buffer_size);
-  if (!result) {
-    return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::failure(std::move(result).error());
+  try {
+    auto stream = std::shared_ptr<DataTrackStream>(new DataTrackStream());
+    stream->init(static_cast<std::uint64_t>(handle_.get()), options);
+    return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::success(std::move(stream));
+  } catch (const std::exception& error) {
+    return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::failure(
+        SubscribeDataTrackError{SubscribeDataTrackErrorCode::INTERNAL, error.what()});
   }
-
-  const proto::OwnedDataTrackStream owned_sub = result.value();
-
-  FfiHandle sub_handle(static_cast<uintptr_t>(owned_sub.handle().id()));
-
-  auto stream = std::shared_ptr<DataTrackStream>(new DataTrackStream());
-  stream->init(std::move(sub_handle));
-  return Result<std::shared_ptr<DataTrackStream>, SubscribeDataTrackError>::success(std::move(stream));
 }
 
 } // namespace livekit

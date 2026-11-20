@@ -16,17 +16,17 @@
 
 #include "livekit/data_track_stream.h"
 
-#include <optional>
+#include <cassert>
+#include <condition_variable>
+#include <mutex>
 #include <utility>
 
 #include "data_track.pb.h"
 #include "ffi.pb.h"
-#include "ffi_client.h"
+#include "livekit_ffi.hpp"
 #include "lk_log.h"
 
 namespace livekit {
-
-using proto::FfiEvent;
 
 namespace {
 
@@ -39,118 +39,165 @@ std::optional<SubscribeDataTrackError> terminalErrorFromEos(const proto::DataTra
   return SubscribeDataTrackError::fromProto(eos.error());
 }
 
+SubscribeDataTrackError subscribeError(const std::exception& error) {
+  auto code = SubscribeDataTrackErrorCode::INTERNAL;
+  if (dynamic_cast<const livekit_datatrack::data_track_subscribe_error::Unpublished*>(&error)) {
+    code = SubscribeDataTrackErrorCode::UNPUBLISHED;
+  } else if (dynamic_cast<const livekit_datatrack::data_track_subscribe_error::Timeout*>(&error)) {
+    code = SubscribeDataTrackErrorCode::TIMEOUT;
+  } else if (dynamic_cast<const livekit_datatrack::data_track_subscribe_error::Disconnected*>(&error)) {
+    code = SubscribeDataTrackErrorCode::DISCONNECTED;
+  }
+  return SubscribeDataTrackError{code, error.what()};
+}
+
 } // namespace
+
+struct DataTrackStream::Impl {
+  std::mutex mutex;
+  std::condition_variable cv;
+  std::optional<DataTrackFrame> frame;
+  bool eof{false};
+  bool closed{false};
+  std::optional<SubscribeDataTrackError> terminal_error;
+  std::shared_ptr<livekit_ffi::DataTrackStream> stream;
+  uniffi::FutureContinuation continuation;
+
+  void pushFrame(DataTrackFrame&& value) {
+    const std::scoped_lock<std::mutex> lock(mutex);
+    if (closed || eof) {
+      return;
+    }
+    assert(!frame.has_value());
+    frame = std::move(value);
+    cv.notify_one();
+  }
+
+  void pushEos(std::optional<SubscribeDataTrackError> error = std::nullopt) {
+    const std::scoped_lock<std::mutex> lock(mutex);
+    if (closed || eof) {
+      return;
+    }
+    eof = true;
+    terminal_error = std::move(error);
+    stream.reset();
+    cv.notify_all();
+  }
+};
+
+DataTrackStream::DataTrackStream() : impl_(std::make_shared<Impl>()) {}
 
 DataTrackStream::~DataTrackStream() { close(); }
 
-void DataTrackStream::init(FfiHandle subscription_handle) {
-  subscription_handle_ = std::move(subscription_handle);
-
-  listener_id_ = FfiClient::instance().addListener([this](const FfiEvent& e) { this->onFfiEvent(e); });
+void DataTrackStream::init(std::uint64_t track_handle, const Options& options) {
+  auto future = livekit_ffi::RemoteDataTrack::from_ffi_handle_id(track_handle)
+                    ->subscribe_with_options(livekit_ffi::DataTrackSubscribeOptions{options.buffer_size.value_or(16)});
+  const std::weak_ptr<Impl> weak = impl_;
+  const std::scoped_lock<std::mutex> lock(impl_->mutex);
+  impl_->continuation = std::move(future).then([weak](auto result) {
+    const auto state = weak.lock();
+    if (!state) {
+      return;
+    }
+    try {
+      auto stream = std::move(result).get();
+      const std::scoped_lock<std::mutex> state_lock(state->mutex);
+      if (!state->closed) {
+        state->stream = std::move(stream);
+        state->cv.notify_all();
+      }
+    } catch (const std::exception& error) {
+      state->pushEos(subscribeError(error));
+    }
+  });
 }
 
 bool DataTrackStream::read(DataTrackFrame& out) {
-  proto::DataTrackStreamReadResponse read_response;
-  bool missing_read_response = false;
-
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
-    if (closed_ || eof_) {
-      return false;
-    }
-
-    const auto subscription_handle = static_cast<std::uint64_t>(subscription_handle_.get());
-
-    // Signal the Rust side that we're ready to receive the next frame.
-    // The Rust SubscriptionTask uses a demand-driven protocol: it won't pull
-    // from the underlying stream until notified via this request.
-    proto::FfiRequest req;
-    auto* msg = req.mutable_data_track_stream_read();
-    msg->set_stream_handle(subscription_handle);
-    const proto::FfiResponse resp = FfiClient::instance().sendRequest(req);
-    if (!resp.has_data_track_stream_read()) {
-      missing_read_response = true;
-    } else {
-      read_response = resp.data_track_stream_read();
-    }
-  }
-
-  if (missing_read_response) {
-    failProtocolError(kMissingReadResponseError);
+  const auto state = impl_;
+  std::unique_lock<std::mutex> lock(state->mutex);
+  state->cv.wait(lock, [&state] { return state->stream || state->closed || state->eof; });
+  if (state->closed || state->eof) {
     return false;
   }
 
-  handleReadResponse(read_response);
-
-  std::unique_lock<std::mutex> lock(mutex_);
-  cv_.wait(lock, [this] { return frame_.has_value() || eof_ || closed_; });
-
-  if (closed_ || (!frame_.has_value() && eof_)) {
+  // Only the caller blocks; completion and cancellation use the shared UniFFI executor.
+  const std::weak_ptr<Impl> weak = state;
+  state->continuation = std::move(state->stream->next()).then([weak](auto result) {
+    const auto target = weak.lock();
+    if (!target) {
+      return;
+    }
+    try {
+      auto frame = std::move(result).get();
+      if (frame) {
+        target->pushFrame(DataTrackFrame(std::move(frame->payload), frame->user_timestamp));
+      } else {
+        target->pushEos();
+      }
+    } catch (const std::exception& error) {
+      target->pushEos(subscribeError(error));
+    }
+  });
+  state->cv.wait(lock, [&state] { return state->frame.has_value() || state->eof || state->closed; });
+  if (state->closed || !state->frame) {
     return false;
   }
-
-  out = std::move(*frame_); // NOLINT(bugprone-unchecked-optional-access)
-  frame_.reset();
+  out = std::move(*state->frame);
+  state->frame.reset();
   return true;
 }
 
 std::optional<SubscribeDataTrackError> DataTrackStream::terminalError() const {
-  const std::scoped_lock<std::mutex> lock(mutex_);
-  return terminal_error_;
+  const std::scoped_lock<std::mutex> lock(impl_->mutex);
+  return impl_->terminal_error;
 }
 
 void DataTrackStream::close() {
-  std::int32_t listener_id = -1;
+  uniffi::FutureContinuation continuation;
+  std::shared_ptr<livekit_ffi::DataTrackStream> stream;
   {
-    const std::scoped_lock<std::mutex> lock(mutex_);
-    if (closed_) {
+    const std::scoped_lock<std::mutex> lock(impl_->mutex);
+    if (impl_->closed) {
       return;
     }
-    closed_ = true;
-    // Preserve errors reported by EOS for post-stream inspection, but do not
-    // treat a local early close as a terminal subscription error.
-    if (!eof_) {
-      terminal_error_.reset();
+    impl_->closed = true;
+    if (!impl_->eof) {
+      impl_->terminal_error.reset();
     }
-    subscription_handle_.reset();
-    listener_id = listener_id_;
-    listener_id_ = -1;
+    continuation = std::move(impl_->continuation);
+    stream = std::move(impl_->stream);
   }
-
-  if (listener_id != -1) {
-    FfiClient::instance().removeListener(listener_id);
+  impl_->cv.notify_all();
+  continuation.cancel();
+  if (stream) {
+    try {
+      stream->close();
+    } catch (const std::exception& error) {
+      LK_LOG_ERROR("Failed to close data track stream: {}", error.what());
+    }
   }
-
-  cv_.notify_all();
 }
 
-void DataTrackStream::onFfiEvent(const FfiEvent& event) {
-  if (event.message_case() != FfiEvent::kDataTrackStreamEvent) {
+// Retained for the existing protobuf protocol-decoding unit tests during migration.
+void DataTrackStream::onFfiEvent(const proto::FfiEvent& event) {
+  if (event.message_case() != proto::FfiEvent::kDataTrackStreamEvent) {
     return;
   }
-
-  const auto& dts = event.data_track_stream_event();
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
-    if (closed_ || dts.stream_handle() != static_cast<std::uint64_t>(subscription_handle_.get())) {
-      return;
-    }
+  const auto& stream_event = event.data_track_stream_event();
+  if (stream_event.stream_handle() != 0) {
+    return;
   }
-
-  if (dts.has_frame_received()) {
-    const auto& fr = dts.frame_received().frame();
-    DataTrackFrame frame = DataTrackFrame::fromOwnedInfo(fr);
-    pushFrame(std::move(frame));
-  } else if (dts.has_eos()) {
-    pushEos(terminalErrorFromEos(dts.eos()));
+  if (stream_event.has_frame_received()) {
+    pushFrame(DataTrackFrame::fromOwnedInfo(stream_event.frame_received().frame()));
+  } else if (stream_event.has_eos()) {
+    pushEos(terminalErrorFromEos(stream_event.eos()));
   }
 }
 
 void DataTrackStream::handleReadResponse(const proto::DataTrackStreamReadResponse& response) {
-  if (!response.has_eos_event()) {
-    return;
+  if (response.has_eos_event()) {
+    pushEos(terminalErrorFromEos(response.eos_event()));
   }
-  pushEos(terminalErrorFromEos(response.eos_event()));
 }
 
 void DataTrackStream::failProtocolError(const char* message) {
@@ -159,32 +206,8 @@ void DataTrackStream::failProtocolError(const char* message) {
   close();
 }
 
-void DataTrackStream::pushFrame(DataTrackFrame&& frame) {
-  const std::scoped_lock<std::mutex> lock(mutex_);
+void DataTrackStream::pushFrame(DataTrackFrame&& frame) { impl_->pushFrame(std::move(frame)); }
 
-  if (closed_ || eof_) {
-    return;
-  }
-
-  // rust side handles buffering, so we should only really ever have one item
-  assert(!frame_.has_value());
-
-  frame_ = std::move(frame);
-
-  // notify no matter what since we got a new frame
-  cv_.notify_one();
-}
-
-void DataTrackStream::pushEos(std::optional<SubscribeDataTrackError> error) {
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
-    if (closed_ || eof_) {
-      return;
-    }
-    eof_ = true;
-    terminal_error_ = std::move(error);
-  }
-  cv_.notify_all();
-}
+void DataTrackStream::pushEos(std::optional<SubscribeDataTrackError> error) { impl_->pushEos(std::move(error)); }
 
 } // namespace livekit

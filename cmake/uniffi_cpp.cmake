@@ -20,6 +20,17 @@ set(LIVEKIT_UNIFFI_CPP_HEADER
 set(LIVEKIT_UNIFFI_CPP_SCAFFOLDING_HEADER
     "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}/livekit_ffi_scaffolding.hpp")
 
+# Shared data-track types are exported by these crates in the same Rust library.
+set(LIVEKIT_UNIFFI_CPP_SOURCES "${LIVEKIT_UNIFFI_CPP_SOURCE}")
+set(LIVEKIT_UNIFFI_CPP_HEADERS
+    "${LIVEKIT_UNIFFI_CPP_HEADER}" "${LIVEKIT_UNIFFI_CPP_SCAFFOLDING_HEADER}")
+foreach(component livekit_common livekit_datatrack)
+  list(APPEND LIVEKIT_UNIFFI_CPP_SOURCES "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}/${component}.cpp")
+  list(APPEND LIVEKIT_UNIFFI_CPP_HEADERS
+       "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}/${component}.hpp"
+       "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}/${component}_scaffolding.hpp")
+endforeach()
+
 # Release Linux builds strip the UniFFI metadata symbols, so generate from a
 # separate unstripped Debug library there. PE and Mach-O retain the metadata,
 # allowing Windows and macOS to reuse the livekit-ffi library already built for
@@ -66,9 +77,8 @@ add_dependencies(build_livekit_ffi_metadata build_rust_ffi)
 
 add_custom_command(
   OUTPUT
-    "${LIVEKIT_UNIFFI_CPP_SOURCE}"
-    "${LIVEKIT_UNIFFI_CPP_HEADER}"
-    "${LIVEKIT_UNIFFI_CPP_SCAFFOLDING_HEADER}"
+    ${LIVEKIT_UNIFFI_CPP_SOURCES}
+    ${LIVEKIT_UNIFFI_CPP_HEADERS}
   COMMAND "${CMAKE_COMMAND}" -E make_directory
           "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}"
   COMMAND "${CMAKE_COMMAND}" -E env
@@ -91,20 +101,18 @@ add_custom_command(
 )
 add_custom_target(generate_livekit_ffi_uniffi_cpp
   DEPENDS
-    "${LIVEKIT_UNIFFI_CPP_SOURCE}"
-    "${LIVEKIT_UNIFFI_CPP_HEADER}"
-    "${LIVEKIT_UNIFFI_CPP_SCAFFOLDING_HEADER}"
+    ${LIVEKIT_UNIFFI_CPP_SOURCES}
+    ${LIVEKIT_UNIFFI_CPP_HEADERS}
 )
 
 set_source_files_properties(
-  "${LIVEKIT_UNIFFI_CPP_SOURCE}"
-  "${LIVEKIT_UNIFFI_CPP_HEADER}"
-  "${LIVEKIT_UNIFFI_CPP_SCAFFOLDING_HEADER}"
+  ${LIVEKIT_UNIFFI_CPP_SOURCES}
+  ${LIVEKIT_UNIFFI_CPP_HEADERS}
   PROPERTIES GENERATED TRUE
 )
 
 add_library(livekit_uniffi_cpp OBJECT
-  "${LIVEKIT_UNIFFI_CPP_SOURCE}"
+  ${LIVEKIT_UNIFFI_CPP_SOURCES}
 )
 set_target_properties(livekit_uniffi_cpp PROPERTIES
   CXX_VISIBILITY_PRESET hidden
