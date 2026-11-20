@@ -544,25 +544,16 @@ TEST_F(FfiClientTest, NotInitialized_SubscribeDataTrackFails) {
   EXPECT_EQ(result.error().code, SubscribeDataTrackErrorCode::INTERNAL);
 }
 
-TEST_F(FfiClientTest, NotInitialized_SendStreamHeaderAsyncThrows) {
+TEST_F(FfiClientTest, NotInitialized_StreamWriterHelpersThrow) {
   ASSERT_FALSE(FfiClient::instance().isInitialized());
 
-  proto::DataStream::Header header;
-  EXPECT_THROW(FfiClient::instance().sendStreamHeaderAsync(1, header, {}, "sender"), std::runtime_error);
-}
-
-TEST_F(FfiClientTest, NotInitialized_SendStreamChunkAsyncThrows) {
-  ASSERT_FALSE(FfiClient::instance().isInitialized());
-
-  proto::DataStream::Chunk chunk;
-  EXPECT_THROW(FfiClient::instance().sendStreamChunkAsync(1, chunk, {}, "sender"), std::runtime_error);
-}
-
-TEST_F(FfiClientTest, NotInitialized_SendStreamTrailerAsyncThrows) {
-  ASSERT_FALSE(FfiClient::instance().isInitialized());
-
-  proto::DataStream::Trailer trailer;
-  EXPECT_THROW(FfiClient::instance().sendStreamTrailerAsync(1, trailer, "sender"), std::runtime_error);
+  const std::uint8_t byte = 0;
+  EXPECT_THROW(FfiClient::instance().textStreamOpenAsync(1, proto::StreamTextOptions{}), std::runtime_error);
+  EXPECT_THROW(FfiClient::instance().byteStreamOpenAsync(1, proto::StreamByteOptions{}), std::runtime_error);
+  EXPECT_THROW(FfiClient::instance().textStreamWriteAsync(1, "x"), std::runtime_error);
+  EXPECT_THROW(FfiClient::instance().byteStreamWriteAsync(1, &byte, 1), std::runtime_error);
+  EXPECT_THROW(FfiClient::instance().textStreamCloseAsync(1, std::nullopt, {}), std::runtime_error);
+  EXPECT_THROW(FfiClient::instance().byteStreamCloseAsync(1, std::string("reason"), {}), std::runtime_error);
 }
 
 } // namespace livekit::test

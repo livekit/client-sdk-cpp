@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <functional>
 #include <future>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -57,7 +58,6 @@ class FfiRequest;
 class OwnedTrackPublication;
 class OwnedLocalDataTrack;
 class OwnedDataTrackStream;
-class DataStream;
 
 } // namespace proto
 
@@ -176,17 +176,18 @@ public:
   void textStreamReadIncremental(std::uint64_t reader_handle);
   void byteStreamReadIncremental(std::uint64_t reader_handle);
 
-  // Low-level data stream functionalities (legacy v1 framing)
-  std::future<void> sendStreamHeaderAsync(std::uint64_t local_participant_handle,
-                                          const proto::DataStream::Header& header,
-                                          const std::vector<std::string>& destination_identities,
-                                          const std::string& sender_identity);
-  std::future<void> sendStreamChunkAsync(std::uint64_t local_participant_handle, const proto::DataStream::Chunk& chunk,
-                                         const std::vector<std::string>& destination_identities,
-                                         const std::string& sender_identity);
-  std::future<void> sendStreamTrailerAsync(std::uint64_t local_participant_handle,
-                                           const proto::DataStream::Trailer& trailer,
-                                           const std::string& sender_identity);
+  // Incremental writers. Open creates an owned writer handle; write borrows
+  // it; close consumes it (never drop the handle after calling close).
+  std::future<proto::OwnedTextStreamWriter> textStreamOpenAsync(std::uint64_t local_participant_handle,
+                                                                const proto::StreamTextOptions& options);
+  std::future<proto::OwnedByteStreamWriter> byteStreamOpenAsync(std::uint64_t local_participant_handle,
+                                                                const proto::StreamByteOptions& options);
+  std::future<void> textStreamWriteAsync(std::uint64_t writer_handle, const std::string& text);
+  std::future<void> byteStreamWriteAsync(std::uint64_t writer_handle, const std::uint8_t* data, std::size_t size);
+  std::future<void> textStreamCloseAsync(std::uint64_t writer_handle, const std::optional<std::string>& reason,
+                                         const std::map<std::string, std::string>& attributes);
+  std::future<void> byteStreamCloseAsync(std::uint64_t writer_handle, const std::optional<std::string>& reason,
+                                         const std::map<std::string, std::string>& attributes);
 
   // Generic function for sending a request to the Rust FFI.
   // Note: For asynchronous requests, use the dedicated async functions instead

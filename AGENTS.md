@@ -78,7 +78,7 @@ All `RoomDelegate` callbacks and stream handler callbacks (e.g., `registerTextSt
 | `LocalDataTrack::tryPush` | No | Thin `sendRequest` wrapper with no internal synchronization. |
 | `TextStreamReader` / `ByteStreamReader` | Yes | Fed on the FFI callback thread, read on a user thread (internal `std::mutex` + `condition_variable`). End-of-stream attributes are merged into `info()` on the reading thread, so don't call `info()` concurrently with `readNext()`. |
 | `LocalParticipant::sendText` / `sendBytes` / `sendFile` | Yes | Independent async FFI requests; each call blocks its caller until its own callback arrives. They throw `DataStreamError` once the room has disconnected rather than reaching the FFI. |
-| `TextStreamWriter` / `ByteStreamWriter` | Serialized | `write()` is serialized by an internal `write_mutex_`. |
+| `TextStreamWriter` / `ByteStreamWriter` | Serialized | `write()` and `close()` are serialized by an internal mutex and each waits for its FFI callback, so `close()` never overtakes a write. `LocalParticipant` closes its writers on disconnect (via a shared registry, so writers may outlive the participant); later calls throw `DataStreamError`. Create writers with `LocalParticipant::streamText` / `streamBytes`; the constructors are deprecated. |
 
 ### Directory Layout
 Be sure to update the directory layout in this file if the directory layout changes.
