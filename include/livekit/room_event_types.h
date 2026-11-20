@@ -664,7 +664,11 @@ struct DataChannelBufferedAmountLowThresholdChangedEvent {
 
 /// Fired when a high-level byte stream reader is opened.
 struct ByteStreamOpenedEvent {
-  /// Handle to the underlying byte stream reader.
+  /// Always 0.
+  ///
+  /// @deprecated The reader handle is owned and consumed by the
+  /// ByteStreamReader the SDK passes to the handler registered with
+  /// Room::registerByteStreamHandler(); use that reader instead.
   std::uint64_t reader_handle = 0;
 
   /// Identity of the participant that opened the stream.
@@ -673,7 +677,11 @@ struct ByteStreamOpenedEvent {
 
 /// Fired when a high-level text stream reader is opened.
 struct TextStreamOpenedEvent {
-  /// Handle to the underlying text stream reader.
+  /// Always 0.
+  ///
+  /// @deprecated The reader handle is owned and consumed by the
+  /// TextStreamReader the SDK passes to the handler registered with
+  /// Room::registerTextStreamHandler(); use that reader instead.
   std::uint64_t reader_handle = 0;
 
   /// Identity of the participant that opened the stream.

@@ -21,6 +21,7 @@
 #include <mutex>
 #include <stdexcept>
 
+#include "data_stream_proto_converter.h"
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
@@ -84,6 +85,51 @@ void LocalParticipant::publishData(const std::vector<std::uint8_t>& payload, boo
                                                     destination_identities, topic);
 
   fut.get();
+}
+
+std::uint64_t LocalParticipant::dataStreamHandle(const char* operation) const {
+  if (!FfiClient::instance().isInitialized()) {
+    throw DataStreamError(std::string("LocalParticipant::") + operation + ": LiveKit is not initialized");
+  }
+  // The FFI panics (and the SDK raises SIGTERM) if a stream is sent after the
+  // room session is gone, so refuse here instead.
+  if (disconnected_.load(std::memory_order_acquire)) {
+    throw DataStreamError(std::string("LocalParticipant::") + operation + ": not connected");
+  }
+  const auto handle_id = ffiHandleId();
+  if (handle_id == 0) {
+    throw DataStreamError(std::string("LocalParticipant::") + operation + ": invalid FFI handle");
+  }
+  return static_cast<std::uint64_t>(handle_id);
+}
+
+TextStreamInfo LocalParticipant::sendText(const std::string& text, const StreamTextOptions& options) {
+  const auto handle_id = dataStreamHandle("sendText");
+  auto fut = FfiClient::instance().sendTextAsync(handle_id, text, toProto(options));
+  return fromProto(fut.get());
+}
+
+ByteStreamInfo LocalParticipant::sendBytes(const std::vector<std::uint8_t>& data, const StreamByteOptions& options) {
+  const auto handle_id = dataStreamHandle("sendBytes");
+  auto fut = FfiClient::instance().sendBytesAsync(handle_id, data, toProto(options));
+  return fromProto(fut.get());
+}
+
+ByteStreamInfo LocalParticipant::sendFile(const std::string& path, const StreamByteOptions& options) {
+  const auto handle_id = dataStreamHandle("sendFile");
+  proto::StreamByteOptions proto_options = toProto(options);
+  if (!options.name) {
+    // Basename of a UTF-8 path. Done on the string rather than via
+    // std::filesystem so non-ASCII names survive on Windows.
+#ifdef _WIN32
+    const auto slash = path.find_last_of("/\\");
+#else
+    const auto slash = path.find_last_of('/');
+#endif
+    proto_options.set_name(slash == std::string::npos ? path : path.substr(slash + 1));
+  }
+  auto fut = FfiClient::instance().sendFileAsync(handle_id, path, proto_options);
+  return fromProto(fut.get());
 }
 
 void LocalParticipant::publishDtmf(int code, const std::string& digit) {
@@ -394,6 +440,7 @@ void LocalParticipant::unregisterRpcMethod(const std::string& method_name) {
 }
 
 void LocalParticipant::shutdown() {
+  markDisconnected();
   // Mark as shutting down and wait for all active invocations to complete
   {
     std::unique_lock<std::mutex> lock(rpc_state_->mutex);

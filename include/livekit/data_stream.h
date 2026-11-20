@@ -24,6 +24,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,100 @@ class LocalParticipant;
 /// Chosen to balance throughput and latency, and to work well with WebRTC data
 /// channels.
 constexpr std::size_t kStreamChunkSize = 15'000; // 15 KB
+
+/// @brief Error raised by data stream operations.
+///
+/// Thrown by the one-shot send APIs (for example
+/// LocalParticipant::sendText()) when the send fails or the participant is no
+/// longer connected, and by TextStreamReader / ByteStreamReader when an
+/// incoming stream ends abnormally (for example the sender closed it with a
+/// reason, the stream exceeded RoomOptions::data_stream limits, or the room
+/// disconnected mid-stream). The message carries the SDK's error description.
+///
+/// Derives from std::runtime_error, so existing
+/// `catch (const std::runtime_error&)` handlers keep working.
+class LIVEKIT_API DataStreamError : public std::runtime_error {
+public:
+  /// @brief Construct an error with a description.
+  /// @param message Human-readable error description.
+  explicit DataStreamError(const std::string& message);
+};
+
+/// @brief Options for a one-shot text send or an incremental text stream.
+///
+/// Used by LocalParticipant::sendText().
+struct StreamTextOptions {
+  /// Application-defined topic. Required; receivers route streams to handlers
+  /// registered with Room::registerTextStreamHandler() by topic.
+  std::string topic;
+
+  /// Arbitrary key/value attributes sent with the stream header.
+  std::map<std::string, std::string> attributes;
+
+  /// Identities of the participants that should receive the stream. Empty
+  /// means every participant in the room.
+  std::vector<std::string> destination_identities;
+
+  /// Stream id to use. A unique id is generated when unset.
+  std::optional<std::string> stream_id;
+
+  /// Id of the stream this stream replies to, if any.
+  std::optional<std::string> reply_to_stream_id;
+
+  /// Ids of other streams (for example files) attached to this text stream.
+  std::vector<std::string> attached_stream_ids;
+
+  /// Compress the payload when every recipient supports compression.
+  ///
+  /// Only one-shot sends compress; incremental writers ignore this flag.
+  bool compress = true;
+
+  /// Identity to send as. Leave unset to send as the local participant;
+  /// setting it requires the impersonation permission.
+  std::optional<std::string> sender_identity;
+};
+
+/// @brief Options for a one-shot byte/file send or an incremental byte stream.
+///
+/// Used by LocalParticipant::sendBytes() and LocalParticipant::sendFile().
+struct StreamByteOptions {
+  /// Application-defined topic. Required; receivers route streams to handlers
+  /// registered with Room::registerByteStreamHandler() by topic.
+  std::string topic;
+
+  /// Arbitrary key/value attributes sent with the stream header.
+  std::map<std::string, std::string> attributes;
+
+  /// Identities of the participants that should receive the stream. Empty
+  /// means every participant in the room.
+  std::vector<std::string> destination_identities;
+
+  /// Stream id to use. A unique id is generated when unset.
+  std::optional<std::string> stream_id;
+
+  /// Name of the payload (for example a file name). When unset, sendBytes()
+  /// uses the SDK default ("unknown") and sendFile() uses the file's basename.
+  std::optional<std::string> name;
+
+  /// MIME type of the payload. When unset, the SDK picks a default
+  /// ("application/octet-stream" for bytes; derived from the file for
+  /// sendFile()).
+  std::optional<std::string> mime_type;
+
+  /// Total payload size in bytes, if known. Only meaningful for incremental
+  /// writers; one-shot sends always know their size.
+  std::optional<std::uint64_t> total_length;
+
+  /// Compress the payload when every recipient supports compression.
+  ///
+  /// Only one-shot sends compress; incremental writers ignore this flag. Turn
+  /// it off for payloads that are already compressed (images, video, archives).
+  bool compress = true;
+
+  /// Identity to send as. Leave unset to send as the local participant;
+  /// setting it requires the impersonation permission.
+  std::optional<std::string> sender_identity;
+};
 
 /// Base metadata for any stream (text or bytes).
 struct BaseStreamInfo {
@@ -77,80 +172,156 @@ struct ByteStreamInfo : BaseStreamInfo {
 //   - TextStreamReader: yields UTF-8 text chunks (std::string)
 //   - ByteStreamReader: yields raw bytes (std::vector<uint8_t>)
 
-/// Reader for incoming text streams.
-/// Created internally by the SDK when a text stream header is received.
+/// @brief Reader for incoming text streams.
+///
+/// Created by the SDK when a remote participant opens a text stream on a topic
+/// with a handler registered via Room::registerTextStreamHandler(). The SDK
+/// decompresses and reassembles the stream; each chunk is valid UTF-8.
+///
+/// Reading blocks the calling thread. Stream handlers run on the SDK's event
+/// thread, which also delivers the chunks, so never read from inside the
+/// handler: move the reader to another thread first.
 class LIVEKIT_API TextStreamReader {
 public:
-  /// Construct a reader from initial stream metadata.
+  /// @brief Construct a detached reader from stream metadata.
+  ///
+  /// A reader built this way is not connected to any incoming stream and
+  /// never receives data. Readers for real streams are created by the SDK.
+  /// @param info Stream metadata.
   explicit TextStreamReader(TextStreamInfo info);
+  ~TextStreamReader();
 
   TextStreamReader(const TextStreamReader&) = delete;
   TextStreamReader& operator=(const TextStreamReader&) = delete;
 
-  /// Blocking read of next text chunk.
-  /// Returns false when the stream has ended.
+  /// @brief Blocking read of the next text chunk.
+  ///
+  /// When the stream ends normally, any final attributes the sender attached
+  /// on close are merged into info().attributes before this returns false.
+  ///
+  /// @param out Receives the next chunk.
+  /// @return True if a chunk was read; false when the stream has ended or
+  ///         close() was called.
+  /// @throws DataStreamError if the stream ended abnormally (for example the
+  ///         sender closed it with a reason, it exceeded the receive size
+  ///         limit, or the room disconnected mid-stream). Chunks received
+  ///         before the error are returned first.
   bool readNext(std::string& out);
 
-  /// Convenience: read entire stream into a single string.
-  /// Blocks until the stream is closed.
+  /// @brief Read the entire stream into a single string.
+  ///
+  /// Blocks until the stream ends.
+  ///
+  /// @return The concatenated text.
+  /// @throws DataStreamError if the stream ended abnormally.
   std::string readAll();
 
-  /// Metadata associated with this stream.
+  /// @brief Stop reading early.
+  ///
+  /// Discards buffered chunks and wakes any thread blocked in readNext() or
+  /// readAll(), which then return the end of the stream. Idempotent.
+  void close();
+
+  /// @brief Metadata associated with this stream.
+  ///
+  /// Attributes the sender attached when closing the stream are merged in
+  /// once readNext() or readAll() has reached the end of the stream, on the
+  /// reading thread. Don't call this concurrently with readNext() from
+  /// another thread.
+  ///
+  /// @return Stream metadata.
   const TextStreamInfo& info() const noexcept { return info_; }
 
 private:
   friend class Room;
+  friend struct DataStreamReaderTestAccess;
+  struct Impl;
 
-  /// Called by the Room when a new chunk arrives.
-  void onChunkUpdate(const std::string& text);
+  /// Called by the Room when a chunk arrives.
+  void onChunkReceived(std::string text);
 
-  /// Called by the Room when the stream is closed.
-  /// Additional trailer attributes are merged into info().attributes.
-  void onStreamClose(const std::map<std::string, std::string>& trailer_attrs);
+  /// Called by the Room when the stream ends. @p error is set when the stream
+  /// ended abnormally.
+  void onStreamEnded(const std::map<std::string, std::string>& attributes, std::optional<std::string> error);
 
   TextStreamInfo info_;
-
-  // Queue of text chunks; empty string with closed_==true means EOS.
-  std::deque<std::string> queue_;
-  bool closed_ = false;
-
-  std::mutex mutex_;
-  std::condition_variable cv_;
+  std::unique_ptr<Impl> impl_;
 };
 
-/// Reader for incoming byte streams.
+/// @brief Reader for incoming byte streams.
+///
+/// Created by the SDK when a remote participant opens a byte stream on a topic
+/// with a handler registered via Room::registerByteStreamHandler(). The SDK
+/// decompresses and reassembles the stream.
+///
+/// Reading blocks the calling thread. Stream handlers run on the SDK's event
+/// thread, which also delivers the chunks, so never read from inside the
+/// handler: move the reader to another thread first.
 class LIVEKIT_API ByteStreamReader {
 public:
-  /// Construct a reader from initial stream metadata.
+  /// @brief Construct a detached reader from stream metadata.
+  ///
+  /// A reader built this way is not connected to any incoming stream and
+  /// never receives data. Readers for real streams are created by the SDK.
+  /// @param info Stream metadata.
   explicit ByteStreamReader(ByteStreamInfo info);
+  ~ByteStreamReader();
 
   ByteStreamReader(const ByteStreamReader&) = delete;
   ByteStreamReader& operator=(const ByteStreamReader&) = delete;
 
-  /// Blocking read of next byte chunk.
-  /// Returns false when the stream has ended.
+  /// @brief Blocking read of the next byte chunk.
+  ///
+  /// When the stream ends normally, any final attributes the sender attached
+  /// on close are merged into info().attributes before this returns false.
+  ///
+  /// @param out Receives the next chunk.
+  /// @return True if a chunk was read; false when the stream has ended or
+  ///         close() was called.
+  /// @throws DataStreamError if the stream ended abnormally (for example the
+  ///         sender closed it with a reason, it exceeded the receive size
+  ///         limit, or the room disconnected mid-stream). Chunks received
+  ///         before the error are returned first.
   bool readNext(std::vector<std::uint8_t>& out);
 
-  /// Metadata associated with this stream.
+  /// @brief Read the entire stream into a single buffer.
+  ///
+  /// Blocks until the stream ends.
+  ///
+  /// @return The concatenated bytes.
+  /// @throws DataStreamError if the stream ended abnormally.
+  std::vector<std::uint8_t> readAll();
+
+  /// @brief Stop reading early.
+  ///
+  /// Discards buffered chunks and wakes any thread blocked in readNext() or
+  /// readAll(), which then return the end of the stream. Idempotent.
+  void close();
+
+  /// @brief Metadata associated with this stream.
+  ///
+  /// Attributes the sender attached when closing the stream are merged in
+  /// once readNext() or readAll() has reached the end of the stream, on the
+  /// reading thread. Don't call this concurrently with readNext() from
+  /// another thread.
+  ///
+  /// @return Stream metadata.
   const ByteStreamInfo& info() const noexcept { return info_; }
 
 private:
   friend class Room;
+  friend struct DataStreamReaderTestAccess;
+  struct Impl;
 
-  /// Called by the Room when a new chunk arrives.
-  void onChunkUpdate(const std::vector<std::uint8_t>& bytes);
+  /// Called by the Room when a chunk arrives.
+  void onChunkReceived(std::vector<std::uint8_t> bytes);
 
-  /// Called by the Room when the stream is closed.
-  /// Additional trailer attributes are merged into info().attributes.
-  void onStreamClose(const std::map<std::string, std::string>& trailer_attrs);
+  /// Called by the Room when the stream ends. @p error is set when the stream
+  /// ended abnormally.
+  void onStreamEnded(const std::map<std::string, std::string>& attributes, std::optional<std::string> error);
 
   ByteStreamInfo info_;
-
-  std::deque<std::vector<std::uint8_t>> queue_;
-  bool closed_ = false;
-
-  std::mutex mutex_;
-  std::condition_variable cv_;
+  std::unique_ptr<Impl> impl_;
 };
 
 /// Base class for sending data streams.
@@ -267,7 +438,8 @@ private:
 ///
 /// The TextStreamReader is provided as a shared_ptr to ensure it remains
 /// alive for the duration of asynchronous reads (for example, when the
-/// user spawns a background thread to consume the stream).
+/// user spawns a background thread to consume the stream). The handler runs on
+/// the SDK event thread and must not read from the stream itself.
 using TextStreamHandler =
     std::function<void(std::shared_ptr<TextStreamReader>, const std::string& participant_identity)>;
 
@@ -275,7 +447,8 @@ using TextStreamHandler =
 ///
 /// The ByteStreamReader is provided as a shared_ptr to ensure it remains
 /// alive for the duration of asynchronous reads (for example, file writes
-/// or background processing).
+/// or background processing). The handler runs on the SDK event thread and
+/// must not read from the stream itself.
 using ByteStreamHandler =
     std::function<void(std::shared_ptr<ByteStreamReader>, const std::string& participant_identity)>;
 

@@ -27,6 +27,7 @@
 #include "data_track_proto_converter.h"
 #include "ffi.pb.h"
 #include "livekit/build.h"
+#include "livekit/data_stream.h"
 #include "livekit/data_track_error.h"
 #include "livekit/ffi_handle.h"
 #include "livekit/room.h"
@@ -78,6 +79,8 @@ Result<proto::OwnedDataTrackStream, SubscribeDataTrackError> subscribeDataTrackF
   LK_LOG_WARN("Subscribe data track failed: code={} message={}", static_cast<std::uint32_t>(code), message);
   return Result<proto::OwnedDataTrackStream, SubscribeDataTrackError>::failure(SubscribeDataTrackError{code, message});
 }
+
+thread_local bool t_in_ffi_callback = false;
 
 std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
   using E = proto::FfiEvent;
@@ -445,8 +448,12 @@ extern "C" LIVEKIT_INTERNAL_API void ffiEventCallback(const uint8_t* buf, size_t
     return;
   }
 
+  t_in_ffi_callback = true;
   FfiClient::instance().pushEvent(event);
+  t_in_ffi_callback = false;
 }
+
+bool isOnFfiCallbackThread() noexcept { return t_in_ffi_callback; }
 
 FfiClient::AsyncId FfiClient::generateAsyncId() { return next_async_id_.fetch_add(1, std::memory_order_relaxed); }
 
@@ -1115,6 +1122,147 @@ std::future<std::string> FfiClient::performRpcAsync(std::uint64_t local_particip
   }
 
   return fut;
+}
+
+std::future<proto::TextStreamInfo> FfiClient::sendTextAsync(std::uint64_t local_participant_handle,
+                                                            const std::string& text,
+                                                            const proto::StreamTextOptions& options) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<proto::TextStreamInfo>(
+      async_id,
+      [async_id](const proto::FfiEvent& e) { return e.has_send_text() && e.send_text().async_id() == async_id; },
+      [](const proto::FfiEvent& e, std::promise<proto::TextStreamInfo>& pr) {
+        const auto& cb = e.send_text();
+        if (cb.has_error()) {
+          pr.set_exception(std::make_exception_ptr(DataStreamError(cb.error().description())));
+          return;
+        }
+        if (!cb.has_info()) {
+          pr.set_exception(std::make_exception_ptr(DataStreamError("send_text callback missing info")));
+          return;
+        }
+        pr.set_value(cb.info());
+      });
+
+  proto::FfiRequest req;
+  auto* msg = req.mutable_send_text();
+  msg->set_local_participant_handle(local_participant_handle);
+  *msg->mutable_options() = options;
+  msg->set_text(text);
+  msg->set_request_async_id(async_id);
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_send_text()) {
+      logAndThrow("FfiResponse missing send_text");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+std::future<proto::ByteStreamInfo> FfiClient::sendBytesAsync(std::uint64_t local_participant_handle,
+                                                             const std::vector<std::uint8_t>& bytes,
+                                                             const proto::StreamByteOptions& options) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<proto::ByteStreamInfo>(
+      async_id,
+      [async_id](const proto::FfiEvent& e) { return e.has_send_bytes() && e.send_bytes().async_id() == async_id; },
+      [](const proto::FfiEvent& e, std::promise<proto::ByteStreamInfo>& pr) {
+        const auto& cb = e.send_bytes();
+        if (cb.has_error()) {
+          pr.set_exception(std::make_exception_ptr(DataStreamError(cb.error().description())));
+          return;
+        }
+        if (!cb.has_info()) {
+          pr.set_exception(std::make_exception_ptr(DataStreamError("send_bytes callback missing info")));
+          return;
+        }
+        pr.set_value(cb.info());
+      });
+
+  proto::FfiRequest req;
+  auto* msg = req.mutable_send_bytes();
+  msg->set_local_participant_handle(local_participant_handle);
+  *msg->mutable_options() = options;
+  msg->set_bytes(bytes.data(), bytes.size());
+  msg->set_request_async_id(async_id);
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_send_bytes()) {
+      logAndThrow("FfiResponse missing send_bytes");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+std::future<proto::ByteStreamInfo> FfiClient::sendFileAsync(std::uint64_t local_participant_handle,
+                                                            const std::string& file_path,
+                                                            const proto::StreamByteOptions& options) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<proto::ByteStreamInfo>(
+      async_id,
+      [async_id](const proto::FfiEvent& e) { return e.has_send_file() && e.send_file().async_id() == async_id; },
+      [](const proto::FfiEvent& e, std::promise<proto::ByteStreamInfo>& pr) {
+        const auto& cb = e.send_file();
+        if (cb.has_error()) {
+          pr.set_exception(std::make_exception_ptr(DataStreamError(cb.error().description())));
+          return;
+        }
+        if (!cb.has_info()) {
+          pr.set_exception(std::make_exception_ptr(DataStreamError("send_file callback missing info")));
+          return;
+        }
+        pr.set_value(cb.info());
+      });
+
+  proto::FfiRequest req;
+  auto* msg = req.mutable_send_file();
+  msg->set_local_participant_handle(local_participant_handle);
+  *msg->mutable_options() = options;
+  msg->set_file_path(file_path);
+  msg->set_request_async_id(async_id);
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_send_file()) {
+      logAndThrow("FfiResponse missing send_file");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
+void FfiClient::textStreamReadIncremental(std::uint64_t reader_handle) {
+  proto::FfiRequest req;
+  req.mutable_text_read_incremental()->set_reader_handle(reader_handle);
+  const proto::FfiResponse resp = sendRequest(req);
+  if (!resp.has_text_read_incremental()) {
+    logAndThrow("FfiResponse missing text_read_incremental");
+  }
+}
+
+void FfiClient::byteStreamReadIncremental(std::uint64_t reader_handle) {
+  proto::FfiRequest req;
+  req.mutable_byte_read_incremental()->set_reader_handle(reader_handle);
+  const proto::FfiResponse resp = sendRequest(req);
+  if (!resp.has_byte_read_incremental()) {
+    logAndThrow("FfiResponse missing byte_read_incremental");
+  }
 }
 
 std::future<void> FfiClient::sendStreamHeaderAsync(std::uint64_t local_participant_handle,
