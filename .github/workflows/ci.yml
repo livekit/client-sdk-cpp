@@ -78,6 +78,7 @@ jobs:
               - vcpkg.json
               - .github/workflows/ci.yml
               - .github/workflows/tests.yml
+              - .github/workflows/memory-comment.yml
               - .github/workflows/nightly.yml
               - .github/actions/setup-sdk-deps/**
               - .github/actions/setup-capture/**
