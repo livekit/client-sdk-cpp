@@ -18,6 +18,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
 #include <random>
 #include <stdexcept>
 
@@ -97,44 +100,123 @@ void fillBaseInfo(BaseStreamInfo& dst, const std::string& stream_id, const std::
 } // namespace
 
 // =====================================================================
+// Errors
+// =====================================================================
+
+DataStreamError::DataStreamError(const std::string& message) : std::runtime_error(message) {}
+
+// =====================================================================
 // Reader implementation
 // =====================================================================
 
-TextStreamReader::TextStreamReader(TextStreamInfo info) : info_(std::move(info)) {}
+namespace {
 
-void TextStreamReader::onChunkUpdate(const std::string& text) {
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
+/// Shared state for TextStreamReader / ByteStreamReader.
+///
+/// The FFI callback thread pushes chunks and the end-of-stream marker; a user
+/// thread pops them. Final attributes are merged into the reader's info on the
+/// reading thread so info() is never mutated behind a single-threaded reader.
+template <typename Chunk>
+class ReaderState {
+public:
+  void push(Chunk chunk) {
+    {
+      const std::scoped_lock<std::mutex> lock(mutex_);
+      if (ended_ || closed_) {
+        return;
+      }
+      queue_.push_back(std::move(chunk));
+    }
+    cv_.notify_one();
+  }
+
+  void end(const std::map<std::string, std::string>& attributes, std::optional<std::string> error) {
+    {
+      const std::scoped_lock<std::mutex> lock(mutex_);
+      if (ended_) {
+        return;
+      }
+      ended_ = true;
+      end_attributes_ = attributes;
+      error_ = std::move(error);
+    }
+    cv_.notify_all();
+  }
+
+  void close() {
+    {
+      const std::scoped_lock<std::mutex> lock(mutex_);
+      closed_ = true;
+      queue_.clear();
+    }
+    cv_.notify_all();
+  }
+
+  /// Pops the next chunk into @p out. Returns false at the end of the stream.
+  /// Throws DataStreamError once the queue is drained if the stream failed.
+  template <typename Info>
+  bool next(Chunk& out, Info& info, const char* reader_name) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (!closed_ && !ended_ && queue_.empty() && !warned_ffi_thread_ && isOnFfiCallbackThread()) {
+      warned_ffi_thread_ = true;
+      LK_LOG_WARN(
+          "{}::readNext called on the SDK event thread; this blocks event delivery and can deadlock. "
+          "Read from a separate thread instead.",
+          reader_name);
+    }
+    cv_.wait(lock, [this] { return closed_ || ended_ || !queue_.empty(); });
+
     if (closed_) {
-      return;
+      return false;
     }
-    queue_.push_back(text);
-  }
-  cv_.notify_one();
-}
-
-void TextStreamReader::onStreamClose(const std::map<std::string, std::string>& trailer_attrs) {
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
-    for (const auto& kv : trailer_attrs) {
-      info_.attributes[kv.first] = kv.second;
+    if (!queue_.empty()) {
+      out = std::move(queue_.front());
+      queue_.pop_front();
+      return true;
     }
-    closed_ = true;
+
+    // Ended and drained.
+    if (!attributes_merged_) {
+      attributes_merged_ = true;
+      for (const auto& kv : end_attributes_) {
+        info.attributes[kv.first] = kv.second;
+      }
+    }
+    if (error_) {
+      throw DataStreamError(*error_);
+    }
+    return false;
   }
-  cv_.notify_all();
+
+private:
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  std::deque<Chunk> queue_;
+  std::map<std::string, std::string> end_attributes_;
+  std::optional<std::string> error_;
+  bool ended_ = false;
+  bool closed_ = false;
+  bool attributes_merged_ = false;
+  bool warned_ffi_thread_ = false;
+};
+
+} // namespace
+
+struct TextStreamReader::Impl : ReaderState<std::string> {};
+struct ByteStreamReader::Impl : ReaderState<std::vector<std::uint8_t>> {};
+
+TextStreamReader::TextStreamReader(TextStreamInfo info) : info_(std::move(info)), impl_(std::make_unique<Impl>()) {}
+
+TextStreamReader::~TextStreamReader() = default;
+
+void TextStreamReader::onChunkReceived(std::string text) { impl_->push(std::move(text)); }
+
+void TextStreamReader::onStreamEnded(const std::map<std::string, std::string>& attributes,
+                                     std::optional<std::string> error) {
+  impl_->end(attributes, std::move(error));
 }
 
-bool TextStreamReader::readNext(std::string& out) {
-  std::unique_lock<std::mutex> lock(mutex_);
-  cv_.wait(lock, [this] { return !queue_.empty() || closed_; });
-
-  if (!queue_.empty()) {
-    out = std::move(queue_.front());
-    queue_.pop_front();
-    return true;
-  }
-  return false; // closed_ and empty
-}
+bool TextStreamReader::readNext(std::string& out) { return impl_->next(out, info_, "TextStreamReader"); }
 
 std::string TextStreamReader::readAll() {
   std::string result;
@@ -145,41 +227,31 @@ std::string TextStreamReader::readAll() {
   return result;
 }
 
-ByteStreamReader::ByteStreamReader(ByteStreamInfo info) : info_(std::move(info)) {}
+void TextStreamReader::close() { impl_->close(); }
 
-void ByteStreamReader::onChunkUpdate(const std::vector<std::uint8_t>& bytes) {
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
-    if (closed_) {
-      return;
-    }
-    queue_.push_back(bytes);
-  }
-  cv_.notify_one();
+ByteStreamReader::ByteStreamReader(ByteStreamInfo info) : info_(std::move(info)), impl_(std::make_unique<Impl>()) {}
+
+ByteStreamReader::~ByteStreamReader() = default;
+
+void ByteStreamReader::onChunkReceived(std::vector<std::uint8_t> bytes) { impl_->push(std::move(bytes)); }
+
+void ByteStreamReader::onStreamEnded(const std::map<std::string, std::string>& attributes,
+                                     std::optional<std::string> error) {
+  impl_->end(attributes, std::move(error));
 }
 
-void ByteStreamReader::onStreamClose(const std::map<std::string, std::string>& trailer_attrs) {
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
-    for (const auto& kv : trailer_attrs) {
-      info_.attributes[kv.first] = kv.second;
-    }
-    closed_ = true;
+bool ByteStreamReader::readNext(std::vector<std::uint8_t>& out) { return impl_->next(out, info_, "ByteStreamReader"); }
+
+std::vector<std::uint8_t> ByteStreamReader::readAll() {
+  std::vector<std::uint8_t> result;
+  std::vector<std::uint8_t> chunk;
+  while (readNext(chunk)) {
+    result.insert(result.end(), chunk.begin(), chunk.end());
   }
-  cv_.notify_all();
+  return result;
 }
 
-bool ByteStreamReader::readNext(std::vector<std::uint8_t>& out) {
-  std::unique_lock<std::mutex> lock(mutex_);
-  cv_.wait(lock, [this] { return !queue_.empty() || closed_; });
-
-  if (!queue_.empty()) {
-    out = std::move(queue_.front());
-    queue_.pop_front();
-    return true;
-  }
-  return false;
-}
+void ByteStreamReader::close() { impl_->close(); }
 
 // =====================================================================
 // Writer implementation (uses your future-based FfiClient)

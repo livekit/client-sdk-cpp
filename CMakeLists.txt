@@ -422,6 +422,8 @@ add_library(livekit SHARED
   src/audio_stream.cpp
   src/data_track_frame.cpp
   src/data_stream.cpp
+  src/data_stream_proto_converter.cpp
+  src/data_stream_proto_converter.h
   src/data_track_error.cpp
   src/data_track_schema.cpp
   src/data_track_stream.cpp

@@ -381,16 +381,16 @@ DataChannelBufferedAmountLowThresholdChangedEvent fromProto(
 
 ByteStreamOpenedEvent fromProto(const proto::ByteStreamOpened& in) {
   ByteStreamOpenedEvent ev;
-  // TODO: map reader handle once OwnedByteStreamReader is known
-  // ev.reader_handle = in.reader().handle().id();
+  // reader_handle is intentionally left 0: the Room's ByteStreamReader owns
+  // and consumes the handle.
   ev.participant_identity = in.participant_identity();
   return ev;
 }
 
 TextStreamOpenedEvent fromProto(const proto::TextStreamOpened& in) {
   TextStreamOpenedEvent ev;
-  // TODO: map reader handle once OwnedTextStreamReader is known
-  // ev.reader_handle = in.reader().handle().id();
+  // reader_handle is intentionally left 0: the Room's TextStreamReader owns
+  // and consumes the handle.
   ev.participant_identity = in.participant_identity();
   return ev;
 }
@@ -471,6 +471,9 @@ proto::RoomOptions toProto(const RoomOptions& in) {
   }
   if (in.other_sdks) {
     out.set_other_sdks(*in.other_sdks);
+  }
+  if (in.data_stream.max_payload_byte_length) {
+    out.mutable_data_stream()->set_max_payload_byte_length(*in.data_stream.max_payload_byte_length);
   }
   return out;
 }

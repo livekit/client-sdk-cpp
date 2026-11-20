@@ -56,7 +56,7 @@ The SDK has three categories of threads:
 1. Completes any pending async `std::promise` matched by `async_id`.
 2. Invokes all registered `FfiClient` listeners (including `Room::onEvent`).
 
-All `RoomDelegate` callbacks and stream handler callbacks (e.g., `registerTextStreamHandler`) are invoked on this FFI callback thread. **Handlers must not block**; spawn a background thread if synchronous work is needed.
+All `RoomDelegate` callbacks and stream handler callbacks (e.g., `registerTextStreamHandler`) are invoked on this FFI callback thread. **Handlers must not block**; spawn a background thread if synchronous work is needed. Incoming data stream chunks are also delivered to `TextStreamReader` / `ByteStreamReader` on this thread (routed by `Room` from `*_stream_reader_event`s keyed by reader handle), so a stream handler must never call `readNext()` / `readAll()` inline; readers log a warning if they would block on the FFI callback thread.
 
 **Per-subscription reader threads** — `SubscriptionThreadDispatcher` creates a dedicated `std::thread` for each active audio, video, or data track subscription. These threads block on `AudioStream::read()`, `VideoStream::read()`, or `DataTrackStream::read()` and invoke the registered `AudioFrameCallback`, `VideoFrameCallback`, or `DataFrameCallback` on that reader thread — not on the FFI callback thread. A hard limit of 20 concurrent reader threads is enforced.
 
@@ -76,6 +76,8 @@ All `RoomDelegate` callbacks and stream handler callbacks (e.g., `registerTextSt
 | `VideoSource::captureFrame` | No | Not safe to call concurrently from multiple threads. |
 | `LocalAudioTrack` / `LocalVideoTrack` | No | Thin `sendRequest` wrappers with no internal synchronization. |
 | `LocalDataTrack::tryPush` | No | Thin `sendRequest` wrapper with no internal synchronization. |
+| `TextStreamReader` / `ByteStreamReader` | Yes | Fed on the FFI callback thread, read on a user thread (internal `std::mutex` + `condition_variable`). End-of-stream attributes are merged into `info()` on the reading thread, so don't call `info()` concurrently with `readNext()`. |
+| `LocalParticipant::sendText` / `sendBytes` / `sendFile` | Yes | Independent async FFI requests; each call blocks its caller until its own callback arrives. They throw `DataStreamError` once the room has disconnected rather than reaching the FFI. |
 | `TextStreamWriter` / `ByteStreamWriter` | Serialized | `write()` is serialized by an internal `write_mutex_`. |
 
 ### Directory Layout
