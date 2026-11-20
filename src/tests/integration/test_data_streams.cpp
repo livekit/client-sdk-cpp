@@ -16,7 +16,7 @@
 
 // End-to-end coverage for text/byte data streams (registerTextStreamHandler /
 // registerByteStreamHandler + LocalParticipant::sendText / sendBytes / sendFile
-// and TextStreamWriter / ByteStreamWriter). Requires a local SFU; see
+// and streamText / streamBytes). Requires a local SFU; see
 // test_data_track.cpp for setup instructions. Run with:
 //   ./build-debug/bin/livekit_integration_tests --gtest_filter=*DataStream*
 
@@ -29,6 +29,7 @@
 #include <fstream>
 #include <mutex>
 #include <optional>
+#include <random>
 #include <string>
 #include <thread>
 #include <vector>
@@ -208,6 +209,17 @@ std::string unicodeText(std::size_t size) {
   return out;
 }
 
+/// Incompressible bytes.
+std::vector<std::uint8_t> randomBytes(std::size_t size) {
+  std::mt19937 rng(1234);
+  std::uniform_int_distribution<int> dist(0, 255);
+  std::vector<std::uint8_t> out(size);
+  for (auto& b : out) {
+    b = static_cast<std::uint8_t>(dist(rng));
+  }
+  return out;
+}
+
 /// Records the reader handle of every opened data stream, to probe whether the
 /// SDK released them.
 class OpenedStreamHandleRecorder {
@@ -268,10 +280,12 @@ TEST_F(DataStreamE2ETest, TextStreamRoundTripEndToEnd) {
   TextStreamCollector collector;
   collector.registerOn(*receiver_room, topic);
 
-  TextStreamWriter writer(*sender, topic);
-  writer.write("hello, ");
-  writer.write("world!");
-  writer.close();
+  StreamTextOptions options;
+  options.topic = topic;
+  auto writer = sender->streamText(options);
+  writer->write("hello, ");
+  writer->write("world!");
+  writer->close();
 
   ASSERT_TRUE(collector.wait(kStreamWaitTimeout)) << "Timed out waiting for text stream";
   EXPECT_EQ(collector.text(), "hello, world!");
@@ -283,8 +297,8 @@ TEST_F(DataStreamE2ETest, TextStreamRoundTripEndToEnd) {
 // Regression coverage for the `text_header.reply_to_stream_id` field: writing
 // a text stream with a reply-to id set should surface that id on the
 // receiving side's TextStreamInfo. If this fails while the C++-side
-// conversion (room_proto_converter.cpp: makeTextInfo) looks correct, the gap
-// is upstream in the Rust FFI layer not forwarding the field.
+// conversion (data_stream_proto_converter.cpp) looks correct, the gap is
+// upstream in the Rust FFI layer not forwarding the field.
 TEST_F(DataStreamE2ETest, TextStreamReplyToStreamIdIsRoutedEndToEnd) {
   const auto topic = makeTopic("text_reply");
   const std::string reply_to_id = "original-stream-" + std::to_string(getTimestampUs());
@@ -296,10 +310,12 @@ TEST_F(DataStreamE2ETest, TextStreamReplyToStreamIdIsRoutedEndToEnd) {
   TextStreamCollector collector;
   collector.registerOn(*receiver_room, topic);
 
-  TextStreamWriter writer(*lockLocalParticipant(*sender_room), topic, /*attributes=*/{}, /*stream_id=*/"",
-                          /*total_size=*/std::nullopt, reply_to_id);
-  writer.write("reply payload");
-  writer.close();
+  StreamTextOptions options;
+  options.topic = topic;
+  options.reply_to_stream_id = reply_to_id;
+  auto writer = lockLocalParticipant(*sender_room)->streamText(options);
+  writer->write("reply payload");
+  writer->close();
 
   ASSERT_TRUE(collector.wait(kStreamWaitTimeout)) << "Timed out waiting for text stream";
   EXPECT_EQ(collector.text(), "reply payload");
@@ -320,9 +336,12 @@ TEST_F(DataStreamE2ETest, ByteStreamRoundTripEndToEnd) {
   ByteStreamCollector collector;
   collector.registerOn(*receiver_room, topic);
 
-  ByteStreamWriter writer(*lockLocalParticipant(*sender_room), /*name=*/"payload.bin", topic);
-  writer.write(payload);
-  writer.close();
+  StreamByteOptions options;
+  options.topic = topic;
+  options.name = "payload.bin";
+  auto writer = lockLocalParticipant(*sender_room)->streamBytes(options);
+  writer->write(payload);
+  writer->close();
 
   ASSERT_TRUE(collector.wait(kStreamWaitTimeout)) << "Timed out waiting for byte stream";
   EXPECT_EQ(collector.content(), payload);
@@ -515,9 +534,12 @@ TEST_F(DataStreamE2ETest, TrailerAttributesAreMergedIntoInfo) {
   TextStreamCollector collector;
   collector.registerOn(*rooms[1], topic);
 
-  TextStreamWriter writer(*lockLocalParticipant(*rooms[0]), topic, {{"header_key", "h"}});
-  writer.write("body");
-  writer.close("", {{"trailer_key", "t"}});
+  StreamTextOptions options;
+  options.topic = topic;
+  options.attributes = {{"header_key", "h"}};
+  auto writer = lockLocalParticipant(*rooms[0])->streamText(options);
+  writer->write("body");
+  writer->close("", {{"trailer_key", "t"}});
 
   ASSERT_TRUE(collector.wait(kStreamWaitTimeout)) << "Timed out waiting for text stream";
   EXPECT_FALSE(collector.error().has_value()) << *collector.error();
@@ -533,9 +555,12 @@ TEST_F(DataStreamE2ETest, AbnormalCloseSurfacesError) {
   ByteStreamCollector collector;
   collector.registerOn(*rooms[1], topic);
 
-  ByteStreamWriter writer(*lockLocalParticipant(*rooms[0]), "partial.bin", topic);
-  writer.write({1, 2, 3});
-  writer.close("boom");
+  StreamByteOptions options;
+  options.topic = topic;
+  options.name = "partial.bin";
+  auto writer = lockLocalParticipant(*rooms[0])->streamBytes(options);
+  writer->write({1, 2, 3});
+  writer->close("boom");
 
   ASSERT_TRUE(collector.wait(kStreamWaitTimeout)) << "Timed out waiting for byte stream";
   ASSERT_TRUE(collector.error().has_value()) << "a close with a reason must surface an error";
@@ -550,15 +575,17 @@ TEST_F(DataStreamE2ETest, ReceiverDisconnectMidStreamWakesReader) {
   TextStreamCollector collector;
   collector.registerOn(*rooms[1], topic);
 
-  TextStreamWriter writer(*lockLocalParticipant(*rooms[0]), topic);
-  writer.write("first part");
+  StreamTextOptions options;
+  options.topic = topic;
+  auto writer = lockLocalParticipant(*rooms[0])->streamText(options);
+  writer->write("first part");
   // Give the receiver time to open the reader and block on the next chunk.
   std::this_thread::sleep_for(1s);
   ASSERT_TRUE(rooms[1]->disconnect());
 
   ASSERT_TRUE(collector.wait(kStreamWaitTimeout)) << "A blocked reader must wake when its room disconnects";
   EXPECT_TRUE(collector.error().has_value()) << "an interrupted stream must surface an error";
-  writer.close();
+  writer->close();
 }
 
 TEST_F(DataStreamE2ETest, ReaderCloseWakesPendingRead) {
@@ -574,8 +601,10 @@ TEST_F(DataStreamE2ETest, ReaderCloseWakesPendingRead) {
     cv.notify_all();
   });
 
-  TextStreamWriter writer(*lockLocalParticipant(*rooms[0]), topic);
-  writer.write("first");
+  StreamTextOptions options;
+  options.topic = topic;
+  auto writer = lockLocalParticipant(*rooms[0])->streamText(options);
+  writer->write("first");
   {
     std::unique_lock<std::mutex> lock(mutex);
     ASSERT_TRUE(cv.wait_for(lock, kStreamWaitTimeout, [&] { return reader != nullptr; }));
@@ -597,7 +626,7 @@ TEST_F(DataStreamE2ETest, ReaderCloseWakesPendingRead) {
   read_thread.join();
   EXPECT_TRUE(finished);
   EXPECT_EQ(chunks.load(), 1);
-  writer.close();
+  writer->close();
 }
 
 TEST_F(DataStreamE2ETest, StreamHandlesAreReleased) {
@@ -634,5 +663,202 @@ TEST_F(DataStreamE2ETest, StreamHandlesAreReleased) {
     EXPECT_FALSE(dropFfiHandle(handle)) << "reader handle " << handle << " was leaked";
   }
 }
+
+// ---------------------------------------------------------------------------
+// Incremental writers (LocalParticipant::streamText / streamBytes)
+// ---------------------------------------------------------------------------
+
+TEST_F(DataStreamE2ETest, StreamTextIncrementalUnicode) {
+  const auto topic = makeTopic("stream_text_unicode");
+  auto rooms = testRooms(2);
+
+  TextStreamCollector collector;
+  collector.registerOn(*rooms[1], topic);
+
+  StreamTextOptions options;
+  options.topic = topic;
+  auto writer = lockLocalParticipant(*rooms[0])->streamText(options);
+  EXPECT_EQ(writer->info().mime_type, "text/plain");
+  std::string expected;
+  for (int i = 0; i < 4; ++i) {
+    // Each write is bigger than one 15 KB chunk.
+    const auto part = unicodeText(20 * 1024);
+    writer->write(part);
+    expected += part;
+  }
+  writer->close();
+  EXPECT_TRUE(writer->isClosed());
+
+  ASSERT_TRUE(collector.wait(kStreamWaitTimeout)) << "Timed out waiting for text stream";
+  EXPECT_FALSE(collector.error().has_value()) << *collector.error();
+  EXPECT_EQ(collector.text(), expected);
+  EXPECT_EQ(collector.info().stream_id, writer->streamId());
+}
+
+TEST_F(DataStreamE2ETest, StreamBytesLargePayloads) {
+  auto rooms = testRooms(2);
+  auto sender = lockLocalParticipant(*rooms[0]);
+
+  for (const bool incompressible : {false, true}) {
+    const auto topic = makeTopic(incompressible ? "stream_bytes_random" : "stream_bytes_pattern");
+    std::vector<std::uint8_t> payload;
+    if (incompressible) {
+      payload = randomBytes(1024 * 1024);
+    } else {
+      payload.resize(1024 * 1024);
+      for (std::size_t i = 0; i < payload.size(); ++i) {
+        payload[i] = static_cast<std::uint8_t>(i % 251);
+      }
+    }
+
+    ByteStreamCollector collector;
+    collector.registerOn(*rooms[1], topic);
+
+    StreamByteOptions options;
+    options.topic = topic;
+    options.name = "big.bin";
+    options.total_length = payload.size();
+    auto writer = sender->streamBytes(options);
+    const std::size_t half = payload.size() / 2;
+    writer->write(std::vector<std::uint8_t>(payload.begin(), payload.begin() + static_cast<std::ptrdiff_t>(half)));
+    writer->write(std::vector<std::uint8_t>(payload.begin() + static_cast<std::ptrdiff_t>(half), payload.end()));
+    writer->close();
+
+    ASSERT_TRUE(collector.wait(std::chrono::seconds(30))) << "Timed out waiting for byte stream";
+    EXPECT_FALSE(collector.error().has_value()) << *collector.error();
+    EXPECT_EQ(collector.content().size(), payload.size());
+    EXPECT_TRUE(collector.content() == payload) << "payload mismatch (incompressible=" << incompressible << ")";
+    ASSERT_TRUE(collector.info().size.has_value());
+    EXPECT_EQ(*collector.info().size, payload.size());
+    rooms[1]->unregisterByteStreamHandler(topic);
+  }
+}
+
+TEST_F(DataStreamE2ETest, CloseWaitsForInFlightWrite) {
+  const auto topic = makeTopic("close_waits");
+  const auto payload = randomBytes(2 * 1024 * 1024);
+  auto rooms = testRooms(2);
+
+  ByteStreamCollector collector;
+  collector.registerOn(*rooms[1], topic);
+
+  StreamByteOptions options;
+  options.topic = topic;
+  auto writer = lockLocalParticipant(*rooms[0])->streamBytes(options);
+
+  std::atomic<bool> write_started{false};
+  std::thread write_thread([&] {
+    write_started = true;
+    writer->write(payload);
+  });
+  while (!write_started) {
+    std::this_thread::yield();
+  }
+  std::this_thread::sleep_for(5ms);
+  writer->close(); // Must not overtake the write.
+  write_thread.join();
+
+  ASSERT_TRUE(collector.wait(std::chrono::seconds(30))) << "Timed out waiting for byte stream";
+  EXPECT_FALSE(collector.error().has_value()) << *collector.error();
+  EXPECT_TRUE(collector.content() == payload)
+      << "received " << collector.content().size() << " of " << payload.size() << " bytes";
+}
+
+TEST_F(DataStreamE2ETest, WriteAfterCloseThrows) {
+  auto rooms = testRooms(2);
+  StreamTextOptions options;
+  options.topic = makeTopic("write_after_close");
+  auto writer = lockLocalParticipant(*rooms[0])->streamText(options);
+  writer->write("once");
+  writer->close();
+  EXPECT_THROW(writer->write("twice"), DataStreamError);
+  EXPECT_THROW(writer->close(), DataStreamError) << "double close throws";
+}
+
+TEST_F(DataStreamE2ETest, WriteAfterDisconnectThrows) {
+  const auto topic = makeTopic("write_after_disconnect");
+  auto rooms = testRooms(2);
+
+  TextStreamCollector collector;
+  collector.registerOn(*rooms[1], topic);
+
+  StreamTextOptions options;
+  options.topic = topic;
+  auto writer = lockLocalParticipant(*rooms[0])->streamText(options);
+  writer->write("before");
+  ASSERT_TRUE(rooms[0]->disconnect());
+
+  EXPECT_TRUE(writer->isClosed());
+  EXPECT_THROW(writer->write("after"), DataStreamError);
+  EXPECT_THROW(writer->close(), DataStreamError);
+
+  // The receiver learns the sender left mid-stream.
+  ASSERT_TRUE(collector.wait(std::chrono::seconds(30))) << "receiver should not hang after the sender disconnects";
+  EXPECT_TRUE(collector.error().has_value());
+}
+
+TEST_F(DataStreamE2ETest, WriterDestroyedWithoutCloseEndsStream) {
+  const auto topic = makeTopic("writer_destroyed");
+  auto rooms = testRooms(2);
+
+  TextStreamCollector collector;
+  collector.registerOn(*rooms[1], topic);
+
+  {
+    StreamTextOptions options;
+    options.topic = topic;
+    auto writer = lockLocalParticipant(*rooms[0])->streamText(options);
+    writer->write("unfinished");
+  } // Destroyed without close().
+
+  ASSERT_TRUE(collector.wait(kStreamWaitTimeout)) << "receiver must not wait forever for a dropped writer";
+  EXPECT_FALSE(collector.error().has_value()) << *collector.error();
+  EXPECT_EQ(collector.text(), "unfinished");
+}
+
+// The writer constructors are deprecated in favour of streamText /
+// streamBytes, but must keep working.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+TEST_F(DataStreamE2ETest, DeprecatedWriterConstructorsStillWork) {
+  const auto text_topic = makeTopic("deprecated_text");
+  const auto byte_topic = makeTopic("deprecated_bytes");
+  auto rooms = testRooms(2);
+  auto sender = lockLocalParticipant(*rooms[0]);
+
+  TextStreamCollector text_collector;
+  text_collector.registerOn(*rooms[1], text_topic);
+  ByteStreamCollector byte_collector;
+  byte_collector.registerOn(*rooms[1], byte_topic);
+
+  TextStreamWriter text_writer(*sender, text_topic, {{"k", "v"}});
+  const std::string stream_id = text_writer.streamId();
+  EXPECT_FALSE(stream_id.empty()) << "the id is known before the stream opens";
+  text_writer.write("legacy ");
+  text_writer.write("text");
+  text_writer.close();
+
+  ByteStreamWriter byte_writer(*sender, "legacy.bin", byte_topic);
+  byte_writer.write({9, 8, 7});
+  byte_writer.close();
+
+  ASSERT_TRUE(text_collector.wait(kStreamWaitTimeout));
+  EXPECT_EQ(text_collector.text(), "legacy text");
+  EXPECT_EQ(text_collector.info().stream_id, stream_id);
+  EXPECT_EQ(text_collector.info().attributes.at("k"), "v");
+  ASSERT_TRUE(byte_collector.wait(kStreamWaitTimeout));
+  EXPECT_EQ(byte_collector.content(), (std::vector<std::uint8_t>{9, 8, 7}));
+  EXPECT_EQ(byte_collector.info().name, "legacy.bin");
+}
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 } // namespace livekit::test

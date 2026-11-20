@@ -47,6 +47,9 @@ struct ParticipantTrackPermission;
 
 class FfiClient;
 class Track;
+namespace detail {
+class StreamWriterRegistry;
+} // namespace detail
 class LocalTrackPublication;
 
 /// @brief Data passed to a registered RPC method handler.
@@ -76,6 +79,12 @@ public:
   LocalParticipant(FfiHandle handle, std::string sid, std::string name, std::string identity, std::string metadata,
                    std::unordered_map<std::string, std::string> attributes, ParticipantKind kind,
                    DisconnectReason reason);
+  ~LocalParticipant() override;
+
+  LocalParticipant(const LocalParticipant&) = delete;
+  LocalParticipant& operator=(const LocalParticipant&) = delete;
+  LocalParticipant(LocalParticipant&&) = delete;
+  LocalParticipant& operator=(LocalParticipant&&) = delete;
 
   /// Track publications for this participant, keyed by publication SID.
   ///
@@ -136,6 +145,36 @@ public:
   /// @throws DataStreamError if the file can't be read or the send fails, or
   ///         if the room is no longer connected or the SDK isn't initialized.
   ByteStreamInfo sendFile(const std::string& path, const StreamByteOptions& options);
+
+  /// @brief Open a text stream for incremental writes.
+  ///
+  /// Blocks until the stream is open. Write with TextStreamWriter::write() and
+  /// finish with TextStreamWriter::close(). Incremental streams are never
+  /// compressed; @c options.compress is ignored. Use sendText() when the whole
+  /// text is available up front.
+  ///
+  /// @param options Topic (required), destinations, attributes, and so on.
+  /// @return An open writer. It must not outlive this participant's room
+  ///         connection in a meaningful way: once the room disconnects, its
+  ///         write() and close() throw DataStreamError.
+  /// @throws DataStreamError if the open fails, or if the room is no longer
+  ///         connected or the SDK isn't initialized.
+  std::unique_ptr<TextStreamWriter> streamText(const StreamTextOptions& options);
+
+  /// @brief Open a byte stream for incremental writes.
+  ///
+  /// Blocks until the stream is open. Write with ByteStreamWriter::write() and
+  /// finish with ByteStreamWriter::close(). Incremental streams are never
+  /// compressed; @c options.compress is ignored. Use sendBytes() or sendFile()
+  /// when the whole payload is available up front.
+  ///
+  /// @param options Topic (required), name, MIME type, total length,
+  ///                destinations, and so on.
+  /// @return An open writer. Once the room disconnects, its write() and
+  ///         close() throw DataStreamError.
+  /// @throws DataStreamError if the open fails, or if the room is no longer
+  ///         connected or the SDK isn't initialized.
+  std::unique_ptr<ByteStreamWriter> streamBytes(const StreamByteOptions& options);
 
   /// Publish a SIP DTMF (phone keypad) tone into the room.
   ///
@@ -346,9 +385,12 @@ private:
   /// prune expired @c weak_ptr entries.
   mutable TrackMap published_tracks_by_sid_;
 
+  friend class BaseStreamWriter;
+
   /// Marks the participant as disconnected so data stream sends fail fast in
-  /// C++ instead of reaching an FFI participant whose session is gone.
-  void markDisconnected() noexcept { disconnected_.store(true, std::memory_order_release); }
+  /// C++ instead of reaching an FFI participant whose session is gone, and
+  /// closes every open stream writer.
+  void markDisconnected() noexcept;
 
   /// Returns the FFI handle id for a data stream operation, or throws
   /// DataStreamError if the participant can no longer send.
@@ -359,6 +401,10 @@ private:
   /// Set once the room disconnects. Guarded by an atomic rather than
   /// Room::lock_ so send paths never need the room lock.
   std::atomic<bool> disconnected_{false};
+
+  /// Stream writers created for this participant; shared with the writers so
+  /// they never touch a destroyed participant.
+  std::shared_ptr<detail::StreamWriterRegistry> stream_writers_;
 
   // Shared state for RPC invocation tracking. Using shared_ptr so the state
   // can outlive the LocalParticipant if there are in-flight invocations when
