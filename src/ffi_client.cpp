@@ -37,7 +37,7 @@
 #include "room_proto_converter.h"
 
 #if LIVEKIT_CAPTURE_ENABLED
-#include "livekit/capture/capture_source.h"
+#include "livekit/capture/video_source.h"
 #endif
 
 namespace livekit {
@@ -120,6 +120,8 @@ std::optional<FfiClient::AsyncId> ExtractAsyncId(const proto::FfiEvent& event) {
       return event.new_capture_source().async_id();
     case E::kJoinCapture:
       return event.join_capture().async_id();
+    case E::kNewAudioCaptureSource:
+      return event.new_audio_capture_source().async_id();
 
     // low-level data stream callbacks
     case E::kSendStreamHeader:
@@ -470,13 +472,13 @@ bool FfiClient::cancelPendingByAsyncId(AsyncId async_id) {
 template <typename T>
 std::future<T> FfiClient::registerAsync(AsyncId async_id, std::function<bool(const proto::FfiEvent&)> match,
                                         std::function<void(const proto::FfiEvent&, std::promise<T>&)> handler,
-                                        std::exception_ptr cancellation_error) {
+                                        const std::exception_ptr& cancellation_error) {
   auto pending = std::make_unique<Pending<T>>();
   pending->async_id = async_id;
   auto fut = pending->promise.get_future();
   pending->match = std::move(match);
   pending->handler = std::move(handler);
-  pending->cancellation_error = std::move(cancellation_error);
+  pending->cancellation_error = cancellation_error;
   {
     const std::scoped_lock<std::mutex> guard(lock_);
     pending_by_id_.emplace(async_id, std::move(pending));
@@ -1385,7 +1387,10 @@ JoinOutcome captureJoinResult(const proto::JoinCaptureCallback& callback) {
   }
   const auto exit = finished.exit() == proto::CAPTURE_EXIT_END_OF_STREAM ? capture::CaptureExit::EndOfStream
                                                                          : capture::CaptureExit::Stopped;
-  return JoinOutcome::success(capture::CaptureResult{finished.frames_captured(), exit});
+  capture::CaptureResult result;
+  result.frames_captured = finished.frames_captured();
+  result.exit = exit;
+  return JoinOutcome::success(result);
 }
 
 } // namespace
@@ -1494,6 +1499,55 @@ std::future<Result<capture::CaptureResult, capture::CaptureError>> FfiClient::jo
   } catch (const std::runtime_error& error) {
     cancelPendingByAsyncId(async_id);
     return captureExceptionFuture<JoinOutcome>("CaptureSource::join: " + std::string(error.what()));
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+  return future;
+}
+
+std::future<Result<std::shared_ptr<capture::GstreamerAudioCaptureSource>, capture::CaptureError>>
+FfiClient::newAudioCaptureSourceAsync(proto::NewAudioCaptureSourceRequest request,
+                                      const std::function<proto::FfiResponse(const proto::FfiRequest&)>& send) {
+  using Outcome = Result<std::shared_ptr<capture::GstreamerAudioCaptureSource>, capture::CaptureError>;
+  constexpr const char* kOperation = "GstreamerAudioCaptureSource::create: ";
+  if (!isInitialized()) {
+    return captureExceptionFuture<Outcome>(std::string(kOperation) + "LiveKit is not initialized");
+  }
+  const AsyncId async_id = generateAsyncId();
+  auto future = registerAsync<Outcome>(
+      async_id,
+      [async_id](const proto::FfiEvent& event) {
+        return event.has_new_audio_capture_source() && event.new_audio_capture_source().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& event, std::promise<Outcome>& promise) {
+        try {
+          const auto& callback = event.new_audio_capture_source();
+          if (callback.has_error()) {
+            throw std::runtime_error("GstreamerAudioCaptureSource::create: Rust source setup failed: " +
+                                     callback.error());
+          }
+          if (!callback.has_source()) {
+            throw std::runtime_error("GstreamerAudioCaptureSource::create: callback is missing source or error");
+          }
+          promise.set_value(Outcome::success(capture::GstreamerAudioCaptureSource::fromOwned(callback.source())));
+        } catch (...) {
+          promise.set_exception(std::current_exception());
+        }
+      },
+      std::make_exception_ptr(std::runtime_error(std::string(kOperation) + "operation cancelled during SDK shutdown")));
+  request.set_request_async_id(async_id);
+  proto::FfiRequest ffi_request;
+  ffi_request.mutable_new_audio_capture_source()->CopyFrom(request);
+  try {
+    const auto response = send ? send(ffi_request) : sendRequest(ffi_request);
+    if (!response.has_new_audio_capture_source() || !response.new_audio_capture_source().IsInitialized() ||
+        response.new_audio_capture_source().async_id() != async_id) {
+      throw std::runtime_error("invalid new_audio_capture_source acknowledgement (missing or mismatched async_id)");
+    }
+  } catch (const std::runtime_error& error) {
+    cancelPendingByAsyncId(async_id);
+    return captureExceptionFuture<Outcome>(std::string(kOperation) + error.what());
   } catch (...) {
     cancelPendingByAsyncId(async_id);
     throw;

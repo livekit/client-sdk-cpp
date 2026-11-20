@@ -51,6 +51,41 @@ ctest --output-on-failure
 
 __Note:__ The integration and stress tests require tokens and a running LiveKit server. See the section below for details.
 
+## Manual microphone capture (macOS)
+
+`src/tests/manual/capture_audio.cpp` is a standalone GStreamer microphone tester.
+It is built with the test binaries on macOS when the GStreamer capture backend
+is enabled, and is not run by CTest:
+
+```bash
+./build.sh release-tests --capture=all
+./build-release/bin/capture_audio --seconds 10
+```
+
+The default pipeline uses `osxaudiosrc` for the default macOS input device and
+converts to 48 kHz mono S16LE PCM. Allow microphone access for your terminal in
+**System Settings > Privacy & Security > Microphone** if prompted. GStreamer and
+the pipeline's plugins must be installed; see [Capture sources](capture-sources.md).
+Capture stops at the requested duration (1–600 seconds) or Ctrl+C and prints the frame count
+and captured-audio duration.
+
+To publish the microphone to a LiveKit room, start your server, then run:
+
+```bash
+source scripts/set-test-tokens.sh
+./build-release/bin/capture_audio --publish --seconds 30
+```
+
+`--publish` reads `LIVEKIT_URL` and `LIVEKIT_TOKEN`, falling back to
+`LIVEKIT_TOKEN_A`. Join the same room as another participant to listen.
+
+Use `--pipeline` to select a different device or test without a microphone:
+
+```bash
+./build-release/bin/capture_audio --seconds 1 --pipeline \
+  'audiotestsrc is-live=true ! audioconvert ! audioresample ! audio/x-raw,format=S16LE,layout=interleaved,rate=48000,channels=1 ! appsink name=lk_audio_appsink'
+```
+
 ## Running a local LiveKit server for tests
 
 The integration and stress suites need a running LiveKit server. The easiest
@@ -116,8 +151,10 @@ means none. Explicit source selections determine the expected capture flag.
 The test creates a GStreamer VP8 source when that source is selected. It also
 requires each omitted backend to report the feature-disabled error. Configuration
 checks that `include/livekit/capture/` is present only in capture bundles and
-that direct inclusion of `livekit/capture/capture_source.h` succeeds only in
-those bundles. The obsolete flat capture header must be absent. Both variants must
+that each capture header compiles independently only in those bundles,
+including `video_source.h` and the compatibility umbrella `capture_source.h`.
+The umbrella is also used by the runtime packaging test to exercise both audio
+and video APIs. The obsolete flat capture header must be absent. Both variants must
 still compile with `livekit/livekit.h`. It needs no LiveKit server.
 GStreamer-enabled runs require the pipeline's plugins. Set
 `LIVEKIT_VERIFY_PIXEL_SOURCES=ON` to also require successful pattern and clock

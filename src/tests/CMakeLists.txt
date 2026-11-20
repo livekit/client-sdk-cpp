@@ -54,6 +54,9 @@ endif()
 enable_testing()
 include(GoogleTest)
 
+# Standalone interactive testers; these are not registered with CTest.
+add_subdirectory(manual)
+
 # ============================================================================
 # Benchmark Utilities (shared by all test types)
 # ============================================================================
@@ -74,6 +77,7 @@ file(GLOB UNIT_TEST_SOURCES
 
 if(NOT LIVEKIT_CAPTURE_ENABLED)
   list(REMOVE_ITEM UNIT_TEST_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/unit/test_audio_capture.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/unit/test_capture_source.cpp")
 endif()
 
