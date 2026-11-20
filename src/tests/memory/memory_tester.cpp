@@ -16,6 +16,7 @@
 
 #include <livekit/livekit.h>
 #include <livekit/local_data_track.h>
+#include <livekit/remote_data_track.h>
 
 #if LIVEKIT_CAPTURE_ENABLED
 #include <livekit/capture/capture_source.h>
@@ -492,6 +493,36 @@ void runVideoTrackCycle(const RoomCredentials& credentials) {
 // Exercises data-track publication, payload enqueueing, explicit unpublication,
 // and room teardown while the SDK remains initialized across cycles.
 void runDataTrackCycle(const RoomCredentials& credentials) {
+  class SubscriberDelegate final : public livekit::RoomDelegate {
+  public:
+    void onDataTrackPublished(livekit::Room&, const livekit::DataTrackPublishedEvent& event) override {
+      if (event.track && event.track->info().name == "memory-data") {
+        std::lock_guard<std::mutex> lock(mutex_);
+        track_ = event.track;
+        published_.notify_one();
+      }
+    }
+
+    std::shared_ptr<livekit::RemoteDataTrack> waitForTrack() {
+      std::unique_lock<std::mutex> lock(mutex_);
+      published_.wait_for(lock, 5s, [&]() { return track_ != nullptr; });
+      return track_;
+    }
+
+  private:
+    std::mutex mutex_;
+    std::condition_variable published_;
+    std::shared_ptr<livekit::RemoteDataTrack> track_;
+  } subscriber_delegate;
+
+  const char* subscriber_token = std::getenv("LIVEKIT_TOKEN_B");
+  if (subscriber_token == nullptr || *subscriber_token == '\0') {
+    throw std::runtime_error("the data track memory scenario requires LIVEKIT_TOKEN_B");
+  }
+  livekit::Room subscriber;
+  subscriber.setDelegate(&subscriber_delegate);
+  connectRoom(subscriber, {credentials.url, subscriber_token});
+
   DisconnectTrackingDelegate delegate;
   livekit::Room room;
   room.setDelegate(&delegate);
@@ -507,12 +538,28 @@ void runDataTrackCycle(const RoomCredentials& credentials) {
   }
 
   const auto& track = publish_result.value();
+  const auto remote_track = subscriber_delegate.waitForTrack();
+  if (!remote_track) {
+    throw std::runtime_error("subscriber did not discover the memory data track");
+  }
+  const auto subscription = remote_track->subscribe();
+  if (!subscription) {
+    throw std::runtime_error("failed to subscribe to the memory data track: " + subscription.error().message);
+  }
+
   livekit::DataTrackFrame frame;
   frame.payload.assign(256, 0xFA);
+  const auto deadline = std::chrono::steady_clock::now() + 5s;
   for (int frame_index = 0; frame_index < kFramesPerCycle; ++frame_index) {
     frame.user_timestamp = static_cast<std::uint64_t>(frame_index);
-    if (!track->tryPush(frame)) {
-      throw std::runtime_error("failed to push local data track frame");
+    auto result = track->tryPush(frame);
+    while (!result && result.error().code == livekit::LocalDataTrackTryPushErrorCode::NO_SUBSCRIBERS &&
+           std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(10ms);
+      result = track->tryPush(frame);
+    }
+    if (!result) {
+      throw std::runtime_error("failed to push local data track frame: " + result.error().message);
     }
   }
 

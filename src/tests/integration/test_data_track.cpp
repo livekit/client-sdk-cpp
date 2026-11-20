@@ -24,6 +24,7 @@
 #include <condition_variable>
 #include <exception>
 #include <future>
+#include <string_view>
 
 #include "../common/test_common.h"
 #include "ffi_client.h"
@@ -37,7 +38,6 @@ namespace {
 constexpr char kTrackNamePrefix[] = "data_track_e2e";
 constexpr auto kTrackWaitTimeout = 10s;
 constexpr auto kPollingInterval = 10ms;
-constexpr int kResubscribeIterations = 10;
 constexpr std::size_t kSinglePacketPayloadBytes = 8192;
 constexpr int kPublishManyTrackCount = 256;
 constexpr auto kPublishManyTimeout = 5s;
@@ -134,6 +134,12 @@ std::shared_ptr<DataTrackStream> requireSubscription(const std::shared_ptr<Remot
 void requirePushSuccess(const Result<void, LocalDataTrackTryPushError>& result, const std::string& context) {
   if (!result) {
     throw std::runtime_error(context + ": " + describeDataTrackError(result.error()));
+  }
+}
+
+void requirePushWhileSubscribed(const Result<void, LocalDataTrackTryPushError>& result) {
+  if (!result && result.error().code != LocalDataTrackTryPushErrorCode::NO_SUBSCRIBERS) {
+    requirePushSuccess(result, "Failed to push data frame");
   }
 }
 
@@ -334,7 +340,7 @@ TEST_P(DataTrackTransportTest, PublishesAndReceivesFramesEndToEnd) {
     DataTrackFrame frame;
     frame.payload.assign(payload_len, kTransportPayloadValue);
     while (keep_publishing.load()) {
-      requirePushSuccess(local_track->tryPush(frame), "Failed to push data frame");
+      requirePushWhileSubscribed(local_track->tryPush(frame));
       std::this_thread::sleep_for(50ms);
     }
   });
@@ -406,7 +412,7 @@ TEST_F(DataTrackE2ETest, ReceivesFramesWithCustomPipelineOptionsEndToEnd) {
     DataTrackFrame frame;
     frame.payload.assign(payload_len, kTransportPayloadValue);
     while (keep_publishing.load()) {
-      requirePushSuccess(local_track->tryPush(frame), "Failed to push data frame");
+      requirePushWhileSubscribed(local_track->tryPush(frame));
       std::this_thread::sleep_for(50ms);
     }
   });
@@ -457,10 +463,13 @@ TEST_F(DataTrackE2ETest, UnpublishUpdatesPublishedStateEndToEnd) {
   ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
   EXPECT_TRUE(remote_track->isPublished());
 
-  std::this_thread::sleep_for(500ms);
   local_track->unpublishDataTrack();
 
   EXPECT_FALSE(local_track->isPublished());
+  const auto push = local_track->tryPush(std::vector<std::uint8_t>{0xFA});
+  ASSERT_FALSE(push);
+  EXPECT_EQ(push.error().code, LocalDataTrackTryPushErrorCode::TRACK_UNPUBLISHED);
+  EXPECT_TRUE(local_track->tryPush(nullptr, 0));
   EXPECT_TRUE(waitForCondition([&]() { return !remote_track->isPublished(); }, 2s))
       << "Remote track did not report unpublished state";
 }
@@ -544,21 +553,6 @@ TEST_F(DataTrackE2ETest, PublishManyTracks) {
   std::cout << "Publishing " << kPublishManyTrackCount << " tracks took "
             << std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() << " ms" << std::endl;
   EXPECT_LT(elapsed, kPublishManyTimeout);
-
-  // This test intentionally creates bursty data-track traffic by pushing a
-  // large frame on every published track in quick succession. The RTC sender
-  // path uses bounded queues, so under this load not every packet is expected
-  // to make it onto the transport and "Failed to enqueue data track packet"
-  // logs are expected. The purpose of this test is to verify publish/push
-  // behavior and local track state, not end-to-end delivery of every packet.
-  for (const auto& track : tracks) {
-    auto push_result = track->tryPush(std::vector<std::uint8_t>(kLargeFramePayloadBytes, 0xFA));
-    if (!push_result) {
-      ADD_FAILURE() << "Failed to push large frame on track " << track->info().name << ": "
-                    << describeDataTrackError(push_result.error());
-    }
-    std::this_thread::sleep_for(50ms);
-  }
 
   for (const auto& track : tracks) {
     track->unpublishDataTrack();
@@ -755,7 +749,7 @@ TEST_F(DataTrackE2ETest, PublishWithCustomSchemaAndFrameEncodingMetadata) {
   local_track->unpublishDataTrack();
 }
 
-TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) {
+static void exerciseDataTrackResubscribe(bool expect_dynacast) {
   const auto track_name = makeTrackName("resubscribe");
 
   DataTrackPublishedDelegate subscriber_delegate;
@@ -763,52 +757,77 @@ TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) {
   room_configs[1].delegate = &subscriber_delegate;
 
   auto rooms = testRooms(room_configs);
-  auto& publisher_room = rooms[0];
-
-  std::atomic<bool> keep_publishing{true};
-  std::exception_ptr publish_error;
-  std::thread publisher([&]() {
-    try {
-      auto track = requirePublishedTrack(publisher_room->localParticipant(), track_name);
-      if (!track->isPublished()) {
-        throw std::runtime_error("Publisher failed to publish data track");
-      }
-
-      while (keep_publishing.load()) {
-        requirePushSuccess(track->tryPush(std::vector<std::uint8_t>(64, 0xFA)),
-                           "Failed to push resubscribe test frame");
-        std::this_thread::sleep_for(50ms);
-      }
-
-      track->unpublishDataTrack();
-    } catch (...) {
-      publish_error = std::current_exception();
-    }
-  });
+  auto local_track = requirePublishedTrack(rooms[0]->localParticipant(), track_name);
+  ASSERT_TRUE(local_track->isPublished());
 
   auto remote_track = subscriber_delegate.waitForTrack(kTrackWaitTimeout);
   ASSERT_NE(remote_track, nullptr) << "Timed out waiting for remote data track";
 
-  for (int iteration = 0; iteration < kResubscribeIterations; ++iteration) {
-    auto subscribe_result = remote_track->subscribe();
+  for (const std::uint8_t marker : {std::uint8_t{0xFA}, std::uint8_t{0xFB}}) {
+    SCOPED_TRACE(static_cast<int>(marker));
+    const std::vector<std::uint8_t> payload(64, marker);
+    if (expect_dynacast) {
+      ASSERT_TRUE(waitForCondition(
+          [&]() {
+            const auto result = local_track->tryPush(std::vector<std::uint8_t>{0});
+            if (!result && result.error().code == LocalDataTrackTryPushErrorCode::NO_SUBSCRIBERS) {
+              return true;
+            }
+            requirePushSuccess(result, "Unexpected error while waiting for dynacast to pause");
+            return false;
+          },
+          5s, 50ms))
+          << "The publisher did not report NO_SUBSCRIBERS";
+      EXPECT_TRUE(local_track->isPublished());
+    }
+
+    const auto subscribe_result = remote_track->subscribe();
     if (!subscribe_result) {
       FAIL() << describeDataTrackError(subscribe_result.error());
     }
-    auto subscription = subscribe_result.value();
+    const auto& subscription = subscribe_result.value();
+    auto reader = std::async(std::launch::async, [&]() {
+      DataTrackFrame frame;
+      if (!subscription->read(frame)) {
+        throw std::runtime_error("Subscription ended before a frame arrived");
+      }
+      return frame;
+    });
 
-    auto frame = readFrameWithTimeout(subscription, 5s);
-    EXPECT_FALSE(frame.payload.empty()) << "Iteration " << iteration;
-
+    std::string push_error;
+    const bool finished = waitForCondition(
+        [&]() {
+          if (reader.wait_for(0ms) == std::future_status::ready) {
+            return true;
+          }
+          const auto result = local_track->tryPush(payload.data(), payload.size());
+          if (!result && result.error().code != LocalDataTrackTryPushErrorCode::NO_SUBSCRIBERS) {
+            push_error = describeDataTrackError(result.error());
+          }
+          return !push_error.empty();
+        },
+        5s, 50ms);
     subscription->close();
-    std::this_thread::sleep_for(50ms);
+    ASSERT_TRUE(push_error.empty()) << push_error;
+    ASSERT_TRUE(finished) << "Timed out waiting for a frame";
+    EXPECT_EQ(reader.get().payload, payload);
+    if (!expect_dynacast && marker == 0xFA) {
+      // Legacy servers can coalesce the unsubscribe and immediate resubscribe.
+      std::this_thread::sleep_for(50ms);
+    }
   }
+  local_track->unpublishDataTrack();
+}
 
-  keep_publishing.store(false);
-  publisher.join();
+TEST_F(DataTrackE2ETest, CanResubscribeToRemoteDataTrack) { exerciseDataTrackResubscribe(false); }
 
-  if (publish_error) {
-    std::rethrow_exception(publish_error);
+TEST_F(DataTrackE2ETest, DynacastPausesAndResumesDataTrack) {
+  const char* enabled = std::getenv("LIVEKIT_TEST_DATA_TRACK_DYNACAST");
+  if (enabled == nullptr || std::string_view(enabled) != "1") {
+    GTEST_SKIP()
+        << "Set LIVEKIT_TEST_DATA_TRACK_DYNACAST=1 with a Rust core and server that support data track dynacast";
   }
+  exerciseDataTrackResubscribe(true);
 }
 
 TEST_F(DataTrackE2ETest, FfiClientSubscribeDataTrackReturnsSyncResult) {
