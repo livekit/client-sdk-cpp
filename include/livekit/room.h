@@ -38,7 +38,9 @@ class RoomDelegate;
 struct RoomInfoData;
 namespace proto {
 class FfiEvent;
-}
+class TextStreamOpened;
+class ByteStreamOpened;
+} // namespace proto
 
 struct E2EEOptions;
 class E2EEManager;
@@ -69,6 +71,15 @@ struct RtcConfig {
 
   /// List of STUN/TURN servers for ICE candidate generation.
   std::vector<IceServer> ice_servers;
+};
+
+/// @brief Data stream settings applied when connecting.
+struct DataStreamOptions {
+  /// Maximum number of (decompressed) bytes accepted per incoming data stream.
+  /// A stream that exceeds it ends with a DataStreamError on the reader.
+  ///
+  /// If unset, the SDK default (5 GB) is used.
+  std::optional<std::uint64_t> max_payload_byte_length;
 };
 
 /// Top-level room connection options.
@@ -124,6 +135,9 @@ struct RoomOptions {
   ///
   /// If unset, the Rust SDK default is used.
   std::optional<std::chrono::milliseconds> connect_timeout;
+
+  /// Data stream settings, such as the incoming stream size limit.
+  DataStreamOptions data_stream;
 
   /// @cond
   /// Additional LiveKit SDKs layered on top of this one, reported to the server
@@ -267,9 +281,11 @@ public:
   ///   - Only one handler may be registered per topic.
   ///   - If no handler is registered for a topic, incoming streams with that
   ///     topic are ignored.
-  ///   - The handler is invoked on the Room event thread. The handler must
-  ///     not block; spawn a background thread if synchronous reading is
-  ///     required.
+  ///   - The handler is invoked on the SDK event thread, which also delivers
+  ///     the stream's chunks. The handler must not block: never call
+  ///     TextStreamReader::readNext() or readAll() inside it. Hand the reader
+  ///     to a background thread instead.
+  ///   - Reading throws DataStreamError if the stream ends abnormally.
   ///
   /// @throws std::runtime_error if a handler is already registered for the topic.
   void registerTextStreamHandler(const std::string& topic, TextStreamHandler handler);
@@ -292,6 +308,11 @@ public:
   ///     topic are ignored.
   ///   - The ByteStreamReader remains valid as long as the shared_ptr is held,
   ///     preventing lifetime-related crashes when reading asynchronously.
+  ///   - The handler is invoked on the SDK event thread, which also delivers
+  ///     the stream's chunks. The handler must not block: never call
+  ///     ByteStreamReader::readNext() or readAll() inside it. Hand the reader
+  ///     to a background thread instead.
+  ///   - Reading throws DataStreamError if the stream ends abnormally.
   ///
   /// @throws std::runtime_error if a handler is already registered for the topic.
   void registerByteStreamHandler(const std::string& topic, ByteStreamHandler handler);
@@ -357,8 +378,12 @@ private:
   // Data stream
   std::unordered_map<std::string, TextStreamHandler> text_stream_handlers_;
   std::unordered_map<std::string, ByteStreamHandler> byte_stream_handlers_;
-  std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> text_stream_readers_;
-  std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> byte_stream_readers_;
+  // Active incoming stream readers, keyed by FFI reader handle id. A reader is
+  // removed when its end-of-stream event arrives or the room shuts down.
+  using TextStreamReaderMap = std::unordered_map<std::uint64_t, std::shared_ptr<TextStreamReader>>;
+  using ByteStreamReaderMap = std::unordered_map<std::uint64_t, std::shared_ptr<ByteStreamReader>>;
+  TextStreamReaderMap text_stream_readers_;
+  ByteStreamReaderMap byte_stream_readers_;
   // The E2EE manager is owned by the room and is not shared with other objects.
   // It is a shared_ptr just to utilize the weak_ptr interface for the e2eeManager() accessor.
   std::shared_ptr<E2EEManager> e2ee_manager_;
@@ -368,6 +393,11 @@ private:
   int listener_id_{0};
 
   void onEvent(const proto::FfiEvent& event);
+  void onTextStreamOpened(const proto::TextStreamOpened& opened, RoomDelegate* delegate);
+  void onByteStreamOpened(const proto::ByteStreamOpened& opened, RoomDelegate* delegate);
+  bool dispatchStreamReaderEvent(const proto::FfiEvent& event);
+  // Gives every reader a terminal "disconnected" error so blocked reads wake.
+  static void endStreamReaders(const TextStreamReaderMap& text_readers, const ByteStreamReaderMap& byte_readers);
 
   // Shared shutdown path for explicit disconnect, server disconnect, EOS, and destruction.
   bool shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_delegate);
