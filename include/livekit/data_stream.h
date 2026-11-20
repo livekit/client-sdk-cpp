@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -34,9 +35,15 @@ namespace livekit {
 
 class LocalParticipant;
 
+namespace detail {
+class StreamWriterRegistry;
+} // namespace detail
+
 /// Chunk size for data streams (matches Python STREAM_CHUNK_SIZE).
-/// Chosen to balance throughput and latency, and to work well with WebRTC data
-/// channels.
+///
+/// @deprecated The SDK core now chunks data streams itself (at 15 KB); this
+/// constant no longer controls anything.
+[[deprecated("kStreamChunkSize no longer controls chunking; the SDK core chunks data streams itself")]]
 constexpr std::size_t kStreamChunkSize = 15'000; // 15 KB
 
 /// @brief Error raised by data stream operations.
@@ -324,29 +331,58 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
-/// Base class for sending data streams.
-/// Concrete subclasses are TextStreamWriter and ByteStreamWriter.
+/// @brief Base class for sending data streams incrementally.
+///
+/// Concrete subclasses are TextStreamWriter and ByteStreamWriter; create them
+/// with LocalParticipant::streamText() / LocalParticipant::streamBytes().
+///
+/// Thread safety: write() and close() are serialized internally, and each one
+/// returns only after the SDK has processed it, so a close() always follows
+/// every write() that returned before it. When the room disconnects, the
+/// writer is closed and later write() / close() calls throw DataStreamError.
+///
+/// Destroying a writer that was opened but not closed closes the stream
+/// normally (without waiting), so receivers don't wait forever.
 class LIVEKIT_API BaseStreamWriter {
 public:
-  virtual ~BaseStreamWriter() = default;
+  virtual ~BaseStreamWriter();
 
-  /// Stream id assigned to this writer.
+  BaseStreamWriter(const BaseStreamWriter&) = delete;
+  BaseStreamWriter& operator=(const BaseStreamWriter&) = delete;
+
+  /// @brief Stream id assigned to this writer.
+  /// @return The stream id.
   const std::string& streamId() const noexcept { return stream_id_; }
 
-  /// Topic of this stream.
+  /// @brief Topic of this stream.
+  /// @return The topic.
   const std::string& topic() const noexcept { return topic_; }
 
-  /// MIME type for this stream.
+  /// @brief MIME type for this stream.
+  /// @return The MIME type.
   const std::string& mimeType() const noexcept { return mime_type_; }
 
-  /// Timestamp (ms) when the stream was created.
+  /// @brief Timestamp (ms) when the stream was created.
+  ///
+  /// Updated to the SDK core's timestamp once the stream is opened.
+  /// @return Creation timestamp in milliseconds since the Unix epoch.
   std::int64_t timestampMs() const noexcept { return timestamp_ms_; }
 
-  /// Whether the stream has been closed.
+  /// @brief Whether the stream has been closed (explicitly or because the room
+  /// disconnected).
+  /// @return True if closed.
   bool isClosed() const noexcept { return closed_; }
 
-  /// Close the stream with optional reason and attributes.
-  /// Throws on FFI error or if already closed.
+  /// @brief Close the stream.
+  ///
+  /// Waits for any in-progress write() to finish first. A non-empty @p reason
+  /// closes the stream abnormally: receivers' reads throw DataStreamError
+  /// carrying the reason.
+  ///
+  /// @param reason     Empty for a normal close; otherwise the error reason.
+  /// @param attributes Attributes merged into the receiver's stream info.
+  /// @throws DataStreamError if the stream is already closed, the room has
+  ///         disconnected, or the SDK reports an error.
   void close(const std::string& reason = "", const std::map<std::string, std::string>& attributes = {});
 
 protected:
@@ -369,51 +405,141 @@ protected:
   std::vector<std::string> destination_identities_;
   std::string sender_identity_;
 
-  bool closed_ = false;
+  std::atomic<bool> closed_{false};
+  /// True once the stream has been opened with the SDK core.
   bool header_sent_ = false;
+  /// Unused; chunking is done by the SDK core.
   std::uint64_t next_chunk_index_ = 0;
   StreamKind kind_ = StreamKind::kUnknown;
   std::string reply_to_id_;
   std::string byte_name_; // Used by ByteStreamWriter
 
-  /// Ensure the header has been sent once.
-  /// Throws on error.
+  /// @brief Open the stream if it isn't open yet.
+  /// @deprecated The SDK opens the stream on the first write() or close().
+  /// @throws DataStreamError on error.
+  [[deprecated("BaseStreamWriter::ensureHeaderSent is deprecated; the stream opens on the first write or close")]]
   void ensureHeaderSent();
 
-  /// Send a raw chunk of bytes.
-  /// Throws on error or if stream is closed.
+  /// @brief Write raw bytes to the stream (UTF-8 text for a text stream).
+  /// @deprecated Use TextStreamWriter::write() or ByteStreamWriter::write() instead.
+  /// @param content Payload to write.
+  /// @throws std::runtime_error if the stream is closed; DataStreamError on error.
+  [[deprecated(
+      "BaseStreamWriter::sendChunk is deprecated; use TextStreamWriter::write or ByteStreamWriter::write "
+      "instead")]]
   void sendChunk(const std::vector<std::uint8_t>& content);
 
-  /// Send the trailer with given reason and attributes.
-  /// Throws on error.
+  /// @brief Close the stream with the given reason and attributes.
+  /// @deprecated Use close() instead.
+  /// @param reason     Empty for a normal close; otherwise the error reason.
+  /// @param attributes Attributes merged into the receiver's stream info.
+  /// @throws DataStreamError on error.
+  [[deprecated("BaseStreamWriter::sendTrailer is deprecated; use BaseStreamWriter::close instead")]]
   void sendTrailer(const std::string& reason, const std::map<std::string, std::string>& attributes);
+
+  /// @brief Open the stream now (requires @c kind_ to be set). Serialized with
+  /// write() and close().
+  /// @throws DataStreamError on error.
+  void open();
+
+  /// @brief Write a payload (text for kText, bytes for kByte), opening first if
+  /// needed. Serialized with other operations.
+  /// @param data Payload bytes.
+  /// @param size Payload size.
+  /// @param closed_message Message thrown if the writer is already closed.
+  /// @throws DataStreamError on error.
+  void writePayload(const char* data, std::size_t size, const char* closed_message);
+
+private:
+  friend class detail::StreamWriterRegistry;
+
+  void openLocked();
+  void closeLocked(const std::string& reason, const std::map<std::string, std::string>& attributes);
+  void applyOpenedInfo(std::int64_t timestamp_ms, const std::string& mime_type);
+  std::uint64_t takeHandle() noexcept;
+  void onParticipantDisconnected() noexcept;
+  [[noreturn]] void throwNotConnected() const;
+
+  /// Serializes open/write/close. Held across FFI waits.
+  std::mutex op_mutex_;
+  /// Guards writer_handle_ and participant_gone_. Never held across FFI calls.
+  mutable std::mutex state_mutex_;
+  /// Owned FFI writer handle; 0 before open and after close consumes it.
+  std::uint64_t writer_handle_ = 0;
+  bool participant_gone_ = false;
+  std::shared_ptr<detail::StreamWriterRegistry> registry_;
 };
 
-/// Writer for outgoing text streams.
+/// @brief Writer for outgoing text streams.
+///
+/// Create one with LocalParticipant::streamText(). Text is sent as UTF-8; the
+/// SDK splits it into chunks on code point boundaries.
 class LIVEKIT_API TextStreamWriter : public BaseStreamWriter {
 public:
+  /// @brief Construct a text stream writer.
+  ///
+  /// The stream is opened lazily on the first write() or close().
+  ///
+  /// @deprecated Use LocalParticipant::streamText() instead.
+  /// @param local_participant      Participant that sends the stream; must outlive the writer.
+  /// @param topic                  Topic receivers register handlers on.
+  /// @param attributes             Attributes sent with the stream header.
+  /// @param stream_id              Stream id; generated when empty.
+  /// @param total_size             Recorded locally in info() only; text streams can't transmit a size.
+  /// @param reply_to_id            Id of the stream this one replies to, or empty.
+  /// @param destination_identities Recipients; empty for everyone.
+  /// @param sender_identity        Identity to send as; defaults to the local participant.
+  [[deprecated("Constructing TextStreamWriter directly is deprecated; use LocalParticipant::streamText instead")]]
   TextStreamWriter(LocalParticipant& local_participant, const std::string& topic = "",
                    const std::map<std::string, std::string>& attributes = {}, const std::string& stream_id = "",
                    std::optional<std::size_t> total_size = std::nullopt, const std::string& reply_to_id = "",
                    const std::vector<std::string>& destination_identities = {},
                    const std::string& sender_identity = "");
 
-  /// Write a UTF-8 string to the stream.
-  /// Data will be split into chunks of at most kStreamChunkSize bytes.
-  /// Throws on error or if the stream is closed.
+  /// @brief Write a UTF-8 string to the stream.
+  ///
+  /// Blocks until the SDK has sent it.
+  ///
+  /// @param text UTF-8 text to append.
+  /// @throws DataStreamError if the stream is closed, the room has
+  ///         disconnected, or the SDK reports an error.
   void write(const std::string& text);
 
-  /// Metadata associated with this stream.
+  /// @brief Metadata associated with this stream.
+  /// @return Stream metadata; updated with the SDK core's info once opened.
   const TextStreamInfo& info() const noexcept { return info_; }
 
 private:
+  friend class BaseStreamWriter;
+  friend class LocalParticipant;
+  struct FactoryTag {};
+
+  TextStreamWriter(FactoryTag, LocalParticipant& local_participant, const StreamTextOptions& options);
+
   TextStreamInfo info_;
-  std::mutex write_mutex_;
+  std::vector<std::string> attached_stream_ids_;
 };
 
-/// Writer for outgoing byte streams.
+/// @brief Writer for outgoing byte streams.
+///
+/// Create one with LocalParticipant::streamBytes().
 class LIVEKIT_API ByteStreamWriter : public BaseStreamWriter {
 public:
+  /// @brief Construct a byte stream writer.
+  ///
+  /// The stream is opened lazily on the first write() or close().
+  ///
+  /// @deprecated Use LocalParticipant::streamBytes() instead.
+  /// @param local_participant      Participant that sends the stream; must outlive the writer.
+  /// @param name                   Name of the payload (for example a file name).
+  /// @param topic                  Topic receivers register handlers on.
+  /// @param attributes             Attributes sent with the stream header.
+  /// @param stream_id              Stream id; generated when empty.
+  /// @param total_size             Total payload size, if known.
+  /// @param mime_type              MIME type of the payload.
+  /// @param destination_identities Recipients; empty for everyone.
+  /// @param sender_identity        Identity to send as; defaults to the local participant.
+  [[deprecated("Constructing ByteStreamWriter directly is deprecated; use LocalParticipant::streamBytes instead")]]
   ByteStreamWriter(LocalParticipant& local_participant, const std::string& name, const std::string& topic = "",
                    const std::map<std::string, std::string>& attributes = {}, const std::string& stream_id = "",
                    std::optional<std::size_t> total_size = std::nullopt,
@@ -421,17 +547,27 @@ public:
                    const std::vector<std::string>& destination_identities = {},
                    const std::string& sender_identity = "");
 
-  /// Write binary data to the stream.
-  /// Data will be chunked into kStreamChunkSize-sized chunks.
-  /// Throws on error or if the stream is closed.
+  /// @brief Write binary data to the stream.
+  ///
+  /// Blocks until the SDK has sent it.
+  ///
+  /// @param data Bytes to append.
+  /// @throws DataStreamError if the stream is closed, the room has
+  ///         disconnected, or the SDK reports an error.
   void write(const std::vector<std::uint8_t>& data);
 
-  /// Metadata associated with this stream.
+  /// @brief Metadata associated with this stream.
+  /// @return Stream metadata; updated with the SDK core's info once opened.
   const ByteStreamInfo& info() const noexcept { return info_; }
 
 private:
+  friend class BaseStreamWriter;
+  friend class LocalParticipant;
+  struct FactoryTag {};
+
+  ByteStreamWriter(FactoryTag, LocalParticipant& local_participant, const StreamByteOptions& options);
+
   ByteStreamInfo info_;
-  std::mutex write_mutex_;
 };
 
 /// Callback invoked when a new incoming text stream is opened.

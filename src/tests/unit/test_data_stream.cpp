@@ -96,7 +96,20 @@ TEST(DataStreamTest, ByteStreamReaderConstructAndInfo) {
 TEST(DataStreamTest, WriterTypesAreDerivedFromBase) {
   static_assert(std::is_base_of_v<BaseStreamWriter, TextStreamWriter>);
   static_assert(std::is_base_of_v<BaseStreamWriter, ByteStreamWriter>);
+  // Deprecated, but must keep compiling for existing callers.
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
   EXPECT_GT(kStreamChunkSize, 0u);
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -362,5 +375,84 @@ TEST(DataStreamSendTest, FfiHelpersThrowWhenNotInitialized) {
   EXPECT_THROW(FfiClient::instance().textStreamReadIncremental(1), std::runtime_error);
   EXPECT_THROW(FfiClient::instance().byteStreamReadIncremental(1), std::runtime_error);
 }
+
+// ---------------------------------------------------------------------------
+// Writers without a live room
+// ---------------------------------------------------------------------------
+
+namespace {
+
+std::shared_ptr<LocalParticipant> detachedParticipant() {
+  return std::make_shared<LocalParticipant>(FfiHandle(0), "sid", "name", "identity", "",
+                                            std::unordered_map<std::string, std::string>{}, ParticipantKind::Standard,
+                                            DisconnectReason::Unknown);
+}
+
+} // namespace
+
+TEST(DataStreamWriterTest, FactoriesThrowWhenNotInitialized) {
+  ASSERT_FALSE(FfiClient::instance().isInitialized());
+  auto participant = detachedParticipant();
+  StreamTextOptions text_options;
+  text_options.topic = "t";
+  StreamByteOptions byte_options;
+  byte_options.topic = "t";
+  EXPECT_THROW((void)participant->streamText(text_options), DataStreamError);
+  EXPECT_THROW((void)participant->streamBytes(byte_options), DataStreamError);
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4996)
+#endif
+
+TEST(DataStreamWriterTest, DeprecatedConstructorsKeepMetadata) {
+  auto participant = detachedParticipant();
+  TextStreamWriter text(*participant, "chat", {{"k", "v"}}, "my-id", 42, "reply-id");
+  EXPECT_EQ(text.streamId(), "my-id");
+  EXPECT_EQ(text.topic(), "chat");
+  EXPECT_EQ(text.mimeType(), "text/plain");
+  EXPECT_FALSE(text.isClosed());
+  EXPECT_EQ(text.info().attributes.at("k"), "v");
+  ASSERT_TRUE(text.info().size.has_value());
+  EXPECT_EQ(*text.info().size, 42u);
+  EXPECT_EQ(text.info().reply_to_stream_id.value_or(""), "reply-id");
+
+  ByteStreamWriter bytes(*participant, "file.bin", "files");
+  EXPECT_EQ(bytes.streamId().size(), 32u) << "a stream id is generated when none is given";
+  EXPECT_EQ(bytes.mimeType(), "application/octet-stream");
+  EXPECT_EQ(bytes.info().name, "file.bin");
+}
+
+TEST(DataStreamWriterTest, WritersCloseWhenParticipantGoes) {
+  auto participant = detachedParticipant();
+  auto writer = std::make_unique<TextStreamWriter>(*participant, "chat");
+  ASSERT_FALSE(writer->isClosed());
+
+  participant.reset(); // Closes registered writers.
+  EXPECT_TRUE(writer->isClosed());
+  EXPECT_THROW(writer->write("late"), DataStreamError);
+  EXPECT_THROW(writer->close(), DataStreamError);
+  writer.reset(); // Must not touch the destroyed participant.
+}
+
+TEST(DataStreamWriterTest, WriteToClosedWriterThrowsWithoutReachingFfi) {
+  auto participant = detachedParticipant();
+  ByteStreamWriter writer(*participant, "file.bin", "files");
+  // An empty write is a no-op and must not open the stream.
+  EXPECT_NO_THROW(writer.write({}));
+  // Without an initialized FFI the open fails, and the writer stays usable
+  // only to report errors.
+  EXPECT_THROW(writer.write({1, 2, 3}), std::runtime_error);
+}
+
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 
 } // namespace livekit::test

@@ -22,6 +22,7 @@
 #include <stdexcept>
 
 #include "data_stream_proto_converter.h"
+#include "data_stream_writer_registry.h"
 #include "data_track.pb.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
@@ -66,7 +67,15 @@ LocalParticipant::LocalParticipant(FfiHandle handle, std::string sid, std::strin
                                    std::string metadata, std::unordered_map<std::string, std::string> attributes,
                                    ParticipantKind kind, DisconnectReason reason)
     : Participant(std::move(handle), std::move(sid), std::move(name), std::move(identity), std::move(metadata),
-                  std::move(attributes), kind, reason) {}
+                  std::move(attributes), kind, reason),
+      stream_writers_(std::make_shared<detail::StreamWriterRegistry>(static_cast<std::uint64_t>(ffiHandleId()))) {}
+
+LocalParticipant::~LocalParticipant() { stream_writers_->closeAll(); }
+
+void LocalParticipant::markDisconnected() noexcept {
+  disconnected_.store(true, std::memory_order_release);
+  stream_writers_->closeAll();
+}
 
 void LocalParticipant::publishData(const std::vector<std::uint8_t>& payload, bool reliable,
                                    const std::vector<std::string>& destination_identities, const std::string& topic) {
@@ -130,6 +139,20 @@ ByteStreamInfo LocalParticipant::sendFile(const std::string& path, const StreamB
   }
   auto fut = FfiClient::instance().sendFileAsync(handle_id, path, proto_options);
   return fromProto(fut.get());
+}
+
+std::unique_ptr<TextStreamWriter> LocalParticipant::streamText(const StreamTextOptions& options) {
+  (void)dataStreamHandle("streamText");
+  std::unique_ptr<TextStreamWriter> writer(new TextStreamWriter(TextStreamWriter::FactoryTag{}, *this, options));
+  writer->open();
+  return writer;
+}
+
+std::unique_ptr<ByteStreamWriter> LocalParticipant::streamBytes(const StreamByteOptions& options) {
+  (void)dataStreamHandle("streamBytes");
+  std::unique_ptr<ByteStreamWriter> writer(new ByteStreamWriter(ByteStreamWriter::FactoryTag{}, *this, options));
+  writer->open();
+  return writer;
 }
 
 void LocalParticipant::publishDtmf(int code, const std::string& digit) {

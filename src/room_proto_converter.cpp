@@ -246,78 +246,6 @@ AttributeEntry fromProto(const proto::AttributesEntry& in) {
   return a;
 }
 
-DataStreamHeaderData fromProto(const proto::DataStream_Header& in) {
-  DataStreamHeaderData out;
-  out.stream_id = in.stream_id();
-  out.timestamp = in.timestamp();
-  out.mime_type = in.mime_type();
-  out.topic = in.topic();
-  if (in.has_total_length()) {
-    out.total_length = in.total_length();
-  }
-  for (const auto& kv : in.attributes()) {
-    out.attributes.emplace(kv.first, kv.second);
-  }
-
-  // content_header oneof
-  switch (in.content_header_case()) {
-    case proto::DataStream_Header::kTextHeader: {
-      out.content_type = DataStreamHeaderData::ContentType::Text;
-      const auto& t = in.text_header();
-      out.operation_type = static_cast<DataStreamHeaderData::OperationType>(t.operation_type());
-      if (t.has_version()) {
-        out.version = t.version();
-      }
-      if (t.has_reply_to_stream_id()) {
-        out.reply_to_stream_id = t.reply_to_stream_id();
-      }
-      for (const auto& id : t.attached_stream_ids()) {
-        out.attached_stream_ids.push_back(id);
-      }
-      if (t.has_generated()) {
-        out.generated = t.generated();
-      }
-      break;
-    }
-    case proto::DataStream_Header::kByteHeader: {
-      out.content_type = DataStreamHeaderData::ContentType::Byte;
-      const auto& b = in.byte_header();
-      out.name = b.name();
-      break;
-    }
-    case proto::DataStream_Header::CONTENT_HEADER_NOT_SET:
-    default:
-      out.content_type = DataStreamHeaderData::ContentType::None;
-      break;
-  }
-
-  return out;
-}
-
-DataStreamChunkData fromProto(const proto::DataStream_Chunk& in) {
-  DataStreamChunkData out;
-  out.stream_id = in.stream_id();
-  out.chunk_index = in.chunk_index();
-  out.content.assign(in.content().begin(), in.content().end());
-  if (in.has_version()) {
-    out.version = in.version();
-  }
-  if (in.has_iv()) {
-    out.iv.assign(in.iv().begin(), in.iv().end());
-  }
-  return out;
-}
-
-DataStreamTrailerData fromProto(const proto::DataStream_Trailer& in) {
-  DataStreamTrailerData out;
-  out.stream_id = in.stream_id();
-  out.reason = in.reason();
-  for (const auto& kv : in.attributes()) {
-    out.attributes.emplace(kv.first, kv.second);
-  }
-  return out;
-}
-
 // --------- event conversions ---------
 
 RoomSidChangedEvent fromProto(const proto::RoomSidChanged& in) {
@@ -349,27 +277,6 @@ TokenRefreshedEvent fromProto(const proto::TokenRefreshed& in) {
 }
 
 RoomEosEvent fromProto(const proto::RoomEOS& /*in*/) { return RoomEosEvent{}; }
-
-DataStreamHeaderReceivedEvent fromProto(const proto::DataStreamHeaderReceived& in) {
-  DataStreamHeaderReceivedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.header = fromProto(in.header());
-  return ev;
-}
-
-DataStreamChunkReceivedEvent fromProto(const proto::DataStreamChunkReceived& in) {
-  DataStreamChunkReceivedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.chunk = fromProto(in.chunk());
-  return ev;
-}
-
-DataStreamTrailerReceivedEvent fromProto(const proto::DataStreamTrailerReceived& in) {
-  DataStreamTrailerReceivedEvent ev;
-  ev.participant_identity = in.participant_identity();
-  ev.trailer = fromProto(in.trailer());
-  return ev;
-}
 
 DataChannelBufferedAmountLowThresholdChangedEvent fromProto(
     const proto::DataChannelBufferedAmountLowThresholdChanged& in) {
@@ -615,58 +522,6 @@ SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived& in, Remot
   ev.code = static_cast<int>(in.sip_dtmf().code());
   ev.digit = in.sip_dtmf().digit();
   return ev;
-}
-
-std::map<std::string, std::string> toAttrMap(const proto::DataStream::Trailer& trailer) {
-  std::map<std::string, std::string> out;
-  for (const auto& kv : trailer.attributes()) {
-    out.emplace(kv.first, kv.second);
-  }
-  return out;
-}
-
-TextStreamInfo makeTextInfo(const proto::DataStream::Header& header) {
-  TextStreamInfo info;
-  info.stream_id = header.stream_id();
-  info.mime_type = header.mime_type();
-  info.topic = header.topic();
-  info.timestamp = header.timestamp();
-  if (header.text_header().has_reply_to_stream_id()) {
-    info.reply_to_stream_id = header.text_header().reply_to_stream_id();
-  }
-
-  if (header.has_total_length()) {
-    info.size = static_cast<std::size_t>(header.total_length());
-  }
-
-  for (const auto& kv : header.attributes()) {
-    info.attributes.emplace(kv.first, kv.second);
-  }
-
-  for (const auto& id : header.text_header().attached_stream_ids()) {
-    info.attachments.push_back(id);
-  }
-
-  return info;
-}
-
-ByteStreamInfo makeByteInfo(const proto::DataStream::Header& header) {
-  ByteStreamInfo info;
-  info.stream_id = header.stream_id();
-  info.mime_type = header.mime_type();
-  info.topic = header.topic();
-  info.timestamp = header.timestamp();
-
-  if (header.has_total_length()) {
-    info.size = static_cast<std::size_t>(header.total_length());
-  }
-
-  for (const auto& kv : header.attributes()) {
-    info.attributes.emplace(kv.first, kv.second);
-  }
-
-  info.name = header.byte_header().name();
-  return info;
 }
 
 } // namespace livekit
