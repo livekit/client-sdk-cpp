@@ -163,22 +163,58 @@ For details on the Doxygen configuration and CI pipeline, see the
 
 ### Bump the pinned Rust submodule
 
+Update to the commit from the Rust SDK release with the newest publication
+time (including prereleases, excluding drafts):
+
 ```bash
-cd client-sdk-cpp
-git fetch origin
-git switch -c try-rust-main origin/main
-
-# Sync submodule URLs and check out what origin/main pins (recursively):
-git submodule sync --recursive
-git submodule update --init --recursive --checkout
-
-# If the nested submodule under yuv-sys didn't materialize, force it:
-git -C client-sdk-rust/yuv-sys submodule sync --recursive
-git -C client-sdk-rust/yuv-sys submodule update --init --recursive --checkout
-
-# Sanity check:
-git submodule status --recursive
+./scripts/update-rust-sdk.sh
 ```
+
+The script requires an authenticated GitHub CLI (`gh auth login`, or `GH_TOKEN`)
+when `--hash` is omitted. To select a specific commit without `gh`, pass its full
+or abbreviated hash:
+
+```bash
+./scripts/update-rust-sdk.sh --hash 1a477bc
+```
+
+The script checks out the selected Rust commit and synchronizes its nested
+submodules. It leaves the parent index untouched; review and stage the gitlink
+when ready. `--hash` also permits unreleased commits for local development; CI
+requires a published release for the pinned Rust commit.
+
+Review the selected commits before committing the gitlink update:
+
+```bash
+git diff --submodule=log -- client-sdk-rust
+git add -- client-sdk-rust
+```
+
+### Bump the pinned C++ example collection
+
+Update to the most recent commit on the `main` branch of the examples
+repository:
+
+```bash
+./scripts/update-cpp-example-collection.sh
+```
+
+To select a specific commit, pass its full or abbreviated hash:
+
+```bash
+./scripts/update-cpp-example-collection.sh --hash 7e76bea
+```
+
+Review and stage the examples gitlink when ready:
+
+```bash
+git diff --submodule=log -- cpp-example-collection
+git add -- cpp-example-collection
+```
+
+Both updaters run from any working directory, initialize the selected submodule
+if necessary, detach its checkout at the selected commit, and synchronize nested
+submodules using checkout mode.
 
 ### If `yuv-sys` fails to build
 
