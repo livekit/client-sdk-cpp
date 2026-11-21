@@ -288,7 +288,57 @@ VideoFrame VideoFrame::create(int width, int height, VideoBufferType type) {
   return VideoFrame(width, height, type, std::move(buffer));
 }
 
+VideoFrame::VideoFrame(VideoFrame&& other) noexcept
+    : width_(other.width_),
+      height_(other.height_),
+      type_(other.type_),
+      data_(std::move(other.data_)),
+      borrowed_data_(other.borrowed_data_),
+      borrowed_size_(other.borrowed_size_),
+      borrowed_planes_(std::move(other.borrowed_planes_)),
+      borrowed_handle_(std::move(other.borrowed_handle_)) {
+  // The handle moved, so the source no longer keeps the buffer alive and must stop naming it.
+  other.borrowed_data_ = nullptr;
+  other.borrowed_size_ = 0;
+}
+
+VideoFrame& VideoFrame::operator=(VideoFrame&& other) noexcept {
+  if (this == &other) {
+    return *this;
+  }
+  release(); // drops any buffer this frame was holding
+
+  width_ = other.width_;
+  height_ = other.height_;
+  type_ = other.type_;
+  data_ = std::move(other.data_);
+  borrowed_data_ = other.borrowed_data_;
+  borrowed_size_ = other.borrowed_size_;
+  borrowed_planes_ = std::move(other.borrowed_planes_);
+  borrowed_handle_ = std::move(other.borrowed_handle_);
+
+  other.borrowed_data_ = nullptr;
+  other.borrowed_size_ = 0;
+  return *this;
+}
+
+void VideoFrame::release() noexcept {
+  if (borrowed_data_ == nullptr) {
+    return;
+  }
+  borrowed_data_ = nullptr;
+  borrowed_size_ = 0;
+  borrowed_planes_.clear();
+  borrowed_handle_ = FfiHandle{}; // disposes the SDK buffer
+}
+
 std::vector<VideoPlaneInfo> VideoFrame::planeInfos() const {
+  if (borrowed_data_ != nullptr) {
+    // Report what the SDK said rather than recomputing from width/height: only the SDK knows
+    // whether a plane carries row padding.
+    return borrowed_planes_;
+  }
+
   if (data_.empty()) {
     return {};
   }
@@ -303,8 +353,9 @@ VideoFrame VideoFrame::convert(VideoBufferType dst, bool flip_y) const {
   // being deleted is not a problem.
   if (dst == type_ && !flip_y) {
     LK_LOG_WARN("VideoFrame::convert: converting to the same format");
-    // copy pixel data
-    std::vector<std::uint8_t> buf = data_;
+    // Copy pixel data. Reads through data()/dataSize() so a borrowed frame clones the SDK buffer
+    // rather than its own empty vector.
+    std::vector<std::uint8_t> buf(data(), data() + dataSize());
     return VideoFrame(width_, height_, type_, std::move(buf));
   }
 
@@ -365,6 +416,66 @@ VideoFrame VideoFrame::fromOwnedInfo(const proto::OwnedVideoBuffer& owned) {
   }
 
   return VideoFrame(width, height, type, std::move(buffer));
+}
+
+VideoFrame VideoFrame::borrowOwnedInfo(const proto::OwnedVideoBuffer& owned) {
+  const auto& info = owned.info();
+
+  VideoFrame frame;
+  frame.width_ = static_cast<int>(info.width());
+  frame.height_ = static_cast<int>(info.height());
+  frame.type_ = fromProto(info.type());
+
+  if (info.components_size() > 0) {
+    // Planar. data()/dataSize() describe one run starting at the first plane, which is only
+    // truthful if the planes sit end to end in order. The Rust side packs them that way today,
+    // but that is a convention across an FFI boundary rather than something the message
+    // guarantees, so check it rather than trust it: a frame that fails has to be copied, or
+    // data() would hand out a span covering memory between the planes.
+    std::size_t total_size = 0;
+    std::uintptr_t next_plane = static_cast<std::uintptr_t>(info.components(0).data_ptr());
+    bool contiguous = true;
+
+    frame.borrowed_planes_.reserve(static_cast<std::size_t>(info.components_size()));
+    for (const auto& comp : info.components()) {
+      const auto address = static_cast<std::uintptr_t>(comp.data_ptr());
+      contiguous = contiguous && address == next_plane;
+      next_plane = address + comp.size();
+
+      frame.borrowed_planes_.push_back(VideoPlaneInfo{address, comp.stride(), comp.size()});
+      total_size += static_cast<std::size_t>(comp.size());
+    }
+
+    if (!contiguous) {
+      LK_LOG_WARN("VideoFrame::borrowOwnedInfo: planes are not contiguous, copying instead");
+      return fromOwnedInfo(owned);
+    }
+
+    frame.borrowed_size_ = total_size;
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    frame.borrowed_data_ = reinterpret_cast<std::uint8_t*>(static_cast<std::uintptr_t>(info.components(0).data_ptr()));
+  } else {
+    // Packed: one contiguous run at the top-level pointer.
+    frame.borrowed_size_ = info.has_stride()
+                               ? static_cast<std::size_t>(info.stride()) * static_cast<std::size_t>(frame.height_)
+                               : computeBufferSize(frame.width_, frame.height_, frame.type_);
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    frame.borrowed_data_ = reinterpret_cast<std::uint8_t*>(static_cast<std::uintptr_t>(info.data_ptr()));
+    frame.borrowed_planes_ =
+        computePlaneInfos(static_cast<std::uintptr_t>(info.data_ptr()), frame.width_, frame.height_, frame.type_);
+  }
+
+  if (frame.borrowed_data_ == nullptr || frame.borrowed_size_ == 0) {
+    // Nothing to point at; drop the handle rather than hand back a frame that claims to borrow a
+    // buffer it cannot describe.
+    const FfiHandle discard(static_cast<std::uintptr_t>(owned.handle().id()));
+    LK_LOG_WARN("VideoFrame::borrowOwnedInfo: empty buffer info, dropping frame");
+    return VideoFrame{};
+  }
+
+  // Taking the handle is what keeps the buffer alive for the frame's lifetime.
+  frame.borrowed_handle_ = FfiHandle(static_cast<std::uintptr_t>(owned.handle().id()));
+  return frame;
 }
 
 } // namespace livekit

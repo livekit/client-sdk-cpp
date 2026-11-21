@@ -43,6 +43,17 @@ struct VideoFrameEvent {
   std::int64_t timestamp_us;
   VideoRotation rotation;
   std::optional<VideoFrameMetadata> metadata;
+
+  /// Frames this stream decoded but never delivered, counted since the stream was created.
+  ///
+  /// A frame is dropped when the SDK's internal queue overflows because this application did not
+  /// read frames fast enough. No WebRTC stat reports the loss: `framesDecoded` counts these frames
+  /// and `framesDropped` does not, so this counter is the only way to observe it.
+  ///
+  /// Cumulative and monotonic: compare against the previous event's value to see how many frames
+  /// went missing in between. Counts losses on both sides of the FFI -- frames the SDK's own
+  /// queue overflowed, and frames this stream's `capacity` evicted before `read()` reached them.
+  std::uint64_t dropped_frames{0};
 };
 
 namespace proto {
@@ -77,6 +88,17 @@ public:
     /// Preferred pixel format for frames delivered by read(). The FFI layer
     /// converts into this format if supported (e.g., RGBA, BGRA, I420, ...).
     VideoBufferType format{VideoBufferType::RGBA};
+
+    /// Deliver frames that read the SDK's buffer instead of a copy of it.
+    ///
+    /// Saves a full frame-sized memcpy per frame -- 4.5 MB at 1628x1920 I420, so 134 MB/s at
+    /// 30 fps. In exchange the frame's lifetime starts to matter: its buffer is returned to the
+    /// SDK when the VideoFrame is destroyed, so pointers taken from data() or planeInfos() must
+    /// not outlive it. See VideoFrame's class comment.
+    ///
+    /// Prefer a non-zero `capacity` alongside this. Queued frames hold SDK buffers, so an
+    /// unbounded queue plus a slow reader grows native memory.
+    bool zero_copy{false};
   };
 
   /// Factory: create a VideoStream bound to a specific Track
@@ -126,6 +148,9 @@ private:
   std::condition_variable cv_;
   std::deque<VideoFrameEvent> queue_;
   std::size_t capacity_{0};
+  bool zero_copy_{false};
+  // Frames this stream's own queue evicted; added to the SDK's count on delivery.
+  std::uint64_t evicted_frames_{0};
   bool eof_{false};
   bool closed_{false};
 
