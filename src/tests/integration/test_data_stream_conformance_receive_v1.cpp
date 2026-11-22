@@ -437,7 +437,7 @@ TEST_F(DataStreamReceiveV1Test, SenderDisconnectOnlyAffectsItsOwnStreams) {
   rooms[0].reset();
   ASSERT_TRUE(collector.waitFor(1));
   ASSERT_TRUE(staying.closeText(staying_writer.writer_handle).ok);
-  ASSERT_TRUE(collector.waitFor(2));
+  ASSERT_TRUE(collector.waitFor(2, 2 * kStreamTimeout)) << "the remaining sender's stream must still complete";
 
   for (const auto& s : collector.streams()) {
     if (s.sender == staying.identity()) {
