@@ -1322,10 +1322,8 @@ void Room::onEvent(const FfiEvent& event) {
           }
           break;
         }
-        case proto::RoomEvent::kChatMessage: {
-          // Deprecated event, do nothing.
-          break;
-        }
+        case proto::RoomEvent::kChatMessage:
+        // Deprecated event, do nothing.
         case proto::RoomEvent::kStreamHeaderReceived:
         case proto::RoomEvent::kStreamChunkReceived:
         case proto::RoomEvent::kStreamTrailerReceived: {
