@@ -231,7 +231,9 @@ TEST(DataStreamConversionTest, TextOptionsDefaultsToProto) {
   EXPECT_FALSE(proto.has_id());
   EXPECT_FALSE(proto.has_reply_to_stream_id());
   EXPECT_FALSE(proto.has_sender_identity());
-  EXPECT_FALSE(proto.has_operation_type());
+  EXPECT_FALSE(proto.has_operation_type()) << "Create is the wire default";
+  EXPECT_FALSE(proto.has_version());
+  EXPECT_FALSE(proto.has_generated());
   EXPECT_EQ(proto.destination_identities_size(), 0);
 }
 
@@ -243,10 +245,16 @@ TEST(DataStreamConversionTest, TextOptionsAllFieldsToProto) {
   options.stream_id = "stream-1";
   options.reply_to_stream_id = "stream-0";
   options.attached_stream_ids = {"file-1"};
+  options.operation_type = TextStreamOperationType::Update;
+  options.version = 3;
+  options.generated = true;
   options.compress = false;
   options.sender_identity = "agent";
 
   const auto proto = toProto(options);
+  EXPECT_EQ(proto.operation_type(), proto::TextStreamInfo::UPDATE);
+  EXPECT_EQ(proto.version(), 3);
+  EXPECT_TRUE(proto.generated());
   EXPECT_EQ(attrs(proto.attributes()), (std::map<std::string, std::string>{{"k", "v"}}));
   ASSERT_EQ(proto.destination_identities_size(), 2);
   EXPECT_EQ(proto.destination_identities(1), "bob");
@@ -320,6 +328,25 @@ TEST(DataStreamConversionTest, TextInfoFromProto) {
   ASSERT_TRUE(out.size.has_value());
   EXPECT_EQ(*out.size, 10u);
   EXPECT_FALSE(out.reply_to_stream_id.has_value());
+  EXPECT_EQ(out.operation_type, TextStreamOperationType::Create);
+  EXPECT_FALSE(out.version.has_value());
+  EXPECT_FALSE(out.generated);
+
+  in.set_operation_type(proto::TextStreamInfo::REACTION);
+  in.set_version(7);
+  in.set_generated(true);
+  out = fromProto(in);
+  EXPECT_EQ(out.operation_type, TextStreamOperationType::Reaction);
+  ASSERT_TRUE(out.version.has_value());
+  EXPECT_EQ(*out.version, 7);
+  EXPECT_TRUE(out.generated);
+}
+
+TEST(DataStreamConversionTest, TextOperationTypeRoundTrips) {
+  for (const auto type : {TextStreamOperationType::Create, TextStreamOperationType::Update,
+                          TextStreamOperationType::Delete, TextStreamOperationType::Reaction}) {
+    EXPECT_EQ(fromProto(toProto(type)), type);
+  }
 }
 
 TEST(DataStreamConversionTest, ByteInfoFromProto) {

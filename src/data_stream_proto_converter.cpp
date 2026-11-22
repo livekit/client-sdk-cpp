@@ -18,6 +18,34 @@
 
 namespace livekit {
 
+proto::TextStreamInfo::OperationType toProto(TextStreamOperationType in) {
+  switch (in) {
+    case TextStreamOperationType::Update:
+      return proto::TextStreamInfo::UPDATE;
+    case TextStreamOperationType::Delete:
+      return proto::TextStreamInfo::DELETE;
+    case TextStreamOperationType::Reaction:
+      return proto::TextStreamInfo::REACTION;
+    case TextStreamOperationType::Create:
+    default:
+      return proto::TextStreamInfo::CREATE;
+  }
+}
+
+TextStreamOperationType fromProto(proto::TextStreamInfo::OperationType in) {
+  switch (in) {
+    case proto::TextStreamInfo::UPDATE:
+      return TextStreamOperationType::Update;
+    case proto::TextStreamInfo::DELETE:
+      return TextStreamOperationType::Delete;
+    case proto::TextStreamInfo::REACTION:
+      return TextStreamOperationType::Reaction;
+    case proto::TextStreamInfo::CREATE:
+    default:
+      return TextStreamOperationType::Create;
+  }
+}
+
 proto::StreamTextOptions toProto(const StreamTextOptions& in) {
   proto::StreamTextOptions out;
   out.set_topic(in.topic);
@@ -35,6 +63,16 @@ proto::StreamTextOptions toProto(const StreamTextOptions& in) {
   }
   for (const auto& id : in.attached_stream_ids) {
     out.add_attached_stream_ids(id);
+  }
+  // Unset means Create / not generated on the wire; only send non-defaults.
+  if (in.operation_type != TextStreamOperationType::Create) {
+    out.set_operation_type(toProto(in.operation_type));
+  }
+  if (in.version) {
+    out.set_version(*in.version);
+  }
+  if (in.generated) {
+    out.set_generated(true);
   }
   out.set_compress(in.compress);
   if (in.sender_identity) {
@@ -89,6 +127,11 @@ TextStreamInfo fromProto(const proto::TextStreamInfo& in) {
   if (in.has_reply_to_stream_id()) {
     out.reply_to_stream_id = in.reply_to_stream_id();
   }
+  out.operation_type = fromProto(in.operation_type());
+  if (in.has_version()) {
+    out.version = in.version();
+  }
+  out.generated = in.generated();
   return out;
 }
 

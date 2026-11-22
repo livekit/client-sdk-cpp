@@ -379,6 +379,15 @@ void BaseStreamWriter::openLocked() {
     for (const auto& id : self->attached_stream_ids_) {
       options.add_attached_stream_ids(id);
     }
+    if (self->operation_type_ != TextStreamOperationType::Create) {
+      options.set_operation_type(toProto(self->operation_type_));
+    }
+    if (self->version_) {
+      options.set_version(*self->version_);
+    }
+    if (self->generated_) {
+      options.set_generated(true);
+    }
     options.set_sender_identity(sender_identity_);
 
     const auto owned = FfiClient::instance().textStreamOpenAsync(participant_handle, options).get();
@@ -532,12 +541,18 @@ TextStreamWriter::TextStreamWriter(FactoryTag /*tag*/, LocalParticipant& local_p
     : BaseStreamWriter(local_participant, options.topic, options.attributes, options.stream_id.value_or(""),
                        std::nullopt, /*mime_type=*/"text/plain", options.destination_identities,
                        options.sender_identity.value_or("")),
-      attached_stream_ids_(options.attached_stream_ids) {
+      attached_stream_ids_(options.attached_stream_ids),
+      operation_type_(options.operation_type),
+      version_(options.version),
+      generated_(options.generated) {
   kind_ = StreamKind::kText;
   reply_to_id_ = options.reply_to_stream_id.value_or("");
   fillBaseInfo(info_, stream_id_, mime_type_, topic_, timestamp_ms_, total_size_, attributes_);
   info_.reply_to_stream_id = options.reply_to_stream_id;
   info_.attachments = attached_stream_ids_;
+  info_.operation_type = operation_type_;
+  info_.version = version_;
+  info_.generated = generated_;
 }
 
 void TextStreamWriter::write(const std::string& text) {

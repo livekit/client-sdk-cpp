@@ -64,6 +64,17 @@ public:
   explicit DataStreamError(const std::string& message);
 };
 
+/// @brief What a text stream does to the conversation it belongs to.
+///
+/// Chat-style applications use it to distinguish new messages from edits,
+/// deletions and reactions; the SDK only transports it.
+enum class TextStreamOperationType {
+  Create = 0,
+  Update = 1,
+  Delete = 2,
+  Reaction = 3,
+};
+
 /// @brief Options for a one-shot text send or an incremental text stream.
 ///
 /// Used by LocalParticipant::sendText().
@@ -87,6 +98,16 @@ struct StreamTextOptions {
 
   /// Ids of other streams (for example files) attached to this text stream.
   std::vector<std::string> attached_stream_ids;
+
+  /// Operation this stream performs (new message, edit, deletion, reaction).
+  TextStreamOperationType operation_type = TextStreamOperationType::Create;
+
+  /// Version of the message this stream creates or updates, if any.
+  std::optional<std::int32_t> version;
+
+  /// Whether the text was generated, for example by an agent transcribing a
+  /// participant's speech.
+  bool generated = false;
 
   /// Compress the payload when every recipient supports compression.
   ///
@@ -167,6 +188,13 @@ struct TextStreamInfo : BaseStreamInfo {
   std::vector<std::string> attachments;
   /// If this stream is a reply to another stream, this field holds its ID
   std::optional<std::string> reply_to_stream_id;
+  /// Operation this stream performs (new message, edit, deletion, reaction).
+  TextStreamOperationType operation_type = TextStreamOperationType::Create;
+  /// Version of the message this stream creates or updates, if the sender set one.
+  std::optional<std::int32_t> version;
+  /// Whether the text was generated, for example by an agent transcribing a
+  /// participant's speech.
+  bool generated = false;
 };
 
 /// Metadata for a byte stream.
@@ -518,6 +546,9 @@ private:
 
   TextStreamInfo info_;
   std::vector<std::string> attached_stream_ids_;
+  TextStreamOperationType operation_type_ = TextStreamOperationType::Create;
+  std::optional<std::int32_t> version_;
+  bool generated_ = false;
 };
 
 /// @brief Writer for outgoing byte streams.

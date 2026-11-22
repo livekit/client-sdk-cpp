@@ -22,6 +22,16 @@
 
 namespace livekit {
 
+/// @brief Convert a text stream operation type to the FFI enum.
+/// @param in C++ operation type.
+/// @return The FFI enum value.
+LIVEKIT_INTERNAL_API proto::TextStreamInfo::OperationType toProto(TextStreamOperationType in);
+
+/// @brief Convert an FFI text stream operation type to the public enum.
+/// @param in FFI enum value.
+/// @return The C++ operation type.
+LIVEKIT_INTERNAL_API TextStreamOperationType fromProto(proto::TextStreamInfo::OperationType in);
+
 /// @brief Convert one-shot text send options to the FFI proto.
 /// @param in C++ options.
 /// @return The FFI options; `compress` is always set explicitly.
