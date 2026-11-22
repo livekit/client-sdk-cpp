@@ -48,6 +48,8 @@ fi
 LIVEKIT_ROOM="cpp_data_track_test"
 LIVEKIT_IDENTITY_A="cpp-test-a"
 LIVEKIT_IDENTITY_B="cpp-test-b"
+# Third participant for tests that need a bystander (e.g. targeted data streams).
+LIVEKIT_IDENTITY_C="cpp-test-c"
 
 if [[ $# -ne 0 ]]; then
   _fail "this script is hard-coded and does not accept arguments" 2
@@ -107,22 +109,25 @@ _create_token() {
 
 LIVEKIT_TOKEN_A="$(_create_token "$LIVEKIT_IDENTITY_A")"
 LIVEKIT_TOKEN_B="$(_create_token "$LIVEKIT_IDENTITY_B")"
+LIVEKIT_TOKEN_C="$(_create_token "$LIVEKIT_IDENTITY_C")"
 
 _apply() {
   export LIVEKIT_TOKEN_A
   export LIVEKIT_TOKEN_B
+  export LIVEKIT_TOKEN_C
   export LIVEKIT_URL
 }
 
 _emit_eval() {
   printf 'export LIVEKIT_TOKEN_A=%q\n' "$LIVEKIT_TOKEN_A"
   printf 'export LIVEKIT_TOKEN_B=%q\n' "$LIVEKIT_TOKEN_B"
+  printf 'export LIVEKIT_TOKEN_C=%q\n' "$LIVEKIT_TOKEN_C"
   printf 'export LIVEKIT_URL=%q\n' "$LIVEKIT_URL"
 }
 
 if [[ "$_sourced" -eq 1 ]]; then
   _apply
-  echo "LIVEKIT_TOKEN_A, LIVEKIT_TOKEN_B, and LIVEKIT_URL set for this shell." >&2
+  echo "LIVEKIT_TOKEN_A, LIVEKIT_TOKEN_B, LIVEKIT_TOKEN_C, and LIVEKIT_URL set for this shell." >&2
 else
   _emit_eval
   echo "set_test_tokens: for this shell run: source $0   or: eval \"\$(bash $0)\"" >&2
