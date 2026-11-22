@@ -176,6 +176,13 @@ public:
   void textStreamReadIncremental(std::uint64_t reader_handle);
   void byteStreamReadIncremental(std::uint64_t reader_handle);
 
+  // Write an owned byte reader handle's stream to a file (the SDK core
+  // validates the file name). Consumes the handle. Resolves to the written
+  // file's path.
+  std::future<std::string> byteStreamWriteToFileAsync(std::uint64_t reader_handle,
+                                                      const std::optional<std::string>& directory,
+                                                      const std::optional<std::string>& name_override);
+
   // Incremental writers. Open creates an owned writer handle; write borrows
   // it; close consumes it (never drop the handle after calling close).
   std::future<proto::OwnedTextStreamWriter> textStreamOpenAsync(std::uint64_t local_participant_handle,

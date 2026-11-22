@@ -289,6 +289,11 @@ private:
 /// with a handler registered via Room::registerByteStreamHandler(). The SDK
 /// decompresses and reassembles the stream.
 ///
+/// A stream is consumed once, either by reading it (readNext() / readAll())
+/// or by having the SDK write it to disk (writeToFile()). The SDK holds the
+/// incoming data until one of them is called; dropping every reference to an
+/// unconsumed reader discards the stream.
+///
 /// Reading blocks the calling thread. Stream handlers run on the SDK's event
 /// thread, which also delivers the chunks, so never read from inside the
 /// handler: move the reader to another thread first.
@@ -318,6 +323,28 @@ public:
   ///         limit, or the room disconnected mid-stream). Chunks received
   ///         before the error are returned first.
   bool readNext(std::vector<std::uint8_t>& out);
+
+  /// @brief Write the whole stream to a file instead of reading it.
+  ///
+  /// Blocks until the stream has been written, so call it from your own
+  /// thread, not from the stream handler. Call it instead of readNext() /
+  /// readAll(): a stream can only be consumed once. Afterwards readNext()
+  /// reports the end of the stream.
+  ///
+  /// The file is named after the stream (info().name) unless
+  /// @p name_override is given. Either must be a plain file name: names with
+  /// path separators, "..", or an absolute path are rejected, so a sender
+  /// can't choose where the file goes. An existing file is overwritten.
+  ///
+  /// @param directory     Directory to write into; the system temporary
+  ///                      directory when unset.
+  /// @param name_override File name to use instead of the stream's name.
+  /// @return Path of the written file.
+  /// @throws DataStreamError if the stream was already read or closed, the
+  ///         file name is not a plain file name, the file can't be written,
+  ///         or the stream ended abnormally.
+  std::string writeToFile(const std::optional<std::string>& directory = std::nullopt,
+                          const std::optional<std::string>& name_override = std::nullopt);
 
   /// @brief Read the entire stream into a single buffer.
   ///
@@ -354,6 +381,14 @@ private:
   /// Called by the Room when the stream ends. @p error is set when the stream
   /// ended abnormally.
   void onStreamEnded(const std::map<std::string, std::string>& attributes, std::optional<std::string> error);
+
+  /// Called by the Room with the stream's owned FFI reader handle. The reader
+  /// consumes it on the first readNext() / readAll() / writeToFile(), and
+  /// drops it if it is closed or destroyed first.
+  void attachUnreadHandle(std::uint64_t handle);
+
+  /// Starts incremental reading if the stream has not been consumed yet.
+  void startReading();
 
   ByteStreamInfo info_;
   std::unique_ptr<Impl> impl_;

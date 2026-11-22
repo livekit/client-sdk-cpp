@@ -1426,7 +1426,9 @@ void Room::endStreamReaders(const TextStreamReaderMap& text_readers, const ByteS
     kv.second->onStreamEnded({}, std::string(kDisconnectedWhileReceiving));
   }
   for (const auto& kv : byte_readers) {
-    kv.second->onStreamEnded({}, std::string(kDisconnectedWhileReceiving));
+    if (const auto reader = kv.second.lock()) {
+      reader->onStreamEnded({}, std::string(kDisconnectedWhileReceiving));
+    }
   }
 }
 
@@ -1464,10 +1466,13 @@ bool Room::dispatchStreamReaderEvent(const FfiEvent& event) {
       if (it == byte_stream_readers_.end()) {
         return true;
       }
-      reader = it->second;
+      reader = it->second.lock();
       if (ev.has_eos()) {
         byte_stream_readers_.erase(it);
       }
+    }
+    if (!reader) {
+      return true; // The application dropped the reader; discard its data.
     }
     if (ev.has_chunk_received()) {
       const std::string& content = ev.chunk_received().content();
@@ -1545,7 +1550,14 @@ void Room::onByteStreamOpened(const proto::ByteStreamOpened& opened, RoomDelegat
     if (room_handle_ && it != byte_stream_handlers_.end()) {
       handler = it->second;
       reader = std::make_shared<ByteStreamReader>(fromProto(owned.info()));
-      // Register before read_incremental so no chunk can arrive unrouted.
+      // Reading starts lazily: the reader consumes the handle on its first
+      // readNext() / readAll() / writeToFile(), or drops it if discarded.
+      reader->attachUnreadHandle(reader_handle);
+      // Forget readers the application dropped without consuming; no events
+      // will ever arrive for them.
+      for (auto r = byte_stream_readers_.begin(); r != byte_stream_readers_.end();) {
+        r = r->second.expired() ? byte_stream_readers_.erase(r) : std::next(r);
+      }
       byte_stream_readers_[reader_handle] = reader;
     }
   }
@@ -1555,18 +1567,6 @@ void Room::onByteStreamOpened(const proto::ByteStreamOpened& opened, RoomDelegat
     const FfiHandle unread(static_cast<uintptr_t>(reader_handle));
     LK_LOG_DEBUG("No byte stream handler for topic '{}'; ignoring stream {}", owned.info().topic(),
                  owned.info().stream_id());
-  } else {
-    try {
-      FfiClient::instance().byteStreamReadIncremental(reader_handle);
-    } catch (const std::exception& e) {
-      LK_LOG_ERROR("Failed to start reading byte stream {}: {}", owned.info().stream_id(), e.what());
-      {
-        const std::scoped_lock<std::mutex> guard(lock_);
-        byte_stream_readers_.erase(reader_handle);
-      }
-      const FfiHandle unread(static_cast<uintptr_t>(reader_handle));
-      reader->onStreamEnded({}, std::string(e.what()));
-    }
   }
 
   if (reader) {

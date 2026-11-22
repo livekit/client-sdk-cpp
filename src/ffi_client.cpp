@@ -1265,6 +1265,53 @@ void FfiClient::byteStreamReadIncremental(std::uint64_t reader_handle) {
   }
 }
 
+std::future<std::string> FfiClient::byteStreamWriteToFileAsync(std::uint64_t reader_handle,
+                                                               const std::optional<std::string>& directory,
+                                                               const std::optional<std::string>& name_override) {
+  const AsyncId async_id = generateAsyncId();
+
+  auto fut = registerAsync<std::string>(
+      async_id,
+      [async_id](const proto::FfiEvent& e) {
+        return e.has_byte_stream_reader_write_to_file() && e.byte_stream_reader_write_to_file().async_id() == async_id;
+      },
+      [](const proto::FfiEvent& e, std::promise<std::string>& pr) {
+        const auto& cb = e.byte_stream_reader_write_to_file();
+        if (cb.has_error()) {
+          pr.set_exception(std::make_exception_ptr(DataStreamError(cb.error().description())));
+          return;
+        }
+        if (!cb.has_file_path()) {
+          pr.set_exception(std::make_exception_ptr(DataStreamError("write_to_file callback missing file_path")));
+          return;
+        }
+        pr.set_value(cb.file_path());
+      });
+
+  proto::FfiRequest req;
+  auto* msg = req.mutable_byte_write_to_file();
+  msg->set_reader_handle(reader_handle);
+  msg->set_request_async_id(async_id);
+  if (directory) {
+    msg->set_directory(*directory);
+  }
+  if (name_override) {
+    msg->set_name_override(*name_override);
+  }
+
+  try {
+    const proto::FfiResponse resp = sendRequest(req);
+    if (!resp.has_byte_write_to_file()) {
+      logAndThrow("FfiResponse missing byte_write_to_file");
+    }
+  } catch (...) {
+    cancelPendingByAsyncId(async_id);
+    throw;
+  }
+
+  return fut;
+}
+
 std::future<proto::OwnedTextStreamWriter> FfiClient::textStreamOpenAsync(std::uint64_t local_participant_handle,
                                                                          const proto::StreamTextOptions& options) {
   const AsyncId async_id = generateAsyncId();

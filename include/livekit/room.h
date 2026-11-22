@@ -381,7 +381,10 @@ private:
   // Active incoming stream readers, keyed by FFI reader handle id. A reader is
   // removed when its end-of-stream event arrives or the room shuts down.
   using TextStreamReaderMap = std::unordered_map<std::uint64_t, std::shared_ptr<TextStreamReader>>;
-  using ByteStreamReaderMap = std::unordered_map<std::uint64_t, std::shared_ptr<ByteStreamReader>>;
+  // Byte readers are held weakly: a byte stream is consumed lazily (read or
+  // written to a file), so a reader nobody keeps must be free to go away and
+  // release its stream.
+  using ByteStreamReaderMap = std::unordered_map<std::uint64_t, std::weak_ptr<ByteStreamReader>>;
   TextStreamReaderMap text_stream_readers_;
   ByteStreamReaderMap byte_stream_readers_;
   // The E2EE manager is owned by the room and is not shared with other objects.

@@ -20,9 +20,12 @@
 #include <chrono>
 #include <condition_variable>
 #include <deque>
+#include <future>
 #include <mutex>
+#include <optional>
 #include <random>
 #include <stdexcept>
+#include <utility>
 
 #include "data_stream_proto_converter.h"
 #include "data_stream_writer_registry.h"
@@ -167,7 +170,26 @@ private:
 } // namespace
 
 struct TextStreamReader::Impl : ReaderState<std::string> {};
-struct ByteStreamReader::Impl : ReaderState<std::vector<std::uint8_t>> {};
+struct ByteStreamReader::Impl : ReaderState<std::vector<std::uint8_t>> {
+  enum class Consumer { kNone, kReader, kFile, kDiscarded };
+
+  /// Guards the one-time choice of how the stream is consumed.
+  std::mutex consume_mutex;
+  /// Owned FFI reader handle, until something consumes or drops it.
+  std::uint64_t unread_handle = 0;
+  Consumer consumer = Consumer::kNone;
+
+  /// Claims the stream for @p who. Returns the unread handle (0 if there is
+  /// none) when the stream was unclaimed; std::nullopt if already claimed.
+  std::optional<std::uint64_t> claim(Consumer who) {
+    const std::scoped_lock<std::mutex> lock(consume_mutex);
+    if (consumer != Consumer::kNone) {
+      return std::nullopt;
+    }
+    consumer = who;
+    return std::exchange(unread_handle, 0);
+  }
+};
 
 TextStreamReader::TextStreamReader(TextStreamInfo info) : info_(std::move(info)), impl_(std::make_unique<Impl>()) {}
 
@@ -195,7 +217,31 @@ void TextStreamReader::close() { impl_->close(); }
 
 ByteStreamReader::ByteStreamReader(ByteStreamInfo info) : info_(std::move(info)), impl_(std::make_unique<Impl>()) {}
 
-ByteStreamReader::~ByteStreamReader() = default;
+ByteStreamReader::~ByteStreamReader() {
+  // Nobody consumed the stream: release it so the SDK core stops buffering.
+  if (const auto handle = impl_->claim(Impl::Consumer::kDiscarded); handle && *handle != 0) {
+    (void)dropFfiHandle(*handle);
+  }
+}
+
+void ByteStreamReader::attachUnreadHandle(std::uint64_t handle) {
+  const std::scoped_lock<std::mutex> lock(impl_->consume_mutex);
+  impl_->unread_handle = handle;
+}
+
+void ByteStreamReader::startReading() {
+  const auto handle = impl_->claim(Impl::Consumer::kReader);
+  if (!handle || *handle == 0) {
+    return;
+  }
+  try {
+    // Consumes the handle; chunks then arrive through the Room.
+    FfiClient::instance().byteStreamReadIncremental(*handle);
+  } catch (const std::exception& e) {
+    (void)dropFfiHandle(*handle);
+    impl_->end({}, std::string(e.what()));
+  }
+}
 
 void ByteStreamReader::onChunkReceived(std::vector<std::uint8_t> bytes) { impl_->push(std::move(bytes)); }
 
@@ -204,7 +250,10 @@ void ByteStreamReader::onStreamEnded(const std::map<std::string, std::string>& a
   impl_->end(attributes, std::move(error));
 }
 
-bool ByteStreamReader::readNext(std::vector<std::uint8_t>& out) { return impl_->next(out, info_, "ByteStreamReader"); }
+bool ByteStreamReader::readNext(std::vector<std::uint8_t>& out) {
+  startReading();
+  return impl_->next(out, info_, "ByteStreamReader");
+}
 
 std::vector<std::uint8_t> ByteStreamReader::readAll() {
   std::vector<std::uint8_t> result;
@@ -215,7 +264,47 @@ std::vector<std::uint8_t> ByteStreamReader::readAll() {
   return result;
 }
 
-void ByteStreamReader::close() { impl_->close(); }
+std::string ByteStreamReader::writeToFile(const std::optional<std::string>& directory,
+                                          const std::optional<std::string>& name_override) {
+  if (isOnFfiCallbackThread()) {
+    // The result arrives on this same thread, so waiting here would deadlock.
+    throw DataStreamError("ByteStreamReader::writeToFile cannot be called on the SDK event thread");
+  }
+  const auto handle = impl_->claim(Impl::Consumer::kFile);
+  if (!handle) {
+    throw DataStreamError("ByteStreamReader::writeToFile: the stream was already read or closed");
+  }
+  if (*handle == 0) {
+    throw DataStreamError("ByteStreamReader::writeToFile: the stream is not available");
+  }
+
+  try {
+    std::future<std::string> written;
+    try {
+      written = FfiClient::instance().byteStreamWriteToFileAsync(*handle, directory, name_override);
+    } catch (...) {
+      // The request never reached the SDK core, so the handle is still ours.
+      (void)dropFfiHandle(*handle);
+      throw;
+    }
+    std::string path = written.get();
+    impl_->end({}, std::nullopt);
+    return path;
+  } catch (const DataStreamError& e) {
+    impl_->end({}, std::string(e.what()));
+    throw;
+  } catch (const std::exception& e) {
+    impl_->end({}, std::string(e.what()));
+    throw DataStreamError(e.what());
+  }
+}
+
+void ByteStreamReader::close() {
+  if (const auto handle = impl_->claim(Impl::Consumer::kDiscarded); handle && *handle != 0) {
+    (void)dropFfiHandle(*handle);
+  }
+  impl_->close();
+}
 
 // =====================================================================
 // Writer registry
