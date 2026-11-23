@@ -443,7 +443,11 @@ jobs:
         timeout-minutes: ${{ inputs.integration_timeout_minutes }}
         shell: bash
         env:
-          RUST_LOG: "metrics=debug"
+          # Log the selected capture adapter and native GPU errors on Windows.
+          RUST_LOG: >-
+            ${{ runner.os == 'Windows' &&
+            'metrics=debug,livekit_capture::renderer=info,wgpu_core=warn,wgpu_core::instance=debug,wgpu_hal=warn' ||
+            'metrics=debug' }}
           LIVEKIT_CREATE_TOKEN_URL: ${{ steps.token_server.outputs.token-url }}
         run: |
           set -euo pipefail

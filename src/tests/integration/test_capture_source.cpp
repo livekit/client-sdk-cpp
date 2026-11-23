@@ -126,25 +126,34 @@ TEST_P(CaptureSourceServerTest, CaptureSourcePublishesFramesEndToEnd) {
   ASSERT_TRUE(started.ok()) << started.error().message;
   EXPECT_THROW(static_cast<void>(capture->start()), std::runtime_error) << "double start must be rejected";
 
+  int frames_before_stop = 0;
   {
     std::unique_lock<std::mutex> lock(mutex);
     const bool got_frames =
         cv.wait_for(lock, 30s, [&frames_received] { return frames_received >= kMinFramesReceived; });
     ASSERT_TRUE(got_frames) << "Timed out waiting for capture frames; received " << frames_received;
+    frames_before_stop = frames_received;
   }
 
   // Stop is a signal; join synchronizes with shutdown and returns the stats.
+  const auto stop_requested = std::chrono::steady_clock::now();
   const auto stopped = capture->stop();
   ASSERT_TRUE(stopped.ok()) << stopped.error().message;
   auto joined = capture->join();
   ASSERT_EQ(joined.wait_for(10s), std::future_status::ready) << "Timed out waiting for capture join";
   const auto finished = joined.get();
+  const auto join_finished = std::chrono::steady_clock::now();
 
-  ASSERT_TRUE(finished.ok()) << finished.error().message;
+  const auto capture_before_stop_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(stop_requested - capture_started).count();
+  const auto stop_to_join_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(join_finished - stop_requested).count();
+  ASSERT_TRUE(finished.ok()) << finished.error().message << '\n'
+                             << "Received " << frames_before_stop << " frames in " << capture_before_stop_ms
+                             << " ms before requesting stop. Stop and join took " << stop_to_join_ms << " ms.";
   EXPECT_EQ(finished.value().exit, capture::CaptureExit::Stopped);
   EXPECT_GT(finished.value().frames_captured, 0u);
-  const auto capture_seconds =
-      std::chrono::duration<double>(std::chrono::steady_clock::now() - capture_started).count();
+  const auto capture_seconds = std::chrono::duration<double>(join_finished - capture_started).count();
   RecordProperty("capture_frames_per_second",
                  std::to_string(static_cast<double>(finished.value().frames_captured) / capture_seconds));
 
