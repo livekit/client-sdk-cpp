@@ -32,6 +32,7 @@
 #include "livekit/room.h"
 #include "livekit/rpc_error.h"
 #include "livekit_ffi.h"
+#include "livekit_ffi.hpp"
 #include "lk_log.h"
 #include "room.pb.h"
 #include "room_proto_converter.h"
@@ -212,6 +213,15 @@ void FfiClient::shutdown() noexcept {
       return;
     }
 
+    // Drain UniFFI work while the Rust FFI is still available.
+    try {
+      ::uniffi::shutdown_async_executor();
+    } catch (...) {
+      lifecycle_state_.store(LifecycleState::Initialized, std::memory_order_release);
+      std::fputs("[livekit] [error] Failed to shut down the UniFFI executor\n", stderr);
+      return;
+    }
+
     std::vector<std::shared_ptr<ListenerSlot>> listeners_to_drain;
     std::vector<std::unique_ptr<PendingBase>> pending_to_cancel;
     {
@@ -286,6 +296,7 @@ bool FfiClient::initialize(bool capture_logs) {
   }
 
   try {
+    ::uniffi::start_async_executor();
     livekit_ffi_initialize(&ffiEventCallback, capture_logs, LIVEKIT_BUILD_FLAVOR, LIVEKIT_BUILD_VERSION);
   } catch (...) {
     lifecycle_state_.store(LifecycleState::Uninitialized, std::memory_order_release);
