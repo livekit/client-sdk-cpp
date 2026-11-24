@@ -451,6 +451,10 @@ jobs:
           LIVEKIT_CREATE_TOKEN_URL: ${{ steps.token_server.outputs.token-url }}
         run: |
           set -euo pipefail
+          if [[ "$RUNNER_OS" == "Windows" && "$BUILD_DIR" == "build-debug" ]]; then
+            # wgpu shader debugging disables DX12 shader optimization on this runner's WARP driver.
+            export WGPU_DEBUG=0
+          fi
           source scripts/set-test-tokens.sh
           # TODO(BOT-477) Temporarily disable platform audio integration tests in CI until instability is resolved
           bash scripts/run-with-backtrace.sh \
