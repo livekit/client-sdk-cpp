@@ -16,6 +16,7 @@
 
 #include "livekit/room.h"
 
+#include "data_stream_proto_converter.h"
 #include "ffi.pb.h"
 #include "ffi_client.h"
 #include "livekit/audio_stream.h"
@@ -85,6 +86,16 @@ void readyForRoomEvent(std::uint64_t room_handle) {
   if (!resp.has_ready_for_room_event()) {
     throw std::runtime_error("FfiResponse missing ready_for_room_event");
   }
+}
+
+constexpr char kDisconnectedWhileReceiving[] = "Disconnected while receiving";
+
+std::map<std::string, std::string> toStdMap(const google::protobuf::Map<std::string, std::string>& in) {
+  std::map<std::string, std::string> out;
+  for (const auto& kv : in) {
+    out.emplace(kv.first, kv.second);
+  }
+  return out;
 }
 
 } // namespace
@@ -202,6 +213,8 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
   } catch (const std::exception& e) {
     int listener_to_remove = 0;
     std::shared_ptr<LocalParticipant> local_participant_to_cleanup;
+    TextStreamReaderMap text_readers_to_end;
+    ByteStreamReaderMap byte_readers_to_end;
     {
       const std::scoped_lock<std::mutex> g(lock_);
       connection_state_ = ConnectionState::Disconnected;
@@ -213,9 +226,12 @@ bool Room::connect(const std::string& url, const std::string& token, const RoomO
       remote_participants_.clear();
       room_handle_.reset();
       e2ee_manager_.reset();
+      text_readers_to_end = std::move(text_stream_readers_);
+      byte_readers_to_end = std::move(byte_stream_readers_);
       text_stream_readers_.clear();
       byte_stream_readers_.clear();
     }
+    endStreamReaders(text_readers_to_end, byte_readers_to_end);
     if (local_participant_to_cleanup) {
       local_participant_to_cleanup->shutdown();
     }
@@ -238,8 +254,8 @@ bool Room::shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
   std::shared_ptr<LocalParticipant> local_participant_to_cleanup;
   std::unordered_map<std::string, std::shared_ptr<RemoteParticipant>> remote_participants_to_clear;
   std::shared_ptr<E2EEManager> e2ee_manager_to_clear;
-  std::unordered_map<std::string, std::shared_ptr<TextStreamReader>> text_stream_readers_to_clear;
-  std::unordered_map<std::string, std::shared_ptr<ByteStreamReader>> byte_stream_readers_to_clear;
+  TextStreamReaderMap text_stream_readers_to_clear;
+  ByteStreamReaderMap byte_stream_readers_to_clear;
   int listener_to_remove = 0;
   bool claimed_disconnect = false;
 
@@ -316,6 +332,10 @@ bool Room::shutdown(bool disconnect_ffi, DisconnectReason reason, bool notify_de
       shutdown_ok = false;
     }
   }
+
+  // Wake readers still waiting on data. Their handles were consumed by
+  // read_incremental, so there is nothing to drop.
+  endStreamReaders(text_stream_readers_to_clear, byte_stream_readers_to_clear);
 
   local_participant_to_cleanup.reset();
   remote_participants_to_clear.clear();
@@ -475,6 +495,11 @@ void Room::onEvent(const FfiEvent& event) {
   {
     const std::scoped_lock<std::mutex> guard(lock_);
     delegate_snapshot = delegate_;
+  }
+
+  // Incoming data stream chunks / end-of-stream for readers this room owns.
+  if (dispatchStreamReaderEvent(event)) {
+    return;
   }
 
   // First, handle RPC method invocations (not part of RoomEvent).
@@ -1251,6 +1276,9 @@ void Room::onEvent(const FfiEvent& event) {
           bool should_notify = false;
           {
             const std::scoped_lock<std::mutex> guard(lock_);
+            if (local_participant_) {
+              local_participant_->markDisconnected();
+            }
             // Local shutdown marks the state before awaiting the FFI response
             // and notifies the delegate itself. Suppress that duplicate while
             // passing server-initiated disconnects through unchanged.
@@ -1294,119 +1322,14 @@ void Room::onEvent(const FfiEvent& event) {
           }
           break;
         }
-        case proto::RoomEvent::kChatMessage: {
-          // Deprecated event, do nothing.
-          break;
-        }
-        case proto::RoomEvent::kStreamHeaderReceived: {
-          const auto& sh = re.stream_header_received();
-          const auto& header = sh.header();
-          const std::string& participant_identity = sh.participant_identity();
-
-          // Snapshot handler + create reader without holding lock during user
-          // callback
-          TextStreamHandler text_cb;
-          ByteStreamHandler byte_cb;
-          std::shared_ptr<TextStreamReader> text_reader;
-          std::shared_ptr<ByteStreamReader> byte_reader;
-          {
-            const std::scoped_lock<std::mutex> guard(lock_);
-
-            // Determine stream type from oneof in protobuf
-            // Adjust these names if your generated C++ uses different ones
-            const auto stream_type = header.content_header_case();
-            if (stream_type == proto::DataStream::Header::kTextHeader) {
-              auto it = text_stream_handlers_.find(header.topic());
-              if (it == text_stream_handlers_.end()) {
-                // Ignore if no callback attached
-                break;
-              }
-              text_cb = it->second;
-
-              const TextStreamInfo info = makeTextInfo(header);
-              text_reader = std::make_shared<TextStreamReader>(info);
-              text_stream_readers_[header.stream_id()] = text_reader;
-
-            } else if (stream_type == proto::DataStream::Header::kByteHeader) {
-              auto it = byte_stream_handlers_.find(header.topic());
-              if (it == byte_stream_handlers_.end()) {
-                break;
-              }
-              byte_cb = it->second;
-              const ByteStreamInfo info = makeByteInfo(header);
-              byte_reader = std::make_shared<ByteStreamReader>(info);
-              byte_stream_readers_[header.stream_id()] = byte_reader;
-
-            } else {
-              // unknown header type: ignore
-              break;
-            }
-          }
-
-          // Invoke user callback outside lock (very important)
-          if (text_reader) {
-            text_cb(text_reader, participant_identity);
-          } else if (byte_reader) {
-            byte_cb(byte_reader, participant_identity);
-          }
-          break;
-        }
-        case proto::RoomEvent::kStreamChunkReceived: {
-          const auto& sc = re.stream_chunk_received();
-          const auto& chunk = sc.chunk();
-          std::shared_ptr<TextStreamReader> text_reader;
-          std::shared_ptr<ByteStreamReader> byte_reader;
-          {
-            const std::scoped_lock<std::mutex> guard(lock_);
-            auto itT = text_stream_readers_.find(chunk.stream_id());
-            if (itT != text_stream_readers_.end()) {
-              text_reader = itT->second;
-            } else {
-              auto itB = byte_stream_readers_.find(chunk.stream_id());
-              if (itB != byte_stream_readers_.end()) {
-                byte_reader = itB->second;
-              }
-            }
-          }
-          if (text_reader) {
-            // chunk.content() is bytes; treat as UTF-8 string.
-            text_reader->onChunkUpdate(chunk.content());
-          } else if (byte_reader) {
-            // Convert string bytes -> vector<uint8_t>
-            const std::string& s = chunk.content();
-            const std::vector<std::uint8_t> bytes(s.begin(), s.end());
-            byte_reader->onChunkUpdate(bytes);
-          }
-          break;
-        }
+        case proto::RoomEvent::kChatMessage:
+        // Deprecated event, do nothing.
+        case proto::RoomEvent::kStreamHeaderReceived:
+        case proto::RoomEvent::kStreamChunkReceived:
         case proto::RoomEvent::kStreamTrailerReceived: {
-          const auto& st = re.stream_trailer_received();
-          const auto& trailer = st.trailer();
-          std::shared_ptr<TextStreamReader> text_reader;
-          std::shared_ptr<ByteStreamReader> byte_reader;
-          std::map<std::string, std::string> trailer_attrs;
-          for (const auto& kv : trailer.attributes()) {
-            trailer_attrs.emplace(kv.first, kv.second);
-          }
-          {
-            const std::scoped_lock<std::mutex> guard(lock_);
-            auto itT = text_stream_readers_.find(trailer.stream_id());
-            if (itT != text_stream_readers_.end()) {
-              text_reader = itT->second;
-              text_stream_readers_.erase(itT);
-            } else {
-              auto itB = byte_stream_readers_.find(trailer.stream_id());
-              if (itB != byte_stream_readers_.end()) {
-                byte_reader = itB->second;
-                byte_stream_readers_.erase(itB);
-              }
-            }
-          }
-          if (text_reader) {
-            text_reader->onStreamClose(trailer_attrs);
-          } else if (byte_reader) {
-            byte_reader->onStreamClose(trailer_attrs);
-          }
+          // Low-level packet events. Every stream is also delivered as a
+          // text/byte_stream_opened event with an owned reader, which is what
+          // the SDK consumes; handling these too would duplicate streams.
           break;
         }
         case proto::RoomEvent::kDataChannelLowThresholdChanged: {
@@ -1417,17 +1340,11 @@ void Room::onEvent(const FfiEvent& event) {
           break;
         }
         case proto::RoomEvent::kByteStreamOpened: {
-          auto ev = fromProto(re.byte_stream_opened());
-          if (delegate_snapshot) {
-            delegate_snapshot->onByteStreamOpened(*this, ev);
-          }
+          onByteStreamOpened(re.byte_stream_opened(), delegate_snapshot);
           break;
         }
         case proto::RoomEvent::kTextStreamOpened: {
-          auto ev = fromProto(re.text_stream_opened());
-          if (delegate_snapshot) {
-            delegate_snapshot->onTextStreamOpened(*this, ev);
-          }
+          onTextStreamOpened(re.text_stream_opened(), delegate_snapshot);
           break;
         }
         case proto::RoomEvent::kRoomUpdated: {
@@ -1497,6 +1414,168 @@ void Room::onEvent(const FfiEvent& event) {
 
     default:
       break;
+  }
+}
+
+// -------------------------------------------------------------------
+// Data streams
+// -------------------------------------------------------------------
+
+void Room::endStreamReaders(const TextStreamReaderMap& text_readers, const ByteStreamReaderMap& byte_readers) {
+  for (const auto& kv : text_readers) {
+    kv.second->onStreamEnded({}, std::string(kDisconnectedWhileReceiving));
+  }
+  for (const auto& kv : byte_readers) {
+    if (const auto reader = kv.second.lock()) {
+      reader->onStreamEnded({}, std::string(kDisconnectedWhileReceiving));
+    }
+  }
+}
+
+bool Room::dispatchStreamReaderEvent(const FfiEvent& event) {
+  if (event.message_case() == FfiEvent::kTextStreamReaderEvent) {
+    const auto& ev = event.text_stream_reader_event();
+    std::shared_ptr<TextStreamReader> reader;
+    {
+      const std::scoped_lock<std::mutex> guard(lock_);
+      const auto it = text_stream_readers_.find(ev.reader_handle());
+      if (it == text_stream_readers_.end()) {
+        return true; // Not ours (another room) or already ended.
+      }
+      reader = it->second;
+      if (ev.has_eos()) {
+        text_stream_readers_.erase(it);
+      }
+    }
+    if (ev.has_chunk_received()) {
+      reader->onChunkReceived(ev.chunk_received().content());
+    } else if (ev.has_eos()) {
+      const auto& eos = ev.eos();
+      reader->onStreamEnded(toStdMap(eos.attributes()),
+                            eos.has_error() ? std::optional<std::string>(eos.error().description()) : std::nullopt);
+    }
+    return true;
+  }
+
+  if (event.message_case() == FfiEvent::kByteStreamReaderEvent) {
+    const auto& ev = event.byte_stream_reader_event();
+    std::shared_ptr<ByteStreamReader> reader;
+    {
+      const std::scoped_lock<std::mutex> guard(lock_);
+      const auto it = byte_stream_readers_.find(ev.reader_handle());
+      if (it == byte_stream_readers_.end()) {
+        return true;
+      }
+      reader = it->second.lock();
+      if (ev.has_eos()) {
+        byte_stream_readers_.erase(it);
+      }
+    }
+    if (!reader) {
+      return true; // The application dropped the reader; discard its data.
+    }
+    if (ev.has_chunk_received()) {
+      const std::string& content = ev.chunk_received().content();
+      reader->onChunkReceived(std::vector<std::uint8_t>(content.begin(), content.end()));
+    } else if (ev.has_eos()) {
+      const auto& eos = ev.eos();
+      reader->onStreamEnded(toStdMap(eos.attributes()),
+                            eos.has_error() ? std::optional<std::string>(eos.error().description()) : std::nullopt);
+    }
+    return true;
+  }
+
+  return false;
+}
+
+void Room::onTextStreamOpened(const proto::TextStreamOpened& opened, RoomDelegate* delegate) {
+  const auto& owned = opened.reader();
+  const auto reader_handle = static_cast<std::uint64_t>(owned.handle().id());
+
+  TextStreamHandler handler;
+  std::shared_ptr<TextStreamReader> reader;
+  {
+    const std::scoped_lock<std::mutex> guard(lock_);
+    const auto it = text_stream_handlers_.find(owned.info().topic());
+    // room_handle_ is cleared by shutdown(); a stream opened concurrently
+    // with shutdown is dropped rather than tracked by a dead room.
+    if (room_handle_ && it != text_stream_handlers_.end()) {
+      handler = it->second;
+      reader = std::make_shared<TextStreamReader>(fromProto(owned.info()));
+      // Register before read_incremental so no chunk can arrive unrouted.
+      text_stream_readers_[reader_handle] = reader;
+    }
+  }
+
+  if (!reader) {
+    // Nobody will read it: drop the handle so the FFI frees the stream.
+    const FfiHandle unread(static_cast<uintptr_t>(reader_handle));
+    LK_LOG_DEBUG("No text stream handler for topic '{}'; ignoring stream {}", owned.info().topic(),
+                 owned.info().stream_id());
+  } else {
+    try {
+      FfiClient::instance().textStreamReadIncremental(reader_handle);
+    } catch (const std::exception& e) {
+      LK_LOG_ERROR("Failed to start reading text stream {}: {}", owned.info().stream_id(), e.what());
+      {
+        const std::scoped_lock<std::mutex> guard(lock_);
+        text_stream_readers_.erase(reader_handle);
+      }
+      const FfiHandle unread(static_cast<uintptr_t>(reader_handle));
+      reader->onStreamEnded({}, std::string(e.what()));
+    }
+  }
+
+  if (reader) {
+    handler(reader, opened.participant_identity());
+  }
+
+  if (delegate) {
+    const TextStreamOpenedEvent ev = fromProto(opened);
+    delegate->onTextStreamOpened(*this, ev);
+  }
+}
+
+void Room::onByteStreamOpened(const proto::ByteStreamOpened& opened, RoomDelegate* delegate) {
+  const auto& owned = opened.reader();
+  const auto reader_handle = static_cast<std::uint64_t>(owned.handle().id());
+
+  ByteStreamHandler handler;
+  std::shared_ptr<ByteStreamReader> reader;
+  {
+    const std::scoped_lock<std::mutex> guard(lock_);
+    const auto it = byte_stream_handlers_.find(owned.info().topic());
+    // room_handle_ is cleared by shutdown(); a stream opened concurrently
+    // with shutdown is dropped rather than tracked by a dead room.
+    if (room_handle_ && it != byte_stream_handlers_.end()) {
+      handler = it->second;
+      reader = std::make_shared<ByteStreamReader>(fromProto(owned.info()));
+      // Reading starts lazily: the reader consumes the handle on its first
+      // readNext() / readAll() / writeToFile(), or drops it if discarded.
+      reader->attachUnreadHandle(reader_handle);
+      // Forget readers the application dropped without consuming; no events
+      // will ever arrive for them.
+      for (auto r = byte_stream_readers_.begin(); r != byte_stream_readers_.end();) {
+        r = r->second.expired() ? byte_stream_readers_.erase(r) : std::next(r);
+      }
+      byte_stream_readers_[reader_handle] = reader;
+    }
+  }
+
+  if (!reader) {
+    // Nobody will read it: drop the handle so the FFI frees the stream.
+    const FfiHandle unread(static_cast<uintptr_t>(reader_handle));
+    LK_LOG_DEBUG("No byte stream handler for topic '{}'; ignoring stream {}", owned.info().topic(),
+                 owned.info().stream_id());
+  }
+
+  if (reader) {
+    handler(reader, opened.participant_identity());
+  }
+
+  if (delegate) {
+    const ByteStreamOpenedEvent ev = fromProto(opened);
+    delegate->onByteStreamOpened(*this, ev);
   }
 }
 

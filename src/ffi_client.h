@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <functional>
 #include <future>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -57,7 +58,6 @@ class FfiRequest;
 class OwnedTrackPublication;
 class OwnedLocalDataTrack;
 class OwnedDataTrackStream;
-class DataStream;
 
 } // namespace proto
 
@@ -76,6 +76,11 @@ extern "C" LIVEKIT_INTERNAL_API void ffiEventCallback(const uint8_t* buf, size_t
 /// @param handle Rust resource handle to release.
 /// @return True if the handle was released; false if it did not exist.
 [[nodiscard]] LIVEKIT_INTERNAL_API bool dropFfiHandle(std::uint64_t handle) noexcept;
+
+/// @brief Whether the calling thread is currently delivering an FFI event.
+/// Used to warn about blocking calls made from SDK callbacks.
+/// @return True if called from inside ffiEventCallback.
+[[nodiscard]] LIVEKIT_INTERNAL_API bool isOnFfiCallbackThread() noexcept;
 
 // The FfiClient is used to communicate with the FFI interface of the Rust SDK
 // We use the generated protocol messages to facilitate the communication.
@@ -155,17 +160,41 @@ public:
   Result<proto::OwnedDataTrackStream, SubscribeDataTrackError> subscribeDataTrack(
       std::uint64_t track_handle, std::optional<std::uint32_t> buffer_size = std::nullopt);
 
-  // Data stream functionalities
-  std::future<void> sendStreamHeaderAsync(std::uint64_t local_participant_handle,
-                                          const proto::DataStream::Header& header,
-                                          const std::vector<std::string>& destination_identities,
-                                          const std::string& sender_identity);
-  std::future<void> sendStreamChunkAsync(std::uint64_t local_participant_handle, const proto::DataStream::Chunk& chunk,
-                                         const std::vector<std::string>& destination_identities,
-                                         const std::string& sender_identity);
-  std::future<void> sendStreamTrailerAsync(std::uint64_t local_participant_handle,
-                                           const proto::DataStream::Trailer& trailer,
-                                           const std::string& sender_identity);
+  // Data stream APIs (high-level; Rust handles framing, chunking and
+  // compression). A callback error is surfaced as DataStreamError.
+  std::future<proto::TextStreamInfo> sendTextAsync(std::uint64_t local_participant_handle, const std::string& text,
+                                                   const proto::StreamTextOptions& options);
+  std::future<proto::ByteStreamInfo> sendBytesAsync(std::uint64_t local_participant_handle,
+                                                    const std::vector<std::uint8_t>& bytes,
+                                                    const proto::StreamByteOptions& options);
+  std::future<proto::ByteStreamInfo> sendFileAsync(std::uint64_t local_participant_handle, const std::string& file_path,
+                                                   const proto::StreamByteOptions& options);
+
+  // Start incremental reads of an owned reader handle. Consumes the handle:
+  // never drop it afterwards. Chunks and EOS arrive as
+  // Text/ByteStreamReaderEvent keyed by reader handle.
+  void textStreamReadIncremental(std::uint64_t reader_handle);
+  void byteStreamReadIncremental(std::uint64_t reader_handle);
+
+  // Write an owned byte reader handle's stream to a file (the SDK core
+  // validates the file name). Consumes the handle. Resolves to the written
+  // file's path.
+  std::future<std::string> byteStreamWriteToFileAsync(std::uint64_t reader_handle,
+                                                      const std::optional<std::string>& directory,
+                                                      const std::optional<std::string>& name_override);
+
+  // Incremental writers. Open creates an owned writer handle; write borrows
+  // it; close consumes it (never drop the handle after calling close).
+  std::future<proto::OwnedTextStreamWriter> textStreamOpenAsync(std::uint64_t local_participant_handle,
+                                                                const proto::StreamTextOptions& options);
+  std::future<proto::OwnedByteStreamWriter> byteStreamOpenAsync(std::uint64_t local_participant_handle,
+                                                                const proto::StreamByteOptions& options);
+  std::future<void> textStreamWriteAsync(std::uint64_t writer_handle, const std::string& text);
+  std::future<void> byteStreamWriteAsync(std::uint64_t writer_handle, const std::uint8_t* data, std::size_t size);
+  std::future<void> textStreamCloseAsync(std::uint64_t writer_handle, const std::optional<std::string>& reason,
+                                         const std::map<std::string, std::string>& attributes);
+  std::future<void> byteStreamCloseAsync(std::uint64_t writer_handle, const std::optional<std::string>& reason,
+                                         const std::map<std::string, std::string>& attributes);
 
   // Generic function for sending a request to the Rust FFI.
   // Note: For asynchronous requests, use the dedicated async functions instead

@@ -18,6 +18,7 @@
 
 #include <livekit/livekit.h>
 
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -31,6 +32,13 @@ struct RoomTestAccess {
   static int listenerId(const Room& room) {
     const std::scoped_lock<std::mutex> guard(room.lock_);
     return room.listener_id_;
+  }
+
+  /// FFI handle id of the connected room, used to match `room_event`s to this
+  /// room when several rooms share the process. Returns 0 when disconnected.
+  static std::uint64_t roomHandleId(const Room& room) {
+    const std::scoped_lock<std::mutex> guard(room.lock_);
+    return room.room_handle_ ? room.room_handle_->get() : 0;
   }
 
   static void simulateScenario(Room& room, proto::SimulateScenarioKind scenario) {

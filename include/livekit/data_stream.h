@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -24,6 +25,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -33,10 +35,131 @@ namespace livekit {
 
 class LocalParticipant;
 
+namespace detail {
+class StreamWriterRegistry;
+} // namespace detail
+
 /// Chunk size for data streams (matches Python STREAM_CHUNK_SIZE).
-/// Chosen to balance throughput and latency, and to work well with WebRTC data
-/// channels.
+///
+/// @deprecated The SDK core now chunks data streams itself (at 15 KB); this
+/// constant no longer controls anything.
+[[deprecated("kStreamChunkSize no longer controls chunking; the SDK core chunks data streams itself")]]
 constexpr std::size_t kStreamChunkSize = 15'000; // 15 KB
+
+/// @brief Error raised by data stream operations.
+///
+/// Thrown by the one-shot send APIs (for example
+/// LocalParticipant::sendText()) when the send fails or the participant is no
+/// longer connected, and by TextStreamReader / ByteStreamReader when an
+/// incoming stream ends abnormally (for example the sender closed it with a
+/// reason, the stream exceeded RoomOptions::data_stream limits, or the room
+/// disconnected mid-stream). The message carries the SDK's error description.
+///
+/// Derives from std::runtime_error, so existing
+/// `catch (const std::runtime_error&)` handlers keep working.
+class LIVEKIT_API DataStreamError : public std::runtime_error {
+public:
+  /// @brief Construct an error with a description.
+  /// @param message Human-readable error description.
+  explicit DataStreamError(const std::string& message);
+};
+
+/// @brief What a text stream does to the conversation it belongs to.
+///
+/// Chat-style applications use it to distinguish new messages from edits,
+/// deletions and reactions; the SDK only transports it.
+enum class TextStreamOperationType {
+  Create = 0,
+  Update = 1,
+  Delete = 2,
+  Reaction = 3,
+};
+
+/// @brief Options for a one-shot text send or an incremental text stream.
+///
+/// Used by LocalParticipant::sendText().
+struct StreamTextOptions {
+  /// Application-defined topic. Required; receivers route streams to handlers
+  /// registered with Room::registerTextStreamHandler() by topic.
+  std::string topic;
+
+  /// Arbitrary key/value attributes sent with the stream header.
+  std::map<std::string, std::string> attributes;
+
+  /// Identities of the participants that should receive the stream. Empty
+  /// means every participant in the room.
+  std::vector<std::string> destination_identities;
+
+  /// Stream id to use. A unique id is generated when unset.
+  std::optional<std::string> stream_id;
+
+  /// Id of the stream this stream replies to, if any.
+  std::optional<std::string> reply_to_stream_id;
+
+  /// Ids of other streams (for example files) attached to this text stream.
+  std::vector<std::string> attached_stream_ids;
+
+  /// Operation this stream performs (new message, edit, deletion, reaction).
+  TextStreamOperationType operation_type = TextStreamOperationType::Create;
+
+  /// Version of the message this stream creates or updates, if any.
+  std::optional<std::int32_t> version;
+
+  /// Whether the text was generated, for example by an agent transcribing a
+  /// participant's speech.
+  bool generated = false;
+
+  /// Compress the payload when every recipient supports compression.
+  ///
+  /// Only one-shot sends compress; incremental writers ignore this flag.
+  bool compress = true;
+
+  /// Identity to send as. Leave unset to send as the local participant;
+  /// setting it requires the impersonation permission.
+  std::optional<std::string> sender_identity;
+};
+
+/// @brief Options for a one-shot byte/file send or an incremental byte stream.
+///
+/// Used by LocalParticipant::sendBytes() and LocalParticipant::sendFile().
+struct StreamByteOptions {
+  /// Application-defined topic. Required; receivers route streams to handlers
+  /// registered with Room::registerByteStreamHandler() by topic.
+  std::string topic;
+
+  /// Arbitrary key/value attributes sent with the stream header.
+  std::map<std::string, std::string> attributes;
+
+  /// Identities of the participants that should receive the stream. Empty
+  /// means every participant in the room.
+  std::vector<std::string> destination_identities;
+
+  /// Stream id to use. A unique id is generated when unset.
+  std::optional<std::string> stream_id;
+
+  /// Name of the payload (for example a file name). When unset, sendBytes()
+  /// uses the SDK default ("unknown") and sendFile() uses the file's basename.
+  std::optional<std::string> name;
+
+  /// MIME type of the payload. When unset, the SDK picks a default
+  /// ("application/octet-stream" for bytes; derived from the file for
+  /// sendFile()).
+  std::optional<std::string> mime_type;
+
+  /// Total payload size in bytes, if known. Only meaningful for incremental
+  /// writers; one-shot sends always know their size.
+  std::optional<std::uint64_t> total_length;
+
+  /// Compress the payload when every recipient supports compression.
+  ///
+  /// Only one-shot sends compress; incremental writers ignore this flag. Turn
+  /// it off for payloads that are already compressed (images, video, archives).
+  bool compress = true;
+
+  /// Identity to send as. Leave unset to send as the local participant;
+  /// setting it requires the impersonation permission.
+  std::optional<std::string> sender_identity;
+};
 
 /// Base metadata for any stream (text or bytes).
 struct BaseStreamInfo {
@@ -65,6 +188,13 @@ struct TextStreamInfo : BaseStreamInfo {
   std::vector<std::string> attachments;
   /// If this stream is a reply to another stream, this field holds its ID
   std::optional<std::string> reply_to_stream_id;
+  /// Operation this stream performs (new message, edit, deletion, reaction).
+  TextStreamOperationType operation_type = TextStreamOperationType::Create;
+  /// Version of the message this stream creates or updates, if the sender set one.
+  std::optional<std::int32_t> version;
+  /// Whether the text was generated, for example by an agent transcribing a
+  /// participant's speech.
+  bool generated = false;
 };
 
 /// Metadata for a byte stream.
@@ -77,105 +207,245 @@ struct ByteStreamInfo : BaseStreamInfo {
 //   - TextStreamReader: yields UTF-8 text chunks (std::string)
 //   - ByteStreamReader: yields raw bytes (std::vector<uint8_t>)
 
-/// Reader for incoming text streams.
-/// Created internally by the SDK when a text stream header is received.
+/// @brief Reader for incoming text streams.
+///
+/// Created by the SDK when a remote participant opens a text stream on a topic
+/// with a handler registered via Room::registerTextStreamHandler(). The SDK
+/// decompresses and reassembles the stream; each chunk is valid UTF-8.
+///
+/// Reading blocks the calling thread. Stream handlers run on the SDK's event
+/// thread, which also delivers the chunks, so never read from inside the
+/// handler: move the reader to another thread first.
 class LIVEKIT_API TextStreamReader {
 public:
-  /// Construct a reader from initial stream metadata.
+  /// @brief Construct a detached reader from stream metadata.
+  ///
+  /// A reader built this way is not connected to any incoming stream and
+  /// never receives data. Readers for real streams are created by the SDK.
+  /// @param info Stream metadata.
   explicit TextStreamReader(TextStreamInfo info);
+  ~TextStreamReader();
 
   TextStreamReader(const TextStreamReader&) = delete;
   TextStreamReader& operator=(const TextStreamReader&) = delete;
 
-  /// Blocking read of next text chunk.
-  /// Returns false when the stream has ended.
+  /// @brief Blocking read of the next text chunk.
+  ///
+  /// When the stream ends normally, any final attributes the sender attached
+  /// on close are merged into info().attributes before this returns false.
+  ///
+  /// @param out Receives the next chunk.
+  /// @return True if a chunk was read; false when the stream has ended or
+  ///         close() was called.
+  /// @throws DataStreamError if the stream ended abnormally (for example the
+  ///         sender closed it with a reason, it exceeded the receive size
+  ///         limit, or the room disconnected mid-stream). Chunks received
+  ///         before the error are returned first.
   bool readNext(std::string& out);
 
-  /// Convenience: read entire stream into a single string.
-  /// Blocks until the stream is closed.
+  /// @brief Read the entire stream into a single string.
+  ///
+  /// Blocks until the stream ends.
+  ///
+  /// @return The concatenated text.
+  /// @throws DataStreamError if the stream ended abnormally.
   std::string readAll();
 
-  /// Metadata associated with this stream.
+  /// @brief Stop reading early.
+  ///
+  /// Discards buffered chunks and wakes any thread blocked in readNext() or
+  /// readAll(), which then return the end of the stream. Idempotent.
+  void close();
+
+  /// @brief Metadata associated with this stream.
+  ///
+  /// Attributes the sender attached when closing the stream are merged in
+  /// once readNext() or readAll() has reached the end of the stream, on the
+  /// reading thread. Don't call this concurrently with readNext() from
+  /// another thread.
+  ///
+  /// @return Stream metadata.
   const TextStreamInfo& info() const noexcept { return info_; }
 
 private:
   friend class Room;
+  friend struct DataStreamReaderTestAccess;
+  struct Impl;
 
-  /// Called by the Room when a new chunk arrives.
-  void onChunkUpdate(const std::string& text);
+  /// Called by the Room when a chunk arrives.
+  void onChunkReceived(std::string text);
 
-  /// Called by the Room when the stream is closed.
-  /// Additional trailer attributes are merged into info().attributes.
-  void onStreamClose(const std::map<std::string, std::string>& trailer_attrs);
+  /// Called by the Room when the stream ends. @p error is set when the stream
+  /// ended abnormally.
+  void onStreamEnded(const std::map<std::string, std::string>& attributes, std::optional<std::string> error);
 
   TextStreamInfo info_;
-
-  // Queue of text chunks; empty string with closed_==true means EOS.
-  std::deque<std::string> queue_;
-  bool closed_ = false;
-
-  std::mutex mutex_;
-  std::condition_variable cv_;
+  std::unique_ptr<Impl> impl_;
 };
 
-/// Reader for incoming byte streams.
+/// @brief Reader for incoming byte streams.
+///
+/// Created by the SDK when a remote participant opens a byte stream on a topic
+/// with a handler registered via Room::registerByteStreamHandler(). The SDK
+/// decompresses and reassembles the stream.
+///
+/// A stream is consumed once, either by reading it (readNext() / readAll())
+/// or by having the SDK write it to disk (writeToFile()). The SDK holds the
+/// incoming data until one of them is called; dropping every reference to an
+/// unconsumed reader discards the stream.
+///
+/// Reading blocks the calling thread. Stream handlers run on the SDK's event
+/// thread, which also delivers the chunks, so never read from inside the
+/// handler: move the reader to another thread first.
 class LIVEKIT_API ByteStreamReader {
 public:
-  /// Construct a reader from initial stream metadata.
+  /// @brief Construct a detached reader from stream metadata.
+  ///
+  /// A reader built this way is not connected to any incoming stream and
+  /// never receives data. Readers for real streams are created by the SDK.
+  /// @param info Stream metadata.
   explicit ByteStreamReader(ByteStreamInfo info);
+  ~ByteStreamReader();
 
   ByteStreamReader(const ByteStreamReader&) = delete;
   ByteStreamReader& operator=(const ByteStreamReader&) = delete;
 
-  /// Blocking read of next byte chunk.
-  /// Returns false when the stream has ended.
+  /// @brief Blocking read of the next byte chunk.
+  ///
+  /// When the stream ends normally, any final attributes the sender attached
+  /// on close are merged into info().attributes before this returns false.
+  ///
+  /// @param out Receives the next chunk.
+  /// @return True if a chunk was read; false when the stream has ended or
+  ///         close() was called.
+  /// @throws DataStreamError if the stream ended abnormally (for example the
+  ///         sender closed it with a reason, it exceeded the receive size
+  ///         limit, or the room disconnected mid-stream). Chunks received
+  ///         before the error are returned first.
   bool readNext(std::vector<std::uint8_t>& out);
 
-  /// Metadata associated with this stream.
+  /// @brief Write the whole stream to a file instead of reading it.
+  ///
+  /// Blocks until the stream has been written, so call it from your own
+  /// thread, not from the stream handler. Call it instead of readNext() /
+  /// readAll(): a stream can only be consumed once. Afterwards readNext()
+  /// reports the end of the stream.
+  ///
+  /// The file is named after the stream (info().name) unless
+  /// @p name_override is given. Either must be a plain file name: names with
+  /// path separators, "..", or an absolute path are rejected, so a sender
+  /// can't choose where the file goes. An existing file is overwritten.
+  ///
+  /// @param directory     Directory to write into; the system temporary
+  ///                      directory when unset.
+  /// @param name_override File name to use instead of the stream's name.
+  /// @return Path of the written file.
+  /// @throws DataStreamError if the stream was already read or closed, the
+  ///         file name is not a plain file name, the file can't be written,
+  ///         or the stream ended abnormally.
+  std::string writeToFile(const std::optional<std::string>& directory = std::nullopt,
+                          const std::optional<std::string>& name_override = std::nullopt);
+
+  /// @brief Read the entire stream into a single buffer.
+  ///
+  /// Blocks until the stream ends.
+  ///
+  /// @return The concatenated bytes.
+  /// @throws DataStreamError if the stream ended abnormally.
+  std::vector<std::uint8_t> readAll();
+
+  /// @brief Stop reading early.
+  ///
+  /// Discards buffered chunks and wakes any thread blocked in readNext() or
+  /// readAll(), which then return the end of the stream. Idempotent.
+  void close();
+
+  /// @brief Metadata associated with this stream.
+  ///
+  /// Attributes the sender attached when closing the stream are merged in
+  /// once readNext() or readAll() has reached the end of the stream, on the
+  /// reading thread. Don't call this concurrently with readNext() from
+  /// another thread.
+  ///
+  /// @return Stream metadata.
   const ByteStreamInfo& info() const noexcept { return info_; }
 
 private:
   friend class Room;
+  friend struct DataStreamReaderTestAccess;
+  struct Impl;
 
-  /// Called by the Room when a new chunk arrives.
-  void onChunkUpdate(const std::vector<std::uint8_t>& bytes);
+  /// Called by the Room when a chunk arrives.
+  void onChunkReceived(std::vector<std::uint8_t> bytes);
 
-  /// Called by the Room when the stream is closed.
-  /// Additional trailer attributes are merged into info().attributes.
-  void onStreamClose(const std::map<std::string, std::string>& trailer_attrs);
+  /// Called by the Room when the stream ends. @p error is set when the stream
+  /// ended abnormally.
+  void onStreamEnded(const std::map<std::string, std::string>& attributes, std::optional<std::string> error);
+
+  /// Called by the Room with the stream's owned FFI reader handle. The reader
+  /// consumes it on the first readNext() / readAll() / writeToFile(), and
+  /// drops it if it is closed or destroyed first.
+  void attachUnreadHandle(std::uint64_t handle);
+
+  /// Starts incremental reading if the stream has not been consumed yet.
+  void startReading();
 
   ByteStreamInfo info_;
-
-  std::deque<std::vector<std::uint8_t>> queue_;
-  bool closed_ = false;
-
-  std::mutex mutex_;
-  std::condition_variable cv_;
+  std::unique_ptr<Impl> impl_;
 };
 
-/// Base class for sending data streams.
-/// Concrete subclasses are TextStreamWriter and ByteStreamWriter.
+/// @brief Base class for sending data streams incrementally.
+///
+/// Concrete subclasses are TextStreamWriter and ByteStreamWriter; create them
+/// with LocalParticipant::streamText() / LocalParticipant::streamBytes().
+///
+/// Thread safety: write() and close() are serialized internally, and each one
+/// returns only after the SDK has processed it, so a close() always follows
+/// every write() that returned before it. When the room disconnects, the
+/// writer is closed and later write() / close() calls throw DataStreamError.
+///
+/// Destroying a writer that was opened but not closed closes the stream
+/// normally (without waiting), so receivers don't wait forever.
 class LIVEKIT_API BaseStreamWriter {
 public:
-  virtual ~BaseStreamWriter() = default;
+  virtual ~BaseStreamWriter();
 
-  /// Stream id assigned to this writer.
+  BaseStreamWriter(const BaseStreamWriter&) = delete;
+  BaseStreamWriter& operator=(const BaseStreamWriter&) = delete;
+
+  /// @brief Stream id assigned to this writer.
+  /// @return The stream id.
   const std::string& streamId() const noexcept { return stream_id_; }
 
-  /// Topic of this stream.
+  /// @brief Topic of this stream.
+  /// @return The topic.
   const std::string& topic() const noexcept { return topic_; }
 
-  /// MIME type for this stream.
+  /// @brief MIME type for this stream.
+  /// @return The MIME type.
   const std::string& mimeType() const noexcept { return mime_type_; }
 
-  /// Timestamp (ms) when the stream was created.
+  /// @brief Timestamp (ms) when the stream was created.
+  ///
+  /// Updated to the SDK core's timestamp once the stream is opened.
+  /// @return Creation timestamp in milliseconds since the Unix epoch.
   std::int64_t timestampMs() const noexcept { return timestamp_ms_; }
 
-  /// Whether the stream has been closed.
+  /// @brief Whether the stream has been closed (explicitly or because the room
+  /// disconnected).
+  /// @return True if closed.
   bool isClosed() const noexcept { return closed_; }
 
-  /// Close the stream with optional reason and attributes.
-  /// Throws on FFI error or if already closed.
+  /// @brief Close the stream.
+  ///
+  /// Waits for any in-progress write() to finish first. A non-empty @p reason
+  /// closes the stream abnormally: receivers' reads throw DataStreamError
+  /// carrying the reason.
+  ///
+  /// @param reason     Empty for a normal close; otherwise the error reason.
+  /// @param attributes Attributes merged into the receiver's stream info.
+  /// @throws DataStreamError if the stream is already closed, the room has
+  ///         disconnected, or the SDK reports an error.
   void close(const std::string& reason = "", const std::map<std::string, std::string>& attributes = {});
 
 protected:
@@ -198,51 +468,144 @@ protected:
   std::vector<std::string> destination_identities_;
   std::string sender_identity_;
 
-  bool closed_ = false;
+  std::atomic<bool> closed_{false};
+  /// True once the stream has been opened with the SDK core.
   bool header_sent_ = false;
+  /// Unused; chunking is done by the SDK core.
   std::uint64_t next_chunk_index_ = 0;
   StreamKind kind_ = StreamKind::kUnknown;
   std::string reply_to_id_;
   std::string byte_name_; // Used by ByteStreamWriter
 
-  /// Ensure the header has been sent once.
-  /// Throws on error.
+  /// @brief Open the stream if it isn't open yet.
+  /// @deprecated The SDK opens the stream on the first write() or close().
+  /// @throws DataStreamError on error.
+  [[deprecated("BaseStreamWriter::ensureHeaderSent is deprecated; the stream opens on the first write or close")]]
   void ensureHeaderSent();
 
-  /// Send a raw chunk of bytes.
-  /// Throws on error or if stream is closed.
+  /// @brief Write raw bytes to the stream (UTF-8 text for a text stream).
+  /// @deprecated Use TextStreamWriter::write() or ByteStreamWriter::write() instead.
+  /// @param content Payload to write.
+  /// @throws std::runtime_error if the stream is closed; DataStreamError on error.
+  [[deprecated(
+      "BaseStreamWriter::sendChunk is deprecated; use TextStreamWriter::write or ByteStreamWriter::write "
+      "instead")]]
   void sendChunk(const std::vector<std::uint8_t>& content);
 
-  /// Send the trailer with given reason and attributes.
-  /// Throws on error.
+  /// @brief Close the stream with the given reason and attributes.
+  /// @deprecated Use close() instead.
+  /// @param reason     Empty for a normal close; otherwise the error reason.
+  /// @param attributes Attributes merged into the receiver's stream info.
+  /// @throws DataStreamError on error.
+  [[deprecated("BaseStreamWriter::sendTrailer is deprecated; use BaseStreamWriter::close instead")]]
   void sendTrailer(const std::string& reason, const std::map<std::string, std::string>& attributes);
+
+  /// @brief Open the stream now (requires @c kind_ to be set). Serialized with
+  /// write() and close().
+  /// @throws DataStreamError on error.
+  void open();
+
+  /// @brief Write a payload (text for kText, bytes for kByte), opening first if
+  /// needed. Serialized with other operations.
+  /// @param data Payload bytes.
+  /// @param size Payload size.
+  /// @param closed_message Message thrown if the writer is already closed.
+  /// @throws DataStreamError on error.
+  void writePayload(const char* data, std::size_t size, const char* closed_message);
+
+private:
+  friend class detail::StreamWriterRegistry;
+
+  void openLocked();
+  void closeLocked(const std::string& reason, const std::map<std::string, std::string>& attributes);
+  void applyOpenedInfo(std::int64_t timestamp_ms, const std::string& mime_type);
+  std::uint64_t takeHandle() noexcept;
+  void onParticipantDisconnected() noexcept;
+  [[noreturn]] void throwNotConnected() const;
+
+  /// Serializes open/write/close. Held across FFI waits.
+  std::mutex op_mutex_;
+  /// Guards writer_handle_ and participant_gone_. Never held across FFI calls.
+  mutable std::mutex state_mutex_;
+  /// Owned FFI writer handle; 0 before open and after close consumes it.
+  std::uint64_t writer_handle_ = 0;
+  bool participant_gone_ = false;
+  std::shared_ptr<detail::StreamWriterRegistry> registry_;
 };
 
-/// Writer for outgoing text streams.
+/// @brief Writer for outgoing text streams.
+///
+/// Create one with LocalParticipant::streamText(). Text is sent as UTF-8; the
+/// SDK splits it into chunks on code point boundaries.
 class LIVEKIT_API TextStreamWriter : public BaseStreamWriter {
 public:
+  /// @brief Construct a text stream writer.
+  ///
+  /// The stream is opened lazily on the first write() or close().
+  ///
+  /// @deprecated Use LocalParticipant::streamText() instead.
+  /// @param local_participant      Participant that sends the stream; must outlive the writer.
+  /// @param topic                  Topic receivers register handlers on.
+  /// @param attributes             Attributes sent with the stream header.
+  /// @param stream_id              Stream id; generated when empty.
+  /// @param total_size             Recorded locally in info() only; text streams can't transmit a size.
+  /// @param reply_to_id            Id of the stream this one replies to, or empty.
+  /// @param destination_identities Recipients; empty for everyone.
+  /// @param sender_identity        Identity to send as; defaults to the local participant.
+  [[deprecated("Constructing TextStreamWriter directly is deprecated; use LocalParticipant::streamText instead")]]
   TextStreamWriter(LocalParticipant& local_participant, const std::string& topic = "",
                    const std::map<std::string, std::string>& attributes = {}, const std::string& stream_id = "",
                    std::optional<std::size_t> total_size = std::nullopt, const std::string& reply_to_id = "",
                    const std::vector<std::string>& destination_identities = {},
                    const std::string& sender_identity = "");
 
-  /// Write a UTF-8 string to the stream.
-  /// Data will be split into chunks of at most kStreamChunkSize bytes.
-  /// Throws on error or if the stream is closed.
+  /// @brief Write a UTF-8 string to the stream.
+  ///
+  /// Blocks until the SDK has sent it.
+  ///
+  /// @param text UTF-8 text to append.
+  /// @throws DataStreamError if the stream is closed, the room has
+  ///         disconnected, or the SDK reports an error.
   void write(const std::string& text);
 
-  /// Metadata associated with this stream.
+  /// @brief Metadata associated with this stream.
+  /// @return Stream metadata; updated with the SDK core's info once opened.
   const TextStreamInfo& info() const noexcept { return info_; }
 
 private:
+  friend class BaseStreamWriter;
+  friend class LocalParticipant;
+  struct FactoryTag {};
+
+  TextStreamWriter(FactoryTag, LocalParticipant& local_participant, const StreamTextOptions& options);
+
   TextStreamInfo info_;
-  std::mutex write_mutex_;
+  std::vector<std::string> attached_stream_ids_;
+  TextStreamOperationType operation_type_ = TextStreamOperationType::Create;
+  std::optional<std::int32_t> version_;
+  bool generated_ = false;
 };
 
-/// Writer for outgoing byte streams.
+/// @brief Writer for outgoing byte streams.
+///
+/// Create one with LocalParticipant::streamBytes().
 class LIVEKIT_API ByteStreamWriter : public BaseStreamWriter {
 public:
+  /// @brief Construct a byte stream writer.
+  ///
+  /// The stream is opened lazily on the first write() or close().
+  ///
+  /// @deprecated Use LocalParticipant::streamBytes() instead.
+  /// @param local_participant      Participant that sends the stream; must outlive the writer.
+  /// @param name                   Name of the payload (for example a file name).
+  /// @param topic                  Topic receivers register handlers on.
+  /// @param attributes             Attributes sent with the stream header.
+  /// @param stream_id              Stream id; generated when empty.
+  /// @param total_size             Total payload size, if known.
+  /// @param mime_type              MIME type of the payload.
+  /// @param destination_identities Recipients; empty for everyone.
+  /// @param sender_identity        Identity to send as; defaults to the local participant.
+  [[deprecated("Constructing ByteStreamWriter directly is deprecated; use LocalParticipant::streamBytes instead")]]
   ByteStreamWriter(LocalParticipant& local_participant, const std::string& name, const std::string& topic = "",
                    const std::map<std::string, std::string>& attributes = {}, const std::string& stream_id = "",
                    std::optional<std::size_t> total_size = std::nullopt,
@@ -250,24 +613,35 @@ public:
                    const std::vector<std::string>& destination_identities = {},
                    const std::string& sender_identity = "");
 
-  /// Write binary data to the stream.
-  /// Data will be chunked into kStreamChunkSize-sized chunks.
-  /// Throws on error or if the stream is closed.
+  /// @brief Write binary data to the stream.
+  ///
+  /// Blocks until the SDK has sent it.
+  ///
+  /// @param data Bytes to append.
+  /// @throws DataStreamError if the stream is closed, the room has
+  ///         disconnected, or the SDK reports an error.
   void write(const std::vector<std::uint8_t>& data);
 
-  /// Metadata associated with this stream.
+  /// @brief Metadata associated with this stream.
+  /// @return Stream metadata; updated with the SDK core's info once opened.
   const ByteStreamInfo& info() const noexcept { return info_; }
 
 private:
+  friend class BaseStreamWriter;
+  friend class LocalParticipant;
+  struct FactoryTag {};
+
+  ByteStreamWriter(FactoryTag, LocalParticipant& local_participant, const StreamByteOptions& options);
+
   ByteStreamInfo info_;
-  std::mutex write_mutex_;
 };
 
 /// Callback invoked when a new incoming text stream is opened.
 ///
 /// The TextStreamReader is provided as a shared_ptr to ensure it remains
 /// alive for the duration of asynchronous reads (for example, when the
-/// user spawns a background thread to consume the stream).
+/// user spawns a background thread to consume the stream). The handler runs on
+/// the SDK event thread and must not read from the stream itself.
 using TextStreamHandler =
     std::function<void(std::shared_ptr<TextStreamReader>, const std::string& participant_identity)>;
 
@@ -275,7 +649,8 @@ using TextStreamHandler =
 ///
 /// The ByteStreamReader is provided as a shared_ptr to ensure it remains
 /// alive for the duration of asynchronous reads (for example, file writes
-/// or background processing).
+/// or background processing). The handler runs on the SDK event thread and
+/// must not read from the stream itself.
 using ByteStreamHandler =
     std::function<void(std::shared_ptr<ByteStreamReader>, const std::string& participant_identity)>;
 

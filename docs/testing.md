@@ -76,6 +76,10 @@ export LIVEKIT_URL="ws://localhost:7880"            # or wss://your-server.livek
 export LIVEKIT_TOKEN_A="<first participant token>"
 export LIVEKIT_TOKEN_B="<second participant token>"
 
+# Optional: a third participant (same room) for data stream tests that need a
+# bystander, e.g. targeted streams. Tests that need it skip when it is unset.
+export LIVEKIT_TOKEN_C="<third participant token>"
+
 # Optional (for stress tests)
 export RPC_STRESS_DURATION_SECONDS=3600   # Test duration (default: 1 hour)
 export RPC_STRESS_CALLER_THREADS=4        # Concurrent caller threads (default: 4)
@@ -83,9 +87,10 @@ export RPC_STRESS_CALLER_THREADS=4        # Concurrent caller threads (default: 
 
 ### Generating tokens for the test suites
 
-The easiest path is to source the helper script, which mints both
+The easiest path is to source the helper script, which mints the
 participant tokens against a local `livekit-server --dev` and exports
-`LIVEKIT_TOKEN_A`, `LIVEKIT_TOKEN_B`, and `LIVEKIT_URL` for the current shell:
+`LIVEKIT_TOKEN_A`, `LIVEKIT_TOKEN_B`, `LIVEKIT_TOKEN_C`, and `LIVEKIT_URL` for
+the current shell:
 
 ```bash
 source scripts/set-test-tokens.sh
@@ -100,6 +105,10 @@ export LIVEKIT_TOKEN_A="$(lk token create --api-key devkey --api-secret secret -
   --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}' \
   --token-only)"
 export LIVEKIT_TOKEN_B="$(lk token create --api-key devkey --api-secret secret -i cpp-test-b \
+  --join --valid-for 99999h --room cpp_data_track_test \
+  --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}' \
+  --token-only)"
+export LIVEKIT_TOKEN_C="$(lk token create --api-key devkey --api-secret secret -i cpp-test-c \
   --join --valid-for 99999h --room cpp_data_track_test \
   --grant '{"canPublish":true,"canSubscribe":true,"canPublishData":true}' \
   --token-only)"

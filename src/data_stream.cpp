@@ -18,9 +18,17 @@
 
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
+#include <deque>
+#include <future>
+#include <mutex>
+#include <optional>
 #include <random>
 #include <stdexcept>
+#include <utility>
 
+#include "data_stream_proto_converter.h"
+#include "data_stream_writer_registry.h"
 #include "ffi_client.h"
 #include "livekit/local_participant.h"
 #include "lk_log.h"
@@ -45,44 +53,6 @@ std::string generateRandomId(std::size_t bytes = 16) {
   return out;
 }
 
-// Split UTF-8 string into chunks of at most max_bytes, not breaking codepoints.
-std::vector<std::string> splitUtf8(const std::string& s, std::size_t max_bytes) {
-  std::vector<std::string> result;
-  if (s.empty()) {
-    return result;
-  }
-
-  std::size_t i = 0;
-  const std::size_t n = s.size();
-
-  while (i < n) {
-    std::size_t end = std::min(i + max_bytes, n);
-
-    // If end points into a UTF-8 continuation byte, walk back to a lead byte.
-    // NOTE: end is an index into the string; ensure end < n before indexing.
-    while (end > i && end < n && (static_cast<unsigned char>(s[end]) & 0xC0) == 0x80) {
-      --end;
-    }
-    // If end==n, we may still have landed on a continuation byte due to min().
-    while (end > i && end == n && (static_cast<unsigned char>(s[end - 1]) & 0xC0) == 0x80) {
-      // Walk back until we hit a lead byte boundary.
-      // This isn't perfect but is consistent with your earlier intent.
-      --end;
-      // If we backed up too far, fall through to fallback.
-    }
-
-    if (end == i) {
-      // Fallback: avoid infinite loop if bytes are pathological.
-      end = std::min(i + max_bytes, n);
-    }
-
-    result.emplace_back(s.substr(i, end - i));
-    i = end;
-  }
-
-  return result;
-}
-
 void fillBaseInfo(BaseStreamInfo& dst, const std::string& stream_id, const std::string& mime_type,
                   const std::string& topic, std::int64_t timestamp_ms, const std::optional<std::size_t>& total_size,
                   const std::map<std::string, std::string>& attrs) {
@@ -97,44 +67,142 @@ void fillBaseInfo(BaseStreamInfo& dst, const std::string& stream_id, const std::
 } // namespace
 
 // =====================================================================
+// Errors
+// =====================================================================
+
+DataStreamError::DataStreamError(const std::string& message) : std::runtime_error(message) {}
+
+// =====================================================================
 // Reader implementation
 // =====================================================================
 
-TextStreamReader::TextStreamReader(TextStreamInfo info) : info_(std::move(info)) {}
+namespace {
 
-void TextStreamReader::onChunkUpdate(const std::string& text) {
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
+/// Shared state for TextStreamReader / ByteStreamReader.
+///
+/// The FFI callback thread pushes chunks and the end-of-stream marker; a user
+/// thread pops them. Final attributes are merged into the reader's info on the
+/// reading thread so info() is never mutated behind a single-threaded reader.
+template <typename Chunk>
+class ReaderState {
+public:
+  void push(Chunk chunk) {
+    {
+      const std::scoped_lock<std::mutex> lock(mutex_);
+      if (ended_ || closed_) {
+        return;
+      }
+      queue_.push_back(std::move(chunk));
+    }
+    cv_.notify_one();
+  }
+
+  void end(const std::map<std::string, std::string>& attributes, std::optional<std::string> error) {
+    {
+      const std::scoped_lock<std::mutex> lock(mutex_);
+      if (ended_) {
+        return;
+      }
+      ended_ = true;
+      end_attributes_ = attributes;
+      error_ = std::move(error);
+    }
+    cv_.notify_all();
+  }
+
+  void close() {
+    {
+      const std::scoped_lock<std::mutex> lock(mutex_);
+      closed_ = true;
+      queue_.clear();
+    }
+    cv_.notify_all();
+  }
+
+  /// Pops the next chunk into @p out. Returns false at the end of the stream.
+  /// Throws DataStreamError once the queue is drained if the stream failed.
+  template <typename Info>
+  bool next(Chunk& out, Info& info, const char* reader_name) {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (!closed_ && !ended_ && queue_.empty() && !warned_ffi_thread_ && isOnFfiCallbackThread()) {
+      warned_ffi_thread_ = true;
+      LK_LOG_WARN(
+          "{}::readNext called on the SDK event thread; this blocks event delivery and can deadlock. "
+          "Read from a separate thread instead.",
+          reader_name);
+    }
+    cv_.wait(lock, [this] { return closed_ || ended_ || !queue_.empty(); });
+
     if (closed_) {
-      return;
+      return false;
     }
-    queue_.push_back(text);
-  }
-  cv_.notify_one();
-}
-
-void TextStreamReader::onStreamClose(const std::map<std::string, std::string>& trailer_attrs) {
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
-    for (const auto& kv : trailer_attrs) {
-      info_.attributes[kv.first] = kv.second;
+    if (!queue_.empty()) {
+      out = std::move(queue_.front());
+      queue_.pop_front();
+      return true;
     }
-    closed_ = true;
+
+    // Ended and drained.
+    if (!attributes_merged_) {
+      attributes_merged_ = true;
+      for (const auto& kv : end_attributes_) {
+        info.attributes[kv.first] = kv.second;
+      }
+    }
+    if (error_) {
+      throw DataStreamError(*error_);
+    }
+    return false;
   }
-  cv_.notify_all();
+
+private:
+  std::mutex mutex_;
+  std::condition_variable cv_;
+  std::deque<Chunk> queue_;
+  std::map<std::string, std::string> end_attributes_;
+  std::optional<std::string> error_;
+  bool ended_ = false;
+  bool closed_ = false;
+  bool attributes_merged_ = false;
+  bool warned_ffi_thread_ = false;
+};
+
+} // namespace
+
+struct TextStreamReader::Impl : ReaderState<std::string> {};
+struct ByteStreamReader::Impl : ReaderState<std::vector<std::uint8_t>> {
+  enum class Consumer { kNone, kReader, kFile, kDiscarded };
+
+  /// Guards the one-time choice of how the stream is consumed.
+  std::mutex consume_mutex;
+  /// Owned FFI reader handle, until something consumes or drops it.
+  std::uint64_t unread_handle = 0;
+  Consumer consumer = Consumer::kNone;
+
+  /// Claims the stream for @p who. Returns the unread handle (0 if there is
+  /// none) when the stream was unclaimed; std::nullopt if already claimed.
+  std::optional<std::uint64_t> claim(Consumer who) {
+    const std::scoped_lock<std::mutex> lock(consume_mutex);
+    if (consumer != Consumer::kNone) {
+      return std::nullopt;
+    }
+    consumer = who;
+    return std::exchange(unread_handle, 0);
+  }
+};
+
+TextStreamReader::TextStreamReader(TextStreamInfo info) : info_(std::move(info)), impl_(std::make_unique<Impl>()) {}
+
+TextStreamReader::~TextStreamReader() = default;
+
+void TextStreamReader::onChunkReceived(std::string text) { impl_->push(std::move(text)); }
+
+void TextStreamReader::onStreamEnded(const std::map<std::string, std::string>& attributes,
+                                     std::optional<std::string> error) {
+  impl_->end(attributes, std::move(error));
 }
 
-bool TextStreamReader::readNext(std::string& out) {
-  std::unique_lock<std::mutex> lock(mutex_);
-  cv_.wait(lock, [this] { return !queue_.empty() || closed_; });
-
-  if (!queue_.empty()) {
-    out = std::move(queue_.front());
-    queue_.pop_front();
-    return true;
-  }
-  return false; // closed_ and empty
-}
+bool TextStreamReader::readNext(std::string& out) { return impl_->next(out, info_, "TextStreamReader"); }
 
 std::string TextStreamReader::readAll() {
   std::string result;
@@ -145,45 +213,149 @@ std::string TextStreamReader::readAll() {
   return result;
 }
 
-ByteStreamReader::ByteStreamReader(ByteStreamInfo info) : info_(std::move(info)) {}
+void TextStreamReader::close() { impl_->close(); }
 
-void ByteStreamReader::onChunkUpdate(const std::vector<std::uint8_t>& bytes) {
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
-    if (closed_) {
-      return;
-    }
-    queue_.push_back(bytes);
+ByteStreamReader::ByteStreamReader(ByteStreamInfo info) : info_(std::move(info)), impl_(std::make_unique<Impl>()) {}
+
+ByteStreamReader::~ByteStreamReader() {
+  // Nobody consumed the stream: release it so the SDK core stops buffering.
+  if (const auto handle = impl_->claim(Impl::Consumer::kDiscarded); handle && *handle != 0) {
+    (void)dropFfiHandle(*handle);
   }
-  cv_.notify_one();
 }
 
-void ByteStreamReader::onStreamClose(const std::map<std::string, std::string>& trailer_attrs) {
-  {
-    const std::scoped_lock<std::mutex> lock(mutex_);
-    for (const auto& kv : trailer_attrs) {
-      info_.attributes[kv.first] = kv.second;
-    }
-    closed_ = true;
+void ByteStreamReader::attachUnreadHandle(std::uint64_t handle) {
+  const std::scoped_lock<std::mutex> lock(impl_->consume_mutex);
+  impl_->unread_handle = handle;
+}
+
+void ByteStreamReader::startReading() {
+  const auto handle = impl_->claim(Impl::Consumer::kReader);
+  if (!handle || *handle == 0) {
+    return;
   }
-  cv_.notify_all();
+  try {
+    // Consumes the handle; chunks then arrive through the Room.
+    FfiClient::instance().byteStreamReadIncremental(*handle);
+  } catch (const std::exception& e) {
+    (void)dropFfiHandle(*handle);
+    impl_->end({}, std::string(e.what()));
+  }
+}
+
+void ByteStreamReader::onChunkReceived(std::vector<std::uint8_t> bytes) { impl_->push(std::move(bytes)); }
+
+void ByteStreamReader::onStreamEnded(const std::map<std::string, std::string>& attributes,
+                                     std::optional<std::string> error) {
+  impl_->end(attributes, std::move(error));
 }
 
 bool ByteStreamReader::readNext(std::vector<std::uint8_t>& out) {
-  std::unique_lock<std::mutex> lock(mutex_);
-  cv_.wait(lock, [this] { return !queue_.empty() || closed_; });
+  startReading();
+  return impl_->next(out, info_, "ByteStreamReader");
+}
 
-  if (!queue_.empty()) {
-    out = std::move(queue_.front());
-    queue_.pop_front();
-    return true;
+std::vector<std::uint8_t> ByteStreamReader::readAll() {
+  std::vector<std::uint8_t> result;
+  std::vector<std::uint8_t> chunk;
+  while (readNext(chunk)) {
+    result.insert(result.end(), chunk.begin(), chunk.end());
   }
-  return false;
+  return result;
+}
+
+std::string ByteStreamReader::writeToFile(const std::optional<std::string>& directory,
+                                          const std::optional<std::string>& name_override) {
+  if (isOnFfiCallbackThread()) {
+    // The result arrives on this same thread, so waiting here would deadlock.
+    throw DataStreamError("ByteStreamReader::writeToFile cannot be called on the SDK event thread");
+  }
+  const auto handle = impl_->claim(Impl::Consumer::kFile);
+  if (!handle) {
+    throw DataStreamError("ByteStreamReader::writeToFile: the stream was already read or closed");
+  }
+  if (*handle == 0) {
+    throw DataStreamError("ByteStreamReader::writeToFile: the stream is not available");
+  }
+
+  try {
+    std::future<std::string> written;
+    try {
+      written = FfiClient::instance().byteStreamWriteToFileAsync(*handle, directory, name_override);
+    } catch (...) {
+      // The request never reached the SDK core, so the handle is still ours.
+      (void)dropFfiHandle(*handle);
+      throw;
+    }
+    std::string path = written.get();
+    impl_->end({}, std::nullopt);
+    return path;
+  } catch (const DataStreamError& e) {
+    impl_->end({}, std::string(e.what()));
+    throw;
+  } catch (const std::exception& e) {
+    impl_->end({}, std::string(e.what()));
+    throw DataStreamError(e.what());
+  }
+}
+
+void ByteStreamReader::close() {
+  if (const auto handle = impl_->claim(Impl::Consumer::kDiscarded); handle && *handle != 0) {
+    (void)dropFfiHandle(*handle);
+  }
+  impl_->close();
 }
 
 // =====================================================================
-// Writer implementation (uses your future-based FfiClient)
+// Writer registry
 // =====================================================================
+
+namespace detail {
+
+bool StreamWriterRegistry::add(BaseStreamWriter* writer) {
+  const std::scoped_lock<std::mutex> lock(mutex_);
+  if (closed_) {
+    return false;
+  }
+  writers_.insert(writer);
+  return true;
+}
+
+void StreamWriterRegistry::remove(BaseStreamWriter* writer) {
+  const std::scoped_lock<std::mutex> lock(mutex_);
+  writers_.erase(writer);
+}
+
+std::uint64_t StreamWriterRegistry::participantHandle() const {
+  const std::scoped_lock<std::mutex> lock(mutex_);
+  if (closed_) {
+    throw DataStreamError("stream writer: not connected");
+  }
+  return participant_handle_;
+}
+
+void StreamWriterRegistry::closeAll() noexcept {
+  // Held while notifying writers so a writer being destroyed (which calls
+  // remove()) stays alive until it has been notified.
+  const std::scoped_lock<std::mutex> lock(mutex_);
+  closed_ = true;
+  for (auto* writer : writers_) {
+    writer->onParticipantDisconnected();
+  }
+  writers_.clear();
+}
+
+} // namespace detail
+
+// =====================================================================
+// Writer implementation
+// =====================================================================
+
+namespace {
+
+constexpr char kWriterNotConnected[] = "stream writer: not connected";
+
+} // namespace
 
 BaseStreamWriter::BaseStreamWriter(LocalParticipant& local_participant, std::string topic,
                                    std::map<std::string, std::string> attributes, std::string stream_id,
@@ -199,81 +371,243 @@ BaseStreamWriter::BaseStreamWriter(LocalParticipant& local_participant, std::str
       total_size_(total_size),
       attributes_(std::move(attributes)),
       destination_identities_(std::move(destination_identities)),
-      sender_identity_(std::move(sender_identity)) {
+      sender_identity_(std::move(sender_identity)),
+      registry_(local_participant.stream_writers_) {
   if (sender_identity_.empty()) {
     sender_identity_ = local_participant_.identity();
   }
+  if (!registry_->add(this)) {
+    // Created after the room disconnected: usable only to fail cleanly.
+    participant_gone_ = true;
+    closed_ = true;
+  }
 }
 
-void BaseStreamWriter::ensureHeaderSent() {
-  if (header_sent_) {
+BaseStreamWriter::~BaseStreamWriter() {
+  // After remove() returns, closeAll() can no longer reach this writer.
+  registry_->remove(this);
+
+  const std::uint64_t handle = takeHandle();
+  if (handle == 0) {
     return;
   }
-  proto::DataStream::Header header;
-  header.set_stream_id(stream_id_);
-  header.set_timestamp(timestamp_ms_);
-  header.set_mime_type(mime_type_);
-  header.set_topic(topic_);
-
-  if (total_size_.has_value()) {
-    header.set_total_length(static_cast<std::uint64_t>(*total_size_));
-  }
-  for (const auto& kv : attributes_) {
-    (*header.mutable_attributes())[kv.first] = kv.second;
-  }
-  if (kind_ == StreamKind::kText) {
-    auto* th = header.mutable_text_header();
-    th->set_operation_type(proto::DataStream::OperationType::DataStream_OperationType_CREATE);
-    if (!reply_to_id_.empty()) {
-      th->set_reply_to_stream_id(reply_to_id_);
+  // Opened but never closed. Rust's writer sends a trailer when dropped, but
+  // only from a Tokio thread; dropping the handle here (a C++ thread) would
+  // skip it and leave receivers waiting. Close explicitly, without waiting.
+  try {
+    if (kind_ == StreamKind::kText) {
+      (void)FfiClient::instance().textStreamCloseAsync(handle, std::nullopt, {});
+    } else {
+      (void)FfiClient::instance().byteStreamCloseAsync(handle, std::nullopt, {});
     }
-  } else if (kind_ == StreamKind::kByte) {
-    header.mutable_byte_header()->set_name(byte_name_);
+  } catch (const std::exception& e) {
+    LK_LOG_DEBUG("Stream writer {} could not be closed on destruction: {}", stream_id_, e.what());
+    (void)dropFfiHandle(handle);
+  } catch (...) {
+    (void)dropFfiHandle(handle);
   }
+}
 
-  FfiClient::instance()
-      .sendStreamHeaderAsync(local_participant_.ffiHandleId(), header, destination_identities_, sender_identity_)
-      .get();
+std::uint64_t BaseStreamWriter::takeHandle() noexcept {
+  const std::scoped_lock<std::mutex> lock(state_mutex_);
+  const std::uint64_t handle = writer_handle_;
+  writer_handle_ = 0;
+  return handle;
+}
+
+void BaseStreamWriter::onParticipantDisconnected() noexcept {
+  std::uint64_t handle = 0;
+  {
+    const std::scoped_lock<std::mutex> lock(state_mutex_);
+    participant_gone_ = true;
+    closed_ = true;
+    handle = writer_handle_;
+    writer_handle_ = 0;
+  }
+  // The room is gone; there's nobody to send a trailer to.
+  if (handle != 0) {
+    (void)dropFfiHandle(handle);
+  }
+}
+
+void BaseStreamWriter::throwNotConnected() const { throw DataStreamError(kWriterNotConnected); }
+
+void BaseStreamWriter::applyOpenedInfo(std::int64_t timestamp_ms, const std::string& mime_type) {
+  timestamp_ms_ = timestamp_ms;
+  mime_type_ = mime_type;
   header_sent_ = true;
 }
 
-void BaseStreamWriter::sendChunk(const std::vector<std::uint8_t>& content) {
-  if (closed_) {
-    throw std::runtime_error("Cannot send chunk after stream is closed");
+void BaseStreamWriter::openLocked() {
+  {
+    const std::scoped_lock<std::mutex> lock(state_mutex_);
+    if (participant_gone_) {
+      throwNotConnected();
+    }
+    if (writer_handle_ != 0) {
+      return;
+    }
   }
 
-  ensureHeaderSent();
+  const std::uint64_t participant_handle = registry_->participantHandle();
+  std::uint64_t handle = 0;
+  if (kind_ == StreamKind::kText) {
+    auto* self = static_cast<TextStreamWriter*>(this);
+    proto::StreamTextOptions options;
+    options.set_topic(topic_);
+    for (const auto& kv : attributes_) {
+      (*options.mutable_attributes())[kv.first] = kv.second;
+    }
+    for (const auto& identity : destination_identities_) {
+      options.add_destination_identities(identity);
+    }
+    options.set_id(stream_id_);
+    if (!reply_to_id_.empty()) {
+      options.set_reply_to_stream_id(reply_to_id_);
+    }
+    for (const auto& id : self->attached_stream_ids_) {
+      options.add_attached_stream_ids(id);
+    }
+    if (self->operation_type_ != TextStreamOperationType::Create) {
+      options.set_operation_type(toProto(self->operation_type_));
+    }
+    if (self->version_) {
+      options.set_version(*self->version_);
+    }
+    if (self->generated_) {
+      options.set_generated(true);
+    }
+    options.set_sender_identity(sender_identity_);
 
-  proto::DataStream::Chunk chunk;
-  chunk.set_stream_id(stream_id_);
-  chunk.set_chunk_index(next_chunk_index_++); // ✅ uses the new member
-  chunk.set_content(content.data(), content.size());
+    const auto owned = FfiClient::instance().textStreamOpenAsync(participant_handle, options).get();
+    handle = owned.handle().id();
+    TextStreamInfo info = fromProto(owned.info());
+    info.size = total_size_; // Text streams can't transmit a size; keep the local one.
+    self->info_ = std::move(info);
+    applyOpenedInfo(self->info_.timestamp, self->info_.mime_type);
+  } else if (kind_ == StreamKind::kByte) {
+    auto* self = static_cast<ByteStreamWriter*>(this);
+    proto::StreamByteOptions options;
+    options.set_topic(topic_);
+    for (const auto& kv : attributes_) {
+      (*options.mutable_attributes())[kv.first] = kv.second;
+    }
+    for (const auto& identity : destination_identities_) {
+      options.add_destination_identities(identity);
+    }
+    options.set_id(stream_id_);
+    if (!byte_name_.empty()) {
+      options.set_name(byte_name_);
+    }
+    if (!mime_type_.empty()) {
+      options.set_mime_type(mime_type_);
+    }
+    if (total_size_) {
+      options.set_total_length(static_cast<std::uint64_t>(*total_size_));
+    }
+    options.set_sender_identity(sender_identity_);
 
-  FfiClient::instance()
-      .sendStreamChunkAsync(local_participant_.ffiHandleId(), chunk, destination_identities_, sender_identity_)
-      .get();
+    const auto owned = FfiClient::instance().byteStreamOpenAsync(participant_handle, options).get();
+    handle = owned.handle().id();
+    self->info_ = fromProto(owned.info());
+    applyOpenedInfo(self->info_.timestamp, self->info_.mime_type);
+  } else {
+    throw DataStreamError("stream writer: unknown stream kind");
+  }
+
+  bool gone = false;
+  {
+    const std::scoped_lock<std::mutex> lock(state_mutex_);
+    gone = participant_gone_;
+    if (!gone) {
+      writer_handle_ = handle;
+    }
+  }
+  if (gone) {
+    // The room disconnected while the open was in flight.
+    (void)dropFfiHandle(handle);
+    throwNotConnected();
+  }
 }
 
-void BaseStreamWriter::sendTrailer(const std::string& reason, const std::map<std::string, std::string>& attributes) {
-  ensureHeaderSent();
+void BaseStreamWriter::open() {
+  const std::scoped_lock<std::mutex> op(op_mutex_);
+  openLocked();
+}
 
-  proto::DataStream::Trailer trailer;
-  trailer.set_stream_id(stream_id_);
-  trailer.set_reason(reason);
-
-  for (const auto& kv : attributes) {
-    (*trailer.mutable_attributes())[kv.first] = kv.second;
+void BaseStreamWriter::writePayload(const char* data, std::size_t size, const char* closed_message) {
+  const std::scoped_lock<std::mutex> op(op_mutex_);
+  if (closed_) {
+    const std::scoped_lock<std::mutex> lock(state_mutex_);
+    if (participant_gone_) {
+      throwNotConnected();
+    }
+    throw DataStreamError(closed_message);
   }
+  if (size == 0) {
+    return;
+  }
+  openLocked();
 
-  FfiClient::instance().sendStreamTrailerAsync(local_participant_.ffiHandleId(), trailer, sender_identity_).get();
+  std::uint64_t handle = 0;
+  {
+    const std::scoped_lock<std::mutex> lock(state_mutex_);
+    if (participant_gone_) {
+      throwNotConnected();
+    }
+    handle = writer_handle_;
+  }
+  // Wait for each write before the next one: the SDK core runs every write
+  // request as its own task, so unawaited writes could reorder or land after
+  // the trailer.
+  if (kind_ == StreamKind::kText) {
+    FfiClient::instance().textStreamWriteAsync(handle, std::string(data, size)).get();
+  } else {
+    FfiClient::instance().byteStreamWriteAsync(handle, reinterpret_cast<const std::uint8_t*>(data), size).get();
+  }
+}
+
+void BaseStreamWriter::closeLocked(const std::string& reason, const std::map<std::string, std::string>& attributes) {
+  openLocked();
+  // close consumes the handle; it must not be dropped afterwards.
+  const std::uint64_t handle = takeHandle();
+  if (handle == 0) {
+    throwNotConnected();
+  }
+  const std::optional<std::string> close_reason = reason.empty() ? std::nullopt : std::optional<std::string>(reason);
+  if (kind_ == StreamKind::kText) {
+    FfiClient::instance().textStreamCloseAsync(handle, close_reason, attributes).get();
+  } else {
+    FfiClient::instance().byteStreamCloseAsync(handle, close_reason, attributes).get();
+  }
 }
 
 void BaseStreamWriter::close(const std::string& reason, const std::map<std::string, std::string>& attributes) {
-  if (closed_) {
-    throw std::runtime_error("Stream already closed");
+  // Taking op_mutex_ orders the close after any in-flight write.
+  const std::scoped_lock<std::mutex> op(op_mutex_);
+  {
+    const std::scoped_lock<std::mutex> lock(state_mutex_);
+    if (participant_gone_) {
+      throwNotConnected();
+    }
   }
+  if (closed_.exchange(true)) {
+    throw DataStreamError("Stream already closed");
+  }
+  closeLocked(reason, attributes);
+}
+
+void BaseStreamWriter::ensureHeaderSent() { open(); }
+
+void BaseStreamWriter::sendChunk(const std::vector<std::uint8_t>& content) {
+  writePayload(reinterpret_cast<const char*>(content.data()), content.size(),
+               "Cannot send chunk after stream is closed");
+}
+
+void BaseStreamWriter::sendTrailer(const std::string& reason, const std::map<std::string, std::string>& attributes) {
+  const std::scoped_lock<std::mutex> op(op_mutex_);
   closed_ = true;
-  sendTrailer(reason, attributes);
+  closeLocked(reason, attributes);
 }
 
 TextStreamWriter::TextStreamWriter(LocalParticipant& local_participant, const std::string& topic,
@@ -285,25 +619,33 @@ TextStreamWriter::TextStreamWriter(LocalParticipant& local_participant, const st
                        /*mime_type=*/"text/plain", destination_identities, sender_identity) {
   kind_ = StreamKind::kText;
   reply_to_id_ = reply_to_id;
-  // ✅ Canonical user-facing metadata comes from BaseStreamWriter fields.
   fillBaseInfo(info_, stream_id_, mime_type_, topic_, timestamp_ms_, total_size_, attributes_);
   if (!reply_to_id.empty()) {
     info_.reply_to_stream_id = reply_to_id;
   }
 }
 
-void TextStreamWriter::write(const std::string& text) {
-  const std::scoped_lock<std::mutex> lock(write_mutex_);
-  if (closed_) {
-    throw std::runtime_error("Cannot write to closed TextStreamWriter");
-  }
+TextStreamWriter::TextStreamWriter(FactoryTag /*tag*/, LocalParticipant& local_participant,
+                                   const StreamTextOptions& options)
+    : BaseStreamWriter(local_participant, options.topic, options.attributes, options.stream_id.value_or(""),
+                       std::nullopt, /*mime_type=*/"text/plain", options.destination_identities,
+                       options.sender_identity.value_or("")),
+      attached_stream_ids_(options.attached_stream_ids),
+      operation_type_(options.operation_type),
+      version_(options.version),
+      generated_(options.generated) {
+  kind_ = StreamKind::kText;
+  reply_to_id_ = options.reply_to_stream_id.value_or("");
+  fillBaseInfo(info_, stream_id_, mime_type_, topic_, timestamp_ms_, total_size_, attributes_);
+  info_.reply_to_stream_id = options.reply_to_stream_id;
+  info_.attachments = attached_stream_ids_;
+  info_.operation_type = operation_type_;
+  info_.version = version_;
+  info_.generated = generated_;
+}
 
-  for (const auto& chunk_str : splitUtf8(text, kStreamChunkSize)) {
-    const auto* p = reinterpret_cast<const std::uint8_t*>(chunk_str.data());
-    const std::vector<std::uint8_t> bytes(p, p + chunk_str.size());
-    LK_LOG_DEBUG("sending chunk");
-    sendChunk(bytes);
-  }
+void TextStreamWriter::write(const std::string& text) {
+  writePayload(text.data(), text.size(), "Cannot write to closed TextStreamWriter");
 }
 
 ByteStreamWriter::ByteStreamWriter(LocalParticipant& local_participant, const std::string& name,
@@ -319,20 +661,22 @@ ByteStreamWriter::ByteStreamWriter(LocalParticipant& local_participant, const st
   info_.name = name;
 }
 
-void ByteStreamWriter::write(const std::vector<std::uint8_t>& data) {
-  const std::scoped_lock<std::mutex> lock(write_mutex_);
-  if (closed_) {
-    throw std::runtime_error("Cannot write to closed ByteStreamWriter");
-  }
+ByteStreamWriter::ByteStreamWriter(FactoryTag /*tag*/, LocalParticipant& local_participant,
+                                   const StreamByteOptions& options)
+    : BaseStreamWriter(local_participant, options.topic, options.attributes, options.stream_id.value_or(""),
+                       options.total_length
+                           ? std::optional<std::size_t>(static_cast<std::size_t>(*options.total_length))
+                           : std::nullopt,
+                       options.mime_type.value_or("application/octet-stream"), options.destination_identities,
+                       options.sender_identity.value_or("")) {
+  kind_ = StreamKind::kByte;
+  byte_name_ = options.name.value_or("");
+  fillBaseInfo(info_, stream_id_, mime_type_, topic_, timestamp_ms_, total_size_, attributes_);
+  info_.name = byte_name_;
+}
 
-  std::size_t offset = 0;
-  while (offset < data.size()) {
-    const std::size_t n = std::min<std::size_t>(kStreamChunkSize, data.size() - offset);
-    auto it = data.begin() + static_cast<std::ptrdiff_t>(offset);
-    const std::vector<std::uint8_t> chunk(it, it + static_cast<std::ptrdiff_t>(n));
-    sendChunk(chunk);
-    offset += n;
-  }
+void ByteStreamWriter::write(const std::vector<std::uint8_t>& data) {
+  writePayload(reinterpret_cast<const char*>(data.data()), data.size(), "Cannot write to closed ByteStreamWriter");
 }
 
 } // namespace livekit

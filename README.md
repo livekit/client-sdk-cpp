@@ -226,7 +226,10 @@ token source helpers for endpoint, development token server, and custom backends
 - Dynamic token sourcing (literal, custom, endpoint, development token server, caching)
 - Receive remote audio/video tracks
 - Publish local audio/video tracks
-- Data tracks (low-level) and data streams (high-level)
+- Data tracks (low-level) and data streams (high-level): one-shot `sendText` /
+  `sendBytes` / `sendFile` with compression, incremental writers, per-topic
+  stream handlers, and writing received byte streams straight to a file
+  (`ByteStreamReader::writeToFile`)
 - RPC between participants
 - End-to-end encryption (E2EE)
 - Hardware-accelerated codecs (via the underlying Rust SDK)

@@ -28,9 +28,7 @@ namespace livekit {
 
 enum class RpcErrorCode;
 class RemoteParticipant;
-struct ByteStreamInfo;
 struct RoomOptions;
-struct TextStreamInfo;
 
 // --------- basic helper conversions ---------
 
@@ -44,10 +42,6 @@ LIVEKIT_INTERNAL_API UserPacketData fromProto(const proto::UserPacket& in);
 LIVEKIT_INTERNAL_API SipDtmfData fromProto(const proto::SipDTMF& in);
 LIVEKIT_INTERNAL_API RoomInfoData fromProto(const proto::RoomInfo& in);
 
-LIVEKIT_INTERNAL_API DataStreamHeaderData fromProto(const proto::DataStream_Header& in);
-LIVEKIT_INTERNAL_API DataStreamChunkData fromProto(const proto::DataStream_Chunk& in);
-LIVEKIT_INTERNAL_API DataStreamTrailerData fromProto(const proto::DataStream_Trailer& in);
-
 // --------- event conversions (RoomEvent.oneof message) ---------
 
 LIVEKIT_INTERNAL_API RoomSidChangedEvent fromProto(const proto::RoomSidChanged& in);
@@ -58,10 +52,6 @@ LIVEKIT_INTERNAL_API ReconnectingEvent fromProto(const proto::Reconnecting& in);
 LIVEKIT_INTERNAL_API ReconnectedEvent fromProto(const proto::Reconnected& in);
 LIVEKIT_INTERNAL_API TokenRefreshedEvent fromProto(const proto::TokenRefreshed& in);
 LIVEKIT_INTERNAL_API RoomEosEvent fromProto(const proto::RoomEOS& in);
-
-LIVEKIT_INTERNAL_API DataStreamHeaderReceivedEvent fromProto(const proto::DataStreamHeaderReceived& in);
-LIVEKIT_INTERNAL_API DataStreamChunkReceivedEvent fromProto(const proto::DataStreamChunkReceived& in);
-LIVEKIT_INTERNAL_API DataStreamTrailerReceivedEvent fromProto(const proto::DataStreamTrailerReceived& in);
 
 LIVEKIT_INTERNAL_API DataChannelBufferedAmountLowThresholdChangedEvent
 fromProto(const proto::DataChannelBufferedAmountLowThresholdChanged& in);
@@ -93,10 +83,5 @@ LIVEKIT_INTERNAL_API UserDataPacketEvent userDataPacketFromProto(const proto::Da
 
 LIVEKIT_INTERNAL_API SipDtmfReceivedEvent sipDtmfFromProto(const proto::DataPacketReceived& in,
                                                            RemoteParticipant* participant);
-
-// --------- room Data Stream conversions ---------
-LIVEKIT_INTERNAL_API std::map<std::string, std::string> toAttrMap(const proto::DataStream::Trailer& trailer);
-LIVEKIT_INTERNAL_API ByteStreamInfo makeByteInfo(const proto::DataStream::Header& header);
-LIVEKIT_INTERNAL_API TextStreamInfo makeTextInfo(const proto::DataStream::Header& header);
 
 } // namespace livekit
