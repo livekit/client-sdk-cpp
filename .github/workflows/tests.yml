@@ -4,8 +4,8 @@ name: Tests
 on:
   workflow_call:
     inputs:
-      run_capture_bundle_tests:
-        description: Check selective and all-sources capture bundles outside PR runs.
+      extended_capture_sources:
+        description: Test pair combinations and selective bundles on macOS/Windows as well as Linux.
         required: false
         type: boolean
         default: false
@@ -61,6 +61,11 @@ on:
         default: true
   workflow_dispatch:
     inputs:
+      extended_capture_sources:
+        description: Test pair combinations and selective bundles on macOS/Windows as well as Linux.
+        required: false
+        type: boolean
+        default: false
       build_type:
         description: Debug or release test build.
         required: false
@@ -157,7 +162,7 @@ jobs:
             e2e-testing: true
           - os: macos-26-xlarge
             name: macos-arm64
-            selective_capture: true
+            extended_capture: true
             e2e-testing: true
           - os: macos-26-large
             name: macos-x64
@@ -166,7 +171,7 @@ jobs:
           # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
-            selective_capture: true
+            extended_capture: true
             e2e-testing: true
 
     name: Test (${{ matrix.name }})
@@ -219,7 +224,7 @@ jobs:
           linux-extra-packages: libunwind-dev libjpeg-dev gdb jq ${{ matrix.selective_capture && 'mesa-vulkan-drivers libvulkan1' || '' }}
 
       - name: Configure software Vulkan for capture source checks
-        if: runner.os == 'Linux' && matrix.selective_capture
+        if: matrix.selective_capture
         shell: bash
         run: |
           set -euo pipefail
@@ -315,7 +320,6 @@ jobs:
           macos-arch: ${{ matrix.macos_arch || '' }}
 
       - name: Test installed standard SDK
-        if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/test-sdk-bundle
         with:
           bundle-dir: sdk-out/test-sdk-standard
@@ -324,16 +328,16 @@ jobs:
           build-type: ${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }}
 
       - name: Test selective capture bundles
-        id: capture_bundles
-        if: inputs.run_capture_bundle_tests && github.event_name != 'pull_request' && matrix.selective_capture
+        if: matrix.name != 'macos-x64' && (matrix.selective_capture || (inputs.extended_capture_sources && matrix.extended_capture))
         uses: ./.github/actions/test-capture-variants
         with:
           preset: ${{ inputs.build_type }}
-          combinations: 'true'
-          verify-pixel-sources: ${{ runner.os != 'Windows' }}
+          combinations: ${{ inputs.extended_capture_sources }}
+          verify-pixel-sources: ${{ matrix.selective_capture || runner.os == 'macOS' }}
+          macos-arch: ${{ matrix.macos_arch || '' }}
 
       - name: Set up capture dependencies
-        if: matrix.name != 'macos-x64' && steps.capture_bundles.outcome == 'skipped'
+        if: ${{ matrix.name != 'macos-x64' && !(matrix.selective_capture || (inputs.extended_capture_sources && matrix.extended_capture)) }}
         uses: ./.github/actions/setup-capture
 
       - name: Build SDK with tests
@@ -344,13 +348,13 @@ jobs:
           bundle-dir: sdk-out/test-sdk-tests
           macos-arch: ${{ matrix.macos_arch || '' }}
 
-      - name: Test installed capture SDK
-        if: inputs.run_capture_bundle_tests && github.event_name != 'pull_request' && matrix.name != 'macos-x64'
+      - name: Test installed SDK used by tests
         uses: ./.github/actions/test-sdk-bundle
         with:
           bundle-dir: sdk-out/test-sdk-tests
-          capture: 'all'
-          verify-pixel-sources: ${{ matrix.selective_capture && runner.os != 'Windows' }}
+          capture: ${{ matrix.name == 'macos-x64' && 'none' || 'all' }}
+          verify-pixel-sources: ${{ matrix.selective_capture || (inputs.extended_capture_sources && runner.os == 'macOS' && matrix.extended_capture) }}
+          macos-arch: ${{ matrix.macos_arch || '' }}
           build-type: ${{ inputs.build_type == 'debug' && 'Debug' || 'Release' }}
 
       # ---------- Run unit tests ----------

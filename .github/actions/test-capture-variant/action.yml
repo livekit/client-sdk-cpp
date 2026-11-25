@@ -85,7 +85,7 @@ runs:
         build-type: ${{ inputs.preset == 'debug' && 'Debug' || 'Release' }}
         macos-arch: ${{ inputs.macos-arch }}
     - name: Save verified variant Cargo cache
-      if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) && steps.cache.outputs.cache-hit != 'true'
+      if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ${{ steps.variant.outputs.cargo-dir }}

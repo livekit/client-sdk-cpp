@@ -33,19 +33,16 @@ jobs:
             name: ubuntu-22.04-arm64
           - os: ubuntu-24.04
             name: ubuntu-24.04-x64
-            selective_capture: true
           - os: ubuntu-24.04-arm
             name: ubuntu-24.04-arm64
           - os: macos-26-xlarge
             name: macos-arm64
-            selective_capture: true
           - os: macos-26-large
             name: macos-x64
             macos_arch: x86_64
             # Pinned to Windows 2022 for current VS 17 implementation
           - os: windows-2022
             name: windows-x64
-            selective_capture: true
 
     name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
@@ -109,24 +106,6 @@ jobs:
 
       - name: Set up base SDK dependencies
         uses: ./.github/actions/setup-sdk-deps
-        with:
-          linux-extra-packages: ${{ matrix.selective_capture && 'mesa-vulkan-drivers libvulkan1' || '' }}
-
-      - name: Configure software Vulkan for capture source checks
-        if: runner.os == 'Linux' && matrix.selective_capture
-        shell: bash
-        run: |
-          set -euo pipefail
-          icds=(/usr/share/vulkan/icd.d/lvp_icd*.json)
-          test -f "${icds[0]}"
-          runtime_dir="$RUNNER_TEMP/capture-runtime"
-          mkdir -p "$runtime_dir"
-          chmod 700 "$runtime_dir"
-          {
-            echo "VK_ICD_FILENAMES=${icds[0]}"
-            echo "WGPU_BACKEND=vulkan"
-            echo "XDG_RUNTIME_DIR=$runtime_dir"
-          } >> "$GITHUB_ENV"
 
       # ---------- Rust toolchain ----------
       - name: Install Rust (stable)
@@ -216,16 +195,8 @@ jobs:
           macos-arch: ${{ matrix.macos_arch || '' }}
           version: ${{ steps.version.outputs.version }}
 
-      - name: Test selective capture bundles
-        if: matrix.selective_capture
-        uses: ./.github/actions/test-capture-variants
-        with:
-          preset: release
-          combinations: 'true'
-          verify-pixel-sources: ${{ runner.os != 'Windows' }}
-
       - name: Set up capture dependencies
-        if: matrix.name != 'macos-x64' && !matrix.selective_capture
+        if: matrix.name != 'macos-x64'
         uses: ./.github/actions/setup-capture
 
       - name: Rebuild with capture
@@ -250,7 +221,6 @@ jobs:
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture-${{ steps.version.outputs.version }}
           capture: 'all'
-          verify-pixel-sources: ${{ matrix.selective_capture && runner.os != 'Windows' }}
           macos-arch: ${{ matrix.macos_arch || '' }}
           version: ${{ steps.version.outputs.version }}
 
