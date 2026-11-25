@@ -420,12 +420,18 @@ all filtered stages; normal pull requests and pushes use the path filters.
 - `.github/workflows/ci.yml` — Top-level PR/push/manual aggregator and path
   filter owner.
 - `.github/workflows/builds.yml` — Reusable SDK and example-collection build
-  matrix. Each platform job builds, validates, and uploads the standard SDK,
-  then enables capture in the same CMake tree and produces a separate capture
-  bundle. Save the Cargo target cache only after both builds complete.
+  matrix. Each platform job builds and uploads the standard SDK, validating its
+  installed bundle only on `main`, then enables capture in the same CMake tree
+  and produces a separate capture bundle. Save the Cargo target cache only
+  after both builds complete.
 - `.github/workflows/tests.yml` — Reusable unit/integration test matrix.
-  Each platform job first validates an installed standard SDK, then rebuilds
-  with capture enabled and runs the complete test suite once.
+  Each platform job builds a standard SDK (validating its installed bundle only
+  on `main`), then rebuilds with capture enabled and runs the complete test
+  suite once.
+  Capture bundle packaging runs on `main`, in nightly tests, and in releases.
+  Nightly tests and releases check singleton and pair variants on Ubuntu 24.04
+  x64, macOS arm64, and Windows x64. All three check all-sources bundles on
+  every capture-supported platform.
   The build, test, and release jobs use the shared actions under
   `.github/actions/`; keep platform-specific build and bundle checks there.
 - `.github/workflows/cpp-tools.yml` — Reusable SDK-specific `clang-format` and
