@@ -9,6 +9,8 @@ Additional documentation for the SDK.
   without maintaining your own video pipeline.
 - [Authentication](authentication.md) — generating tokens, token source types
   (initial connect only), and in-session token refresh.
+- [Agent dispatch](agent-dispatch.md): dispatch a named agent into a room
+  from your backend with `livekit::api::AgentDispatchClient`.
 - [Logging](logging.md) — compile-time vs runtime filtering, log levels,
   custom sinks (file, JSON, ROS2 `RCLCPP_*` macros).
 - [Tracing](tracing.md) — Chromium-format performance traces, viewing in

@@ -24,6 +24,7 @@
 #   LIVEKIT_TOKEN_A
 #   LIVEKIT_TOKEN_B
 #   LIVEKIT_URL=ws://localhost:7880
+#   LIVEKIT_API_KEY / LIVEKIT_API_SECRET (server API tests, default devkey/secret)
 #
 
 _sourced=0
@@ -112,17 +113,21 @@ _apply() {
   export LIVEKIT_TOKEN_A
   export LIVEKIT_TOKEN_B
   export LIVEKIT_URL
+  export LIVEKIT_API_KEY
+  export LIVEKIT_API_SECRET
 }
 
 _emit_eval() {
   printf 'export LIVEKIT_TOKEN_A=%q\n' "$LIVEKIT_TOKEN_A"
   printf 'export LIVEKIT_TOKEN_B=%q\n' "$LIVEKIT_TOKEN_B"
   printf 'export LIVEKIT_URL=%q\n' "$LIVEKIT_URL"
+  printf 'export LIVEKIT_API_KEY=%q\n' "$LIVEKIT_API_KEY"
+  printf 'export LIVEKIT_API_SECRET=%q\n' "$LIVEKIT_API_SECRET"
 }
 
 if [[ "$_sourced" -eq 1 ]]; then
   _apply
-  echo "LIVEKIT_TOKEN_A, LIVEKIT_TOKEN_B, and LIVEKIT_URL set for this shell." >&2
+  echo "LIVEKIT_TOKEN_A, LIVEKIT_TOKEN_B, LIVEKIT_URL, LIVEKIT_API_KEY, and LIVEKIT_API_SECRET set for this shell." >&2
 else
   _emit_eval
   echo "set_test_tokens: for this shell run: source $0   or: eval \"\$(bash $0)\"" >&2

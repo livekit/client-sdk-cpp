@@ -62,6 +62,8 @@ DEFAULT_FORBIDDEN = [
     "gst_",
     # Generated UniFFI C++ binding API and runtime implementation.
     "livekit_ffi::",
+    "livekit_common::",
+    "livekit_datatrack::",
     "uniffi::",
     "uniffi_",
 ]

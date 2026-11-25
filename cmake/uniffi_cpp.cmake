@@ -13,12 +13,22 @@
 # limitations under the License.
 
 set(LIVEKIT_UNIFFI_CPP_GENERATED_DIR "${LIVEKIT_BINARY_DIR}/generated/uniffi")
-set(LIVEKIT_UNIFFI_CPP_SOURCE
-    "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}/livekit_ffi.cpp")
 set(LIVEKIT_UNIFFI_CPP_HEADER
     "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}/livekit_ffi.hpp")
-set(LIVEKIT_UNIFFI_CPP_SCAFFOLDING_HEADER
-    "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}/livekit_ffi_scaffolding.hpp")
+
+# The generator writes one source, header, and scaffolding header per UniFFI
+# component in the library: livekit_ffi plus the crates whose types it uses.
+# shortcut: the component list is fixed here; add a name when livekit-ffi
+# exposes types from another uniffi crate (a link error names the missing one).
+set(LIVEKIT_UNIFFI_CPP_COMPONENTS livekit_ffi livekit_common livekit_datatrack)
+set(LIVEKIT_UNIFFI_CPP_SOURCES "")
+set(LIVEKIT_UNIFFI_CPP_OUTPUTS "")
+foreach(_component IN LISTS LIVEKIT_UNIFFI_CPP_COMPONENTS)
+  set(_base "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}/${_component}")
+  list(APPEND LIVEKIT_UNIFFI_CPP_SOURCES "${_base}.cpp")
+  list(APPEND LIVEKIT_UNIFFI_CPP_OUTPUTS
+    "${_base}.cpp" "${_base}.hpp" "${_base}_scaffolding.hpp")
+endforeach()
 
 # Release Linux builds strip the UniFFI metadata symbols, so generate from a
 # separate unstripped Debug library there. PE and Mach-O retain the metadata,
@@ -66,9 +76,7 @@ add_dependencies(build_livekit_ffi_metadata build_rust_ffi)
 
 add_custom_command(
   OUTPUT
-    "${LIVEKIT_UNIFFI_CPP_SOURCE}"
-    "${LIVEKIT_UNIFFI_CPP_HEADER}"
-    "${LIVEKIT_UNIFFI_CPP_SCAFFOLDING_HEADER}"
+    ${LIVEKIT_UNIFFI_CPP_OUTPUTS}
   COMMAND "${CMAKE_COMMAND}" -E make_directory
           "${LIVEKIT_UNIFFI_CPP_GENERATED_DIR}"
   COMMAND "${CMAKE_COMMAND}" -E env
@@ -91,20 +99,16 @@ add_custom_command(
 )
 add_custom_target(generate_livekit_ffi_uniffi_cpp
   DEPENDS
-    "${LIVEKIT_UNIFFI_CPP_SOURCE}"
-    "${LIVEKIT_UNIFFI_CPP_HEADER}"
-    "${LIVEKIT_UNIFFI_CPP_SCAFFOLDING_HEADER}"
+    ${LIVEKIT_UNIFFI_CPP_OUTPUTS}
 )
 
 set_source_files_properties(
-  "${LIVEKIT_UNIFFI_CPP_SOURCE}"
-  "${LIVEKIT_UNIFFI_CPP_HEADER}"
-  "${LIVEKIT_UNIFFI_CPP_SCAFFOLDING_HEADER}"
+  ${LIVEKIT_UNIFFI_CPP_OUTPUTS}
   PROPERTIES GENERATED TRUE
 )
 
 add_library(livekit_uniffi_cpp OBJECT
-  "${LIVEKIT_UNIFFI_CPP_SOURCE}"
+  ${LIVEKIT_UNIFFI_CPP_SOURCES}
 )
 set_target_properties(livekit_uniffi_cpp PROPERTIES
   CXX_VISIBILITY_PRESET hidden

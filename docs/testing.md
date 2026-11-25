@@ -76,6 +76,10 @@ export LIVEKIT_URL="ws://localhost:7880"            # or wss://your-server.livek
 export LIVEKIT_TOKEN_A="<first participant token>"
 export LIVEKIT_TOKEN_B="<second participant token>"
 
+# Server API tests (AgentDispatchClient). Default: devkey / secret.
+export LIVEKIT_API_KEY="devkey"
+export LIVEKIT_API_SECRET="secret"
+
 # Optional (for stress tests)
 export RPC_STRESS_DURATION_SECONDS=3600   # Test duration (default: 1 hour)
 export RPC_STRESS_CALLER_THREADS=4        # Concurrent caller threads (default: 4)
@@ -85,9 +89,20 @@ export RPC_STRESS_CALLER_THREADS=4        # Concurrent caller threads (default: 
 
 The easiest path is to source the helper script, which mints both
 participant tokens against a local `livekit-server --dev` and exports
-`LIVEKIT_TOKEN_A`, `LIVEKIT_TOKEN_B`, and `LIVEKIT_URL` for the current shell:
+`LIVEKIT_TOKEN_A`, `LIVEKIT_TOKEN_B`, `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and
+`LIVEKIT_API_SECRET` for the current shell:
 
 ```bash
+source scripts/set-test-tokens.sh
+```
+
+The script keeps values that the shell already exports. If your shell exports
+`LIVEKIT_URL`, `LIVEKIT_API_KEY`, or `LIVEKIT_API_SECRET` for a LiveKit Cloud
+project, the tests run against that project. To use the local server, set the
+three variables before you source the script:
+
+```bash
+export LIVEKIT_URL=ws://localhost:7880 LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRET=secret
 source scripts/set-test-tokens.sh
 ```
 

@@ -416,6 +416,7 @@ include(uniffi_cpp)
 # Note: protozero_plugin.o removal is no longer needed since we use dynamic libraries on Unix
 
 add_library(livekit SHARED
+  src/api/agent_dispatch_client.cpp
   src/audio_frame.cpp
   src/audio_processing_module.cpp
   src/audio_source.cpp
@@ -502,6 +503,7 @@ target_sources(livekit PRIVATE
 )
 set_source_files_properties(
   ${LIVEKIT_ROOT_DIR}/src/uniffi_bindgen_adapter.cpp
+  ${LIVEKIT_ROOT_DIR}/src/api/agent_dispatch_client.cpp
   PROPERTIES OBJECT_DEPENDS ${LIVEKIT_UNIFFI_CPP_HEADER}
 )
 
