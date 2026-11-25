@@ -430,6 +430,7 @@ add_library(livekit SHARED
   src/ffi_handle.cpp
   src/ffi_client.cpp
   src/ffi_client.h
+  src/length_prefixed_access_unit_parser.cpp
   src/livekit.cpp
   src/logging.cpp
   src/local_audio_track.cpp
