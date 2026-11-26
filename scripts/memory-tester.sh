@@ -50,6 +50,7 @@ Environment:
   MEMORY_TESTER_MAX_THREAD_GROWTH,
   MEMORY_TESTER_ADVISORY_MAX_RSS_GROWTH_MIB,
   MEMORY_TESTER_ADVISORY_MAX_THREAD_GROWTH, MALLOC_ARENA_MAX.
+  MEMORY_TESTER_REPORT overrides the GITHUB_STEP_SUMMARY report destination.
   All scenarios require LIVEKIT_URL and LIVEKIT_TOKEN_A.
 EOF
 }
@@ -63,6 +64,7 @@ max_rss_growth_mib="${MEMORY_TESTER_MAX_RSS_GROWTH_MIB:-8}"
 max_thread_growth="${MEMORY_TESTER_MAX_THREAD_GROWTH:-0}"
 advisory_max_rss_growth_mib="${MEMORY_TESTER_ADVISORY_MAX_RSS_GROWTH_MIB:-}"
 advisory_max_thread_growth="${MEMORY_TESTER_ADVISORY_MAX_THREAD_GROWTH:-}"
+summary_file="${MEMORY_TESTER_REPORT:-${GITHUB_STEP_SUMMARY:-}}"
 
 while (($#)); do
   case "$1" in
@@ -131,7 +133,7 @@ for current_scenario in "${scenarios[@]}"; do
   fi
 done
 
-if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+if [[ -n "${summary_file}" ]]; then
   {
     echo "## Memory tester results"
     echo
@@ -142,7 +144,7 @@ if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
     echo
     echo "| Scenario | RSS 0→${warmup} | RSS ${warmup}→${iterations} | Threads 0→${warmup} | Threads ${warmup}→${iterations} | Status |"
     echo "|---|---:|---:|---:|---:|---|"
-  } >> "${GITHUB_STEP_SUMMARY}"
+  } >> "${summary_file}"
 fi
 
 report_regex='memory tester: scenario=([a-z-]+), RSS 0 ([0-9]+\.[0-9]+) -> warmup ([0-9]+\.[0-9]+) MiB \((-?[0-9]+\.[0-9]+) MiB\) -> final ([0-9]+\.[0-9]+) MiB \((-?[0-9]+\.[0-9]+) MiB\), threads 0 ([0-9]+) -> warmup ([0-9]+) \((-?[0-9]+)\) -> final ([0-9]+) \((-?[0-9]+)\), verdict=(PASS|FAIL), advisory=(PASS|FAIL)'
@@ -186,7 +188,7 @@ for current_scenario in "${scenarios[@]}"; do
       fi
     fi
 
-    if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    if [[ -n "${summary_file}" ]]; then
       if [[ "${BASH_REMATCH[12]}" == "FAIL" ]]; then
         verdict=":x: FAIL"
       elif [[ "${advisory_exceeded}" == "true" ]]; then
@@ -199,12 +201,12 @@ for current_scenario in "${scenarios[@]}"; do
       thread_warmup_growth="$(format_growth "${BASH_REMATCH[9]}")"
       thread_final_growth="$(format_growth "${BASH_REMATCH[11]}")"
       echo "| ${BASH_REMATCH[1]} | ${rss_warmup_growth} MiB | ${rss_final_growth} MiB | ${thread_warmup_growth} | ${thread_final_growth} | ${verdict} |" \
-        >> "${GITHUB_STEP_SUMMARY}"
+        >> "${summary_file}"
     fi
   else
     echo "ERROR: ${current_scenario} did not produce a memory report." >&2
-    if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-      echo "| ${current_scenario} | — | — | — | — | :x: ERROR |" >> "${GITHUB_STEP_SUMMARY}"
+    if [[ -n "${summary_file}" ]]; then
+      echo "| ${current_scenario} | — | — | — | — | :x: ERROR |" >> "${summary_file}"
     fi
     status=1
   fi

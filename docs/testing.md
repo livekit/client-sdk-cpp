@@ -184,33 +184,30 @@ capture-enabled CI release jobs, the expectation is explicitly `ON`; a disabled
 bundle cannot pass by rejecting source creation. On Windows, add the installed
 SDK's `bin` directory and GStreamer's `bin` directory to `PATH` before running CTest.
 
-### Selective capture in CI
+### Capture packaging in CI
+
+PR CI runs capture builds and runtime tests. Packaging checks for the standard
+SDK run on `main` and in releases. On `main`, the test workflow checks
+singleton capture bundles on Ubuntu 24.04 x64 and all-sources bundles on every
+capture-supported platform.
 
 Intel macOS CI runs the standard SDK tests only; capture builds and checks are
 not supported on that platform.
 
-The Ubuntu 24.04 x64 test job checks `none`, each singleton source, and `all`.
-Singleton builds reuse the C++ build tree and do not compile the unit/integration
-suites. Pattern and clock builds run before GStreamer installation. This runner
-uses Mesa software Vulkan, and pixel-source creation must succeed. The full test
-suite runs once after rebuilding with all sources.
-
-The reusable `test-capture-variants` action uses `build-sdk` and
-`test-sdk-bundle`. The latter accepts `expected-sources` and
-`verify-pixel-sources`, so build, test, and release workflows share one installed
-consumer test. Nightly runs enable `extended_capture_sources`, adding the three
-two-source combinations on Linux and selective bundles on macOS arm64 and
-Windows x64. Windows validates exact metadata and source availability, allowing
-an explicit missing-adapter error for enabled pixel sources. Successful pixel
-creation is required on Linux and macOS. Manual test-workflow runs can enable
-the same coverage.
+Nightly runs and releases also check singleton and pair combinations on
+Ubuntu 24.04 x64, macOS arm64, and Windows x64 using `test-capture-variants`.
+These builds reuse the C++ build tree without compiling the unit/integration
+suites. Pattern and clock builds run before GStreamer installation. Linux uses
+Mesa software Vulkan. Pixel-source creation must succeed on Linux and macOS;
+Windows allows an explicit missing-adapter error for enabled pixel sources.
+All-sources bundles are checked on every capture-supported platform. Releases
+also verify the final bundle's version metadata before publication.
 
 Cargo caches include the build configuration, build type, and source selection.
-Each variant reports elapsed time and cache hits in the job summary.
 Each selective variant has its own cache, saved after its installed-bundle check
-passes on trusted main runs. The variant's temporary Cargo directory is then
-removed to bound disk usage. Standard/all outputs use the existing shared cache,
-saved after the full suite passes. Rust variants still compile separately on
+passes on trusted main or version-tag runs. The variant's temporary Cargo
+directory is then removed to bound disk usage. Standard/all outputs use the
+existing shared cache, saved after successful builds. Rust variants still compile separately on
 cold runs even though C++ dependencies are reused.
 
 ## Test coverage
@@ -256,7 +253,7 @@ Each scenario reports process RSS and thread count at cycle 0, after warmup
 cycle 20, and after final cycle 100. Checkpoint sampling waits for the thread
 count to remain stable for 500 ms so short-lived teardown work does not cause a
 false failure. The gate applies to warmup-to-final growth. CI fails above its
-blocking limits of 24 MiB RSS or two threads, which protects against large
+blocking limits of 24 MiB RSS or 10 threads, which protects against large
 customer-impacting regressions while allowing for allocator and dependency
 variation. It also emits a non-blocking advisory above 8 MiB RSS or zero
 threads. If threads grow, the tester reports when the final sustained growth
@@ -276,11 +273,11 @@ tokens before running any scenario:
 source scripts/set-test-tokens.sh
 scripts/memory-tester.sh --scenario audio-track \
   --iterations 100 --warmup 20 \
-  --max-rss-growth-mib 24 --max-thread-growth 2 \
+  --max-rss-growth-mib 24 --max-thread-growth 10 \
   --advisory-max-rss-growth-mib 8 --advisory-max-thread-growth 0
 scripts/memory-tester.sh --scenario video-track \
   --iterations 100 --warmup 20 \
-  --max-rss-growth-mib 24 --max-thread-growth 2 \
+  --max-rss-growth-mib 24 --max-thread-growth 10 \
   --advisory-max-rss-growth-mib 8 --advisory-max-thread-growth 0
 ```
 

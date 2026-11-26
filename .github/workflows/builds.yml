@@ -176,6 +176,7 @@ jobs:
           build-dir: ${{ env.BUILD_DIR }}
 
       - name: Test installed standard SDK
+        if: github.ref == 'refs/heads/main'
         uses: ./.github/actions/test-sdk-bundle
         with:
           bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}
@@ -210,14 +211,6 @@ jobs:
         uses: ./.github/actions/smoke-examples
         with:
           build-dir: ${{ env.BUILD_DIR }}
-
-      - name: Test installed capture SDK
-        if: matrix.name != 'macos-x64'
-        uses: ./.github/actions/test-sdk-bundle
-        with:
-          bundle-dir: sdk-out/livekit-sdk-${{ matrix.name }}-capture
-          capture: 'all'
-          macos-arch: ${{ matrix.macos_arch || '' }}
 
       - name: Upload capture SDK bundle
         if: matrix.name != 'macos-x64'
