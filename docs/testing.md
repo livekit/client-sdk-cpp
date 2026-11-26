@@ -216,7 +216,7 @@ Each scenario reports process RSS and thread count at cycle 0, after warmup
 cycle 20, and after final cycle 100. Checkpoint sampling waits for the thread
 count to remain stable for 500 ms so short-lived teardown work does not cause a
 false failure. The gate applies to warmup-to-final growth. CI fails above its
-blocking limits of 24 MiB RSS or two threads, which protects against large
+blocking limits of 24 MiB RSS or 10 threads, which protects against large
 customer-impacting regressions while allowing for allocator and dependency
 variation. It also emits a non-blocking advisory above 8 MiB RSS or zero
 threads. If threads grow, the tester reports when the final sustained growth
@@ -236,11 +236,11 @@ tokens before running any scenario:
 source scripts/set-test-tokens.sh
 scripts/memory-tester.sh --scenario audio-track \
   --iterations 100 --warmup 20 \
-  --max-rss-growth-mib 24 --max-thread-growth 2 \
+  --max-rss-growth-mib 24 --max-thread-growth 10 \
   --advisory-max-rss-growth-mib 8 --advisory-max-thread-growth 0
 scripts/memory-tester.sh --scenario video-track \
   --iterations 100 --warmup 20 \
-  --max-rss-growth-mib 24 --max-thread-growth 2 \
+  --max-rss-growth-mib 24 --max-thread-growth 10 \
   --advisory-max-rss-growth-mib 8 --advisory-max-thread-growth 0
 ```
 

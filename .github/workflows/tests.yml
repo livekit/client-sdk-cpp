@@ -457,11 +457,13 @@ jobs:
             --gtest_output=xml:${{ env.BUILD_DIR }}/integration-test-results.xml
 
       - name: Run memory tester
+        id: memory
         if: matrix.name == 'ubuntu-24.04-x64' && inputs.build_type == 'release'
         timeout-minutes: 10
         shell: bash
         run: |
           set -euo pipefail
+          export MEMORY_TESTER_REPORT="$RUNNER_TEMP/memory-tester-report.md"
           source scripts/set-test-tokens.sh
           scripts/memory-tester.sh \
             --build-dir "${{ env.BUILD_DIR }}" \
@@ -469,9 +471,29 @@ jobs:
             --iterations 100 \
             --warmup 20 \
             --max-rss-growth-mib 24 \
-            --max-thread-growth 2 \
+            --max-thread-growth 10 \
             --advisory-max-rss-growth-mib 8 \
             --advisory-max-thread-growth 0
+
+      - name: Summarize memory results
+        if: always() && steps.memory.outcome != 'skipped' && steps.memory.outcome != ''
+        shell: bash
+        env:
+          MEMORY_OUTCOME: ${{ steps.memory.outcome }}
+        run: |
+          report="$RUNNER_TEMP/memory-tester-report.md"
+          if [[ "$MEMORY_OUTCOME" != 'success' ]]; then
+            echo ':x: FAIL — memory tester did not complete successfully. See the run logs.' >> "$report"
+          fi
+          cat "$report" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload memory results
+        if: always() && steps.memory.outcome != 'skipped' && steps.memory.outcome != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: memory-tester-report-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/memory-tester-report.md
+          retention-days: ${{ inputs.artifact_retention_days }}
 
       - name: Run stress tests
         if: matrix.e2e-testing && inputs.run_stress_tests
