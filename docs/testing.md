@@ -222,10 +222,6 @@ variation. It also emits a non-blocking advisory above 8 MiB RSS or zero
 threads. If threads grow, the tester reports when the final sustained growth
 began and groups the warmup and final threads by their Linux thread names.
 
-Each PR run with memory results creates or updates a single comment with the
-scenario table and a link to the CI run, including passing results. PR commenting is
-handled by a separate workflow, which becomes active once it is on `main`.
-
 The binary can be run directly, or via a helper script at `scripts/memory-tester.sh`,
 which invokes the binary but also has GitHub actions support for a results summary table.
 The helper defaults `MALLOC_ARENA_MAX` to `1` when launching each tester process.
