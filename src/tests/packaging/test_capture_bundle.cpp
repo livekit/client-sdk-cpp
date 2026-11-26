@@ -87,6 +87,31 @@ bool checkSources() {
   clock.framerate_fps = 30;
   success =
       checkSource("clock", clock, LIVEKIT_EXPECT_CLOCK != 0, livekit::capture::CaptureSourceKind::Pixel) && success;
+
+  if (LIVEKIT_EXPECT_GSTREAMER) {
+    try {
+      livekit::capture::GstreamerAudioSourceConfig audio;
+      audio.pipeline =
+          "audiotestsrc samplesperbuffer=480 num-buffers=2 ! "
+          "audio/x-raw,format=S16LE,layout=interleaved,rate=48000,channels=1 ! "
+          "appsink name=lk_audio_appsink";
+      auto created = livekit::capture::GstreamerAudioCaptureSource::create(audio).get();
+      if (!created || !created.value()->audioSource() || created.value()->format().samples_per_channel != 480 ||
+          !created.value()->start()) {
+        std::cerr << "gstreamer audio capture: unexpected source metadata\n";
+        success = false;
+      } else {
+        const auto finished = created.value()->join().get();
+        if (!finished || finished.value().frames_captured == 0) {
+          std::cerr << "gstreamer audio capture: missing terminal statistics\n";
+          success = false;
+        }
+      }
+    } catch (const std::exception& error) {
+      std::cerr << "gstreamer audio: " << error.what() << '\n';
+      success = false;
+    }
+  }
   return success;
 }
 

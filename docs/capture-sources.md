@@ -2,15 +2,16 @@
 
 > **NOTE:** LiveKit Capture is not officially supported on Intel-based Macs.
 
-`livekit::capture::CaptureSource` connects a Rust video producer to a regular C++ `VideoSource`.
-The capture pump runs in Rust, so C++ does not send one FFI request per frame.
-The SDK supports three source configurations:
+The capture APIs connect Rust media producers to regular C++ track
+types. Media frames stay in Rust, so C++ does not send one FFI request per
+frame. The SDK supports video capture and GStreamer PCM audio capture.
 
 | Configuration | Output | Runtime requirements |
 | --- | --- | --- |
 | `PatternVideoSourceConfig` | GPU-rendered gradient or LiveKit logo | Compatible GPU adapter |
 | `ClockVideoSourceConfig` | GPU-rendered local time with millisecond precision | Compatible GPU adapter |
 | `GstreamerVideoSourceConfig` | Pre-encoded video from a GStreamer pipeline | GStreamer runtime and the pipeline's plugins |
+| `GstreamerAudioSourceConfig` | PCM S16LE audio into an `AudioSource` | GStreamer runtime and the pipeline's plugins |
 
 A custom SDK build can include all sources or a subset selected with
 `--capture=pattern,clock` or `--capture=gstreamer`. Release `-capture` bundles
@@ -29,8 +30,18 @@ requirements, see [Building — Capture sources](building.md#capture-sources).
 Capture types live in the `livekit::capture` namespace. Capture-enabled bundles
 install the API in `include/livekit/capture/`:
 
+| Header | Contents |
+| --- | --- |
+| `capture_source.h` | Umbrella for all capture APIs; existing callers can keep this include |
+| `audio_source.h` | Audio capture and its configurations |
+| `video_source.h` | Video capture and its configurations |
+| `capture_types.h` | Shared capture results, errors, and exit reasons |
+
+Include the umbrella for the full API, or the audio and video headers directly:
+
 ```cpp
-#include <livekit/capture/capture_source.h>
+#include <livekit/capture/video_source.h>
+#include <livekit/capture/audio_source.h>
 ```
 
 Standard SDK bundles omit the `capture/` directory, and their other installed
@@ -52,7 +63,7 @@ continues, and the source is released when the callback arrives.
 
 ```cpp
 #include <livekit/livekit.h>
-#include <livekit/capture/capture_source.h>
+#include <livekit/capture/video_source.h>
 
 // The SDK is initialized, and room is connected.
 try {
@@ -90,6 +101,43 @@ finish without waiting. `join()` consumes the running pump, waits for its
 thread to exit, and reports the exit reason and frame count. For unbounded
 sources, call `stop()` before `join()`. Destroying the source also stops
 capture.
+
+## GStreamer audio capture
+
+`GstreamerAudioSourceConfig` follows the naming of `GstreamerVideoSourceConfig`.
+Both source APIs create asynchronously and use
+the same `start()`, `stop()`, and `join()` lifecycle, `CaptureResult`, and
+`CaptureError` types.
+
+`GstreamerAudioCaptureSource` asynchronously creates a fixed-format PCM S16LE
+pipeline and owns the `AudioSource` fed by its Rust capture pump. Publish that
+source through a normal `LocalAudioTrack`, then use the same start, stop, and
+join lifecycle as video capture:
+
+```cpp
+livekit::capture::GstreamerAudioSourceConfig config;
+config.pipeline = "audiotestsrc ! audioconvert ! "
+                  "audio/x-raw,format=S16LE,layout=interleaved,rate=48000,channels=1 ! "
+                  "appsink name=lk_audio_appsink";
+config.sample_rate = 48000;
+config.num_channels = 1;
+
+auto capture = livekit::capture::GstreamerAudioCaptureSource::create(config).get().value();
+auto track = livekit::LocalAudioTrack::createLocalAudioTrack("gstreamer", capture->audioSource());
+participant->publishTrack(track);
+capture->start().value();
+
+capture->stop().value();
+auto result = capture->join().get().value();
+// result contains frames_captured (one frame = 10 ms of audio) and exit.
+```
+
+The negotiated `format()` reports sample rate, channel count, and samples per
+channel. Rust validates that pipeline caps match the requested fixed format.
+Unlike video resolution and codec discovery, audio requires an explicit fixed
+format (48 kHz and mono by default). Audio frames are always 10 ms. The pipeline
+must contain the named appsink. Audio capture does not expose video's `publishOptions()` helper;
+publish it with normal audio track options.
 
 ## GStreamer encoded pipelines
 

@@ -17,7 +17,7 @@
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/unknown_field_set.h>
 #include <gtest/gtest.h>
-#include <livekit/capture/capture_source.h>
+#include <livekit/capture/video_source.h>
 #include <livekit/track.h>
 
 #include <chrono>

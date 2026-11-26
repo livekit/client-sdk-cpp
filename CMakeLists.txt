@@ -473,7 +473,10 @@ add_library(livekit SHARED
 )
 # Conditionally compile capture sources
 if(LIVEKIT_CAPTURE_ENABLED)
-  target_sources(livekit PRIVATE src/capture_source.cpp)
+  target_sources(livekit PRIVATE
+    src/audio_capture_source.cpp
+    src/capture_source.cpp
+  )
 endif()
 
 # Symbol visibility: keep liblivekit's exported ABI restricted to the public
